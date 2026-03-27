@@ -16,6 +16,7 @@ The test plan must catch:
 - provider event mapping regression
 - relay-first and overlay transport regression
 - frontend contract drift against relay APIs
+- Android mobile packaging and runtime wiring regression
 - environment/configuration regression before release
 
 ## Test Layers
@@ -85,6 +86,43 @@ Recommended frequency:
 
 - every PR in CI
 - before cutting any release tag intended to ship Windows assets
+
+### Layer 0.75: Android Packaging Gate
+
+Purpose:
+
+- catch Android-only build regressions before release
+- verify the generated Tauri Android project still matches the configured package identifier
+- verify the Rust mobile library, Gradle packaging, and Tauri Android bridge stay aligned
+
+Execution commands:
+
+```bash
+cd apps/vibe-app
+npm run android:build:debug:apk
+npm run android:build:apk
+npm run android:build:aab
+```
+
+Environment notes:
+
+- install JDK 17
+- install Android SDK cmdline-tools and accept licenses
+- install `platform-tools`, `platforms;android-36`, `build-tools;35.0.0`, and `ndk;25.2.9519653`
+- export `ANDROID_HOME`, `ANDROID_SDK_ROOT`, `NDK_HOME`, and `ANDROID_NDK_HOME`
+- install the Rust target with `rustup target add aarch64-linux-android`
+
+Pass criteria:
+
+- debug APK is produced at `apps/vibe-app/src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk`
+- release APK is produced at `apps/vibe-app/src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk`
+- release AAB is produced at `apps/vibe-app/src-tauri/gen/android/app/build/outputs/bundle/universalRelease/app-universal-release.aab`
+- APK metadata reports package name `org.fageac.viberemote`
+
+Recommended frequency:
+
+- run the debug APK build on every PR in CI
+- run all three commands before any release tag intended to ship Android artifacts
 
 ### Layer 1: Rust Unit and Contract Tests
 
@@ -228,6 +266,27 @@ Recommended frequency:
 - before desktop releases
 - after changing `apps/vibe-app/src-tauri`
 
+### Layer 4.5: Android Device Validation
+
+Purpose:
+
+- catch issues that only appear on a real phone, especially relay URL configuration and mobile viewport behavior
+
+Manual checks:
+
+1. Install the debug APK on a physical Android device.
+2. Configure the relay URL with `http://<server-lan-ip>:8787` or a public HTTPS URL, not `http://127.0.0.1:8787`.
+3. Verify the dashboard loads and device counts render correctly.
+4. Verify task creation, live updates, shell session output, and port-forward flows from the phone.
+5. Verify the mobile layout remains usable in portrait orientation.
+
+Recommended frequency:
+
+- before shipping Android artifacts
+- after changing `apps/vibe-app/src/views/DashboardView.vue`
+- after changing `apps/vibe-app/src/lib/api.ts`
+- after changing `apps/vibe-app/src-tauri`
+
 ## Release Validation Matrix
 
 ### Minimum PR Gate
@@ -238,6 +297,12 @@ cargo check -p vibe-relay -p vibe-agent -p vibe-app
 cargo test --workspace --all-targets -- --nocapture
 cd apps/vibe-app && npm run build
 ./scripts/dual-process-smoke.sh relay_polling
+```
+
+For PRs that touch Android packaging or mobile shell code, add:
+
+```bash
+cd apps/vibe-app && npm run android:build:debug:apk
 ```
 
 ### Networking or Transport Change Gate
@@ -262,14 +327,34 @@ Apply this extended gate when changing:
 - `apps/vibe-agent/src/port_forward_bridge.rs`
 - `apps/vibe-agent/src/easytier.rs`
 
+### Android Release Gate
+
+Run the minimum PR gate, then add:
+
+```bash
+cd apps/vibe-app && npm run android:build:debug:apk
+cd apps/vibe-app && npm run android:build:apk
+cd apps/vibe-app && npm run android:build:aab
+```
+
+Complete these with the Android device manual checks when shipping mobile artifacts.
+
+Apply this gate when changing:
+
+- `apps/vibe-app/src-tauri/tauri.conf.json`
+- `apps/vibe-app/src-tauri/gen/android/**`
+- `apps/vibe-app/src-tauri/src/lib.rs`
+- `apps/vibe-app/package.json`
+
 ### Release Gate
 
 Run the networking or transport change gate, then complete:
 
 - frontend manual regression checklist
 - Tauri shell manual validation
+- Android device manual validation when mobile artifacts are included
 - environment-variable sanity checks for tokenized relay access
-- GitHub Actions release packaging for Linux and Windows
+- GitHub Actions release packaging for Linux, Windows, and Android
 
 ## Current Coverage Gaps
 
@@ -291,6 +376,7 @@ These areas should be added next if the goal is a more complete automated test s
 6. cross-platform runtime validation
    - Linux remains the most complete smoke-test baseline
    - Windows now has dedicated compile/package validation in CI and Release, but still lacks runtime smoke coverage
+   - Android now has dedicated APK/AAB packaging validation, but still lacks emulator or device-level automated smoke coverage
    - macOS shell behavior and packaging still need dedicated validation
 
 ## Execution Record Template
@@ -312,7 +398,7 @@ Date:
 
 Workspace state:
 
-- clean worktree before execution
+- Android mobile support changes applied in the workspace before execution
 
 Executed commands:
 
@@ -323,6 +409,9 @@ cargo test --workspace --all-targets -- --nocapture
 cd apps/vibe-app && npm run build
 ./scripts/dual-process-smoke.sh relay_polling
 ./scripts/dual-process-smoke.sh overlay
+cd apps/vibe-app && npm run android:build:debug:apk
+cd apps/vibe-app && npm run android:build:apk
+cd apps/vibe-app && npm run android:build:aab
 ```
 
 Result:
@@ -330,5 +419,6 @@ Result:
 - all commands passed
 - `relay_polling` smoke passed with successful task execution and relay-tunnel port forwarding
 - `overlay` smoke passed with successful task execution, shell session I/O, and overlay port forwarding
+- Android debug APK, release APK, and release AAB builds passed
 - frontend manual regression not executed in this run
 - Tauri GUI manual validation not executed in this run

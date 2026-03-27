@@ -15,6 +15,7 @@ Rust-first 的远程 AI 控制平面：`Rust relay + Rust agent + Vue 3.5 + Taur
 - 当前定位：个人版 MVP / 开源实验项目
 - 当前已打通：设备注册、任务执行、事件流、Shell Session、Relay-first 端口转发、Overlay 辅助转发
 - 当前技术方向：以 Rust 为核心，控制端统一走 Vue + Tauri，服务端和 Agent 统一协议
+- 当前移动端：Android arm64 APK / AAB 已打通，iOS 待补齐
 - 当前适用场景：个人远程 AI 工作台、自托管多设备控制面、跨平台实验性远程协作
 
 ## 核心能力
@@ -22,10 +23,11 @@ Rust-first 的远程 AI 控制平面：`Rust relay + Rust agent + Vue 3.5 + Taur
 - Rust workspace 架构，协议、服务端、Agent、桌面端共享同一仓库
 - `vibe-relay` 提供 Axum API、设备状态管理、任务与会话调度
 - `vibe-agent` 提供设备注册、轮询执行、Provider 适配、Shell 与端口转发运行时
-- `vibe-app` 提供 Vue 3.5 控制台，`src-tauri` 提供桌面壳
+- `vibe-app` 提供 Vue 3.5 控制台，`src-tauri` 提供桌面壳和 Android 移动壳
 - 支持 `Codex`、`Claude Code`、`OpenCode` Provider 接入
 - 支持 Relay-first 任务、Shell、TCP 端口转发
 - 支持基于 EasyTier 的 Overlay 辅助传输
+- 支持 Tauri Android arm64 调试 APK、release APK 与 AAB 构建
 - 支持 SSE / WebSocket / Tunnel 等多种实时通道
 
 ## 架构概览
@@ -62,6 +64,7 @@ Rust-first 的远程 AI 控制平面：`Rust relay + Rust agent + Vue 3.5 + Taur
 │   ├── vibe-agent        # Device agent / runtimes / providers
 │   └── vibe-app          # Vue control app
 │       └── src-tauri     # Tauri desktop shell
+│           └── gen/android  # Generated Tauri Android project
 ├── crates
 │   └── vibe-core         # Shared protocol / models
 ├── scripts               # Smoke tests and helper scripts
@@ -76,6 +79,7 @@ Rust-first 的远程 AI 控制平面：`Rust relay + Rust agent + Vue 3.5 + Taur
 - Node.js 20+
 - `protobuf-compiler` 或可用的 `protoc`
 - Linux 下构建 Tauri 时需要 WebKitGTK / GTK 相关开发包
+- Android 构建需要 JDK 17、Android SDK cmdline-tools，以及 `platforms;android-36`、`build-tools;35.0.0`、`ndk;25.2.9519653`
 - Windows 下如果要启用 EasyTier / Overlay 相关能力，建议安装 Npcap，并启用 WinPcap API-compatible Mode
 - 如果要实际执行 AI 任务，需要本机至少安装一个 Provider CLI
   - `codex`
@@ -143,7 +147,47 @@ Tauri 桌面壳会读取：
 - `VIBE_PUBLIC_RELAY_BASE_URL`
 - `VIBE_RELAY_ACCESS_TOKEN`
 
-### 6. 验证链路
+### 6. 构建 Android 测试包
+
+如果你要从 Android 手机远程控制服务器，可以直接构建 Tauri Android 包：
+
+```bash
+rustup target add aarch64-linux-android
+
+export JAVA_HOME=/path/to/jdk-17
+export ANDROID_HOME=$HOME/Android/Sdk
+export ANDROID_SDK_ROOT=$ANDROID_HOME
+export NDK_HOME=$ANDROID_HOME/ndk/25.2.9519653
+export ANDROID_NDK_HOME=$NDK_HOME
+
+cd apps/vibe-app
+npm ci
+npm run android:build:debug:apk
+```
+
+默认调试 APK 输出路径：
+
+- `apps/vibe-app/src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk`
+
+如果你要生成 release 产物：
+
+```bash
+cd apps/vibe-app
+npm run android:build:apk
+npm run android:build:aab
+```
+
+对应输出路径：
+
+- `apps/vibe-app/src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk`
+- `apps/vibe-app/src-tauri/gen/android/app/build/outputs/bundle/universalRelease/app-universal-release.aab`
+
+注意：
+
+- 手机上的 relay 地址应该配置为 `http://<服务器局域网IP>:8787` 或 HTTPS 公网地址，不要使用 `http://127.0.0.1:8787`
+- 当前 Android 包默认允许 HTTP 明文流量，方便自托管局域网 relay；如果对外发布，仍然建议使用 HTTPS
+
+### 7. 验证链路
 
 完成以上步骤后，你应该可以看到：
 
@@ -168,6 +212,9 @@ cargo run -p vibe-relay
 cargo run -p vibe-agent -- --relay-url http://127.0.0.1:8787
 cd apps/vibe-app && npm run dev
 cd apps/vibe-app && npm run tauri dev
+cd apps/vibe-app && npm run android:build:debug:apk
+cd apps/vibe-app && npm run android:build:apk
+cd apps/vibe-app && npm run android:build:aab
 ```
 
 ## 测试
@@ -184,6 +231,14 @@ cd apps/vibe-app && npm ci && npm run build
 ./scripts/dual-process-smoke.sh relay_polling
 ```
 
+涉及 Android 移动端改动时，建议额外执行：
+
+```bash
+cd apps/vibe-app && npm run android:build:debug:apk
+cd apps/vibe-app && npm run android:build:apk
+cd apps/vibe-app && npm run android:build:aab
+```
+
 涉及 Overlay / EasyTier / Shell / 端口转发传输路径时，建议额外执行：
 
 ```bash
@@ -196,10 +251,10 @@ cd apps/vibe-app && npm ci && npm run build
 
 - `CI`
   - 触发时机：`push` 到 `main`、`pull_request`、手动触发
-  - 执行内容：Rust 格式检查、workspace 编译、workspace 测试、前端构建、`relay_polling` 烟测、Windows Rust 编译与 Tauri MSI 打包兼容性校验
+  - 执行内容：Rust 格式检查、workspace 编译、workspace 测试、前端构建、`relay_polling` 烟测、Windows Rust 编译与 Tauri MSI 打包兼容性校验、Android debug APK 构建与产物上传
 - `Release`
   - 触发时机：推送 `v*` tag
-  - 执行内容：完整验证、best-effort `overlay` 烟测、Linux / Windows CLI 与 Tauri 桌面包构建、GitHub Release 资产上传
+  - 执行内容：完整验证、best-effort `overlay` 烟测、Linux / Windows CLI 与 Tauri 桌面包构建、Android debug APK / release APK / AAB 构建、GitHub Release 资产上传
 
 发布方式示例：
 
@@ -214,7 +269,15 @@ Release 工作流会上传类似以下资产：
 - `vibe-remote-desktop-x86_64-unknown-linux-gnu.tar.gz`
 - `vibe-remote-cli-x86_64-pc-windows-msvc.zip`
 - `vibe-remote-desktop-x86_64-pc-windows-msvc.zip`
+- `vibe-remote-android-arm64-debug.apk`
+- `vibe-remote-android-arm64-release-unsigned.apk`
+- `vibe-remote-android-arm64-release.aab`
 - `SHA256SUMS.txt`
+
+说明：
+
+- 当前仓库还没有内置 Android 发布签名密钥，所以 release APK 默认为 `unsigned`
+- 如果要直接安装测试版，请优先使用 debug APK
 
 ## 常用环境变量
 
@@ -258,6 +321,7 @@ Release 工作流会上传类似以下资产：
 
 - 增强认证、审计和生产化部署能力
 - 补充前端自动化测试和协议 round-trip 测试
+- 补齐 iOS 客户端和移动端发布签名链路
 - 继续压缩 `main.rs` 中的聚合逻辑，稳定模块边界
 - 扩展更完整的文件同步、工作区浏览和通知能力
 - 完善桌面端和移动端体验

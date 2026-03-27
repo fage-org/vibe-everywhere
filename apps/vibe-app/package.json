@@ -7,7 +7,11 @@
     "dev": "vite --host 0.0.0.0 --port 1420",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview --host 0.0.0.0 --port 1420",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "android:init": "tauri android init --ci --skip-targets-install",
+    "android:build:debug:apk": "tauri android build --debug --apk --target aarch64 --ci",
+    "android:build:apk": "tauri android build --apk --target aarch64 --ci",
+    "android:build:aab": "tauri android build --aab --target aarch64 --ci"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.3.0",

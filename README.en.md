@@ -15,6 +15,7 @@ This is not a traditional remote desktop product. It is a control system for mul
 - Positioning: personal-edition MVP / open source experimental project
 - Working flows: device registration, task execution, event streaming, shell sessions, relay-first port forwarding, overlay-assisted transport
 - Technical direction: Rust for protocol, backend, and agent; Vue + Tauri for the control client
+- Mobile status: Android arm64 APK / AAB packaging is working, iOS is still pending
 - Best-fit use cases: self-hosted personal AI operations console, multi-device control plane, cross-platform experimentation
 
 ## Features
@@ -22,10 +23,11 @@ This is not a traditional remote desktop product. It is a control system for mul
 - Rust workspace with shared protocol, backend, agent, and desktop app
 - `vibe-relay` for Axum APIs, device state, task scheduling, shell sessions, and port forwarding
 - `vibe-agent` for registration, polling, provider adapters, shell runtime, and forwarding runtime
-- `vibe-app` for the Vue 3.5 control UI, with `src-tauri` as the desktop shell
+- `vibe-app` for the Vue 3.5 control UI, with `src-tauri` as the desktop and Android shell
 - Provider integration for `Codex`, `Claude Code`, and `OpenCode`
 - Relay-first task, shell, and TCP forwarding paths
 - EasyTier-based overlay-assisted transport
+- Tauri Android arm64 debug APK, release APK, and AAB builds
 - SSE / WebSocket / tunnel based real-time updates
 
 ## Architecture
@@ -62,6 +64,7 @@ This is not a traditional remote desktop product. It is a control system for mul
 │   ├── vibe-agent        # Device agent / runtimes / providers
 │   └── vibe-app          # Vue control app
 │       └── src-tauri     # Tauri desktop shell
+│           └── gen/android  # Generated Tauri Android project
 ├── crates
 │   └── vibe-core         # Shared protocol / models
 ├── scripts               # Smoke tests and helper scripts
@@ -76,6 +79,7 @@ This is not a traditional remote desktop product. It is a control system for mul
 - Node.js 20+
 - `protobuf-compiler` or another working `protoc`
 - WebKitGTK / GTK development packages when building Tauri on Linux
+- Android builds require JDK 17, Android SDK cmdline-tools, plus `platforms;android-36`, `build-tools;35.0.0`, and `ndk;25.2.9519653`
 - On Windows, install Npcap with WinPcap API-compatible mode enabled if you want EasyTier / overlay networking features
 - At least one provider CLI installed locally if you want to execute AI tasks
   - `codex`
@@ -143,7 +147,47 @@ The Tauri shell reads:
 - `VIBE_PUBLIC_RELAY_BASE_URL`
 - `VIBE_RELAY_ACCESS_TOKEN`
 
-### 6. Verify the stack
+### 6. Build an Android test package
+
+If you want to control your server from an Android phone, you can build the Tauri Android app directly:
+
+```bash
+rustup target add aarch64-linux-android
+
+export JAVA_HOME=/path/to/jdk-17
+export ANDROID_HOME=$HOME/Android/Sdk
+export ANDROID_SDK_ROOT=$ANDROID_HOME
+export NDK_HOME=$ANDROID_HOME/ndk/25.2.9519653
+export ANDROID_NDK_HOME=$NDK_HOME
+
+cd apps/vibe-app
+npm ci
+npm run android:build:debug:apk
+```
+
+Default debug APK output:
+
+- `apps/vibe-app/src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk`
+
+For release artifacts:
+
+```bash
+cd apps/vibe-app
+npm run android:build:apk
+npm run android:build:aab
+```
+
+Output paths:
+
+- `apps/vibe-app/src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk`
+- `apps/vibe-app/src-tauri/gen/android/app/build/outputs/bundle/universalRelease/app-universal-release.aab`
+
+Notes:
+
+- On the phone, point the relay URL to `http://<server-lan-ip>:8787` or a public HTTPS relay URL, not `http://127.0.0.1:8787`
+- The Android app currently allows cleartext HTTP traffic for self-hosted LAN relays; use HTTPS for public deployments
+
+### 7. Verify the stack
 
 After the steps above, you should be able to:
 
@@ -168,6 +212,9 @@ cargo run -p vibe-relay
 cargo run -p vibe-agent -- --relay-url http://127.0.0.1:8787
 cd apps/vibe-app && npm run dev
 cd apps/vibe-app && npm run tauri dev
+cd apps/vibe-app && npm run android:build:debug:apk
+cd apps/vibe-app && npm run android:build:apk
+cd apps/vibe-app && npm run android:build:aab
 ```
 
 ## Testing
@@ -184,6 +231,14 @@ cd apps/vibe-app && npm ci && npm run build
 ./scripts/dual-process-smoke.sh relay_polling
 ```
 
+For Android changes, also run:
+
+```bash
+cd apps/vibe-app && npm run android:build:debug:apk
+cd apps/vibe-app && npm run android:build:apk
+cd apps/vibe-app && npm run android:build:aab
+```
+
 For overlay, EasyTier, shell, and forwarding transport changes, also run:
 
 ```bash
@@ -196,10 +251,10 @@ The repository includes two workflows:
 
 - `CI`
   - Triggers on `push` to `main`, `pull_request`, and manual dispatch
-  - Runs formatting checks, workspace builds, workspace tests, frontend build, `relay_polling` smoke tests, and Windows Rust/Tauri MSI bundling validation
+  - Runs formatting checks, workspace builds, workspace tests, frontend build, `relay_polling` smoke tests, Windows Rust/Tauri MSI bundling validation, and Android debug APK builds with artifact upload
 - `Release`
   - Triggers on `v*` tags
-  - Runs full verification, best-effort `overlay` smoke tests, Linux and Windows CLI packaging, Linux and Windows Tauri desktop packaging, and GitHub Release asset publishing
+  - Runs full verification, best-effort `overlay` smoke tests, Linux and Windows CLI packaging, Linux and Windows Tauri desktop packaging, Android debug APK / release APK / AAB packaging, and GitHub Release asset publishing
 
 Release example:
 
@@ -214,7 +269,15 @@ Expected release assets include:
 - `vibe-remote-desktop-x86_64-unknown-linux-gnu.tar.gz`
 - `vibe-remote-cli-x86_64-pc-windows-msvc.zip`
 - `vibe-remote-desktop-x86_64-pc-windows-msvc.zip`
+- `vibe-remote-android-arm64-debug.apk`
+- `vibe-remote-android-arm64-release-unsigned.apk`
+- `vibe-remote-android-arm64-release.aab`
 - `SHA256SUMS.txt`
+
+Notes:
+
+- The repository does not yet ship Android release signing keys, so the release APK is currently `unsigned`
+- Use the debug APK when you need an immediately installable test build
 
 ## Common Environment Variables
 
@@ -258,6 +321,7 @@ Expected release assets include:
 
 - stronger authentication, auditing, and production deployment support
 - frontend automated tests and protocol round-trip tests
+- iOS packaging and mobile release-signing support
 - continued extraction of large `main.rs` responsibilities into stable modules
 - richer file sync, workspace browsing, and notification capabilities
 - better desktop and mobile UX

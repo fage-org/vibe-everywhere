@@ -16,6 +16,10 @@ env:
   CARGO_TERM_COLOR: always
   NODE_VERSION: "20"
   NPCAP_SDK_VERSION: "1.16"
+  JAVA_VERSION: "17"
+  ANDROID_API_LEVEL: "36"
+  ANDROID_BUILD_TOOLS_VERSION: "35.0.0"
+  ANDROID_NDK_VERSION: "25.2.9519653"
 
 jobs:
   verify:
@@ -355,11 +359,112 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  build-android:
+    name: Build Android
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        shell: bash
+        run: |
+          yes | sdkmanager --sdk_root="$ANDROID_HOME" --licenses > /dev/null
+          sdkmanager --sdk_root="$ANDROID_HOME" \
+            "platform-tools" \
+            "platforms;android-${ANDROID_API_LEVEL}" \
+            "build-tools;${ANDROID_BUILD_TOOLS_VERSION}" \
+            "ndk;${ANDROID_NDK_VERSION}"
+          echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$GITHUB_ENV"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/${ANDROID_NDK_VERSION}" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/${ANDROID_NDK_VERSION}" >> "$GITHUB_ENV"
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/vibe-app/package-lock.json
+
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install frontend dependencies
+        working-directory: apps/vibe-app
+        run: npm ci
+
+      - name: Ensure loopback binding
+        shell: bash
+        run: |
+          ip addr show dev lo | grep -q '127\\.0\\.0\\.1/' || sudo ip addr add 127.0.0.1/8 dev lo
+
+      - name: Build Android debug APK
+        working-directory: apps/vibe-app
+        run: npm run android:build:debug:apk
+
+      - name: Build Android release APK
+        working-directory: apps/vibe-app
+        run: npm run android:build:apk
+
+      - name: Build Android release AAB
+        working-directory: apps/vibe-app
+        run: npm run android:build:aab
+
+      - name: Collect Android artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          debug_apk="apps/vibe-app/src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk"
+          release_apk="$(find apps/vibe-app/src-tauri/gen/android/app/build/outputs/apk -type f -path '*release/*.apk' | head -n 1)"
+          release_aab="$(find apps/vibe-app/src-tauri/gen/android/app/build/outputs/bundle -type f -name '*.aab' | head -n 1)"
+
+          test -f "$debug_apk"
+          test -n "$release_apk" && test -f "$release_apk"
+          test -n "$release_aab" && test -f "$release_aab"
+
+          cp "$debug_apk" "$GITHUB_WORKSPACE/vibe-remote-android-arm64-debug.apk"
+
+          release_apk_name="vibe-remote-android-arm64-release.apk"
+          if [[ "$release_apk" == *unsigned.apk ]]; then
+            release_apk_name="vibe-remote-android-arm64-release-unsigned.apk"
+          fi
+          cp "$release_apk" "$GITHUB_WORKSPACE/$release_apk_name"
+          cp "$release_aab" "$GITHUB_WORKSPACE/vibe-remote-android-arm64-release.aab"
+
+      - name: Upload Android artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vibe-remote-android-arm64
+          path: |
+            ${{ github.workspace }}/vibe-remote-android-arm64-*.apk
+            ${{ github.workspace }}/vibe-remote-android-arm64-*.aab
+          if-no-files-found: error
+          retention-days: 14
+
   publish:
     name: Publish GitHub Release
     needs:
       - build-cli
       - build-desktop
+      - build-android
     runs-on: ubuntu-24.04
     timeout-minutes: 30
 
