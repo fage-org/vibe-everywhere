@@ -149,11 +149,6 @@ jobs:
         working-directory: apps/vibe-app
         run: npm run android:doctor
 
-      - name: Ensure loopback binding
-        shell: bash
-        run: |
-          ip addr show dev lo | grep -q '127\\.0\\.0\\.1/' || sudo ip addr add 127.0.0.1/8 dev lo
-
       - name: Build Android debug APK
         working-directory: apps/vibe-app
         run: npm run android:build:debug:apk
