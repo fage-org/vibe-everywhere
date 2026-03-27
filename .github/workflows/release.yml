@@ -416,18 +416,26 @@ jobs:
         run: npm ci
 
       - name: Configure Android release signing
-        if: ${{ secrets.VIBE_ANDROID_KEYSTORE_BASE64 != '' && secrets.VIBE_ANDROID_KEYSTORE_PASSWORD != '' && secrets.VIBE_ANDROID_KEY_ALIAS != '' && secrets.VIBE_ANDROID_KEY_PASSWORD != '' }}
         shell: bash
+        env:
+          VIBE_ANDROID_KEYSTORE_BASE64: ${{ secrets.VIBE_ANDROID_KEYSTORE_BASE64 }}
+          VIBE_ANDROID_KEYSTORE_PASSWORD_SECRET: ${{ secrets.VIBE_ANDROID_KEYSTORE_PASSWORD }}
+          VIBE_ANDROID_KEY_ALIAS_SECRET: ${{ secrets.VIBE_ANDROID_KEY_ALIAS }}
+          VIBE_ANDROID_KEY_PASSWORD_SECRET: ${{ secrets.VIBE_ANDROID_KEY_PASSWORD }}
         run: |
           set -euo pipefail
 
+          if [[ -z "${VIBE_ANDROID_KEYSTORE_BASE64:-}" || -z "${VIBE_ANDROID_KEYSTORE_PASSWORD_SECRET:-}" || -z "${VIBE_ANDROID_KEY_ALIAS_SECRET:-}" || -z "${VIBE_ANDROID_KEY_PASSWORD_SECRET:-}" ]]; then
+            exit 0
+          fi
+
           keystore_path="$RUNNER_TEMP/vibe-everywhere-release.jks"
-          printf '%s' '${{ secrets.VIBE_ANDROID_KEYSTORE_BASE64 }}' | base64 --decode > "$keystore_path"
+          printf '%s' "$VIBE_ANDROID_KEYSTORE_BASE64" | base64 --decode > "$keystore_path"
 
           printf 'VIBE_ANDROID_KEYSTORE_PATH=%s\n' "$keystore_path" >> "$GITHUB_ENV"
-          printf 'VIBE_ANDROID_KEYSTORE_PASSWORD=%s\n' '${{ secrets.VIBE_ANDROID_KEYSTORE_PASSWORD }}' >> "$GITHUB_ENV"
-          printf 'VIBE_ANDROID_KEY_ALIAS=%s\n' '${{ secrets.VIBE_ANDROID_KEY_ALIAS }}' >> "$GITHUB_ENV"
-          printf 'VIBE_ANDROID_KEY_PASSWORD=%s\n' '${{ secrets.VIBE_ANDROID_KEY_PASSWORD }}' >> "$GITHUB_ENV"
+          printf 'VIBE_ANDROID_KEYSTORE_PASSWORD=%s\n' "$VIBE_ANDROID_KEYSTORE_PASSWORD_SECRET" >> "$GITHUB_ENV"
+          printf 'VIBE_ANDROID_KEY_ALIAS=%s\n' "$VIBE_ANDROID_KEY_ALIAS_SECRET" >> "$GITHUB_ENV"
+          printf 'VIBE_ANDROID_KEY_PASSWORD=%s\n' "$VIBE_ANDROID_KEY_PASSWORD_SECRET" >> "$GITHUB_ENV"
 
       - name: Report Android release signing mode
         shell: bash
