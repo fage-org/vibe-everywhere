@@ -13,12 +13,48 @@ val tauriProperties = Properties().apply {
     }
 }
 
+val keystoreProperties = Properties().apply {
+    val propFile = file("keystore.properties")
+    if (propFile.exists()) {
+        propFile.inputStream().use { load(it) }
+    }
+}
+
+fun signingValue(envName: String, propertyName: String): String? {
+    val envValue = providers.environmentVariable(envName).orNull?.trim()
+    if (!envValue.isNullOrEmpty()) {
+        return envValue
+    }
+
+    return keystoreProperties.getProperty(propertyName)?.trim()?.takeIf { it.isNotEmpty() }
+}
+
+val releaseSigningStoreFile = signingValue("VIBE_ANDROID_KEYSTORE_PATH", "storeFile")
+val releaseSigningStorePassword = signingValue("VIBE_ANDROID_KEYSTORE_PASSWORD", "storePassword")
+val releaseSigningKeyAlias = signingValue("VIBE_ANDROID_KEY_ALIAS", "keyAlias")
+val releaseSigningKeyPassword = signingValue("VIBE_ANDROID_KEY_PASSWORD", "keyPassword")
+val hasReleaseSigning =
+    !releaseSigningStoreFile.isNullOrEmpty() &&
+        !releaseSigningStorePassword.isNullOrEmpty() &&
+        !releaseSigningKeyAlias.isNullOrEmpty() &&
+        !releaseSigningKeyPassword.isNullOrEmpty()
+
 android {
     compileSdk = 36
-    namespace = "org.fageac.viberemote"
+    namespace = "org.fageac.vibeeverywhere"
+    signingConfigs {
+        create("release") {
+            if (hasReleaseSigning) {
+                storeFile = file(requireNotNull(releaseSigningStoreFile))
+                storePassword = releaseSigningStorePassword
+                keyAlias = releaseSigningKeyAlias
+                keyPassword = releaseSigningKeyPassword
+            }
+        }
+    }
     defaultConfig {
         manifestPlaceholders["usesCleartextTraffic"] = "true"
-        applicationId = "org.fageac.viberemote"
+        applicationId = "org.fageac.vibeeverywhere"
         minSdk = 24
         targetSdk = 36
         versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
@@ -30,7 +66,8 @@ android {
             isDebuggable = true
             isJniDebuggable = true
             isMinifyEnabled = false
-            packaging {                jniLibs.keepDebugSymbols.add("*/arm64-v8a/*.so")
+            packaging {
+                jniLibs.keepDebugSymbols.add("*/arm64-v8a/*.so")
                 jniLibs.keepDebugSymbols.add("*/armeabi-v7a/*.so")
                 jniLibs.keepDebugSymbols.add("*/x86/*.so")
                 jniLibs.keepDebugSymbols.add("*/x86_64/*.so")
@@ -38,6 +75,9 @@ android {
         }
         getByName("release") {
             isMinifyEnabled = true
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             proguardFiles(
                 *fileTree(".") { include("**/*.pro") }
                     .plus(getDefaultProguardFile("proguard-android-optimize.txt"))
@@ -51,6 +91,12 @@ android {
     buildFeatures {
         buildConfig = true
     }
+}
+
+if (hasReleaseSigning) {
+    logger.lifecycle("Android release signing enabled for ${project.path}")
+} else {
+    logger.lifecycle("Android release signing not configured; release APK/AAB will be unsigned")
 }
 
 rust {

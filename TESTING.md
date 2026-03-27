@@ -1,4 +1,4 @@
-# Vibe Remote Testing Strategy
+# Vibe Everywhere Testing Strategy
 
 ## Goals
 
@@ -119,7 +119,7 @@ Pass criteria:
 - debug APK is produced at `apps/vibe-app/src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk`
 - release APK is produced at `apps/vibe-app/src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk`
 - release AAB is produced at `apps/vibe-app/src-tauri/gen/android/app/build/outputs/bundle/universalRelease/app-universal-release.aab`
-- APK metadata reports package name `org.fageac.viberemote`
+- APK metadata reports package name `org.fageac.vibeeverywhere`
 
 Recommended frequency:
 

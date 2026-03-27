@@ -1,4 +1,4 @@
-# Vibe Remote
+# Vibe Everywhere
 
 [![CI](https://github.com/fage-ac-org/vibe-everywhere/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/fage-ac-org/vibe-everywhere/actions/workflows/ci.yml)
 [![Release](https://github.com/fage-ac-org/vibe-everywhere/actions/workflows/release.yml/badge.svg)](https://github.com/fage-ac-org/vibe-everywhere/actions/workflows/release.yml)
@@ -183,12 +183,70 @@ Output paths:
 - `apps/vibe-app/src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk`
 - `apps/vibe-app/src-tauri/gen/android/app/build/outputs/bundle/universalRelease/app-universal-release.aab`
 
+To sign the release APK / AAB during the build, add
+`apps/vibe-app/src-tauri/gen/android/app/keystore.properties`
+or export the signing values as environment variables:
+
+```properties
+storeFile=/absolute/path/to/vibe-everywhere-release.jks
+storePassword=your-store-password
+keyAlias=vibe-everywhere
+keyPassword=your-key-password
+```
+
+The following environment variables are supported and override
+`keystore.properties`:
+
+- `VIBE_ANDROID_KEYSTORE_PATH`
+- `VIBE_ANDROID_KEYSTORE_PASSWORD`
+- `VIBE_ANDROID_KEY_ALIAS`
+- `VIBE_ANDROID_KEY_PASSWORD`
+
+With signing configured, run:
+
+```bash
+cd apps/vibe-app
+npm run android:build:apk
+npm run android:build:aab
+```
+
+The signed release APK will be written to:
+
+- `apps/vibe-app/src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk`
+
+If you want GitHub Actions to sign Android release artifacts automatically,
+configure these four repository or organization Actions secrets:
+
+- `VIBE_ANDROID_KEYSTORE_BASE64`
+- `VIBE_ANDROID_KEYSTORE_PASSWORD`
+- `VIBE_ANDROID_KEY_ALIAS`
+- `VIBE_ANDROID_KEY_PASSWORD`
+
+`VIBE_ANDROID_KEYSTORE_BASE64` must contain the Base64-encoded keystore file.
+For example:
+
+```bash
+base64 -w 0 /absolute/path/to/vibe-everywhere-release.jks
+```
+
+On macOS, if `base64` does not support `-w`, use:
+
+```bash
+base64 < /absolute/path/to/vibe-everywhere-release.jks | tr -d '\n'
+```
+
+Once these secrets are present, the release workflow decodes the keystore into
+the runner temp directory and injects the `VIBE_ANDROID_*` signing variables for
+the Android build. If the secrets are absent, the workflow still succeeds, but
+the release APK remains unsigned.
+
 Notes:
 
 - Android and iOS control clients no longer prefill `127.0.0.1:8787`; on first launch, enter the relay machine's LAN IP or an HTTPS public URL unless you explicitly set `VIBE_PUBLIC_RELAY_BASE_URL`
 - On the phone, point the relay URL to `http://<server-lan-ip>:8787` or a public HTTPS relay URL, not `http://127.0.0.1:8787`
 - The Android app currently allows cleartext HTTP traffic for self-hosted LAN relays; use HTTPS for public deployments
 - If `tauri android build` fails because `source.properties` is missing from an NDK directory, the SDK contains a partial NDK install. Run `npm run android:doctor`, then reinstall that NDK or explicitly export `NDK_HOME`
+- Never commit `apps/vibe-app/src-tauri/gen/android/app/keystore.properties` or any `.jks` / `.keystore` files
 
 ### 7. Verify the stack
 
@@ -268,13 +326,13 @@ git push origin v0.1.0
 
 Expected release assets include:
 
-- `vibe-remote-cli-x86_64-unknown-linux-gnu.tar.gz`
-- `vibe-remote-desktop-x86_64-unknown-linux-gnu.tar.gz`
-- `vibe-remote-cli-x86_64-pc-windows-msvc.zip`
-- `vibe-remote-desktop-x86_64-pc-windows-msvc.zip`
-- `vibe-remote-android-arm64-debug.apk`
-- `vibe-remote-android-arm64-release-unsigned.apk`
-- `vibe-remote-android-arm64-release.aab`
+- `vibe-everywhere-cli-x86_64-unknown-linux-gnu.tar.gz`
+- `vibe-everywhere-desktop-x86_64-unknown-linux-gnu.tar.gz`
+- `vibe-everywhere-cli-x86_64-pc-windows-msvc.zip`
+- `vibe-everywhere-desktop-x86_64-pc-windows-msvc.zip`
+- `vibe-everywhere-android-arm64-debug.apk`
+- `vibe-everywhere-android-arm64-release-unsigned.apk`
+- `vibe-everywhere-android-arm64-release.aab`
 - `SHA256SUMS.txt`
 
 Notes:
@@ -320,11 +378,19 @@ Notes:
 - `VIBE_PUBLIC_RELAY_BASE_URL`
 - `VIBE_RELAY_ACCESS_TOKEN`
 
+### android signing
+
+- `VIBE_ANDROID_KEYSTORE_PATH`
+- `VIBE_ANDROID_KEYSTORE_PASSWORD`
+- `VIBE_ANDROID_KEY_ALIAS`
+- `VIBE_ANDROID_KEY_PASSWORD`
+- `VIBE_ANDROID_KEYSTORE_BASE64` (GitHub Actions secret only)
+
 ## Roadmap
 
 - stronger authentication, auditing, and production deployment support
 - frontend automated tests and protocol round-trip tests
-- iOS packaging and mobile release-signing support
+- iOS packaging and broader mobile release automation
 - continued extraction of large `main.rs` responsibilities into stable modules
 - richer file sync, workspace browsing, and notification capabilities
 - better desktop and mobile UX

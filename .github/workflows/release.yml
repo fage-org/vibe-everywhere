@@ -102,15 +102,15 @@ jobs:
         include:
           - label: Linux
             os: ubuntu-24.04
-            artifact_name: vibe-remote-cli-x86_64-unknown-linux-gnu
-            archive_basename: vibe-remote-cli-x86_64-unknown-linux-gnu
-            archive_name: vibe-remote-cli-x86_64-unknown-linux-gnu.tar.gz
+            artifact_name: vibe-everywhere-cli-x86_64-unknown-linux-gnu
+            archive_basename: vibe-everywhere-cli-x86_64-unknown-linux-gnu
+            archive_name: vibe-everywhere-cli-x86_64-unknown-linux-gnu.tar.gz
             bin_ext: ""
           - label: Windows
             os: windows-2022
-            artifact_name: vibe-remote-cli-x86_64-pc-windows-msvc
-            archive_basename: vibe-remote-cli-x86_64-pc-windows-msvc
-            archive_name: vibe-remote-cli-x86_64-pc-windows-msvc.zip
+            artifact_name: vibe-everywhere-cli-x86_64-pc-windows-msvc
+            archive_basename: vibe-everywhere-cli-x86_64-pc-windows-msvc
+            archive_name: vibe-everywhere-cli-x86_64-pc-windows-msvc.zip
             bin_ext: ".exe"
 
     steps:
@@ -231,14 +231,14 @@ jobs:
         include:
           - label: Linux
             os: ubuntu-24.04
-            artifact_name: vibe-remote-desktop-x86_64-unknown-linux-gnu
-            archive_basename: vibe-remote-desktop-x86_64-unknown-linux-gnu
-            archive_name: vibe-remote-desktop-x86_64-unknown-linux-gnu.tar.gz
+            artifact_name: vibe-everywhere-desktop-x86_64-unknown-linux-gnu
+            archive_basename: vibe-everywhere-desktop-x86_64-unknown-linux-gnu
+            archive_name: vibe-everywhere-desktop-x86_64-unknown-linux-gnu.tar.gz
           - label: Windows
             os: windows-2022
-            artifact_name: vibe-remote-desktop-x86_64-pc-windows-msvc
-            archive_basename: vibe-remote-desktop-x86_64-pc-windows-msvc
-            archive_name: vibe-remote-desktop-x86_64-pc-windows-msvc.zip
+            artifact_name: vibe-everywhere-desktop-x86_64-pc-windows-msvc
+            archive_basename: vibe-everywhere-desktop-x86_64-pc-windows-msvc
+            archive_name: vibe-everywhere-desktop-x86_64-pc-windows-msvc.zip
 
     steps:
       - name: Checkout
@@ -415,6 +415,29 @@ jobs:
         working-directory: apps/vibe-app
         run: npm ci
 
+      - name: Configure Android release signing
+        if: ${{ secrets.VIBE_ANDROID_KEYSTORE_BASE64 != '' && secrets.VIBE_ANDROID_KEYSTORE_PASSWORD != '' && secrets.VIBE_ANDROID_KEY_ALIAS != '' && secrets.VIBE_ANDROID_KEY_PASSWORD != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          keystore_path="$RUNNER_TEMP/vibe-everywhere-release.jks"
+          printf '%s' '${{ secrets.VIBE_ANDROID_KEYSTORE_BASE64 }}' | base64 --decode > "$keystore_path"
+
+          printf 'VIBE_ANDROID_KEYSTORE_PATH=%s\n' "$keystore_path" >> "$GITHUB_ENV"
+          printf 'VIBE_ANDROID_KEYSTORE_PASSWORD=%s\n' '${{ secrets.VIBE_ANDROID_KEYSTORE_PASSWORD }}' >> "$GITHUB_ENV"
+          printf 'VIBE_ANDROID_KEY_ALIAS=%s\n' '${{ secrets.VIBE_ANDROID_KEY_ALIAS }}' >> "$GITHUB_ENV"
+          printf 'VIBE_ANDROID_KEY_PASSWORD=%s\n' '${{ secrets.VIBE_ANDROID_KEY_PASSWORD }}' >> "$GITHUB_ENV"
+
+      - name: Report Android release signing mode
+        shell: bash
+        run: |
+          if [[ -n "${VIBE_ANDROID_KEYSTORE_PATH:-}" ]]; then
+            echo "Android release signing is enabled for this workflow run."
+          else
+            echo "Android release signing secrets are not configured; release APK/AAB will be unsigned."
+          fi
+
       - name: Validate Android toolchain
         working-directory: apps/vibe-app
         run: npm run android:doctor
@@ -444,22 +467,22 @@ jobs:
           test -n "$release_apk" && test -f "$release_apk"
           test -n "$release_aab" && test -f "$release_aab"
 
-          cp "$debug_apk" "$GITHUB_WORKSPACE/vibe-remote-android-arm64-debug.apk"
+          cp "$debug_apk" "$GITHUB_WORKSPACE/vibe-everywhere-android-arm64-debug.apk"
 
-          release_apk_name="vibe-remote-android-arm64-release.apk"
+          release_apk_name="vibe-everywhere-android-arm64-release.apk"
           if [[ "$release_apk" == *unsigned.apk ]]; then
-            release_apk_name="vibe-remote-android-arm64-release-unsigned.apk"
+            release_apk_name="vibe-everywhere-android-arm64-release-unsigned.apk"
           fi
           cp "$release_apk" "$GITHUB_WORKSPACE/$release_apk_name"
-          cp "$release_aab" "$GITHUB_WORKSPACE/vibe-remote-android-arm64-release.aab"
+          cp "$release_aab" "$GITHUB_WORKSPACE/vibe-everywhere-android-arm64-release.aab"
 
       - name: Upload Android artifact
         uses: actions/upload-artifact@v4
         with:
-          name: vibe-remote-android-arm64
+          name: vibe-everywhere-android-arm64
           path: |
-            ${{ github.workspace }}/vibe-remote-android-arm64-*.apk
-            ${{ github.workspace }}/vibe-remote-android-arm64-*.aab
+            ${{ github.workspace }}/vibe-everywhere-android-arm64-*.apk
+            ${{ github.workspace }}/vibe-everywhere-android-arm64-*.aab
           if-no-files-found: error
           retention-days: 14
 
@@ -477,7 +500,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: release-assets
-          pattern: vibe-remote-*
+          pattern: vibe-everywhere-*
           merge-multiple: true
 
       - name: Generate checksums

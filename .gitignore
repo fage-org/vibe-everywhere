@@ -8,3 +8,6 @@ apps/vibe-app/src-tauri/gen/android/**/build/
 apps/vibe-app/src-tauri/gen/android/app/src/main/jniLibs/
 apps/vibe-app/src-tauri/gen/android/local.properties
 apps/vibe-app/src-tauri/gen/android/*.iml
+apps/vibe-app/src-tauri/gen/android/app/keystore.properties
+apps/vibe-app/src-tauri/gen/android/app/*.jks
+apps/vibe-app/src-tauri/gen/android/app/*.keystore

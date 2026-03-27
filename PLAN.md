@@ -1,4 +1,4 @@
-# Vibe Remote Architecture Governance Plan
+# Vibe Everywhere Architecture Governance Plan
 
 ## Background
 

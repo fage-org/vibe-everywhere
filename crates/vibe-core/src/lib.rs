@@ -771,7 +771,7 @@ pub fn default_app_config(
     requires_auth: bool,
 ) -> AppConfig {
     AppConfig {
-        app_name: "Vibe Remote".to_string(),
+        app_name: "Vibe Everywhere".to_string(),
         default_relay_base_url: default_relay_base_url.into(),
         requires_auth,
         supported_targets: vec![

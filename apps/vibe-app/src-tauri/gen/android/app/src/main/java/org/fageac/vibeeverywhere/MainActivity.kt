@@ -1,4 +1,4 @@
-package org.fageac.viberemote
+package org.fageac.vibeeverywhere
 
 import android.os.Bundle
 import androidx.activity.enableEdgeToEdge

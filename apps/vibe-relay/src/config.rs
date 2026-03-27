@@ -130,5 +130,15 @@ fn default_state_file() -> PathBuf {
         .map(PathBuf::from)
         .or_else(|| std::env::var_os("USERPROFILE").map(PathBuf::from))
         .unwrap_or_else(|| PathBuf::from("."));
-    base.join(".vibe-remote").join("relay-state.json")
+    let state_file = base.join(".vibe-everywhere").join("relay-state.json");
+    if state_file.exists() {
+        return state_file;
+    }
+
+    let legacy_state_file = base.join(".vibe-remote").join("relay-state.json");
+    if legacy_state_file.exists() {
+        return legacy_state_file;
+    }
+
+    state_file
 }

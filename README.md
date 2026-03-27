@@ -1,4 +1,4 @@
-# Vibe Remote
+# Vibe Everywhere
 
 [![CI](https://github.com/fage-ac-org/vibe-everywhere/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/fage-ac-org/vibe-everywhere/actions/workflows/ci.yml)
 [![Release](https://github.com/fage-ac-org/vibe-everywhere/actions/workflows/release.yml/badge.svg)](https://github.com/fage-ac-org/vibe-everywhere/actions/workflows/release.yml)
@@ -183,12 +183,68 @@ npm run android:build:aab
 - `apps/vibe-app/src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk`
 - `apps/vibe-app/src-tauri/gen/android/app/build/outputs/bundle/universalRelease/app-universal-release.aab`
 
+如果你要让 release APK / AAB 直接带签名，可以在
+`apps/vibe-app/src-tauri/gen/android/app/keystore.properties`
+写入签名信息，或在构建时导出环境变量：
+
+```properties
+storeFile=/absolute/path/to/vibe-everywhere-release.jks
+storePassword=your-store-password
+keyAlias=vibe-everywhere
+keyPassword=your-key-password
+```
+
+支持的环境变量如下，且优先级高于 `keystore.properties`：
+
+- `VIBE_ANDROID_KEYSTORE_PATH`
+- `VIBE_ANDROID_KEYSTORE_PASSWORD`
+- `VIBE_ANDROID_KEY_ALIAS`
+- `VIBE_ANDROID_KEY_PASSWORD`
+
+当签名配置齐全后，再执行：
+
+```bash
+cd apps/vibe-app
+npm run android:build:apk
+npm run android:build:aab
+```
+
+此时 release APK 输出路径会变成：
+
+- `apps/vibe-app/src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk`
+
+如果你希望 GitHub Actions 在发布时自动签名，需要在仓库或组织的
+Actions Secrets 中配置以下 4 个 Secret：
+
+- `VIBE_ANDROID_KEYSTORE_BASE64`
+- `VIBE_ANDROID_KEYSTORE_PASSWORD`
+- `VIBE_ANDROID_KEY_ALIAS`
+- `VIBE_ANDROID_KEY_PASSWORD`
+
+其中 `VIBE_ANDROID_KEYSTORE_BASE64` 是 keystore 文件内容的 Base64。
+例如本地可以这样生成：
+
+```bash
+base64 -w 0 /absolute/path/to/vibe-everywhere-release.jks
+```
+
+macOS 如果没有 `-w` 参数，可以用：
+
+```bash
+base64 < /absolute/path/to/vibe-everywhere-release.jks | tr -d '\n'
+```
+
+配置完成后，GitHub 的 release 工作流会自动把 keystore 解码到 runner
+临时目录，并通过 `VIBE_ANDROID_*` 环境变量注入构建。未配置这些 Secret
+时，工作流仍会继续执行，但 release APK 会保持 `unsigned`。
+
 注意：
 
 - Android / iOS 控制端默认不会预填 `127.0.0.1:8787`；首次启动请手动填写 relay 所在机器的局域网 IP 或 HTTPS 公网地址，除非你显式设置了 `VIBE_PUBLIC_RELAY_BASE_URL`
 - 手机上的 relay 地址应该配置为 `http://<服务器局域网IP>:8787` 或 HTTPS 公网地址，不要使用 `http://127.0.0.1:8787`
 - 当前 Android 包默认允许 HTTP 明文流量，方便自托管局域网 relay；如果对外发布，仍然建议使用 HTTPS
 - 如果 `tauri android build` 报 NDK `source.properties` 缺失，说明 SDK 里有半安装状态的 NDK；先运行 `npm run android:doctor`，再重装对应 NDK 或显式导出 `NDK_HOME`
+- `apps/vibe-app/src-tauri/gen/android/app/keystore.properties` 和任何 `.jks` / `.keystore` 文件都不应该提交到仓库
 
 ### 7. 验证链路
 
@@ -268,13 +324,13 @@ git push origin v0.1.0
 
 Release 工作流会上传类似以下资产：
 
-- `vibe-remote-cli-x86_64-unknown-linux-gnu.tar.gz`
-- `vibe-remote-desktop-x86_64-unknown-linux-gnu.tar.gz`
-- `vibe-remote-cli-x86_64-pc-windows-msvc.zip`
-- `vibe-remote-desktop-x86_64-pc-windows-msvc.zip`
-- `vibe-remote-android-arm64-debug.apk`
-- `vibe-remote-android-arm64-release-unsigned.apk`
-- `vibe-remote-android-arm64-release.aab`
+- `vibe-everywhere-cli-x86_64-unknown-linux-gnu.tar.gz`
+- `vibe-everywhere-desktop-x86_64-unknown-linux-gnu.tar.gz`
+- `vibe-everywhere-cli-x86_64-pc-windows-msvc.zip`
+- `vibe-everywhere-desktop-x86_64-pc-windows-msvc.zip`
+- `vibe-everywhere-android-arm64-debug.apk`
+- `vibe-everywhere-android-arm64-release-unsigned.apk`
+- `vibe-everywhere-android-arm64-release.aab`
 - `SHA256SUMS.txt`
 
 说明：
@@ -320,11 +376,19 @@ Release 工作流会上传类似以下资产：
 - `VIBE_PUBLIC_RELAY_BASE_URL`
 - `VIBE_RELAY_ACCESS_TOKEN`
 
+### android signing
+
+- `VIBE_ANDROID_KEYSTORE_PATH`
+- `VIBE_ANDROID_KEYSTORE_PASSWORD`
+- `VIBE_ANDROID_KEY_ALIAS`
+- `VIBE_ANDROID_KEY_PASSWORD`
+- `VIBE_ANDROID_KEYSTORE_BASE64`（仅 GitHub Actions Secret 使用）
+
 ## 路线图
 
 - 增强认证、审计和生产化部署能力
 - 补充前端自动化测试和协议 round-trip 测试
-- 补齐 iOS 客户端和移动端发布签名链路
+- 补齐 iOS 客户端和移动端发布自动化链路
 - 继续压缩 `main.rs` 中的聚合逻辑，稳定模块边界
 - 扩展更完整的文件同步、工作区浏览和通知能力
 - 完善桌面端和移动端体验

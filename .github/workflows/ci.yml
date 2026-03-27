@@ -156,7 +156,7 @@ jobs:
       - name: Upload Android debug artifact
         uses: actions/upload-artifact@v4
         with:
-          name: vibe-remote-android-arm64-debug
+          name: vibe-everywhere-android-arm64-debug
           path: apps/vibe-app/src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk
           if-no-files-found: error
           retention-days: 14

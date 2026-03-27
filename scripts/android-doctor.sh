@@ -39,7 +39,7 @@ EXPECTED_BUILD_TOOLS="$SDK_ROOT/build-tools/35.0.0"
 EXPECTED_NDK_VERSION="${ANDROID_NDK_VERSION:-25.2.9519653}"
 EXPECTED_NDK_DIR="${NDK_HOME:-${ANDROID_NDK_HOME:-$SDK_ROOT/ndk/$EXPECTED_NDK_VERSION}}"
 
-info "Checking Android environment for Vibe Remote"
+info "Checking Android environment for Vibe Everywhere"
 info "SDK root: $SDK_ROOT"
 
 check_command java

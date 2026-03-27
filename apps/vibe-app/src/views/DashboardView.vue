@@ -196,7 +196,7 @@ onMounted(() => {
     <section class="hero">
       <div class="hero-copy">
         <p class="eyebrow">Vue 3.5 + Tauri 2 + Rust Relay</p>
-        <h1>{{ appConfig?.appName ?? "Vibe Remote" }}</h1>
+        <h1>{{ appConfig?.appName ?? "Vibe Everywhere" }}</h1>
         <p class="lede">
           单用户多设备 AI 控制台。移动端作为控制端，桌面设备作为被控 Agent，任务通过 relay
           分发并实时回传日志。

@@ -12,7 +12,7 @@ case "$MODE" in
 esac
 
 ROOT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
-TMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/vibe-remote-dual-process.XXXXXX")
+TMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/vibe-everywhere-dual-process.XXXXXX")
 RELAY_PID=""
 AGENT_PID=""
 TARGET_SERVER_PID=""
