@@ -1,12 +1,14 @@
 import type { AppConfig } from "../types";
 
-const RELAY_STORAGE_KEY = "vibe.remote.relay.baseUrl";
-const RELAY_ACCESS_TOKEN_STORAGE_KEY = "vibe.remote.relay.accessToken";
+const RELAY_STORAGE_KEY = "vibe.everywhere.relay.baseUrl";
+const RELAY_ACCESS_TOKEN_STORAGE_KEY = "vibe.everywhere.relay.accessToken";
+const LEGACY_RELAY_STORAGE_KEY = "vibe.remote.relay.baseUrl";
+const LEGACY_RELAY_ACCESS_TOKEN_STORAGE_KEY = "vibe.remote.relay.accessToken";
 const MOBILE_USER_AGENT_PATTERN = /Android|iPhone|iPad|iPod/i;
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "::1"]);
 
 export async function resolveInitialRelayBaseUrl(): Promise<string> {
-  const saved = window.localStorage.getItem(RELAY_STORAGE_KEY);
+  const saved = loadStoredValue(RELAY_STORAGE_KEY, LEGACY_RELAY_STORAGE_KEY);
   if (saved) {
     return saved;
   }
@@ -42,7 +44,10 @@ export function getRelayBaseUrlPlaceholder() {
 }
 
 export function resolveInitialRelayAccessToken(): string {
-  const saved = window.localStorage.getItem(RELAY_ACCESS_TOKEN_STORAGE_KEY);
+  const saved = loadStoredValue(
+    RELAY_ACCESS_TOKEN_STORAGE_KEY,
+    LEGACY_RELAY_ACCESS_TOKEN_STORAGE_KEY
+  );
   if (saved) {
     return saved;
   }
@@ -60,19 +65,26 @@ export async function loadTauriConfig(): Promise<AppConfig | null> {
 }
 
 export function persistRelayBaseUrl(baseUrl: string) {
-  window.localStorage.setItem(RELAY_STORAGE_KEY, baseUrl);
+  persistStoredValue(RELAY_STORAGE_KEY, LEGACY_RELAY_STORAGE_KEY, normalizeRelayBaseUrl(baseUrl));
 }
 
 export function persistRelayAccessToken(accessToken: string) {
-  window.localStorage.setItem(RELAY_ACCESS_TOKEN_STORAGE_KEY, accessToken);
+  persistStoredValue(
+    RELAY_ACCESS_TOKEN_STORAGE_KEY,
+    LEGACY_RELAY_ACCESS_TOKEN_STORAGE_KEY,
+    accessToken.trim()
+  );
 }
 
 export function buildApiUrl(baseUrl: string, path: string): string {
-  if (!baseUrl) {
-    return path;
+  const normalizedPath = normalizePath(path);
+  const normalizedBaseUrl = normalizeRelayBaseUrl(baseUrl);
+
+  if (!normalizedBaseUrl) {
+    return normalizedPath;
   }
 
-  return `${baseUrl}${path}`;
+  return new URL(normalizedPath, `${normalizedBaseUrl}/`).toString();
 }
 
 export function buildEventStreamUrl(baseUrl: string, accessToken: string): string {
@@ -97,4 +109,34 @@ export function buildWebSocketUrl(
     url.searchParams.set("access_token", accessToken.trim());
   }
   return url.toString();
+}
+
+export function normalizeRelayBaseUrl(value: string) {
+  return value.trim().replace(/\/+$/, "");
+}
+
+function normalizePath(path: string) {
+  return path.startsWith("/") ? path : `/${path}`;
+}
+
+function loadStoredValue(primaryKey: string, legacyKey: string) {
+  const primaryValue = window.localStorage.getItem(primaryKey);
+  if (primaryValue) {
+    return primaryValue;
+  }
+
+  const legacyValue = window.localStorage.getItem(legacyKey);
+  if (legacyValue) {
+    window.localStorage.setItem(primaryKey, legacyValue);
+  }
+  return legacyValue ?? "";
+}
+
+function persistStoredValue(primaryKey: string, legacyKey: string, value: string) {
+  if (value) {
+    window.localStorage.setItem(primaryKey, value);
+  } else {
+    window.localStorage.removeItem(primaryKey);
+  }
+  window.localStorage.removeItem(legacyKey);
 }

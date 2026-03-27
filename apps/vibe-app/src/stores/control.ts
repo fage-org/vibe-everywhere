@@ -20,6 +20,7 @@ import {
   buildEventStreamUrl,
   buildWebSocketUrl,
   loadTauriConfig,
+  normalizeRelayBaseUrl,
   persistRelayAccessToken,
   persistRelayBaseUrl,
   resolveInitialRelayAccessToken,
@@ -234,60 +235,63 @@ export const useControlStore = defineStore("control", {
       }
     },
     async applyRelayBaseUrl() {
-      this.relayBaseUrl = normalizeBaseUrl(this.relayInput);
-      this.relayAccessToken = this.relayAccessTokenInput.trim();
-      persistRelayBaseUrl(this.relayBaseUrl);
-      persistRelayAccessToken(this.relayAccessToken);
-      if (!this.relayBaseUrl) {
-        this.errorMessage = "";
-        this.resetRemoteState();
-        return;
-      }
-      await this.reloadAll();
-      this.connectEvents();
-      this.startShellPolling();
-      this.startPortForwardPolling();
-      this.connectShellSocket();
+      await runStoreAction(this, async () => {
+        this.relayBaseUrl = normalizeRelayBaseUrl(this.relayInput);
+        this.relayAccessToken = this.relayAccessTokenInput.trim();
+        persistRelayBaseUrl(this.relayBaseUrl);
+        persistRelayAccessToken(this.relayAccessToken);
+        if (!this.relayBaseUrl) {
+          this.errorMessage = "";
+          this.resetRemoteState();
+          return;
+        }
+        await this.reloadAll();
+        this.connectEvents();
+        this.startShellPolling();
+        this.startPortForwardPolling();
+        this.connectShellSocket();
+      });
     },
     async reloadAll() {
-      if (!this.relayBaseUrl) {
-        this.resetRemoteState();
-        return;
-      }
+      await runStoreAction(this, async () => {
+        if (!this.relayBaseUrl) {
+          this.resetRemoteState();
+          return;
+        }
 
-      this.errorMessage = "";
-      const [appConfig, health] = await Promise.all([
-        fetchAppConfig(this.relayBaseUrl),
-        fetchHealth(this.relayBaseUrl)
-      ]);
+        const [appConfig, health] = await Promise.all([
+          fetchAppConfig(this.relayBaseUrl),
+          fetchHealth(this.relayBaseUrl)
+        ]);
 
-      this.appConfig = appConfig;
-      this.health = health;
-      const [devices, tasks, shellSessions, portForwards] = await Promise.all([
-        fetchDevices(this.relayBaseUrl, this.relayAccessToken),
-        fetchTasks(this.relayBaseUrl, this.relayAccessToken, { limit: TASK_HISTORY_LIMIT }),
-        fetchShellSessions(this.relayBaseUrl, this.relayAccessToken, {
-          limit: SHELL_HISTORY_LIMIT
-        }),
-        fetchPortForwards(this.relayBaseUrl, this.relayAccessToken, {
-          limit: PORT_FORWARD_HISTORY_LIMIT
-        })
-      ]);
-      this.devices = devices;
-      this.tasks = tasks;
-      this.shellSessions = shellSessions;
-      this.portForwards = portForwards;
-      this.ensureSelections();
-      this.syncShellSelectionToDevice();
-      this.syncPortForwardSelectionToDevice();
+        this.appConfig = appConfig;
+        this.health = health;
+        const [devices, tasks, shellSessions, portForwards] = await Promise.all([
+          fetchDevices(this.relayBaseUrl, this.relayAccessToken),
+          fetchTasks(this.relayBaseUrl, this.relayAccessToken, { limit: TASK_HISTORY_LIMIT }),
+          fetchShellSessions(this.relayBaseUrl, this.relayAccessToken, {
+            limit: SHELL_HISTORY_LIMIT
+          }),
+          fetchPortForwards(this.relayBaseUrl, this.relayAccessToken, {
+            limit: PORT_FORWARD_HISTORY_LIMIT
+          })
+        ]);
+        this.devices = devices;
+        this.tasks = tasks;
+        this.shellSessions = shellSessions;
+        this.portForwards = portForwards;
+        this.ensureSelections();
+        this.syncShellSelectionToDevice();
+        this.syncPortForwardSelectionToDevice();
 
-      await Promise.all([
-        this.selectedTaskId ? this.loadTaskDetail(this.selectedTaskId) : Promise.resolve(),
-        this.selectedShellSessionId
-          ? this.loadShellSessionDetail(this.selectedShellSessionId)
-          : Promise.resolve()
-      ]);
-      this.connectShellSocket();
+        await Promise.all([
+          this.selectedTaskId ? this.loadTaskDetail(this.selectedTaskId) : Promise.resolve(),
+          this.selectedShellSessionId
+            ? this.loadShellSessionDetail(this.selectedShellSessionId)
+            : Promise.resolve()
+        ]);
+        this.connectShellSocket();
+      });
     },
     ensureSelections() {
       if (!this.devices.some((device) => device.id === this.selectedDeviceId)) {
@@ -312,26 +316,32 @@ export const useControlStore = defineStore("control", {
       }
     },
     async selectDevice(deviceId: string) {
-      this.selectedDeviceId = deviceId;
-      this.ensureSelections();
-      this.syncShellSelectionToDevice();
-      this.syncPortForwardSelectionToDevice();
-      if (
-        this.selectedShellSessionId &&
-        this.selectedShellSessionDetail?.session.id !== this.selectedShellSessionId
-      ) {
-        await this.loadShellSessionDetail(this.selectedShellSessionId);
-      }
-      this.connectShellSocket();
+      await runStoreAction(this, async () => {
+        this.selectedDeviceId = deviceId;
+        this.ensureSelections();
+        this.syncShellSelectionToDevice();
+        this.syncPortForwardSelectionToDevice();
+        if (
+          this.selectedShellSessionId &&
+          this.selectedShellSessionDetail?.session.id !== this.selectedShellSessionId
+        ) {
+          await this.loadShellSessionDetail(this.selectedShellSessionId);
+        }
+        this.connectShellSocket();
+      });
     },
     async selectTask(taskId: string) {
-      this.selectedTaskId = taskId;
-      await this.loadTaskDetail(taskId);
+      await runStoreAction(this, async () => {
+        this.selectedTaskId = taskId;
+        await this.loadTaskDetail(taskId);
+      });
     },
     async selectShellSession(sessionId: string) {
-      this.selectedShellSessionId = sessionId;
-      await this.loadShellSessionDetail(sessionId);
-      this.connectShellSocket();
+      await runStoreAction(this, async () => {
+        this.selectedShellSessionId = sessionId;
+        await this.loadShellSessionDetail(sessionId);
+        this.connectShellSocket();
+      });
     },
     selectPortForward(forwardId: string) {
       this.selectedPortForwardId = forwardId;
@@ -351,126 +361,139 @@ export const useControlStore = defineStore("control", {
       );
     },
     async submitTask() {
-      if (!this.selectedDeviceId || !this.draft.provider || !this.draft.prompt.trim()) {
-        return;
-      }
+      await runStoreAction(this, async () => {
+        if (!this.selectedDeviceId || !this.draft.provider || !this.draft.prompt.trim()) {
+          return;
+        }
 
-      const payload: CreateTaskPayload = {
-        deviceId: this.selectedDeviceId,
-        provider: this.draft.provider,
-        prompt: this.draft.prompt.trim(),
-        title: this.draft.title.trim() || undefined,
-        cwd: this.draft.cwd.trim() || undefined,
-        model: this.draft.model.trim() || undefined
-      };
+        const payload: CreateTaskPayload = {
+          deviceId: this.selectedDeviceId,
+          provider: this.draft.provider,
+          prompt: this.draft.prompt.trim(),
+          title: this.draft.title.trim() || undefined,
+          cwd: this.draft.cwd.trim() || undefined,
+          model: this.draft.model.trim() || undefined
+        };
 
-      const task = await createTask(this.relayBaseUrl, payload, this.relayAccessToken);
-      this.tasks = [task, ...this.tasks.filter((item) => item.id !== task.id)].slice(
-        0,
-        TASK_HISTORY_LIMIT
-      );
-      this.selectedTaskId = task.id;
-      await this.loadTaskDetail(task.id);
-      this.draft.prompt = "";
+        const task = await createTask(this.relayBaseUrl, payload, this.relayAccessToken);
+        this.tasks = [task, ...this.tasks.filter((item) => item.id !== task.id)].slice(
+          0,
+          TASK_HISTORY_LIMIT
+        );
+        this.selectedTaskId = task.id;
+        await this.loadTaskDetail(task.id);
+        this.draft.prompt = "";
+      });
     },
     async createShellSession() {
-      if (!this.selectedDeviceId) {
-        return;
-      }
+      await runStoreAction(this, async () => {
+        if (!this.selectedDeviceId) {
+          return;
+        }
 
-      const session = await createShellSession(
-        this.relayBaseUrl,
-        {
-          deviceId: this.selectedDeviceId,
-          cwd: this.shellDraft.cwd.trim() || undefined
-        },
-        this.relayAccessToken
-      );
-      this.upsertShellSession(session);
-      this.selectedShellSessionId = session.id;
-      await this.loadShellSessionDetail(session.id);
-      this.connectShellSocket();
-      this.shellDraft.input = "";
+        const session = await createShellSession(
+          this.relayBaseUrl,
+          {
+            deviceId: this.selectedDeviceId,
+            cwd: this.shellDraft.cwd.trim() || undefined
+          },
+          this.relayAccessToken
+        );
+        this.upsertShellSession(session);
+        this.selectedShellSessionId = session.id;
+        await this.loadShellSessionDetail(session.id);
+        this.connectShellSocket();
+        this.shellDraft.input = "";
+      });
     },
     async createPortForward() {
-      if (!this.selectedDeviceId || !this.portForwardDraft.targetHost.trim()) {
-        return;
-      }
+      await runStoreAction(this, async () => {
+        if (!this.selectedDeviceId || !this.portForwardDraft.targetHost.trim()) {
+          return;
+        }
 
-      const targetPort = parsePort(this.portForwardDraft.targetPort);
-      if (targetPort === null) {
-        this.errorMessage = "Target port must be an integer between 1 and 65535.";
-        return;
-      }
+        const targetPort = parsePort(this.portForwardDraft.targetPort);
+        if (targetPort === null) {
+          this.errorMessage = "Target port must be an integer between 1 and 65535.";
+          return;
+        }
 
-      const payload: CreatePortForwardPayload = {
-        deviceId: this.selectedDeviceId,
-        protocol: "tcp",
-        targetHost: this.portForwardDraft.targetHost.trim(),
-        targetPort
-      };
+        const payload: CreatePortForwardPayload = {
+          deviceId: this.selectedDeviceId,
+          protocol: "tcp",
+          targetHost: this.portForwardDraft.targetHost.trim(),
+          targetPort
+        };
 
-      const forward = await createPortForward(
-        this.relayBaseUrl,
-        payload,
-        this.relayAccessToken
-      );
-      this.errorMessage = "";
-      this.upsertPortForward(forward);
-      this.selectedPortForwardId = forward.id;
+        const forward = await createPortForward(
+          this.relayBaseUrl,
+          payload,
+          this.relayAccessToken
+        );
+        this.upsertPortForward(forward);
+        this.selectedPortForwardId = forward.id;
+      });
     },
     async submitShellInput() {
-      if (!this.selectedShellSessionId || !this.shellDraft.input.trim()) {
-        return;
-      }
+      await runStoreAction(this, async () => {
+        if (!this.selectedShellSessionId || !this.shellDraft.input.trim()) {
+          return;
+        }
 
-      const detail = await sendShellInput(
-        this.relayBaseUrl,
-        this.selectedShellSessionId,
-        this.normalizeShellInput(this.shellDraft.input),
-        this.relayAccessToken
-      );
-      this.selectedShellSessionDetail = detail;
-      this.upsertShellSession(detail.session);
-      this.shellDraft.input = "";
+        const detail = await sendShellInput(
+          this.relayBaseUrl,
+          this.selectedShellSessionId,
+          this.normalizeShellInput(this.shellDraft.input),
+          this.relayAccessToken
+        );
+        this.selectedShellSessionDetail = detail;
+        this.upsertShellSession(detail.session);
+        this.shellDraft.input = "";
+      });
     },
     async closeSelectedShellSession() {
-      if (!this.selectedShellSessionId) {
-        return;
-      }
+      await runStoreAction(this, async () => {
+        if (!this.selectedShellSessionId) {
+          return;
+        }
 
-      const detail = await closeShellSession(
-        this.relayBaseUrl,
-        this.selectedShellSessionId,
-        this.relayAccessToken
-      );
-      this.selectedShellSessionDetail = detail;
-      this.upsertShellSession(detail.session);
+        const detail = await closeShellSession(
+          this.relayBaseUrl,
+          this.selectedShellSessionId,
+          this.relayAccessToken
+        );
+        this.selectedShellSessionDetail = detail;
+        this.upsertShellSession(detail.session);
+      });
     },
     async closeSelectedPortForward() {
-      if (!this.selectedPortForwardId) {
-        return;
-      }
+      await runStoreAction(this, async () => {
+        if (!this.selectedPortForwardId) {
+          return;
+        }
 
-      const detail = await closePortForward(
-        this.relayBaseUrl,
-        this.selectedPortForwardId,
-        this.relayAccessToken
-      );
-      this.upsertPortForward(detail.forward);
+        const detail = await closePortForward(
+          this.relayBaseUrl,
+          this.selectedPortForwardId,
+          this.relayAccessToken
+        );
+        this.upsertPortForward(detail.forward);
+      });
     },
     async cancelSelectedTask() {
-      if (!this.selectedTaskId) {
-        return;
-      }
+      await runStoreAction(this, async () => {
+        if (!this.selectedTaskId) {
+          return;
+        }
 
-      const detail = await cancelTask(
-        this.relayBaseUrl,
-        this.selectedTaskId,
-        this.relayAccessToken
-      );
-      this.selectedTaskDetail = detail;
-      this.upsertTask(detail.task);
+        const detail = await cancelTask(
+          this.relayBaseUrl,
+          this.selectedTaskId,
+          this.relayAccessToken
+        );
+        this.selectedTaskDetail = detail;
+        this.upsertTask(detail.task);
+      });
     },
     disconnectEvents() {
       if (activeEventSource) {
@@ -638,6 +661,12 @@ export const useControlStore = defineStore("control", {
         socket.close();
       }
       this.shellSocketState = "disconnected";
+    },
+    disposeRealtime() {
+      this.disconnectEvents();
+      this.stopShellPolling();
+      this.stopPortForwardPolling();
+      this.disconnectShellSocket();
     },
     async refreshShellSessionsFromPoll() {
       if (this.isShellPolling) {
@@ -824,12 +853,20 @@ export const useControlStore = defineStore("control", {
   }
 });
 
-function normalizeBaseUrl(value: string) {
-  return value.trim().replace(/\/$/, "");
-}
-
 function formatError(error: unknown) {
   return error instanceof Error ? error.message : String(error);
+}
+
+async function runStoreAction(
+  store: { errorMessage: string },
+  operation: () => Promise<void>
+) {
+  try {
+    store.errorMessage = "";
+    await operation();
+  } catch (error) {
+    store.errorMessage = formatError(error);
+  }
 }
 
 function formatProviderKind(value: string) {

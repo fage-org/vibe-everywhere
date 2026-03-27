@@ -2,10 +2,16 @@
   "name": "vibe-app",
   "private": true,
   "version": "0.1.0",
+  "packageManager": "npm@11.12.0",
   "type": "module",
+  "engines": {
+    "node": ">=24.14.0 <25",
+    "npm": ">=11.12.0 <12"
+  },
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 1420",
-    "build": "vue-tsc --noEmit && vite build",
+    "typecheck": "vue-tsc --noEmit",
+    "build": "npm run typecheck && vite build",
     "preview": "vite preview --host 0.0.0.0 --port 1420",
     "tauri": "tauri",
     "android:init": "tauri android init --ci --skip-targets-install",
@@ -15,16 +21,16 @@
     "android:build:aab": "tauri android build --aab --target aarch64 --ci"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.3.0",
-    "pinia": "^3.0.3",
-    "vue": "^3.5.26",
-    "vue-router": "^4.6.3"
+    "@tauri-apps/api": "^2.10.1",
+    "pinia": "^3.0.4",
+    "vue": "^3.5.31",
+    "vue-router": "^5.0.4"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.3.1",
-    "@vitejs/plugin-vue": "^6.0.1",
-    "typescript": "^5.8.2",
-    "vite": "^7.0.0",
-    "vue-tsc": "^3.1.0"
+    "@tauri-apps/cli": "^2.10.1",
+    "@vitejs/plugin-vue": "^6.0.5",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.3",
+    "vue-tsc": "^3.2.6"
   }
 }

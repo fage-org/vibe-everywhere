@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from "vue";
+import { computed, onBeforeUnmount, onMounted } from "vue";
 import { storeToRefs } from "pinia";
 import {
   getRelayBaseUrlPlaceholder,
@@ -189,13 +189,17 @@ function isShellTerminal(value: string) {
 onMounted(() => {
   void store.initialize();
 });
+
+onBeforeUnmount(() => {
+  store.disposeRealtime();
+});
 </script>
 
 <template>
   <main class="shell">
     <section class="hero">
       <div class="hero-copy">
-        <p class="eyebrow">Vue 3.5 + Tauri 2 + Rust Relay</p>
+        <p class="eyebrow">Vue + Tauri 2 + Rust Relay</p>
         <h1>{{ appConfig?.appName ?? "Vibe Everywhere" }}</h1>
         <p class="lede">
           单用户多设备 AI 控制台。移动端作为控制端，桌面设备作为被控 Agent，任务通过 relay

@@ -4,5 +4,12 @@ import App from "./App.vue";
 import router from "./router";
 import "./styles.css";
 
-createApp(App).use(createPinia()).use(router).mount("#root");
+async function bootstrap() {
+  const app = createApp(App);
+  app.use(createPinia());
+  app.use(router);
+  await router.isReady();
+  app.mount("#root");
+}
 
+void bootstrap();

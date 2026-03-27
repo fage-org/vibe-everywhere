@@ -14,12 +14,13 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
-  NODE_VERSION: "20"
+  NODE_VERSION: "24.14.0"
   NPCAP_SDK_VERSION: "1.16"
   JAVA_VERSION: "17"
   ANDROID_API_LEVEL: "36"
   ANDROID_BUILD_TOOLS_VERSION: "35.0.0"
   ANDROID_NDK_VERSION: "25.2.9519653"
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
   verify:
@@ -29,7 +30,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Linux system dependencies
         run: |
@@ -58,7 +59,7 @@ jobs:
         uses: arduino/setup-protoc@v3
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -115,7 +116,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Linux system dependencies
         if: runner.os == 'Linux'
@@ -213,7 +214,7 @@ jobs:
           }
 
       - name: Upload CLI artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact_name }}
           path: ${{ github.workspace }}/${{ matrix.archive_name }}
@@ -242,7 +243,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Linux system dependencies
         if: runner.os == 'Linux'
@@ -267,7 +268,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -352,7 +353,7 @@ jobs:
           }
 
       - name: Upload desktop artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact_name }}
           path: ${{ github.workspace }}/${{ matrix.archive_name }}
@@ -367,16 +368,16 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
 
       - name: Accept Android SDK licenses
         shell: bash
@@ -402,7 +403,7 @@ jobs:
           targets: aarch64-linux-android
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -485,7 +486,7 @@ jobs:
           cp "$release_aab" "$GITHUB_WORKSPACE/vibe-everywhere-android-arm64-release.aab"
 
       - name: Upload Android artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: vibe-everywhere-android-arm64
           path: |
@@ -505,7 +506,7 @@ jobs:
 
     steps:
       - name: Download release artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: release-assets
           pattern: vibe-everywhere-*
