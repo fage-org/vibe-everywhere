@@ -22,7 +22,7 @@ Full implementation detail lives in [`v3-details.md`](./v3-details.md).
 
 | Iteration | Title | Status |
 | --- | --- | --- |
-| 13 | Workflow And Release Verification Normalization | implemented locally |
+| 13 | Workflow And Release Verification Normalization | completed |
 
 ## Current State
 
@@ -33,8 +33,8 @@ Full implementation detail lives in [`v3-details.md`](./v3-details.md).
   on packaging jobs.
 - Repository docs are being reconciled so workflow names, testing guidance, release notes, and
   plan records all describe the same hosted-runner behavior.
-- Local validation is complete in this change set, and GitHub Actions verification is still
-  required after the next push before the iteration can be treated as fully closed.
+- Local validation and GitHub-hosted `CI` verification are complete in this change set. Iteration
+  13 closed after `CI` run `23689144327` succeeded.
 
 ## Lookup Notes
 

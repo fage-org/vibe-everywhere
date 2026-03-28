@@ -28,7 +28,7 @@ Use this file together with:
 
 | Iteration | Title | Status | Depends On |
 | --- | --- | --- | --- |
-| 13 | Workflow And Release Verification Normalization | implemented locally | Iteration roadmap `v2`, remediation `v8` |
+| 13 | Workflow And Release Verification Normalization | completed | Iteration roadmap `v2`, remediation `v8` |
 
 ## Shared Guardrails
 
@@ -115,5 +115,6 @@ is stable enough to be a required gate again.
   after the hosted Linux gate restoration changes.
   `2026-03-28`: `./scripts/render-release-notes.sh v0.1.6 >/dev/null` succeeded after the
   release-note updates.
-  `2026-03-28`: GitHub Actions monitoring is still required after push before iteration `v3`
-  closes.
+  `2026-03-28`: GitHub Actions `CI` run `23689144327` completed successfully; jobs `69013607968`
+  (`Verify`), `69013725596` (`Linux Overlay Smoke`), `69013725588`
+  (`Windows Compatibility`), and `69013725582` (`Android Mobile`) all succeeded.

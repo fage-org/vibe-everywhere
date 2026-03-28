@@ -149,7 +149,7 @@ When an iteration is completed and verified:
 | 10 | Self-Hosted Server Productization | completed |
 | 11 | Enterprise Foundations | completed |
 | 12 | Delivery Verification Hardening | completed |
-| 13 | Workflow And Release Verification Normalization | implemented locally |
+| 13 | Workflow And Release Verification Normalization | completed |
 
 ## Current Iteration
 
@@ -181,9 +181,9 @@ Current planned implementation target:
   cause with stable harness ports and raw EasyTier stop reasons.
 - Remediation plan `v8` is complete after GitHub-hosted `CI` run `23688459204` validated the
   hosted Linux `no_tun` overlay diagnostic path.
-- Remediation plan `v9` is implemented locally and locally validated to restore hosted Linux
-  overlay smoke as a required gate, align release publish dependencies, and reconcile stale
-  workflow/documentation claims.
+- Remediation plan `v9` is complete after GitHub-hosted `CI` run `23689144327` restored hosted
+  Linux overlay smoke as a verified required gate, aligned release publish dependencies, and
+  reconciled stale workflow/documentation claims.
 
 Most recent completed tranche:
 
@@ -333,8 +333,7 @@ Most recent completed tranche:
   publishing cannot bypass that gate, and the repository docs describe the hosted-runner path
   truthfully.
 - Dependencies: Iteration roadmap `v2` and remediation `v8`.
-- Notes: implemented locally and locally validated on 2026-03-28; GitHub Actions verification is
-  still required after push.
+- Notes: completed on 2026-03-28 after GitHub-hosted `CI` run `23689144327` succeeded.
 
 ## Completed Foundation Work
 
@@ -467,6 +466,8 @@ These items are treated as completed foundation work, not future roadmap items.
   overlay jobs, enabling the missing hosted `no_tun` env in `Release`, making GitHub Release
   publish depend on the separate Linux overlay gate, and adding a durable guardrail that publish
   jobs must depend on all separate required release-verification gates.
+- 2026-03-28: Closed Iteration 13 and remediation `v9` after GitHub-hosted `CI` run `23689144327`
+  succeeded with `Verify`, `Linux Overlay Smoke`, `Windows Compatibility`, and `Android Mobile`.
 - 2026-03-26: Completed relay and agent runtime modularization, frontend port-forward MVP wiring, and capability-boundary alignment as foundational architecture work.
 
 ## Verification Log
@@ -590,6 +591,9 @@ These items are treated as completed foundation work, not future roadmap items.
   after Iteration 13 hosted Linux gate-restoration changes.
 - 2026-03-28: `./scripts/render-release-notes.sh v0.1.6 >/dev/null` succeeded after the Iteration
   13 release-note updates.
+- 2026-03-28: GitHub-hosted `CI` run `23689144327` completed successfully after Iteration 13 and
+  remediation `v9`; jobs `69013607968` (`Verify`), `69013725596` (`Linux Overlay Smoke`),
+  `69013725588` (`Windows Compatibility`), and `69013725582` (`Android Mobile`) all succeeded.
 - 2026-03-28: `cargo fmt --all` succeeded after Remediation v4 runtime, documentation, and
   workflow updates.
 - 2026-03-28: `cargo check --locked -p vibe-relay -p vibe-agent -p vibe-app` succeeded after

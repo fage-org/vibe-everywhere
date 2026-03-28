@@ -18,15 +18,15 @@ Full implementation detail lives in [`v9-details.md`](./v9-details.md).
 
 | Item | Title | Status | Depends On | Recommended Mode |
 | --- | --- | --- | --- | --- |
-| R1 | Hosted Linux Overlay Gate Restoration And Workflow/Docs Reconciliation | implemented locally | v8 | Mode A (user-specified) |
+| R1 | Hosted Linux Overlay Gate Restoration And Workflow/Docs Reconciliation | completed | v8 | Mode A (user-specified) |
 
 ## Current Target
 
 - Active item:
-  `R1 implemented locally`
+  `completed`
 - Required next step:
-  push the workflow/doc reconciliation and monitor the triggered `CI` workflow before treating
-  remediation `v9` as fully closed
+  remediation plan `v9` is complete after GitHub-hosted `CI` run `23689144327` restored the
+  hosted Linux overlay gate as a verified required path on `main`
 - Previous completed plan:
   remediation `v8`, which validated the hosted Linux `no_tun` path on GitHub-hosted `CI`
 

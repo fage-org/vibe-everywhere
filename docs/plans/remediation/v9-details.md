@@ -39,7 +39,7 @@ repository still had several mismatches:
 
 | Item | Title | Status | Depends On |
 | --- | --- | --- | --- |
-| R1 | Hosted Linux Overlay Gate Restoration And Workflow/Docs Reconciliation | implemented locally | v8 |
+| R1 | Hosted Linux Overlay Gate Restoration And Workflow/Docs Reconciliation | completed | v8 |
 
 ## Shared Remediation Guardrails
 
@@ -138,5 +138,6 @@ Reason:
   after the hosted Linux gate-restoration workflow/doc changes.
   `2026-03-28`: `./scripts/render-release-notes.sh v0.1.6 >/dev/null` succeeded after the
   release-note updates.
-  `2026-03-28`: GitHub Actions monitoring is still required after push before remediation `v9`
-  closes.
+  `2026-03-28`: GitHub Actions `CI` run `23689144327` completed successfully; jobs `69013607968`
+  (`Verify`), `69013725596` (`Linux Overlay Smoke`), `69013725588`
+  (`Windows Compatibility`), and `69013725582` (`Android Mobile`) all succeeded.
