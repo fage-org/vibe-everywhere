@@ -184,13 +184,17 @@ try {
   $AgentStdout = Join-Path $TmpDir "agent.stdout.log"
   $AgentStderr = Join-Path $TmpDir "agent.stderr.log"
   $FakeCodex = Join-Path $TmpDir "fake-codex.cmd"
+  $PackageDir = Join-Path $TmpDir "windows-cli-package"
 
   Write-Host "building vibe-agent and vibe-relay binaries"
   Push-Location $RootDir
   try {
     $env:WINDIVERT_DLL_OUTPUT = (Join-Path $RootDir "target\debug")
     cargo build -p vibe-relay -p vibe-agent | Out-Null
-    & (Join-Path $RootDir "scripts\stage-windows-runtime.ps1") -Profile debug
+    & (Join-Path $RootDir "scripts\stage-windows-runtime.ps1") `
+      -Profile debug `
+      -DestinationDir $PackageDir `
+      -BinaryNames @("vibe-relay.exe", "vibe-agent.exe")
   } finally {
     Pop-Location
   }
@@ -216,8 +220,8 @@ exit /b 0
     VIBE_RELAY_FORWARD_BIND_HOST = $HostIp
   }
   $RelayProcess = Start-LoggedProcess `
-    -FilePath (Join-Path $RootDir "target\debug\vibe-relay.exe") `
-    -WorkingDirectory $RootDir `
+    -FilePath (Join-Path $PackageDir "vibe-relay.exe") `
+    -WorkingDirectory $PackageDir `
     -StdoutPath $RelayStdout `
     -StderrPath $RelayStderr `
     -Environment $RelayEnv
@@ -255,8 +259,8 @@ exit /b 0
     VIBE_CODEX_COMMAND = $FakeCodex
   }
   $AgentProcess = Start-LoggedProcess `
-    -FilePath (Join-Path $RootDir "target\debug\vibe-agent.exe") `
-    -WorkingDirectory $RootDir `
+    -FilePath (Join-Path $PackageDir "vibe-agent.exe") `
+    -WorkingDirectory $PackageDir `
     -StdoutPath $AgentStdout `
     -StderrPath $AgentStderr `
     -Environment $AgentEnv

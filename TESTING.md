@@ -157,6 +157,11 @@ Manual review:
 
 - confirm release asset names in `.github/workflows/release.yml` include the tag/version
 - confirm release packaging no longer copies repository README files into published artifacts
+- confirm Windows CLI packaging keeps `vibe-relay(.exe)` / `vibe-agent(.exe)` and the EasyTier
+  runtime files (`Packet.dll`, `wintun.dll`, `WinDivert64.sys`, optional `WinDivert.dll`)
+  side-by-side in the staged archive layout
+- confirm `scripts/install-relay.ps1` installs the Windows runtime files beside `vibe-relay.exe`
+  instead of extracting only the executable
 - confirm `docs/releases/unreleased.md` or the target `docs/releases/vX.Y.Z.md` exists and matches
   the shipped work
 - confirm `README.md` and `README.en.md` stay user/operator-facing and do not absorb developer or

@@ -1,14 +1,20 @@
 param(
   [ValidateSet("debug", "release")]
-  [string]$Profile = "debug"
+  [string]$Profile = "debug",
+  [string]$DestinationDir,
+  [string[]]$BinaryNames = @()
 )
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 $RootDir = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$TargetDir = Join-Path $RootDir "target\$Profile"
-New-Item -ItemType Directory -Force -Path $TargetDir | Out-Null
+$BuildDir = Join-Path $RootDir "target\$Profile"
+if (-not $DestinationDir) {
+  $DestinationDir = $BuildDir
+}
+New-Item -ItemType Directory -Force -Path $DestinationDir | Out-Null
+$DestinationDir = (Resolve-Path $DestinationDir).Path
 
 function Resolve-CargoHome {
   if ($env:CARGO_HOME) {
@@ -87,34 +93,47 @@ if ($null -eq $WinDivertSys) {
 }
 
 $WinDivertDll = Find-RequiredFile `
-  -SearchRoot $TargetDir `
+  -SearchRoot $BuildDir `
   -Filter "WinDivert.dll" `
   -Pattern '[\\/]WinDivert\.dll$'
 
-Copy-IfFound -File $PacketDll -DestinationDir $TargetDir
-Copy-IfFound -File $WintunDll -DestinationDir $TargetDir
-Copy-IfFound -File $WinDivertSys -DestinationDir $TargetDir
-Copy-IfFound -File $WinDivertDll -DestinationDir $TargetDir
+foreach ($binaryName in $BinaryNames) {
+  $binarySource = Join-Path $BuildDir $binaryName
+  if (-not (Test-Path $binarySource)) {
+    throw "failed to locate built binary in $BuildDir: $binaryName"
+  }
+
+  Copy-Item -Path $binarySource -Destination (Join-Path $DestinationDir $binaryName) -Force
+}
+
+Copy-IfFound -File $PacketDll -DestinationDir $DestinationDir
+Copy-IfFound -File $WintunDll -DestinationDir $DestinationDir
+Copy-IfFound -File $WinDivertSys -DestinationDir $DestinationDir
+Copy-IfFound -File $WinDivertDll -DestinationDir $DestinationDir
 
 $StagedFiles = @(
   "Packet.dll",
   "wintun.dll",
   "WinDivert64.sys"
 ) | ForEach-Object {
-  Join-Path $TargetDir $_
+  Join-Path $DestinationDir $_
 } | Where-Object { Test-Path $_ } | Sort-Object
 
 $OptionalFiles = @(
   "WinDivert.dll"
 ) | ForEach-Object {
-  Join-Path $TargetDir $_
+  Join-Path $DestinationDir $_
 } | Where-Object { Test-Path $_ } | Sort-Object
 
-$StagedFiles = @($StagedFiles + $OptionalFiles)
+$BinaryFiles = @($BinaryNames | ForEach-Object {
+  Join-Path $DestinationDir $_
+} | Where-Object { Test-Path $_ } | Sort-Object)
+
+$StagedFiles = @($BinaryFiles + $StagedFiles + $OptionalFiles)
 
 if ($StagedFiles.Count -eq 0) {
-  throw "no Windows runtime files were staged into $TargetDir"
+  throw "no Windows runtime files were staged into $DestinationDir"
 }
 
-Write-Host "staged Windows runtime files into $TargetDir"
+Write-Host "staged Windows runtime files into $DestinationDir"
 $StagedFiles | ForEach-Object { Write-Host " - $($_ | Split-Path -Leaf)" }

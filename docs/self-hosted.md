@@ -94,6 +94,8 @@ Optional inputs:
 Installed paths:
 
 - binary: `C:\Program Files\Vibe Everywhere\vibe-relay.exe`
+- side-by-side runtime files: `Packet.dll`, `wintun.dll`, `WinDivert64.sys` and `WinDivert.dll`
+  when present
 - env script: `C:\Program Files\Vibe Everywhere\relay-env.ps1`
 - launcher: `C:\Program Files\Vibe Everywhere\Start-VibeRelay.ps1`
 - state file default: `%ProgramData%\Vibe Everywhere\state\relay-state.json`
@@ -121,6 +123,8 @@ Notes:
 
 - install at least one provider CLI such as `codex`, `claude`, or `opencode` if you want AI
   session execution
+- on Windows, keep the extracted CLI runtime files beside `vibe-agent.exe`; do not copy only the
+  executable out of the archive
 - `VIBE_RELAY_URL` should point to the relay origin the agent can actually reach
 - `VIBE_PUBLIC_RELAY_BASE_URL` and `VIBE_RELAY_FORWARD_HOST` affect client-facing links generated
   by the relay

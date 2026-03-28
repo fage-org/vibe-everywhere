@@ -66,6 +66,9 @@ VIBE_DEVICE_NAME=build-node-01 \
 ./vibe-agent
 ```
 
+Windows 下请保留解压后的 side-by-side 运行时文件与 `vibe-agent.exe` 同目录，不要只单独拷出
+`vibe-agent.exe`。
+
 如果你希望执行 AI Session，目标机器还需要安装至少一个 Provider CLI：
 
 - `codex`

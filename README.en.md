@@ -68,6 +68,9 @@ VIBE_DEVICE_NAME=build-node-01 \
 ./vibe-agent
 ```
 
+On Windows, keep the extracted side-by-side runtime files next to `vibe-agent.exe` instead of
+copying the executable out by itself.
+
 To execute AI sessions, the target machine still needs at least one provider CLI:
 
 - `codex`

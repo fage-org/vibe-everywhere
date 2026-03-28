@@ -34,6 +34,29 @@ function Escape-SingleQuotedLiteral {
   return $Value -replace "'", "''"
 }
 
+function Copy-ArchiveFile {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$ExtractDir,
+    [Parameter(Mandatory = $true)]
+    [string]$InstallDir,
+    [Parameter(Mandatory = $true)]
+    [string]$FileName,
+    [switch]$Required
+  )
+
+  $sourcePath = Join-Path $ExtractDir $FileName
+  if (-not (Test-Path $sourcePath)) {
+    if ($Required) {
+      throw "Required file missing from Windows CLI archive: $FileName"
+    }
+
+    return
+  }
+
+  Copy-Item -Path $sourcePath -Destination (Join-Path $InstallDir $FileName) -Force
+}
+
 if (-not (Test-IsAdministrator)) {
   throw "This installer writes to Program Files and scheduled tasks. Run it in an elevated PowerShell session."
 }
@@ -65,7 +88,11 @@ New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
 New-Item -ItemType Directory -Force -Path $ConfigDir | Out-Null
 
 $relayExePath = Join-Path $InstallDir "vibe-relay.exe"
-Copy-Item (Join-Path $extractDir "vibe-relay.exe") $relayExePath -Force
+Copy-ArchiveFile -ExtractDir $extractDir -InstallDir $InstallDir -FileName "vibe-relay.exe" -Required
+foreach ($runtimeFile in @("Packet.dll", "wintun.dll", "WinDivert64.sys")) {
+  Copy-ArchiveFile -ExtractDir $extractDir -InstallDir $InstallDir -FileName $runtimeFile -Required
+}
+Copy-ArchiveFile -ExtractDir $extractDir -InstallDir $InstallDir -FileName "WinDivert.dll"
 
 $stateDir = Join-Path $ConfigDir "state"
 New-Item -ItemType Directory -Force -Path $stateDir | Out-Null
@@ -114,6 +141,7 @@ if (-not $SkipStartupTask) {
 Remove-Item -Path $extractDir -Recurse -Force
 
 Write-Host "Installed vibe-relay.exe to $relayExePath"
+Write-Host "Installed Windows runtime files beside vibe-relay.exe"
 Write-Host "Environment script: $envScriptPath"
 Write-Host "Launcher script: $launcherScriptPath"
 if (-not $SkipStartupTask) {

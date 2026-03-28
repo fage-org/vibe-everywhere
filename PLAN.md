@@ -398,6 +398,12 @@ These items are treated as completed foundation work, not future roadmap items.
   codifying the documentation-surface rule in repository guardrails.
 - 2026-03-28: Completed Remediation v4 R3 by enabling dependency-aware Gradle caching for Android
   jobs in both `CI` and `Release`.
+- 2026-03-28: Started remediation plan `v6` to align Windows EasyTier runtime packaging across
+  smoke validation, release archives, and the Windows relay installer after finding that the
+  installer extracted only `vibe-relay.exe`.
+- 2026-03-28: Completed Remediation v6 R1 by switching Windows smoke to a package-style
+  side-by-side runtime directory, routing Windows CLI archive staging through the shared runtime
+  staging script, and making the Windows relay installer copy the packaged EasyTier runtime files.
 - 2026-03-26: Completed relay and agent runtime modularization, frontend port-forward MVP wiring, and capability-boundary alignment as foundational architecture work.
 
 ## Verification Log
@@ -468,9 +474,16 @@ These items are treated as completed foundation work, not future roadmap items.
   asset packaging changes.
 - 2026-03-28: `bash -n scripts/install-relay.sh` and `./scripts/render-release-notes.sh v0.1.4`
   succeeded after Remediation v3 deployment and release-note additions.
-- 2026-03-28: local PowerShell parser validation for `scripts/install-relay.ps1` could not be run
-  because `pwsh` was not installed in the local environment; Windows GitHub Actions validation is
-  still required after push.
+- 2026-03-28: `cargo fmt --all` succeeded after Remediation v6 Windows runtime packaging
+  alignment.
+- 2026-03-28: `cargo check --locked -p vibe-relay -p vibe-agent` succeeded after Remediation v6
+  Windows runtime packaging alignment.
+- 2026-03-28: `./scripts/render-release-notes.sh v0.0.0 >/dev/null` succeeded after Remediation
+  v6 release-note updates.
+- 2026-03-28: local PowerShell parser validation for `scripts/stage-windows-runtime.ps1`,
+  `scripts/dual-process-smoke.ps1`, and `scripts/install-relay.ps1` could not be run because
+  `pwsh` was not installed in the local environment; Windows GitHub Actions validation is still
+  required after push.
 - 2026-03-28: `cargo fmt --all` succeeded after Remediation v4 runtime, documentation, and
   workflow updates.
 - 2026-03-28: `cargo check --locked -p vibe-relay -p vibe-agent -p vibe-app` succeeded after

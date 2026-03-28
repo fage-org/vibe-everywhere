@@ -43,6 +43,9 @@ Use `cargo fmt --all` for Rust formatting. Follow Rust defaults: `snake_case` fo
 - Release assets must stay minimal and operator-facing. Do not bundle repository README files or copied build directories into published artifacts when the real deliverable can be uploaded directly.
 - Published release asset names must include the shipped version/tag plus platform identity so operators can identify downloads without opening them.
 - GitHub Release bodies must come from repository-owned release notes, not only from GitHub auto-generated text.
+- Windows CLI packaging that depends on EasyTier runtime files must keep those DLL/SYS artifacts
+  side-by-side with the shipped executables, and installers must copy that packaged layout instead
+  of extracting only the `.exe` files.
 
 ## Documentation And Workflow Guardrails
 - `README.md` and `README.en.md` are user/operator entry points. Keep them focused on what the product does, how to deploy it, how to connect to it, and where to download it.
@@ -62,6 +65,8 @@ Prefer focused Rust unit or integration-style tests near parsing, request orches
   in the active versioned plan before merging.
 - Test-only loopback or fixed-address defaults are allowed only inside dedicated local/CI harnesses, must stay out of product/runtime defaults, and must be documented as harness-only behavior.
 - If README, deployment docs, or developer-entry documents move or change materially, the manual verification and release/onboarding checks in `TESTING.md` must be updated in the same change set.
+- Windows smoke or installer validation that depends on EasyTier runtime files must exercise the
+  packaged side-by-side layout rather than assuming raw `target/` outputs are sufficient.
 
 ## Configuration And Networking Guardrails
 - Do not use `127.0.0.1`, `localhost`, or other loopback addresses as production-facing product defaults for relay/public-origin behavior. Any loopback fallback that remains must be explicitly development-only and documented as such.
