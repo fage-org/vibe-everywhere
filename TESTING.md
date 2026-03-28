@@ -251,7 +251,7 @@ Existing smoke entrypoint:
 - overlay shell session activation, input, output, and completion
 - overlay port-forward activation, byte forwarding, and close
 - same-host CI harness stability through a test-only bootstrap host and explicit overlay node IP,
-  without changing product/runtime defaults
+  plus harness-only bridge recovery timers, without changing product/runtime defaults
 
 Execution commands:
 
