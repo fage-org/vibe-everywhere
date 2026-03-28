@@ -105,6 +105,7 @@ AGENT_EXTRA_ENV=()
 
 if [[ "$MODE" == "overlay" ]]; then
   EASYTIER_PORT=$(pick_port "$HOST")
+  AGENT_EASYTIER_PORT=$(pick_port "$HOST")
   EASYTIER_NETWORK_NAME="vibe-smoke-net"
   EASYTIER_SECRET="vibe-smoke-secret"
   OVERLAY_RECOVERY_COOLDOWN_MS=${VIBE_TEST_OVERLAY_RECOVERY_COOLDOWN_MS:-250}
@@ -126,7 +127,9 @@ if [[ "$MODE" == "overlay" ]]; then
     VIBE_EASYTIER_NETWORK_SECRET="$EASYTIER_SECRET"
     VIBE_EASYTIER_BOOTSTRAP_URL="tcp://$OVERLAY_BOOTSTRAP_HOST:$EASYTIER_PORT"
     VIBE_EASYTIER_NODE_IP="$OVERLAY_AGENT_NODE_IP"
-    VIBE_EASYTIER_NO_LISTENER=true
+    # A dedicated harness-only listener makes the embedded agent node more stable on same-host CI.
+    VIBE_EASYTIER_NO_LISTENER=false
+    VIBE_EASYTIER_LISTENERS="$AGENT_EASYTIER_PORT"
   )
 fi
 

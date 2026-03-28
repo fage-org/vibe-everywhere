@@ -140,9 +140,15 @@ async fn run_supervisor(
 
         match start_agent_instance(&options) {
             Ok(instance) => {
+                eprintln!(
+                    "[easytier-agent] embedded instance started inst={} network={}",
+                    options.instance_name,
+                    options.network_name.as_deref().unwrap_or("default")
+                );
                 if let Err(error) =
                     monitor_instance(&instance, &options, &overlay, &mut shutdown_rx).await
                 {
+                    eprintln!("[easytier-agent] embedded instance stopped: {error:#}");
                     update_overlay(
                         &overlay,
                         OverlayState::Unavailable,
@@ -160,6 +166,7 @@ async fn run_supervisor(
                 drop(instance);
             }
             Err(error) => {
+                eprintln!("[easytier-agent] failed to start embedded instance: {error:#}");
                 update_overlay(
                     &overlay,
                     OverlayState::Unavailable,

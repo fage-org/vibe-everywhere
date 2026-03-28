@@ -107,8 +107,9 @@ Reason:
 - Implementation notes:
   changed the embedded EasyTier agent so `connected` is no longer reported while the runtime RPC is
   still unavailable, kept post-RPC overlay state aligned with the existing configured-bootstrap
-  semantics, and preserved the smoke harness bridge reachability gate after truthful overlay
-  readiness.
+  semantics, added agent-side EasyTier lifecycle logging for CI diagnosis, and preserved the smoke
+  harness bridge reachability gate after truthful overlay readiness with a dedicated harness-only
+  agent listener for same-host CI stability.
 - Validation results:
   `2026-03-28`: `cargo test -p vibe-agent -- --nocapture` succeeded after the overlay-state
   reporting change and the new EasyTier state test.

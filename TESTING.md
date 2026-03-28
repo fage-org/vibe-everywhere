@@ -255,7 +255,8 @@ Existing smoke entrypoint:
   relay polling when the shell bridge is not ready yet
 - overlay port-forward activation, byte forwarding, and close
 - same-host CI harness stability through a test-only bootstrap host and explicit overlay node IP,
-  plus harness-only bridge recovery timers, without changing product/runtime defaults
+  a dedicated harness-only agent listener, and harness-only bridge recovery timers, without
+  changing product/runtime defaults
 
 Execution commands:
 
