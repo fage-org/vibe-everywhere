@@ -35,7 +35,7 @@ The current Linux overlay diagnostic problem has two coupled causes:
 
 | Item | Title | Status | Depends On |
 | --- | --- | --- | --- |
-| R1 | Linux Overlay Diagnostic Harness Stabilization | implemented locally | none |
+| R1 | Linux Overlay Diagnostic Harness Stabilization | completed | none |
 
 ## Shared Remediation Guardrails
 
@@ -129,5 +129,7 @@ Reason:
   reservation change.
   `2026-03-28`: `./scripts/dual-process-smoke.sh relay_polling` succeeded after the shared
   script-path change.
-  `2026-03-28`: GitHub Actions validation is still required after push; `CI` monitoring remains the
-  final close-out step for remediation `v7`.
+  `2026-03-28`: GitHub Actions `CI` run `23687951251` preserved the raw EasyTier stop reason and
+  exposed the hosted-runner Linux root cause as `rust tun error Operation not permitted (os error 1)`;
+  this confirmed remediation `v7`'s diagnosis goal and moved the new TUN-capability issue into
+  remediation `v8`.

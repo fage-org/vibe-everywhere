@@ -17,19 +17,19 @@ Full implementation detail lives in [`v7-details.md`](./v7-details.md).
 
 | Item | Title | Status | Depends On | Recommended Mode |
 | --- | --- | --- | --- | --- |
-| R1 | Linux Overlay Diagnostic Harness Stabilization | implemented locally | none | Mode A (user-confirmed) |
+| R1 | Linux Overlay Diagnostic Harness Stabilization | completed | none | Mode A (user-confirmed) |
 
 ## Current Target
 
 - Active item:
-  `R1 implemented locally`
+  `completed`
 - Required next step:
-  push the Linux overlay harness stabilization and monitor the triggered `CI` workflow,
-  especially `Overlay Diagnostics (Linux, non-blocking)` and `Windows Compatibility`, before
-  treating remediation `v7` as fully closed
+  remediation plan `v7` is complete; the next hosted-runner repair tranche is tracked in
+  remediation plan `v8` instead of expanding this file into a different phase
 - Last completed item:
-  remediation `v6` closed after GitHub-hosted `CI` run `23687362451` reported
-  `Windows Compatibility` success
+  remediation `v7` closed after GitHub-hosted `CI` run `23687951251` confirmed the harness-port
+  and raw-error changes, exposed the distinct Linux hosted-runner TUN-permission limit, and
+  handed that new issue to remediation `v8`
 
 ## Lookup Notes
 

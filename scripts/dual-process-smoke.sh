@@ -83,7 +83,19 @@ PY2
 )}
 OVERLAY_BOOTSTRAP_HOST=""
 OVERLAY_AGENT_NODE_IP=""
+OVERLAY_NO_TUN_DIAGNOSTIC=0
 USED_PORTS=()
+
+is_truthy() {
+  case "${1:-}" in
+    1|true|TRUE|yes|YES|on|ON)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
 
 pick_port() {
   python3 - "$1" "${2:-}" <<'PY2'
@@ -149,6 +161,10 @@ if [[ "$MODE" == "overlay" ]]; then
   reserve_port AGENT_EASYTIER_PORT
   EASYTIER_NETWORK_NAME="vibe-smoke-net"
   EASYTIER_SECRET="vibe-smoke-secret"
+  EASYTIER_NO_TUN=${VIBE_TEST_EASYTIER_NO_TUN:-0}
+  if is_truthy "$EASYTIER_NO_TUN"; then
+    OVERLAY_NO_TUN_DIAGNOSTIC=1
+  fi
   OVERLAY_RECOVERY_COOLDOWN_MS=${VIBE_TEST_OVERLAY_RECOVERY_COOLDOWN_MS:-250}
   OVERLAY_PROBE_INTERVAL_MS=${VIBE_TEST_OVERLAY_PROBE_INTERVAL_MS:-250}
   EASYTIER_RESTART_DELAY_SECS=${VIBE_TEST_EASYTIER_RESTART_DELAY_SECS:-1}
@@ -163,6 +179,7 @@ if [[ "$MODE" == "overlay" ]]; then
     VIBE_EASYTIER_NETWORK_NAME="$EASYTIER_NETWORK_NAME"
     VIBE_EASYTIER_NETWORK_SECRET="$EASYTIER_SECRET"
     VIBE_EASYTIER_LISTENERS="$EASYTIER_PORT"
+    VIBE_EASYTIER_NO_TUN="$EASYTIER_NO_TUN"
     VIBE_EASYTIER_RESTART_DELAY_SECS="$EASYTIER_RESTART_DELAY_SECS"
     VIBE_EASYTIER_STATUS_POLL_SECS="$EASYTIER_STATUS_POLL_SECS"
     VIBE_OVERLAY_BRIDGE_RECOVERY_COOLDOWN_MS="$OVERLAY_RECOVERY_COOLDOWN_MS"
@@ -173,6 +190,8 @@ if [[ "$MODE" == "overlay" ]]; then
     VIBE_EASYTIER_NETWORK_SECRET="$EASYTIER_SECRET"
     VIBE_EASYTIER_BOOTSTRAP_URL="$OVERLAY_BOOTSTRAP_URLS"
     VIBE_EASYTIER_NODE_IP="$OVERLAY_AGENT_NODE_IP"
+    # Hosted Linux runners often cannot create /dev/net/tun; keep this harness-only knob explicit.
+    VIBE_EASYTIER_NO_TUN="$EASYTIER_NO_TUN"
     VIBE_EASYTIER_RESTART_DELAY_SECS="$EASYTIER_RESTART_DELAY_SECS"
     VIBE_EASYTIER_STATUS_POLL_SECS="$EASYTIER_STATUS_POLL_SECS"
     # A dedicated harness-only listener makes the embedded agent node more stable on same-host CI.
@@ -317,10 +336,13 @@ PY2
     exit 1
   fi
 
-  echo "waiting for overlay bridge listeners on $OVERLAY_READY_NODE_IP"
-  overlay_bridges_ready=0
-  for _ in $(seq 1 120); do
-    if python3 - "$OVERLAY_READY_NODE_IP" 19090 19091 19092 <<'PY2'
+  if [[ "$OVERLAY_NO_TUN_DIAGNOSTIC" == "1" ]]; then
+    echo "skipping direct overlay bridge listener probe because no_tun mode has no host overlay route"
+  else
+    echo "waiting for overlay bridge listeners on $OVERLAY_READY_NODE_IP"
+    overlay_bridges_ready=0
+    for _ in $(seq 1 120); do
+      if python3 - "$OVERLAY_READY_NODE_IP" 19090 19091 19092 <<'PY2'
 import socket, sys
 
 host = sys.argv[1]
@@ -329,16 +351,17 @@ for port in ports:
     with socket.create_connection((host, port), timeout=0.5):
         pass
 PY2
-    then
-      overlay_bridges_ready=1
-      break
+      then
+        overlay_bridges_ready=1
+        break
+      fi
+      sleep 0.5
+    done
+    if [[ "$overlay_bridges_ready" != "1" ]]; then
+      echo "overlay bridge listeners did not become reachable in time" >&2
+      cat "$TMP_DIR/device.json" >&2
+      exit 1
     fi
-    sleep 0.5
-  done
-  if [[ "$overlay_bridges_ready" != "1" ]]; then
-    echo "overlay bridge listeners did not become reachable in time" >&2
-    cat "$TMP_DIR/device.json" >&2
-    exit 1
   fi
 fi
 
@@ -667,6 +690,7 @@ PY2
   PORT_FORWARD_ID=${port_forward_info[0]}
   PORT_FORWARD_RELAY_HOST=${port_forward_info[1]}
   PORT_FORWARD_RELAY_PORT=${port_forward_info[2]}
+  EXPECTED_PORT_FORWARD_TRANSPORT="overlay_proxy"
 
   echo "waiting for port forward $PORT_FORWARD_ID to become active"
   port_forward_status=""
@@ -682,7 +706,13 @@ PY2
     )
     port_forward_status=${port_forward_state[0]}
     port_forward_transport=${port_forward_state[1]}
-    if [[ "$port_forward_transport" != "overlay_proxy" ]]; then
+    if [[ "$OVERLAY_NO_TUN_DIAGNOSTIC" == "1" ]]; then
+      if [[ "$port_forward_transport" != "overlay_proxy" && "$port_forward_transport" != "relay_tunnel" ]]; then
+        echo "port forward used unexpected transport in no_tun overlay diagnostic: $port_forward_transport" >&2
+        cat "$TMP_DIR/port-forward-detail.json" >&2
+        exit 1
+      fi
+    elif [[ "$port_forward_transport" != "overlay_proxy" ]]; then
       echo "port forward fell back to unexpected transport: $port_forward_transport" >&2
       cat "$TMP_DIR/port-forward-detail.json" >&2
       exit 1
@@ -704,26 +734,201 @@ PY2
     cat "$TMP_DIR/port-forward-detail.json" >&2
     exit 1
   fi
+  if [[ "$OVERLAY_NO_TUN_DIAGNOSTIC" == "1" && "$port_forward_transport" == "overlay_proxy" ]]; then
+    echo "triggering overlay port-forward fallback to relay tunnel for no_tun diagnostic"
+    python3 - "$PORT_FORWARD_RELAY_HOST" "$PORT_FORWARD_RELAY_PORT" <<'PY2'
+import socket, sys
 
-  echo "verifying overlay port forward data path via $PORT_FORWARD_RELAY_HOST:$PORT_FORWARD_RELAY_PORT"
-  python3 - "$PORT_FORWARD_RELAY_HOST" "$PORT_FORWARD_RELAY_PORT" >"$TMP_DIR/port-forward-client.json" <<'PY2'
+host = sys.argv[1]
+port = int(sys.argv[2])
+
+try:
+    with socket.create_connection((host, port), timeout=3):
+        pass
+except OSError:
+    pass
+PY2
+
+    port_forward_status=""
+    port_forward_transport=""
+    for _ in $(seq 1 150); do
+      curl -fsS "$BASE_URL/api/port-forwards/$PORT_FORWARD_ID" >"$TMP_DIR/port-forward-detail.json"
+      readarray -t port_forward_state < <(python3 - "$TMP_DIR/port-forward-detail.json" <<'PY2'
+import json, sys
+forward = json.load(open(sys.argv[1], 'r', encoding='utf-8'))["forward"]
+print(forward["status"])
+print(forward["transport"])
+PY2
+      )
+      port_forward_status=${port_forward_state[0]}
+      port_forward_transport=${port_forward_state[1]}
+      case "$port_forward_status" in
+        active)
+          if [[ "$port_forward_transport" == "relay_tunnel" ]]; then
+            break
+          fi
+          ;;
+        failed|closed)
+          echo "port forward reached unexpected terminal state during no_tun fallback: $port_forward_status" >&2
+          cat "$TMP_DIR/port-forward-detail.json" >&2
+          exit 1
+          ;;
+      esac
+      sleep 0.2
+    done
+    if [[ "$port_forward_status" != "active" || "$port_forward_transport" != "relay_tunnel" ]]; then
+      echo "port forward did not fall back to relay tunnel in no_tun diagnostic" >&2
+      cat "$TMP_DIR/port-forward-detail.json" >&2
+      exit 1
+    fi
+
+    echo "closing transitional no_tun port forward $PORT_FORWARD_ID"
+    curl -fsS -X POST "$BASE_URL/api/port-forwards/$PORT_FORWARD_ID/close" >"$TMP_DIR/close-port-forward-transition.json"
+
+    port_forward_status=""
+    port_forward_transport=""
+    for _ in $(seq 1 150); do
+      curl -fsS "$BASE_URL/api/port-forwards/$PORT_FORWARD_ID" >"$TMP_DIR/port-forward-detail.json"
+      readarray -t port_forward_state < <(python3 - "$TMP_DIR/port-forward-detail.json" <<'PY2'
+import json, sys
+forward = json.load(open(sys.argv[1], 'r', encoding='utf-8'))["forward"]
+print(forward["status"])
+print(forward["transport"])
+PY2
+      )
+      port_forward_status=${port_forward_state[0]}
+      port_forward_transport=${port_forward_state[1]}
+      if [[ "$port_forward_transport" != "relay_tunnel" ]]; then
+        echo "transitional no_tun port forward transport changed unexpectedly during close: $port_forward_transport" >&2
+        cat "$TMP_DIR/port-forward-detail.json" >&2
+        exit 1
+      fi
+      case "$port_forward_status" in
+        closed)
+          break
+          ;;
+        failed)
+          echo "transitional no_tun port forward failed during close" >&2
+          cat "$TMP_DIR/port-forward-detail.json" >&2
+          exit 1
+          ;;
+      esac
+      sleep 0.2
+    done
+    if [[ "$port_forward_status" != "closed" ]]; then
+      echo "transitional no_tun port forward did not close in time" >&2
+      cat "$TMP_DIR/port-forward-detail.json" >&2
+      exit 1
+    fi
+
+    echo "creating settled relay-tunnel port forward for no_tun diagnostic"
+    PORT_FORWARD_PAYLOAD=$(python3 - "$DEVICE_ID" "$HOST" "$TARGET_PORT" <<'PY2'
+import json, sys
+print(json.dumps({
+    "deviceId": sys.argv[1],
+    "protocol": "tcp",
+    "targetHost": sys.argv[2],
+    "targetPort": int(sys.argv[3]),
+}))
+PY2
+    )
+    curl -fsS -H 'content-type: application/json' -d "$PORT_FORWARD_PAYLOAD" "$BASE_URL/api/port-forwards" >"$TMP_DIR/create-port-forward.json"
+    readarray -t port_forward_info < <(python3 - "$TMP_DIR/create-port-forward.json" <<'PY2'
+import json, sys
+forward = json.load(open(sys.argv[1], 'r', encoding='utf-8'))["forward"]
+print(forward["id"])
+print(forward["relayHost"])
+print(forward["relayPort"])
+print(forward["transport"])
+PY2
+    )
+    PORT_FORWARD_ID=${port_forward_info[0]}
+    PORT_FORWARD_RELAY_HOST=${port_forward_info[1]}
+    PORT_FORWARD_RELAY_PORT=${port_forward_info[2]}
+    port_forward_transport=${port_forward_info[3]}
+    if [[ "$port_forward_transport" != "relay_tunnel" ]]; then
+      echo "settled no_tun port forward was created with unexpected transport: $port_forward_transport" >&2
+      cat "$TMP_DIR/create-port-forward.json" >&2
+      exit 1
+    fi
+
+    port_forward_status=""
+    for _ in $(seq 1 150); do
+      curl -fsS "$BASE_URL/api/port-forwards/$PORT_FORWARD_ID" >"$TMP_DIR/port-forward-detail.json"
+      readarray -t port_forward_state < <(python3 - "$TMP_DIR/port-forward-detail.json" <<'PY2'
+import json, sys
+forward = json.load(open(sys.argv[1], 'r', encoding='utf-8'))["forward"]
+print(forward["status"])
+print(forward["transport"])
+PY2
+      )
+      port_forward_status=${port_forward_state[0]}
+      port_forward_transport=${port_forward_state[1]}
+      if [[ "$port_forward_transport" != "relay_tunnel" ]]; then
+        echo "settled no_tun port forward transport changed unexpectedly before traffic: $port_forward_transport" >&2
+        cat "$TMP_DIR/port-forward-detail.json" >&2
+        exit 1
+      fi
+      case "$port_forward_status" in
+        active)
+          break
+          ;;
+        failed|closed)
+          echo "settled no_tun port forward reached unexpected terminal state before traffic: $port_forward_status" >&2
+          cat "$TMP_DIR/port-forward-detail.json" >&2
+          exit 1
+          ;;
+      esac
+      sleep 0.2
+    done
+    if [[ "$port_forward_status" != "active" ]]; then
+      echo "settled no_tun port forward did not become active in time" >&2
+      cat "$TMP_DIR/port-forward-detail.json" >&2
+      exit 1
+    fi
+  fi
+  EXPECTED_PORT_FORWARD_TRANSPORT="$port_forward_transport"
+
+  if [[ "$OVERLAY_NO_TUN_DIAGNOSTIC" == "1" ]]; then
+    echo "skipping no_tun overlay port-forward data-path verification; this diagnostic covers fallback selection and lifecycle only"
+    python3 - "$EXPECTED_PORT_FORWARD_TRANSPORT" >"$TMP_DIR/port-forward-client.json" <<'PY2'
+import json, sys
+print(json.dumps({
+    "transport": sys.argv[1],
+    "dataPathVerified": False,
+    "reason": "no_tun hosted-runner diagnostic skips preview byte-path verification",
+}, ensure_ascii=False))
+PY2
+  else
+    echo "verifying overlay port forward data path via $PORT_FORWARD_RELAY_HOST:$PORT_FORWARD_RELAY_PORT"
+    python3 - "$PORT_FORWARD_RELAY_HOST" "$PORT_FORWARD_RELAY_PORT" "$EXPECTED_PORT_FORWARD_TRANSPORT" >"$TMP_DIR/port-forward-client.json" <<'PY2'
 import json, socket, sys
 
 host = sys.argv[1]
 port = int(sys.argv[2])
+transport = sys.argv[3]
 payload = b"__VIBE_PORT_FORWARD_SMOKE__"
 expected = b"__VIBE_PORT_FORWARD_REPLY__:" + payload
 
 with socket.create_connection((host, port), timeout=10) as sock:
     sock.settimeout(10)
     sock.sendall(payload)
-    sock.shutdown(socket.SHUT_WR)
     chunks = []
-    while True:
-        data = sock.recv(65536)
-        if not data:
-            break
-        chunks.append(data)
+    if transport == "overlay_proxy":
+        sock.shutdown(socket.SHUT_WR)
+        while True:
+            data = sock.recv(65536)
+            if not data:
+                break
+            chunks.append(data)
+    else:
+        total = 0
+        while total < len(expected):
+            data = sock.recv(65536)
+            if not data:
+                break
+            chunks.append(data)
+            total += len(data)
 
 reply = b"".join(chunks)
 if reply != expected:
@@ -735,6 +940,7 @@ print(json.dumps({
     "replyPreview": reply.decode("utf-8"),
 }, ensure_ascii=False))
 PY2
+  fi
 
   echo "closing port forward $PORT_FORWARD_ID"
   curl -fsS -X POST "$BASE_URL/api/port-forwards/$PORT_FORWARD_ID/close" >"$TMP_DIR/close-port-forward.json"
@@ -752,7 +958,7 @@ PY2
     )
     port_forward_status=${port_forward_state[0]}
     port_forward_transport=${port_forward_state[1]}
-    if [[ "$port_forward_transport" != "overlay_proxy" ]]; then
+    if [[ "$port_forward_transport" != "$EXPECTED_PORT_FORWARD_TRANSPORT" ]]; then
       echo "port forward transport changed unexpectedly during close: $port_forward_transport" >&2
       cat "$TMP_DIR/port-forward-detail.json" >&2
       exit 1
@@ -780,7 +986,7 @@ import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
 forward = payload["forward"]
 assert forward["status"] == "closed", forward
-assert forward["transport"] == "overlay_proxy", forward
+assert forward["transport"] in {"overlay_proxy", "relay_tunnel"}, forward
 print(json.dumps({
     "portForwardId": forward["id"],
     "transport": forward["transport"],

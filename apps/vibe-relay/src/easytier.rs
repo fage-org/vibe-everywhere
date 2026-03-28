@@ -25,6 +25,7 @@ pub struct RelayEasyTierOptions {
     pub peers: Vec<String>,
     pub listeners: Vec<String>,
     pub private_mode: bool,
+    pub no_tun: bool,
 }
 
 pub struct ManagedEasyTierRuntime {
@@ -67,6 +68,7 @@ impl RelayEasyTierOptions {
             listeners: parse_list_values(&env::var("VIBE_EASYTIER_LISTENERS").unwrap_or_default()),
             private_mode: parse_bool_env("VIBE_EASYTIER_PRIVATE_MODE")
                 .unwrap_or(network_name.is_some()),
+            no_tun: parse_bool_env("VIBE_EASYTIER_NO_TUN").unwrap_or(false),
         }
     }
 }
@@ -167,6 +169,7 @@ fn build_relay_config(options: &RelayEasyTierOptions) -> Result<TomlConfigLoader
     let mut flags = gen_default_flags();
     flags.private_mode = options.private_mode && options.network_name.is_some();
     flags.multi_thread = true;
+    flags.no_tun = options.no_tun;
     cfg.set_flags(flags);
 
     Ok(cfg)
@@ -294,6 +297,7 @@ mod tests {
             peers: vec!["tcp://seed.example.com:11010".to_string()],
             listeners: vec!["tcp://0.0.0.0:11010".to_string()],
             private_mode: true,
+            no_tun: false,
         };
 
         let cfg = build_relay_config(&options).expect("relay config should build");
@@ -302,6 +306,25 @@ mod tests {
         assert_eq!(cfg.get_peers().len(), 1);
         assert_eq!(cfg.get_listeners().unwrap().len(), 1);
         assert!(cfg.get_flags().private_mode);
+        assert!(!cfg.get_flags().no_tun);
+    }
+
+    #[test]
+    fn build_relay_config_supports_no_tun_mode() {
+        let options = RelayEasyTierOptions {
+            enabled: true,
+            instance_name: "vibe-relay".to_string(),
+            hostname: "relay".to_string(),
+            network_name: Some("personal-net".to_string()),
+            network_secret: Some("secret".to_string()),
+            peers: vec!["tcp://seed.example.com:11010".to_string()],
+            listeners: vec!["tcp://0.0.0.0:11010".to_string()],
+            private_mode: true,
+            no_tun: true,
+        };
+
+        let cfg = build_relay_config(&options).expect("relay config should build");
+        assert!(cfg.get_flags().no_tun);
     }
 
     #[test]

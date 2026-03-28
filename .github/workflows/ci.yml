@@ -126,6 +126,7 @@ jobs:
       - name: Run overlay smoke diagnostic
         env:
           TMPDIR: ${{ runner.temp }}
+          VIBE_TEST_EASYTIER_NO_TUN: "1"
         run: ./scripts/dual-process-smoke.sh overlay
 
       - name: Upload overlay diagnostic artifacts

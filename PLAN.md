@@ -22,8 +22,8 @@ The active plan set is:
 - process governance: [`docs/plans/process.md`](./docs/plans/process.md)
 - active iteration summary: [`docs/plans/iterations/v2-summary.md`](./docs/plans/iterations/v2-summary.md)
 - active iteration details: [`docs/plans/iterations/v2-details.md`](./docs/plans/iterations/v2-details.md)
-- active remediation summary: [`docs/plans/remediation/v7-summary.md`](./docs/plans/remediation/v7-summary.md)
-- active remediation details: [`docs/plans/remediation/v7-details.md`](./docs/plans/remediation/v7-details.md)
+- active remediation summary: [`docs/plans/remediation/v8-summary.md`](./docs/plans/remediation/v8-summary.md)
+- active remediation details: [`docs/plans/remediation/v8-details.md`](./docs/plans/remediation/v8-details.md)
 
 Every completed iteration or remediation item must update this file and the active versioned plan
 files listed above.
@@ -159,7 +159,7 @@ Current planned implementation target:
 - Iteration 12 adds Windows smoke coverage, moves GitHub-hosted Linux `overlay` smoke into
   explicit diagnostic jobs, and records the hosted-runner instability as deferred follow-up work.
 - The active remediation track remains the problem-driven remediation plan in
-  `docs/plans/remediation/v7-summary.md`.
+  `docs/plans/remediation/v8-summary.md`.
 - Remediation plan `v1` is complete.
 - Remediation plan `v2` is complete after restoring blocking overlay smoke verification and auditing
   the repository for similar compromised checks.
@@ -174,9 +174,10 @@ Current planned implementation target:
   closed.
 - Remediation plan `v6` is complete after Windows EasyTier side-by-side packaging plus follow-up
   PowerShell smoke-harness fixes were validated by GitHub-hosted `CI`.
-- Remediation plan `v7` is implemented locally for GitHub-hosted Linux overlay diagnostic
-  stabilization; GitHub Actions monitoring is still required after push before the tranche is
-  fully closed.
+- Remediation plan `v7` is complete after exposing the hosted Linux runner TUN-permission root
+  cause with stable harness ports and raw EasyTier stop reasons.
+- Remediation plan `v8` is implemented locally for the hosted Linux no_tun overlay diagnostic
+  path; GitHub Actions monitoring is still required after push before the tranche is fully closed.
 
 Most recent completed tranche:
 
@@ -419,6 +420,15 @@ These items are treated as completed foundation work, not future roadmap items.
   `scripts/dual-process-smoke.sh` with harness-local reservations that keep relay, agent, and
   target helper ports unique and TCP/UDP-capable, and by preserving the original EasyTier stop
   reason in agent overlay status instead of overwriting it with a generic wrapper message.
+- 2026-03-28: Closed remediation plan `v7` after GitHub-hosted `CI` run `23687951251` proved the
+  stabilized harness and raw-error propagation changes, and isolated the next Linux hosted-runner
+  issue as a distinct TUN-permission limitation.
+- 2026-03-28: Started remediation plan `v8` to repair the GitHub-hosted Linux overlay diagnostic
+  with a harness-scoped EasyTier `no_tun` path instead of changing product defaults.
+- 2026-03-28: Completed Remediation v8 R1 locally by exposing EasyTier `no_tun` in relay and
+  agent config, enabling it only from the hosted Linux overlay diagnostic job, and rewriting the
+  Linux no_tun smoke path to assert truthful overlay fallback behavior without claiming impossible
+  hosted-runner bridge reachability.
 - 2026-03-26: Completed relay and agent runtime modularization, frontend port-forward MVP wiring, and capability-boundary alignment as foundational architecture work.
 
 ## Verification Log
@@ -513,6 +523,19 @@ These items are treated as completed foundation work, not future roadmap items.
   overlay diagnostic harness stabilization.
 - 2026-03-28: `./scripts/dual-process-smoke.sh relay_polling` succeeded after Remediation v7
   Linux overlay diagnostic harness stabilization.
+- 2026-03-28: GitHub-hosted `CI` run `23687951251` confirmed Remediation v7's raw-error
+  propagation and exposed the hosted Linux EasyTier failure as `rust tun error Operation not
+  permitted (os error 1)`.
+- 2026-03-28: `cargo fmt --all --check` succeeded after Remediation v8 hosted Linux no_tun
+  overlay diagnostic changes.
+- 2026-03-28: `cargo check --locked -p vibe-relay -p vibe-agent` succeeded after Remediation v8
+  EasyTier no_tun config additions.
+- 2026-03-28: `bash -n scripts/dual-process-smoke.sh` succeeded after Remediation v8 hosted Linux
+  no_tun smoke-path updates.
+- 2026-03-28: `VIBE_TEST_EASYTIER_NO_TUN=1 ./scripts/dual-process-smoke.sh overlay` succeeded
+  after Remediation v8 hosted Linux no_tun diagnostic changes.
+- 2026-03-28: `./scripts/dual-process-smoke.sh relay_polling` succeeded after Remediation v8
+  shared smoke-path updates.
 - 2026-03-28: `cargo fmt --all` succeeded after Remediation v4 runtime, documentation, and
   workflow updates.
 - 2026-03-28: `cargo check --locked -p vibe-relay -p vibe-agent -p vibe-app` succeeded after
@@ -597,3 +620,9 @@ These items are treated as completed foundation work, not future roadmap items.
   while contributor workflow and source-build guidance belong in `DEVELOPMENT.md`.
 - 2026-03-28: Remediation v4 chooses Gradle dependency caches keyed by repository inputs instead of
   broad Android SDK caches to reduce build time without increasing stale-cache risk materially.
+- 2026-03-28: Remediation v8 keeps EasyTier `no_tun` strictly as a harness-only hosted-runner
+  workaround; product/runtime defaults remain unchanged and still expect explicit non-test
+  networking behavior.
+- 2026-03-28: Remediation v8 intentionally treats hosted Linux no_tun preview coverage as
+  transport-and-lifecycle validation only; preview byte-path verification remains covered by the
+  stable relay-polling smoke while the no_tun websocket-reset gap is deferred for a later repair.

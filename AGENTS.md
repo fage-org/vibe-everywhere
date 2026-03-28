@@ -64,6 +64,7 @@ Prefer focused Rust unit or integration-style tests near parsing, request orches
   named diagnostic job, keep it out of the required verify path, and record the deferred root-cause
   in the active versioned plan before merging.
 - Test-only loopback or fixed-address defaults are allowed only inside dedicated local/CI harnesses, must stay out of product/runtime defaults, and must be documented as harness-only behavior.
+- Hosted-runner capability workarounds such as EasyTier `no_tun` must stay behind explicit harness-only configuration and must not silently become product/runtime defaults.
 - Local or CI harnesses that allocate multiple listener ports for cooperating processes must track
   reserved ports across the whole harness and validate every required protocol binding instead of
   repeatedly probing anonymous TCP ports independently.

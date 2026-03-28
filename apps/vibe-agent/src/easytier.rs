@@ -29,6 +29,7 @@ pub struct AgentEasyTierOptions {
     pub network_secret: Option<String>,
     pub peers: Vec<String>,
     pub node_ip: Option<String>,
+    pub no_tun: bool,
     pub no_listener: bool,
     pub listeners: Vec<String>,
 }
@@ -75,6 +76,7 @@ impl AgentEasyTierOptions {
             node_ip: node_ip
                 .map(|value| value.trim().to_string())
                 .filter(|value| !value.is_empty()),
+            no_tun: parse_bool_env("VIBE_EASYTIER_NO_TUN").unwrap_or(false),
             no_listener: parse_bool_env("VIBE_EASYTIER_NO_LISTENER").unwrap_or(true),
             listeners: parse_list_values(&env::var("VIBE_EASYTIER_LISTENERS").unwrap_or_default()),
         }
@@ -296,6 +298,7 @@ fn build_agent_config(options: &AgentEasyTierOptions) -> Result<TomlConfigLoader
     let mut flags = gen_default_flags();
     flags.private_mode = options.network_name.is_some();
     flags.multi_thread = true;
+    flags.no_tun = options.no_tun;
     cfg.set_flags(flags);
 
     Ok(cfg)
@@ -498,6 +501,7 @@ mod tests {
                 "udp://relay.example.com:11010".to_string(),
             ],
             node_ip: Some("10.11.12.13".to_string()),
+            no_tun: false,
             no_listener: true,
             listeners: vec![],
         };
@@ -509,7 +513,27 @@ mod tests {
         assert_eq!(cfg.get_listeners().unwrap(), Vec::<Url>::new());
         assert_eq!(cfg.get_peers().len(), 2);
         assert!(cfg.get_flags().private_mode);
+        assert!(!cfg.get_flags().no_tun);
         assert_eq!(cfg.get_ipv4().unwrap().address().to_string(), "10.11.12.13");
+    }
+
+    #[test]
+    fn build_agent_config_supports_no_tun_mode() {
+        let options = AgentEasyTierOptions {
+            device_id: Uuid::new_v4().to_string(),
+            device_name: "Workstation".to_string(),
+            instance_name: "vibe-agent-1234".to_string(),
+            network_name: Some("personal-net".to_string()),
+            network_secret: Some("top-secret".to_string()),
+            peers: vec!["tcp://relay.example.com:11010".to_string()],
+            node_ip: Some("10.11.12.13".to_string()),
+            no_tun: true,
+            no_listener: true,
+            listeners: vec![],
+        };
+
+        let cfg = build_agent_config(&options).expect("agent config should build");
+        assert!(cfg.get_flags().no_tun);
     }
 
     #[test]
@@ -538,6 +562,7 @@ quic://c:3",
             network_secret: Some("top-secret".to_string()),
             peers: vec![],
             node_ip: Some("10.11.12.13".to_string()),
+            no_tun: false,
             no_listener: true,
             listeners: vec![],
         };
