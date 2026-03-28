@@ -32,10 +32,14 @@ Use `cargo fmt --all` for Rust formatting. Follow Rust defaults: `snake_case` fo
 - Before implementing a remediation item, present its repair modes, state the recommended mode, and ask the user which mode to use.
 - After every completed iteration or remediation item, update the active `summary` file, the active `details` file, `PLAN.md`, and any newly required long-term guardrails in this file.
 - When a change alters the primary user-facing model, update `README.md`, `README.en.md`, and the relevant manual checklist in `TESTING.md` in the same change set before considering the item complete.
+- After pushing to GitHub, monitor the triggered GitHub Actions runs until they either succeed or fail with a clear diagnosis. Do not treat the delivery as complete immediately after `git push`.
+- When `main` is pushed, monitor the `CI` workflow. When a release tag such as `vX.Y.Z` is pushed, monitor the `Release` workflow as well.
+- If a workflow fails or shows an abnormal state, record the run URL, failing job, conclusion, and required follow-up in the user-facing report before ending the task.
 
 ## Testing Guidelines
 Prefer focused Rust unit or integration-style tests near parsing, request orchestration, provider mapping, and transport logic; current examples live in `apps/vibe-relay/src/main.rs`, `apps/vibe-agent/src/main.rs`, `apps/vibe-agent/src/workspace_runtime.rs`, and `apps/vibe-agent/src/git_runtime.rs`. Name tests by behavior, for example `claude_tool_use_maps_to_tool_call`. When changing relay or agent control-plane behavior, add or update tests and rerun `cargo test --workspace --all-targets -- --nocapture`; add `./scripts/dual-process-smoke.sh relay_polling` for end-to-end path changes. The frontend still has no dedicated automated harness, so at minimum run `npm run build` and follow the manual checklist in `TESTING.md` when touching `apps/vibe-app`.
 - If UI semantics, navigation, visibility gating, or relay/runtime configuration behavior changes, the `TESTING.md` manual regression steps must be updated to match the new product model in the same change set.
+- A GitHub push or release cut is not considered fully verified until the corresponding GitHub Actions runs are checked and their final status is reported.
 
 ## Configuration And Networking Guardrails
 - Do not use `127.0.0.1`, `localhost`, or other loopback addresses as production-facing product defaults for relay/public-origin behavior. Any loopback fallback that remains must be explicitly development-only and documented as such.

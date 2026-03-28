@@ -48,3 +48,5 @@ The planning system is intentionally split into:
   - [`../../PLAN.md`](../../PLAN.md)
 - Any newly discovered long-term rule must also be written into
   [`../../AGENTS.md`](../../AGENTS.md).
+- After code is pushed to GitHub, the triggered Actions workflows must be checked and their outcome
+  reported before the delivery is considered complete.

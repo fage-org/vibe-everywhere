@@ -76,6 +76,16 @@ After implementation and verification:
 6. if the primary user-facing model changed, update [`../../README.md`](../../README.md),
    [`../../README.en.md`](../../README.en.md), and the manual checklist in
    [`../../TESTING.md`](../../TESTING.md) before closing the item
+7. after pushing to GitHub, monitor the triggered GitHub Actions runs and do not consider the task
+   delivered until the relevant workflows are either green or have a clearly documented failure
+   diagnosis
+
+Relevant workflow rule:
+
+- a `main` push requires monitoring the `CI` workflow
+- a pushed release tag such as `vX.Y.Z` requires monitoring both `CI` and `Release`
+- if a workflow fails or behaves abnormally, capture the run URL, failing job, final conclusion,
+  and next action in the delivery report
 
 ## Remediation Approval Rule
 
