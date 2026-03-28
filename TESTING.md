@@ -246,7 +246,8 @@ Existing smoke entrypoint:
 `overlay` mode validates:
 
 - embedded EasyTier bootstrap and agent connectivity
-- overlay task dispatch
+- overlay task dispatch, including graceful fallback to relay polling when the task bridge is not
+  ready yet and automatic recovery back to overlay on a follow-up task
 - overlay shell session activation, input, output, and completion
 - overlay port-forward activation, byte forwarding, and close
 - same-host CI harness stability through a test-only bootstrap host and explicit overlay node IP,
@@ -263,14 +264,15 @@ Pass criteria:
 
 - both modes exit `0`
 - task status reaches `succeeded`
-- expected transport is used instead of silent fallback
+- `relay_polling` mode keeps task traffic on relay polling
+- `overlay` mode either uses overlay immediately or proves the relay can fall back and then
+  automatically restore overlay for a subsequent task
 - shell output contains the smoke marker
 - TCP port-forward reply matches the expected payload
 
 Recommended frequency:
 
-- run `relay_polling` on every PR in CI
-- run `overlay` on release branches, nightly CI, or before shipping networking changes
+- run both `relay_polling` and `overlay` on every PR in CI
 - treat `overlay` as blocking release verification, not best-effort signal
 
 ### Layer 3: Frontend Manual Regression

@@ -251,61 +251,75 @@ PY2
   fi
 fi
 
-echo "creating task"
-TASK_PAYLOAD=$(python3 - "$DEVICE_ID" <<'PY2'
+create_smoke_task() {
+  local prompt=$1
+  local title=$2
+  local create_path=$3
+  local detail_path=$4
+  local task_payload task_id status
+
+  task_payload=$(python3 - "$DEVICE_ID" "$prompt" "$title" <<'PY2'
 import json, sys
 print(json.dumps({
     "deviceId": sys.argv[1],
     "provider": "codex",
-    "prompt": "Say hello from the dual-process smoke test",
+    "prompt": sys.argv[2],
     "cwd": None,
     "model": None,
-    "title": "Dual process smoke task",
+    "title": sys.argv[3],
 }))
 PY2
 )
-curl -fsS -H 'content-type: application/json' -d "$TASK_PAYLOAD" "$BASE_URL/api/tasks" >"$TMP_DIR/create-task.json"
-TASK_ID=$(python3 - "$TMP_DIR/create-task.json" <<'PY2'
+  curl -fsS -H 'content-type: application/json' -d "$task_payload" "$BASE_URL/api/tasks" >"$create_path"
+  task_id=$(python3 - "$create_path" <<'PY2'
 import json, sys
 print(json.load(open(sys.argv[1], 'r', encoding='utf-8'))["task"]["id"])
 PY2
 )
 
-echo "waiting for task $TASK_ID"
-status=""
-for _ in $(seq 1 180); do
-  curl -fsS "$BASE_URL/api/tasks/$TASK_ID" >"$TMP_DIR/task-detail.json"
-  status=$(python3 - "$TMP_DIR/task-detail.json" <<'PY2'
+  echo "waiting for task $task_id"
+  status=""
+  for _ in $(seq 1 180); do
+    curl -fsS "$BASE_URL/api/tasks/$task_id" >"$detail_path"
+    status=$(python3 - "$detail_path" <<'PY2'
 import json, sys
 print(json.load(open(sys.argv[1], 'r', encoding='utf-8'))["task"]["status"])
 PY2
 )
-  case "$status" in
-    succeeded)
-      break
-      ;;
-    failed|canceled)
-      echo "task reached terminal failure state: $status" >&2
-      cat "$TMP_DIR/task-detail.json" >&2
-      exit 1
-      ;;
-  esac
-  sleep 0.2
-done
-if [[ "$status" != "succeeded" ]]; then
-  echo "task did not finish successfully in time" >&2
-  cat "$TMP_DIR/task-detail.json" >&2
-  exit 1
-fi
+    case "$status" in
+      succeeded)
+        break
+        ;;
+      failed|canceled)
+        echo "task reached terminal failure state: $status" >&2
+        cat "$detail_path" >&2
+        exit 1
+        ;;
+    esac
+    sleep 0.2
+  done
+  if [[ "$status" != "succeeded" ]]; then
+    echo "task did not finish successfully in time" >&2
+    cat "$detail_path" >&2
+    exit 1
+  fi
 
-python3 - "$TMP_DIR/task-detail.json" "$EXPECTED_TRANSPORT" <<'PY2'
+}
+
+task_transport_from_detail() {
+  python3 - "$1" <<'PY2'
+import json, sys
+print(json.load(open(sys.argv[1], 'r', encoding='utf-8'))["task"]["transport"])
+PY2
+}
+
+assert_task_succeeded() {
+  python3 - "$1" <<'PY2'
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
-expected_transport = sys.argv[2]
 task = payload["task"]
 events = payload["events"]
 assert task["status"] == "succeeded", task
-assert task["transport"] == expected_transport, task
 assert task["exitCode"] == 0, task
 messages = [event["message"] for event in events]
 assert "dual-process smoke ok" in messages, messages
@@ -315,6 +329,60 @@ print(json.dumps({
     "eventCount": len(events),
 }, ensure_ascii=False))
 PY2
+}
+
+echo "creating task"
+create_smoke_task \
+  "Say hello from the dual-process smoke test" \
+  "Dual process smoke task" \
+  "$TMP_DIR/create-task.json" \
+  "$TMP_DIR/task-detail.json"
+assert_task_succeeded "$TMP_DIR/task-detail.json"
+TASK_TRANSPORT=$(task_transport_from_detail "$TMP_DIR/task-detail.json")
+
+if [[ "$MODE" != "overlay" ]]; then
+  if [[ "$TASK_TRANSPORT" != "$EXPECTED_TRANSPORT" ]]; then
+    echo "task used unexpected transport in relay polling mode: $TASK_TRANSPORT" >&2
+    cat "$TMP_DIR/task-detail.json" >&2
+    exit 1
+  fi
+else
+  case "$TASK_TRANSPORT" in
+    overlay_proxy)
+      ;;
+    relay_polling)
+      echo "overlay task fell back to relay polling; waiting for task bridge recovery"
+      overlay_task_recovered=0
+      for attempt in $(seq 1 5); do
+        sleep 2
+        echo "creating overlay recovery task attempt $attempt"
+        create_smoke_task \
+          "Say hello from the overlay recovery smoke test attempt $attempt" \
+          "Dual process smoke recovery task $attempt" \
+          "$TMP_DIR/create-recovery-task.json" \
+          "$TMP_DIR/task-recovery-detail.json"
+        assert_task_succeeded "$TMP_DIR/task-recovery-detail.json"
+        recovery_transport=$(task_transport_from_detail "$TMP_DIR/task-recovery-detail.json")
+        if [[ "$recovery_transport" == "overlay_proxy" ]]; then
+          cp "$TMP_DIR/task-recovery-detail.json" "$TMP_DIR/task-detail.json"
+          overlay_task_recovered=1
+          break
+        fi
+        echo "overlay recovery task attempt $attempt still used $recovery_transport"
+      done
+      if [[ "$overlay_task_recovered" != "1" ]]; then
+        echo "overlay task bridge did not recover to overlay_proxy in time" >&2
+        cat "$TMP_DIR/task-recovery-detail.json" >&2
+        exit 1
+      fi
+      ;;
+    *)
+      echo "task used unexpected transport in overlay mode: $TASK_TRANSPORT" >&2
+      cat "$TMP_DIR/task-detail.json" >&2
+      exit 1
+      ;;
+  esac
+fi
 
 if [[ "$MODE" == "overlay" ]]; then
   echo "creating overlay shell session"

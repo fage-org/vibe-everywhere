@@ -93,6 +93,9 @@ jobs:
       - name: Run relay polling smoke test
         run: ./scripts/dual-process-smoke.sh relay_polling
 
+      - name: Run overlay smoke test
+        run: ./scripts/dual-process-smoke.sh overlay
+
   android-mobile:
     name: Android Mobile
     needs: verify

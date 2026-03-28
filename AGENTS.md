@@ -7,6 +7,8 @@ This repository is a Rust workspace with one shared crate and three apps. `crate
 - `cargo check -p vibe-relay -p vibe-agent -p vibe-app`: verify all Rust targets compile.
 - `cargo test --workspace --all-targets -- --nocapture`: run the relay and agent Rust test suites.
 - `./scripts/dual-process-smoke.sh relay_polling`: run the end-to-end relay polling smoke test.
+- `./scripts/dual-process-smoke.sh overlay`: run the end-to-end overlay smoke test with fallback
+  and recovery coverage.
 - `cargo run -p vibe-relay`: start the relay on port `8787`.
 - `cargo run -p vibe-agent -- --relay-url http://127.0.0.1:8787`: start an agent against the local relay.
 - `cd apps/vibe-app && npm ci && npm run dev`: run the Vue control app locally.
@@ -50,7 +52,7 @@ Use `cargo fmt --all` for Rust formatting. Follow Rust defaults: `snake_case` fo
 - When optimizing CI or release performance with caches, scope cache keys to dependency manifests, lockfiles, or explicit tool-version inputs. Do not add broad caches with unclear invalidation, especially for large SDK trees.
 
 ## Testing Guidelines
-Prefer focused Rust unit or integration-style tests near parsing, request orchestration, provider mapping, and transport logic; current examples live in `apps/vibe-relay/src/main.rs`, `apps/vibe-agent/src/main.rs`, `apps/vibe-agent/src/workspace_runtime.rs`, and `apps/vibe-agent/src/git_runtime.rs`. Name tests by behavior, for example `claude_tool_use_maps_to_tool_call`. When changing relay or agent control-plane behavior, add or update tests and rerun `cargo test --workspace --all-targets -- --nocapture`; add `./scripts/dual-process-smoke.sh relay_polling` for end-to-end path changes. The frontend still has no dedicated automated harness, so at minimum run `npm run build` and follow the manual checklist in `TESTING.md` when touching `apps/vibe-app`.
+Prefer focused Rust unit or integration-style tests near parsing, request orchestration, provider mapping, and transport logic; current examples live in `apps/vibe-relay/src/main.rs`, `apps/vibe-agent/src/main.rs`, `apps/vibe-agent/src/workspace_runtime.rs`, and `apps/vibe-agent/src/git_runtime.rs`. Name tests by behavior, for example `claude_tool_use_maps_to_tool_call`. When changing relay or agent control-plane behavior, add or update tests and rerun `cargo test --workspace --all-targets -- --nocapture`; add `./scripts/dual-process-smoke.sh relay_polling` and `./scripts/dual-process-smoke.sh overlay` for end-to-end transport path changes. The frontend still has no dedicated automated harness, so at minimum run `npm run build` and follow the manual checklist in `TESTING.md` when touching `apps/vibe-app`.
 - If UI semantics, navigation, visibility gating, or relay/runtime configuration behavior changes, the `TESTING.md` manual regression steps must be updated to match the new product model in the same change set.
 - A GitHub push or release cut is not considered fully verified until the corresponding GitHub Actions runs are checked and their final status is reported.
 - Do not keep release-critical verification as `best-effort`, forced-success, or non-blocking once a stable harness is available. If CI stability is the problem, fix the harness or move the check out of the required workflow explicitly.
