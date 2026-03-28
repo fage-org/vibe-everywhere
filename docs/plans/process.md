@@ -76,9 +76,11 @@ After implementation and verification:
 6. if the primary user-facing model changed, update [`../../README.md`](../../README.md),
    [`../../README.en.md`](../../README.en.md), and the manual checklist in
    [`../../TESTING.md`](../../TESTING.md) before closing the item
-7. if the work affects a shipped release, release packaging, release notes, or operator deployment
+7. if the change affects developer onboarding, source-build instructions, or contributor entry
+   points, update [`../../DEVELOPMENT.md`](../../DEVELOPMENT.md) before closing the item
+8. if the work affects a shipped release, release packaging, release notes, or operator deployment
    flow, update the next-release note source under `docs/releases/` before closing the item
-8. after pushing to GitHub, monitor the triggered GitHub Actions runs and do not consider the task
+9. after pushing to GitHub, monitor the triggered GitHub Actions runs and do not consider the task
    delivered until the relevant workflows are either green or have a clearly documented failure
    diagnosis
 
@@ -135,3 +137,22 @@ Examples include:
 - documentation/update workflow rules
 - verification/test-integrity rules
 - release-packaging and release-notes workflow rules
+
+## Documentation Surface Rule
+
+- `README.md` and `README.en.md` are user/operator surfaces first.
+- Do not write internal governance, anti-hardcoding requirements, release workflow mandates, or
+  project-management instructions into the top-level README files.
+- Contributor setup, local build commands, and source-development workflow belong in
+  [`../../DEVELOPMENT.md`](../../DEVELOPMENT.md) or another dedicated developer document.
+- Operator docs may explain runtime inputs and deployment steps, but they should stay user-facing
+  and operational rather than governance-heavy.
+
+## Workflow Cache Rule
+
+- CI and release cache changes must use invalidation inputs tied to lockfiles, dependency manifests,
+  or explicit tool versions.
+- Prefer bounded caches such as npm, Rust, or Gradle dependency caches over broad SDK-directory
+  snapshots unless the invalidation and failure mode are explicit.
+- When cache scope or invalidation changes materially, reflect that in the active remediation or
+  iteration details file so future updates do not silently degrade build reliability.

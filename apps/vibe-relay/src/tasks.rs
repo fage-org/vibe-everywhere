@@ -95,7 +95,7 @@ pub(super) async fn create_task(
         ));
     }
 
-    let transport = preferred_task_transport(&device);
+    let transport = preferred_task_transport(&state, &device);
     let task = TaskRecord::new(payload, provider.execution_protocol, transport, &actor);
     let queued_event = TaskEvent {
         seq: 1,
@@ -527,13 +527,17 @@ fn push_task_event_entry(
     event
 }
 
-pub(super) fn preferred_task_transport(device: &DeviceRecord) -> TaskTransportKind {
+pub(super) fn preferred_task_transport(
+    state: &AppState,
+    device: &DeviceRecord,
+) -> TaskTransportKind {
     if matches!(device.overlay.state, OverlayState::Connected)
         && device
             .overlay
             .node_ip
             .as_deref()
             .is_some_and(|value| !value.trim().is_empty())
+        && overlay_bridge_is_available(state, &device.id, OverlayBridgeKind::Task)
     {
         TaskTransportKind::OverlayProxy
     } else {
@@ -590,18 +594,17 @@ async fn run_overlay_task_inner(state: &AppState, task_id: &str) -> anyhow::Resu
         return Ok(());
     };
 
-    let stream = match TcpStream::connect((node_ip.as_str(), state.config.task_bridge_port)).await {
+    let stream = match connect_overlay_bridge(
+        state,
+        &task.device_id,
+        OverlayBridgeKind::Task,
+        node_ip.as_str(),
+    )
+    .await
+    {
         Ok(stream) => stream,
-        Err(error) => {
-            fallback_task_to_relay_polling(
-                state,
-                task_id,
-                format!(
-                    "failed to connect task bridge {}:{}: {}",
-                    node_ip, state.config.task_bridge_port, error
-                ),
-            )
-            .await?;
+        Err(message) => {
+            fallback_task_to_relay_polling(state, task_id, message).await?;
             return Ok(());
         }
     };
@@ -617,6 +620,12 @@ async fn run_overlay_task_inner(state: &AppState, task_id: &str) -> anyhow::Resu
     )
     .await
     {
+        mark_overlay_bridge_unavailable(
+            state,
+            &task.device_id,
+            OverlayBridgeKind::Task,
+            format!("failed to send task bridge start request: {error}"),
+        );
         fallback_task_to_relay_polling(
             state,
             task_id,
@@ -629,9 +638,27 @@ async fn run_overlay_task_inner(state: &AppState, task_id: &str) -> anyhow::Resu
     let mut started = false;
     let mut cancel_sent = false;
     let mut interval = tokio::time::interval(Duration::from_millis(TASK_BRIDGE_POLL_MS));
+    let start_timeout = tokio::time::sleep(Duration::from_millis(
+        state.config.overlay_bridge_start_timeout_ms.max(1),
+    ));
+    tokio::pin!(start_timeout);
 
     loop {
         tokio::select! {
+            _ = &mut start_timeout, if !started => {
+                let message = format!(
+                    "task bridge did not acknowledge start within {} ms",
+                    state.config.overlay_bridge_start_timeout_ms
+                );
+                mark_overlay_bridge_unavailable(
+                    state,
+                    &task.device_id,
+                    OverlayBridgeKind::Task,
+                    message.clone(),
+                );
+                fallback_task_to_relay_polling(state, task_id, message).await?;
+                return Ok(());
+            }
             _ = interval.tick() => {
                 match load_task_record(state, task_id).await {
                     Some(record) if record.transport != TaskTransportKind::OverlayProxy => {
@@ -651,14 +678,14 @@ async fn run_overlay_task_inner(state: &AppState, task_id: &str) -> anyhow::Resu
                 }
             }
             event = read_task_bridge_event(&mut lines) => {
-                match event? {
-                    Some(TaskBridgeEvent::Update {
+                match event {
+                    Ok(Some(TaskBridgeEvent::Update {
                         status,
                         execution_protocol,
                         events,
                         exit_code,
                         error,
-                    }) => {
+                    })) => {
                         started = true;
                         let detail = append_task_events_internal(
                             state,
@@ -678,7 +705,7 @@ async fn run_overlay_task_inner(state: &AppState, task_id: &str) -> anyhow::Resu
                             return Ok(());
                         }
                     }
-                    Some(TaskBridgeEvent::Error { message }) => {
+                    Ok(Some(TaskBridgeEvent::Error { message })) => {
                         if !started {
                             fallback_task_to_relay_polling(
                                 state,
@@ -691,8 +718,14 @@ async fn run_overlay_task_inner(state: &AppState, task_id: &str) -> anyhow::Resu
                         }
                         return Ok(());
                     }
-                    None => {
+                    Ok(None) => {
                         if !started {
+                            mark_overlay_bridge_unavailable(
+                                state,
+                                &task.device_id,
+                                OverlayBridgeKind::Task,
+                                "overlay task bridge closed before task start",
+                            );
                             fallback_task_to_relay_polling(
                                 state,
                                 task_id,
@@ -707,12 +740,33 @@ async fn run_overlay_task_inner(state: &AppState, task_id: &str) -> anyhow::Resu
                             )
                             .await?;
                         } else {
+                            mark_overlay_bridge_unavailable(
+                                state,
+                                &task.device_id,
+                                OverlayBridgeKind::Task,
+                                "overlay task bridge connection closed unexpectedly",
+                            );
                             fail_overlay_task(
                                 state,
                                 task_id,
                                 "overlay task bridge connection closed unexpectedly",
                             )
                             .await?;
+                        }
+                        return Ok(());
+                    }
+                    Err(error) => {
+                        let message = format!("failed to read task bridge event: {error}");
+                        mark_overlay_bridge_unavailable(
+                            state,
+                            &task.device_id,
+                            OverlayBridgeKind::Task,
+                            message.clone(),
+                        );
+                        if !started {
+                            fallback_task_to_relay_polling(state, task_id, message).await?;
+                        } else {
+                            fail_overlay_task(state, task_id, message).await?;
                         }
                         return Ok(());
                     }

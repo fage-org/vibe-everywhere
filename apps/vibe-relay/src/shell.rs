@@ -82,7 +82,7 @@ pub(super) async fn create_shell_session(
             ));
         }
 
-        let transport = preferred_shell_transport(&device);
+        let transport = preferred_shell_transport(&state, &device);
         let session = ShellSessionRecord::new(payload, transport.clone(), &actor);
         let start_overlay_proxy = transport == ShellTransportKind::OverlayProxy;
         store.shell_sessions.insert(
@@ -474,13 +474,17 @@ pub(super) async fn close_shell_session(
     Ok(Json(detail))
 }
 
-pub(super) fn preferred_shell_transport(device: &DeviceRecord) -> ShellTransportKind {
+pub(super) fn preferred_shell_transport(
+    state: &AppState,
+    device: &DeviceRecord,
+) -> ShellTransportKind {
     if matches!(device.overlay.state, OverlayState::Connected)
         && device
             .overlay
             .node_ip
             .as_deref()
             .is_some_and(|value| !value.trim().is_empty())
+        && overlay_bridge_is_available(state, &device.id, OverlayBridgeKind::Shell)
     {
         ShellTransportKind::OverlayProxy
     } else {
@@ -545,16 +549,17 @@ async fn run_overlay_shell_session_inner(state: &AppState, session_id: &str) -> 
         return Ok(());
     };
 
-    let address = format!("{node_ip}:{}", state.config.shell_bridge_port);
-    let stream = match TcpStream::connect(&address).await {
+    let stream = match connect_overlay_bridge(
+        state,
+        &device_id,
+        OverlayBridgeKind::Shell,
+        node_ip.as_str(),
+    )
+    .await
+    {
         Ok(stream) => stream,
-        Err(error) => {
-            fallback_shell_session_to_relay_polling(
-                state,
-                session_id,
-                format!("failed to connect to {address}: {error}"),
-            )
-            .await?;
+        Err(message) => {
+            fallback_shell_session_to_relay_polling(state, session_id, message).await?;
             return Ok(());
         }
     };
@@ -571,6 +576,12 @@ async fn run_overlay_shell_session_inner(state: &AppState, session_id: &str) -> 
     )
     .await
     {
+        mark_overlay_bridge_unavailable(
+            state,
+            &device_id,
+            OverlayBridgeKind::Shell,
+            format!("failed to send shell start request: {error}"),
+        );
         fallback_shell_session_to_relay_polling(
             state,
             session_id,
@@ -580,8 +591,13 @@ async fn run_overlay_shell_session_inner(state: &AppState, session_id: &str) -> 
         return Ok(());
     }
 
-    let started = match read_shell_bridge_event(&mut lines).await {
-        Ok(Some(ShellBridgeEvent::Started { shell, cwd })) => {
+    let started = match tokio::time::timeout(
+        Duration::from_millis(state.config.overlay_bridge_start_timeout_ms.max(1)),
+        read_shell_bridge_event(&mut lines),
+    )
+    .await
+    {
+        Ok(Ok(Some(ShellBridgeEvent::Started { shell, cwd }))) => {
             append_shell_output_internal(
                 state,
                 session_id,
@@ -606,7 +622,7 @@ async fn run_overlay_shell_session_inner(state: &AppState, session_id: &str) -> 
             .map_err(api_error_to_anyhow)?;
             true
         }
-        Ok(Some(ShellBridgeEvent::Error { message })) => {
+        Ok(Ok(Some(ShellBridgeEvent::Error { message }))) => {
             fallback_shell_session_to_relay_polling(
                 state,
                 session_id,
@@ -615,7 +631,13 @@ async fn run_overlay_shell_session_inner(state: &AppState, session_id: &str) -> 
             .await?;
             false
         }
-        Ok(Some(other)) => {
+        Ok(Ok(Some(other))) => {
+            mark_overlay_bridge_unavailable(
+                state,
+                &device_id,
+                OverlayBridgeKind::Shell,
+                format!("unexpected shell bridge event before start: {other:?}"),
+            );
             fallback_shell_session_to_relay_polling(
                 state,
                 session_id,
@@ -624,7 +646,13 @@ async fn run_overlay_shell_session_inner(state: &AppState, session_id: &str) -> 
             .await?;
             false
         }
-        Ok(None) => {
+        Ok(Ok(None)) => {
+            mark_overlay_bridge_unavailable(
+                state,
+                &device_id,
+                OverlayBridgeKind::Shell,
+                "shell bridge closed before session start",
+            );
             fallback_shell_session_to_relay_polling(
                 state,
                 session_id,
@@ -633,13 +661,33 @@ async fn run_overlay_shell_session_inner(state: &AppState, session_id: &str) -> 
             .await?;
             false
         }
-        Err(error) => {
+        Ok(Err(error)) => {
+            mark_overlay_bridge_unavailable(
+                state,
+                &device_id,
+                OverlayBridgeKind::Shell,
+                format!("failed to read shell bridge start event: {error}"),
+            );
             fallback_shell_session_to_relay_polling(
                 state,
                 session_id,
                 format!("failed to read shell bridge start event: {error}"),
             )
             .await?;
+            false
+        }
+        Err(_) => {
+            let message = format!(
+                "shell bridge did not acknowledge start within {} ms",
+                state.config.overlay_bridge_start_timeout_ms
+            );
+            mark_overlay_bridge_unavailable(
+                state,
+                &device_id,
+                OverlayBridgeKind::Shell,
+                message.clone(),
+            );
+            fallback_shell_session_to_relay_polling(state, session_id, message).await?;
             false
         }
     };
@@ -688,8 +736,8 @@ async fn run_overlay_shell_session_inner(state: &AppState, session_id: &str) -> 
                 }
             }
             event = read_shell_bridge_event(&mut lines) => {
-                match event? {
-                    Some(ShellBridgeEvent::Output { stream, data }) => {
+                match event {
+                    Ok(Some(ShellBridgeEvent::Output { stream, data })) => {
                         append_shell_output_internal(
                             state,
                             session_id,
@@ -704,11 +752,11 @@ async fn run_overlay_shell_session_inner(state: &AppState, session_id: &str) -> 
                         .await
                         .map_err(api_error_to_anyhow)?;
                     }
-                    Some(ShellBridgeEvent::Exited {
+                    Ok(Some(ShellBridgeEvent::Exited {
                         exit_code,
                         close_requested,
                         error,
-                    }) => {
+                    })) => {
                         let status = if close_requested {
                             ShellSessionStatus::Closed
                         } else if error.is_none() && exit_code.unwrap_or_default() == 0 {
@@ -731,12 +779,12 @@ async fn run_overlay_shell_session_inner(state: &AppState, session_id: &str) -> 
                         .map_err(api_error_to_anyhow)?;
                         return Ok(());
                     }
-                    Some(ShellBridgeEvent::Error { message }) => {
+                    Ok(Some(ShellBridgeEvent::Error { message })) => {
                         fail_overlay_shell_session(state, session_id, message).await?;
                         return Ok(());
                     }
-                    Some(ShellBridgeEvent::Started { .. }) => {}
-                    None => {
+                    Ok(Some(ShellBridgeEvent::Started { .. })) => {}
+                    Ok(None) => {
                         if close_sent {
                             fail_overlay_shell_session(
                                 state,
@@ -745,6 +793,12 @@ async fn run_overlay_shell_session_inner(state: &AppState, session_id: &str) -> 
                             )
                             .await?;
                         } else {
+                            mark_overlay_bridge_unavailable(
+                                state,
+                                &device_id,
+                                OverlayBridgeKind::Shell,
+                                "overlay shell bridge connection closed unexpectedly",
+                            );
                             fail_overlay_shell_session(
                                 state,
                                 session_id,
@@ -752,6 +806,17 @@ async fn run_overlay_shell_session_inner(state: &AppState, session_id: &str) -> 
                             )
                             .await?;
                         }
+                        return Ok(());
+                    }
+                    Err(error) => {
+                        let message = format!("failed to read shell bridge event: {error}");
+                        mark_overlay_bridge_unavailable(
+                            state,
+                            &device_id,
+                            OverlayBridgeKind::Shell,
+                            message.clone(),
+                        );
+                        fail_overlay_shell_session(state, session_id, message).await?;
                         return Ok(());
                     }
                 }

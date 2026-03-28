@@ -33,6 +33,7 @@ Use `cargo fmt --all` for Rust formatting. Follow Rust defaults: `snake_case` fo
 - After every completed iteration or remediation item, update the active `summary` file, the active `details` file, `PLAN.md`, and any newly required long-term guardrails in this file.
 - If the user has already explicitly specified the concrete repair shape for a remediation item, record that mode as `user-specified` and proceed instead of re-asking the same choice.
 - When a change alters the primary user-facing model, update `README.md`, `README.en.md`, and the relevant manual checklist in `TESTING.md` in the same change set before considering the item complete.
+- When a change alters developer onboarding, source-build steps, or contributor entry points, update `DEVELOPMENT.md` in the same change set instead of expanding the top-level README files.
 - If a change affects release packaging, release notes, or deployment/onboarding flow, update the next-release note source under `docs/releases/` in the same change set.
 - After pushing to GitHub, monitor the triggered GitHub Actions runs until they either succeed or fail with a clear diagnosis. Do not treat the delivery as complete immediately after `git push`.
 - When `main` is pushed, monitor the `CI` workflow. When a release tag such as `vX.Y.Z` is pushed, monitor the `Release` workflow as well.
@@ -41,12 +42,20 @@ Use `cargo fmt --all` for Rust formatting. Follow Rust defaults: `snake_case` fo
 - Published release asset names must include the shipped version/tag plus platform identity so operators can identify downloads without opening them.
 - GitHub Release bodies must come from repository-owned release notes, not only from GitHub auto-generated text.
 
+## Documentation And Workflow Guardrails
+- `README.md` and `README.en.md` are user/operator entry points. Keep them focused on what the product does, how to deploy it, how to connect to it, and where to download it.
+- Do not write internal governance, anti-hardcoding policy, planning workflow, release-process mandates, or project-management requirements into the top-level README files.
+- Contributor, source-build, and local development instructions belong in `DEVELOPMENT.md` or another dedicated developer document, not in the top-level README files.
+- Operator docs may explain required runtime inputs and deployment steps, but they should do so as operational guidance rather than repository-governance language.
+- When optimizing CI or release performance with caches, scope cache keys to dependency manifests, lockfiles, or explicit tool-version inputs. Do not add broad caches with unclear invalidation, especially for large SDK trees.
+
 ## Testing Guidelines
 Prefer focused Rust unit or integration-style tests near parsing, request orchestration, provider mapping, and transport logic; current examples live in `apps/vibe-relay/src/main.rs`, `apps/vibe-agent/src/main.rs`, `apps/vibe-agent/src/workspace_runtime.rs`, and `apps/vibe-agent/src/git_runtime.rs`. Name tests by behavior, for example `claude_tool_use_maps_to_tool_call`. When changing relay or agent control-plane behavior, add or update tests and rerun `cargo test --workspace --all-targets -- --nocapture`; add `./scripts/dual-process-smoke.sh relay_polling` for end-to-end path changes. The frontend still has no dedicated automated harness, so at minimum run `npm run build` and follow the manual checklist in `TESTING.md` when touching `apps/vibe-app`.
 - If UI semantics, navigation, visibility gating, or relay/runtime configuration behavior changes, the `TESTING.md` manual regression steps must be updated to match the new product model in the same change set.
 - A GitHub push or release cut is not considered fully verified until the corresponding GitHub Actions runs are checked and their final status is reported.
 - Do not keep release-critical verification as `best-effort`, forced-success, or non-blocking once a stable harness is available. If CI stability is the problem, fix the harness or move the check out of the required workflow explicitly.
 - Test-only loopback or fixed-address defaults are allowed only inside dedicated local/CI harnesses, must stay out of product/runtime defaults, and must be documented as harness-only behavior.
+- If README, deployment docs, or developer-entry documents move or change materially, the manual verification and release/onboarding checks in `TESTING.md` must be updated in the same change set.
 
 ## Configuration And Networking Guardrails
 - Do not use `127.0.0.1`, `localhost`, or other loopback addresses as production-facing product defaults for relay/public-origin behavior. Any loopback fallback that remains must be explicitly development-only and documented as such.

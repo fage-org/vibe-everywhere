@@ -119,7 +119,7 @@ pub(super) async fn create_port_forward(
             )
         })?;
 
-        let transport = preferred_port_forward_transport(&device);
+        let transport = preferred_port_forward_transport(&state, &device);
         let forward = PortForwardRecord::new(
             payload,
             state.config.forward_host.clone(),
@@ -573,13 +573,17 @@ pub(super) async fn close_port_forward(
     Ok(Json(detail))
 }
 
-pub(super) fn preferred_port_forward_transport(device: &DeviceRecord) -> PortForwardTransportKind {
+pub(super) fn preferred_port_forward_transport(
+    state: &AppState,
+    device: &DeviceRecord,
+) -> PortForwardTransportKind {
     if matches!(device.overlay.state, OverlayState::Connected)
         && device
             .overlay
             .node_ip
             .as_deref()
             .is_some_and(|value| !value.trim().is_empty())
+        && overlay_bridge_is_available(state, &device.id, OverlayBridgeKind::PortForward)
     {
         PortForwardTransportKind::OverlayProxy
     } else {
@@ -700,9 +704,10 @@ async fn run_overlay_port_forward_inner(state: &AppState, forward_id: &str) -> a
                 next_connection_id += 1;
                 let connection_id = next_connection_id;
                 let task = tokio::spawn(run_overlay_port_forward_client_session(
+                    state.clone(),
                     stream,
+                    forward.device_id.clone(),
                     node_ip.clone(),
-                    state.config.port_forward_bridge_port,
                     state.config.access_token.clone(),
                     forward.clone(),
                     connection_id,
@@ -803,23 +808,28 @@ async fn run_overlay_port_forward_inner(state: &AppState, forward_id: &str) -> a
 }
 
 async fn run_overlay_port_forward_client_session(
+    state: AppState,
     mut client: TcpStream,
+    device_id: String,
     node_ip: String,
-    bridge_port: u16,
     access_token: Option<String>,
     forward: PortForwardRecord,
     connection_id: u64,
     events_tx: mpsc::UnboundedSender<OverlayPortForwardClientEvent>,
 ) {
-    let mut bridge = match TcpStream::connect((node_ip.as_str(), bridge_port)).await {
+    let mut bridge = match connect_overlay_bridge(
+        &state,
+        &device_id,
+        OverlayBridgeKind::PortForward,
+        node_ip.as_str(),
+    )
+    .await
+    {
         Ok(bridge) => bridge,
-        Err(error) => {
+        Err(message) => {
             let _ = events_tx.send(OverlayPortForwardClientEvent::Closed {
                 connection_id,
-                error: Some(format!(
-                    "failed to connect overlay bridge {}:{}: {}",
-                    node_ip, bridge_port, error
-                )),
+                error: Some(message),
                 fallback_to_relay_tunnel: true,
             });
             return;
@@ -833,6 +843,12 @@ async fn run_overlay_port_forward_client_session(
         target_port: forward.target_port,
     };
     if let Err(error) = write_port_forward_bridge_request(&mut bridge, &request).await {
+        mark_overlay_bridge_unavailable(
+            &state,
+            &device_id,
+            OverlayBridgeKind::PortForward,
+            format!("failed to send overlay bridge request: {error}"),
+        );
         let _ = events_tx.send(OverlayPortForwardClientEvent::Closed {
             connection_id,
             error: Some(format!("failed to send overlay bridge request: {error}")),
@@ -841,11 +857,16 @@ async fn run_overlay_port_forward_client_session(
         return;
     }
 
-    match read_port_forward_bridge_event(&mut bridge).await {
-        Ok(Some(PortForwardBridgeEvent::Ready)) => {
+    match tokio::time::timeout(
+        Duration::from_millis(state.config.overlay_bridge_start_timeout_ms.max(1)),
+        read_port_forward_bridge_event(&mut bridge),
+    )
+    .await
+    {
+        Ok(Ok(Some(PortForwardBridgeEvent::Ready))) => {
             let _ = events_tx.send(OverlayPortForwardClientEvent::Ready { connection_id });
         }
-        Ok(Some(PortForwardBridgeEvent::Error { message })) => {
+        Ok(Ok(Some(PortForwardBridgeEvent::Error { message }))) => {
             let _ = events_tx.send(OverlayPortForwardClientEvent::Closed {
                 connection_id,
                 error: Some(message),
@@ -853,7 +874,13 @@ async fn run_overlay_port_forward_client_session(
             });
             return;
         }
-        Ok(None) => {
+        Ok(Ok(None)) => {
+            mark_overlay_bridge_unavailable(
+                &state,
+                &device_id,
+                OverlayBridgeKind::PortForward,
+                "overlay bridge closed before forwarding started",
+            );
             let _ = events_tx.send(OverlayPortForwardClientEvent::Closed {
                 connection_id,
                 error: Some("overlay bridge closed before forwarding started".to_string()),
@@ -861,10 +888,34 @@ async fn run_overlay_port_forward_client_session(
             });
             return;
         }
-        Err(error) => {
+        Ok(Err(error)) => {
+            mark_overlay_bridge_unavailable(
+                &state,
+                &device_id,
+                OverlayBridgeKind::PortForward,
+                format!("failed to read overlay bridge response: {error}"),
+            );
             let _ = events_tx.send(OverlayPortForwardClientEvent::Closed {
                 connection_id,
                 error: Some(format!("failed to read overlay bridge response: {error}")),
+                fallback_to_relay_tunnel: true,
+            });
+            return;
+        }
+        Err(_) => {
+            let message = format!(
+                "overlay bridge did not become ready within {} ms",
+                state.config.overlay_bridge_start_timeout_ms
+            );
+            mark_overlay_bridge_unavailable(
+                &state,
+                &device_id,
+                OverlayBridgeKind::PortForward,
+                message.clone(),
+            );
+            let _ = events_tx.send(OverlayPortForwardClientEvent::Closed {
+                connection_id,
+                error: Some(message),
                 fallback_to_relay_tunnel: true,
             });
             return;

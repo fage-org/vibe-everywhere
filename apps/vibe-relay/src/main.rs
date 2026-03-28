@@ -14,7 +14,12 @@ use axum::{
 };
 use futures_util::StreamExt;
 use serde::Deserialize;
-use std::{collections::HashMap, convert::Infallible, sync::Arc, time::Duration};
+use std::{
+    collections::HashMap,
+    convert::Infallible,
+    sync::{Arc, RwLock as StdRwLock},
+    time::Duration,
+};
 use tokio::{
     io::{AsyncBufReadExt, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader},
     net::{TcpListener, TcpStream},
@@ -93,7 +98,278 @@ struct AppState {
     shell_session_updates: Arc<RwLock<HashMap<String, broadcast::Sender<String>>>>,
     workspace_requests: Arc<RwLock<HashMap<String, WorkspaceRequestEntry>>>,
     git_requests: Arc<RwLock<HashMap<String, GitRequestEntry>>>,
+    overlay_bridge_health: Arc<StdRwLock<HashMap<OverlayBridgeKey, OverlayBridgeHealth>>>,
     config: Arc<RelayConfig>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+enum OverlayBridgeKind {
+    Task,
+    Shell,
+    PortForward,
+}
+
+impl OverlayBridgeKind {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Task => "task",
+            Self::Shell => "shell",
+            Self::PortForward => "port-forward",
+        }
+    }
+
+    fn port(self, config: &RelayConfig) -> u16 {
+        match self {
+            Self::Task => config.task_bridge_port,
+            Self::Shell => config.shell_bridge_port,
+            Self::PortForward => config.port_forward_bridge_port,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+struct OverlayBridgeKey {
+    device_id: String,
+    kind: OverlayBridgeKind,
+}
+
+#[derive(Clone, Debug)]
+struct OverlayBridgeHealth {
+    next_probe_after_epoch_ms: u64,
+    last_error: String,
+    probe_in_flight: bool,
+}
+
+fn overlay_bridge_key(device_id: &str, kind: OverlayBridgeKind) -> OverlayBridgeKey {
+    OverlayBridgeKey {
+        device_id: device_id.to_string(),
+        kind,
+    }
+}
+
+fn overlay_bridge_backoff_deadline(now: u64, delay_ms: u64) -> u64 {
+    now.saturating_add(delay_ms.max(1))
+}
+
+fn overlay_bridge_read_health(
+    state: &AppState,
+) -> std::sync::RwLockReadGuard<'_, HashMap<OverlayBridgeKey, OverlayBridgeHealth>> {
+    state
+        .overlay_bridge_health
+        .read()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+fn overlay_bridge_write_health(
+    state: &AppState,
+) -> std::sync::RwLockWriteGuard<'_, HashMap<OverlayBridgeKey, OverlayBridgeHealth>> {
+    state
+        .overlay_bridge_health
+        .write()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+fn overlay_bridge_is_available(state: &AppState, device_id: &str, kind: OverlayBridgeKind) -> bool {
+    let health = overlay_bridge_read_health(state);
+    !health.contains_key(&overlay_bridge_key(device_id, kind))
+}
+
+fn clear_overlay_bridge_unavailable(state: &AppState, device_id: &str, kind: OverlayBridgeKind) {
+    let mut health = overlay_bridge_write_health(state);
+    health.remove(&overlay_bridge_key(device_id, kind));
+}
+
+fn update_overlay_bridge_probe_deadline(
+    state: &AppState,
+    key: &OverlayBridgeKey,
+    last_error: String,
+    delay_ms: u64,
+) {
+    let mut health = overlay_bridge_write_health(state);
+    if let Some(entry) = health.get_mut(key) {
+        entry.next_probe_after_epoch_ms =
+            overlay_bridge_backoff_deadline(now_epoch_millis(), delay_ms);
+        entry.last_error = last_error;
+    }
+}
+
+fn mark_overlay_bridge_unavailable(
+    state: &AppState,
+    device_id: &str,
+    kind: OverlayBridgeKind,
+    last_error: impl Into<String>,
+) {
+    let key = overlay_bridge_key(device_id, kind);
+    let last_error = last_error.into();
+    let mut should_spawn_probe = false;
+    {
+        let mut health = overlay_bridge_write_health(state);
+        let entry = health
+            .entry(key.clone())
+            .or_insert_with(|| OverlayBridgeHealth {
+                next_probe_after_epoch_ms: 0,
+                last_error: String::new(),
+                probe_in_flight: false,
+            });
+        entry.next_probe_after_epoch_ms = overlay_bridge_backoff_deadline(
+            now_epoch_millis(),
+            state.config.overlay_bridge_recovery_cooldown_ms,
+        );
+        entry.last_error = last_error;
+        if !entry.probe_in_flight {
+            entry.probe_in_flight = true;
+            should_spawn_probe = true;
+        }
+    }
+
+    if should_spawn_probe {
+        let probe_state = state.clone();
+        tokio::spawn(async move {
+            overlay_bridge_probe_loop(probe_state, key).await;
+        });
+    }
+}
+
+async fn overlay_bridge_probe_loop(state: AppState, key: OverlayBridgeKey) {
+    loop {
+        let next_probe_after_epoch_ms = {
+            let health = overlay_bridge_read_health(&state);
+            let Some(entry) = health.get(&key) else {
+                return;
+            };
+            entry.next_probe_after_epoch_ms
+        };
+
+        let now = now_epoch_millis();
+        if next_probe_after_epoch_ms > now {
+            tokio::time::sleep(Duration::from_millis(next_probe_after_epoch_ms - now)).await;
+        }
+
+        let probe_target = {
+            let store = state.store.read().await;
+            store.devices.get(&key.device_id).map(|device| {
+                (
+                    device.overlay.state.clone(),
+                    device.overlay.node_ip.clone(),
+                    key.kind.port(&state.config),
+                )
+            })
+        };
+
+        let Some((overlay_state, node_ip, port)) = probe_target else {
+            clear_overlay_bridge_unavailable(&state, &key.device_id, key.kind);
+            return;
+        };
+
+        let Some(node_ip) = node_ip.filter(|value| !value.trim().is_empty()) else {
+            update_overlay_bridge_probe_deadline(
+                &state,
+                &key,
+                format!(
+                    "{} bridge probe waiting for overlay node IP",
+                    key.kind.label()
+                ),
+                state.config.overlay_bridge_probe_interval_ms,
+            );
+            continue;
+        };
+
+        if !matches!(overlay_state, OverlayState::Connected) {
+            update_overlay_bridge_probe_deadline(
+                &state,
+                &key,
+                format!(
+                    "{} bridge probe waiting for overlay state {:?}",
+                    key.kind.label(),
+                    overlay_state
+                ),
+                state.config.overlay_bridge_probe_interval_ms,
+            );
+            continue;
+        }
+
+        let connect_timeout =
+            Duration::from_millis(state.config.overlay_bridge_connect_timeout_ms.max(1));
+        match tokio::time::timeout(
+            connect_timeout,
+            TcpStream::connect((node_ip.as_str(), port)),
+        )
+        .await
+        {
+            Ok(Ok(stream)) => {
+                drop(stream);
+                clear_overlay_bridge_unavailable(&state, &key.device_id, key.kind);
+                return;
+            }
+            Ok(Err(error)) => {
+                update_overlay_bridge_probe_deadline(
+                    &state,
+                    &key,
+                    format!(
+                        "failed to reconnect {} bridge {}:{}: {}",
+                        key.kind.label(),
+                        node_ip,
+                        port,
+                        error
+                    ),
+                    state.config.overlay_bridge_probe_interval_ms,
+                );
+            }
+            Err(_) => {
+                update_overlay_bridge_probe_deadline(
+                    &state,
+                    &key,
+                    format!(
+                        "timed out reconnecting {} bridge {}:{} after {} ms",
+                        key.kind.label(),
+                        node_ip,
+                        port,
+                        state.config.overlay_bridge_connect_timeout_ms
+                    ),
+                    state.config.overlay_bridge_probe_interval_ms,
+                );
+            }
+        }
+    }
+}
+
+async fn connect_overlay_bridge(
+    state: &AppState,
+    device_id: &str,
+    kind: OverlayBridgeKind,
+    node_ip: &str,
+) -> Result<TcpStream, String> {
+    let port = kind.port(&state.config);
+    let connect_timeout =
+        Duration::from_millis(state.config.overlay_bridge_connect_timeout_ms.max(1));
+    match tokio::time::timeout(connect_timeout, TcpStream::connect((node_ip, port))).await {
+        Ok(Ok(stream)) => {
+            clear_overlay_bridge_unavailable(state, device_id, kind);
+            Ok(stream)
+        }
+        Ok(Err(error)) => {
+            let message = format!(
+                "failed to connect {} bridge {}:{}: {}",
+                kind.label(),
+                node_ip,
+                port,
+                error
+            );
+            mark_overlay_bridge_unavailable(state, device_id, kind, message.clone());
+            Err(message)
+        }
+        Err(_) => {
+            let message = format!(
+                "timed out connecting {} bridge {}:{} after {} ms",
+                kind.label(),
+                node_ip,
+                port,
+                state.config.overlay_bridge_connect_timeout_ms
+            );
+            mark_overlay_bridge_unavailable(state, device_id, kind, message.clone());
+            Err(message)
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -190,6 +466,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         shell_session_updates: Arc::new(RwLock::new(HashMap::new())),
         workspace_requests: Arc::new(RwLock::new(HashMap::new())),
         git_requests: Arc::new(RwLock::new(HashMap::new())),
+        overlay_bridge_health: Arc::new(StdRwLock::new(HashMap::new())),
         config: config.clone(),
     };
     let easytier_runtime = start_managed_relay_easytier(RelayEasyTierOptions::from_env());
@@ -839,6 +1116,10 @@ mod tests {
             shell_bridge_port: DEFAULT_SHELL_BRIDGE_PORT,
             port_forward_bridge_port: DEFAULT_PORT_FORWARD_BRIDGE_PORT,
             task_bridge_port: DEFAULT_TASK_BRIDGE_PORT,
+            overlay_bridge_connect_timeout_ms: 100,
+            overlay_bridge_start_timeout_ms: 200,
+            overlay_bridge_recovery_cooldown_ms: 50,
+            overlay_bridge_probe_interval_ms: 50,
             deployment_mode: vibe_core::DeploymentMode::SelfHosted,
             documentation_url: None,
             storage_kind: vibe_core::StorageKind::Memory,
@@ -855,6 +1136,7 @@ mod tests {
             shell_session_updates: Arc::new(RwLock::new(HashMap::new())),
             workspace_requests: Arc::new(RwLock::new(HashMap::new())),
             git_requests: Arc::new(RwLock::new(HashMap::new())),
+            overlay_bridge_health: Arc::new(StdRwLock::new(HashMap::new())),
             config: Arc::new(config),
         }
     }
@@ -1282,14 +1564,58 @@ mod tests {
 
     #[test]
     fn preferred_task_transport_uses_overlay_when_device_is_connected() {
+        let state = test_state();
         let mut device = test_device("device-1", vec![DeviceCapability::AiSession]);
         device.overlay.state = OverlayState::Connected;
         device.overlay.node_ip = Some("10.144.0.2".to_string());
 
         assert_eq!(
-            preferred_task_transport(&device),
+            preferred_task_transport(&state, &device),
             TaskTransportKind::OverlayProxy
         );
+    }
+
+    #[tokio::test]
+    async fn create_task_uses_relay_polling_when_task_bridge_is_marked_unavailable() {
+        let state = test_state_with_store(RelayStore {
+            devices: HashMap::from([(
+                "device-1".to_string(),
+                test_overlay_device(
+                    "device-1",
+                    vec![test_provider(
+                        ProviderKind::Codex,
+                        vibe_core::ExecutionProtocol::Cli,
+                    )],
+                ),
+            )]),
+            tasks: HashMap::new(),
+            shell_sessions: HashMap::new(),
+            port_forwards: HashMap::new(),
+            ..RelayStore::default()
+        });
+        mark_overlay_bridge_unavailable(
+            &state,
+            "device-1",
+            OverlayBridgeKind::Task,
+            "simulated task bridge failure",
+        );
+
+        let Json(created) = create_task(
+            State(state),
+            test_headers(),
+            Json(CreateTaskRequest {
+                device_id: "device-1".to_string(),
+                provider: ProviderKind::Codex,
+                prompt: "hello".to_string(),
+                cwd: None,
+                model: None,
+                title: Some("fallback task".to_string()),
+            }),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(created.task.transport, TaskTransportKind::RelayPolling);
     }
 
     #[tokio::test]
@@ -2159,6 +2485,121 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn overlay_task_start_timeout_falls_back_to_relay_polling() {
+        let listener = TcpListener::bind((test_local_tcp_host(), 0)).await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+
+        let mut task = test_task(
+            "task-1",
+            "device-1",
+            ProviderKind::Codex,
+            TaskStatus::Pending,
+            10,
+        );
+        task.record.transport = TaskTransportKind::OverlayProxy;
+        let state = test_state_with_store_and_config(
+            RelayStore {
+                devices: HashMap::from([(
+                    "device-1".to_string(),
+                    test_overlay_device("device-1", vec![]),
+                )]),
+                tasks: HashMap::from([("task-1".to_string(), task)]),
+                shell_sessions: HashMap::new(),
+                port_forwards: HashMap::new(),
+                ..RelayStore::default()
+            },
+            |config| {
+                config.task_bridge_port = port;
+                config.overlay_bridge_start_timeout_ms = 100;
+            },
+        );
+
+        let bridge = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let (read_half, _write_half) = stream.into_split();
+            let mut lines = BufReader::new(read_half).lines();
+            let request = read_task_bridge_request_for_test(&mut lines).await.unwrap();
+            assert!(matches!(request, TaskBridgeRequest::Start { .. }));
+            tokio::time::sleep(Duration::from_millis(300)).await;
+        });
+
+        dispatch_next_task_for_device(&state, "device-1")
+            .await
+            .unwrap();
+
+        let detail = wait_for_task_detail(&state, "task-1", |detail| {
+            detail.task.transport == TaskTransportKind::RelayPolling
+                && detail.task.status == TaskStatus::Pending
+        })
+        .await;
+        assert_eq!(detail.task.transport, TaskTransportKind::RelayPolling);
+        assert_eq!(detail.task.status, TaskStatus::Pending);
+        assert!(
+            detail
+                .events
+                .iter()
+                .any(|event| event.message.contains("did not acknowledge start"))
+        );
+
+        bridge.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn overlay_task_bridge_probe_restores_overlay_preference_after_recovery() {
+        let host = test_local_tcp_host();
+        let listener = TcpListener::bind((host.as_str(), 0)).await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let device = {
+            let mut device = test_overlay_device("device-1", vec![]);
+            device.overlay.node_ip = Some(host.clone());
+            device
+        };
+        let state = test_state_with_store_and_config(
+            RelayStore {
+                devices: HashMap::from([("device-1".to_string(), device.clone())]),
+                tasks: HashMap::new(),
+                shell_sessions: HashMap::new(),
+                port_forwards: HashMap::new(),
+                ..RelayStore::default()
+            },
+            |config| {
+                config.task_bridge_port = port;
+                config.overlay_bridge_recovery_cooldown_ms = 50;
+                config.overlay_bridge_probe_interval_ms = 50;
+                config.overlay_bridge_connect_timeout_ms = 100;
+            },
+        );
+
+        mark_overlay_bridge_unavailable(
+            &state,
+            "device-1",
+            OverlayBridgeKind::Task,
+            "simulated task bridge failure",
+        );
+        assert_eq!(
+            preferred_task_transport(&state, &device),
+            TaskTransportKind::RelayPolling
+        );
+
+        let probe = tokio::spawn(async move {
+            let (_stream, _) = listener.accept().await.unwrap();
+        });
+
+        tokio::time::timeout(Duration::from_secs(1), async {
+            loop {
+                if preferred_task_transport(&state, &device) == TaskTransportKind::OverlayProxy {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .unwrap();
+
+        probe.await.unwrap();
+    }
+
+    #[tokio::test]
     async fn overlay_task_disconnect_after_start_marks_task_failed() {
         let listener = TcpListener::bind((test_local_tcp_host(), 0)).await.unwrap();
         let port = listener.local_addr().unwrap().port();
@@ -2453,14 +2894,50 @@ mod tests {
 
     #[test]
     fn preferred_shell_transport_uses_overlay_when_device_is_connected() {
+        let state = test_state();
         let mut device = test_device("device-1", vec![DeviceCapability::Shell]);
         device.overlay.state = OverlayState::Connected;
         device.overlay.node_ip = Some("10.144.0.2".to_string());
 
         assert_eq!(
-            preferred_shell_transport(&device),
+            preferred_shell_transport(&state, &device),
             ShellTransportKind::OverlayProxy
         );
+    }
+
+    #[tokio::test]
+    async fn create_shell_session_uses_relay_polling_when_shell_bridge_is_marked_unavailable() {
+        let state = test_state_with_store(RelayStore {
+            devices: HashMap::from([("device-1".to_string(), {
+                let mut device = test_device("device-1", vec![DeviceCapability::Shell]);
+                device.overlay.state = OverlayState::Connected;
+                device.overlay.node_ip = Some("10.144.0.2".to_string());
+                device
+            })]),
+            tasks: HashMap::new(),
+            shell_sessions: HashMap::new(),
+            port_forwards: HashMap::new(),
+            ..RelayStore::default()
+        });
+        mark_overlay_bridge_unavailable(
+            &state,
+            "device-1",
+            OverlayBridgeKind::Shell,
+            "simulated shell bridge failure",
+        );
+
+        let Json(created) = create_shell_session(
+            State(state),
+            test_headers(),
+            Json(CreateShellSessionRequest {
+                device_id: "device-1".to_string(),
+                cwd: None,
+            }),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(created.session.transport, ShellTransportKind::RelayPolling);
     }
 
     #[tokio::test]
@@ -3122,13 +3599,61 @@ mod tests {
 
     #[test]
     fn preferred_port_forward_transport_uses_overlay_when_device_is_connected() {
+        let state = test_state();
         let mut device = test_device("device-1", vec![DeviceCapability::Shell]);
         device.overlay.state = OverlayState::Connected;
         device.overlay.node_ip = Some("10.144.0.2".to_string());
 
         assert_eq!(
-            preferred_port_forward_transport(&device),
+            preferred_port_forward_transport(&state, &device),
             PortForwardTransportKind::OverlayProxy
+        );
+    }
+
+    #[tokio::test]
+    async fn create_port_forward_uses_relay_tunnel_when_bridge_is_marked_unavailable() {
+        let host = test_local_tcp_host();
+        let state = test_state_with_store_and_config(
+            RelayStore {
+                devices: HashMap::from([("device-1".to_string(), {
+                    let mut device = test_device("device-1", vec![DeviceCapability::Shell]);
+                    device.overlay.state = OverlayState::Connected;
+                    device.overlay.node_ip = Some(host.clone());
+                    device
+                })]),
+                tasks: HashMap::new(),
+                shell_sessions: HashMap::new(),
+                port_forwards: HashMap::new(),
+                ..RelayStore::default()
+            },
+            |config| {
+                config.forward_host = host.clone();
+                config.forward_bind_host = host.clone();
+            },
+        );
+        mark_overlay_bridge_unavailable(
+            &state,
+            "device-1",
+            OverlayBridgeKind::PortForward,
+            "simulated port-forward bridge failure",
+        );
+
+        let Json(created) = create_port_forward(
+            State(state),
+            test_headers(),
+            Json(CreatePortForwardRequest {
+                device_id: "device-1".to_string(),
+                protocol: vibe_core::PortForwardProtocol::Tcp,
+                target_host: "127.0.0.1".to_string(),
+                target_port: 8080,
+            }),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            created.forward.transport,
+            PortForwardTransportKind::RelayTunnel
         );
     }
 

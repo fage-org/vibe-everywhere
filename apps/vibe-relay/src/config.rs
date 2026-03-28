@@ -17,6 +17,10 @@ pub(crate) struct RelayConfig {
     pub(crate) shell_bridge_port: u16,
     pub(crate) port_forward_bridge_port: u16,
     pub(crate) task_bridge_port: u16,
+    pub(crate) overlay_bridge_connect_timeout_ms: u64,
+    pub(crate) overlay_bridge_start_timeout_ms: u64,
+    pub(crate) overlay_bridge_recovery_cooldown_ms: u64,
+    pub(crate) overlay_bridge_probe_interval_ms: u64,
     pub(crate) deployment_mode: DeploymentMode,
     pub(crate) documentation_url: Option<String>,
     pub(crate) storage_kind: StorageKind,
@@ -42,6 +46,22 @@ impl RelayConfig {
             shell_bridge_port: resolve_shell_bridge_port(),
             port_forward_bridge_port: resolve_port_forward_bridge_port(),
             task_bridge_port: resolve_task_bridge_port(),
+            overlay_bridge_connect_timeout_ms: resolve_duration_ms(
+                "VIBE_OVERLAY_BRIDGE_CONNECT_TIMEOUT_MS",
+                1_500,
+            ),
+            overlay_bridge_start_timeout_ms: resolve_duration_ms(
+                "VIBE_OVERLAY_BRIDGE_START_TIMEOUT_MS",
+                3_000,
+            ),
+            overlay_bridge_recovery_cooldown_ms: resolve_duration_ms(
+                "VIBE_OVERLAY_BRIDGE_RECOVERY_COOLDOWN_MS",
+                1_500,
+            ),
+            overlay_bridge_probe_interval_ms: resolve_duration_ms(
+                "VIBE_OVERLAY_BRIDGE_PROBE_INTERVAL_MS",
+                3_000,
+            ),
             deployment_mode: resolve_deployment_mode(),
             documentation_url: resolve_documentation_url(),
             storage_kind: resolve_storage_kind(),
@@ -134,6 +154,14 @@ fn resolve_task_bridge_port() -> u16 {
         .and_then(|value| value.trim().parse::<u16>().ok())
         .filter(|value| *value > 0)
         .unwrap_or(crate::DEFAULT_TASK_BRIDGE_PORT)
+}
+
+fn resolve_duration_ms(name: &str, default: u64) -> u64 {
+    std::env::var(name)
+        .ok()
+        .and_then(|value| value.trim().parse::<u64>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(default)
 }
 
 fn resolve_forward_port_value(name: &str, default: u16) -> u16 {

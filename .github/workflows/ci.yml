@@ -108,6 +108,11 @@ jobs:
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
+          cache: gradle
+          cache-dependency-path: |
+            apps/vibe-app/src-tauri/gen/android/**/*.gradle*
+            apps/vibe-app/src-tauri/gen/android/**/gradle-wrapper.properties
+            apps/vibe-app/src-tauri/gen/android/**/gradle.properties
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4

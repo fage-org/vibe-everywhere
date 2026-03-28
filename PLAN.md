@@ -22,8 +22,8 @@ The active plan set is:
 - process governance: [`docs/plans/process.md`](./docs/plans/process.md)
 - active iteration summary: [`docs/plans/iterations/v1-summary.md`](./docs/plans/iterations/v1-summary.md)
 - active iteration details: [`docs/plans/iterations/v1-details.md`](./docs/plans/iterations/v1-details.md)
-- active remediation summary: [`docs/plans/remediation/v3-summary.md`](./docs/plans/remediation/v3-summary.md)
-- active remediation details: [`docs/plans/remediation/v3-details.md`](./docs/plans/remediation/v3-details.md)
+- active remediation summary: [`docs/plans/remediation/v4-summary.md`](./docs/plans/remediation/v4-summary.md)
+- active remediation details: [`docs/plans/remediation/v4-details.md`](./docs/plans/remediation/v4-details.md)
 
 Every completed iteration or remediation item must update this file and the active versioned plan
 files listed above.
@@ -155,12 +155,15 @@ Current planned implementation target:
 
 - Iteration 0 through Iteration 11 are completed for the current roadmap baseline.
 - The active execution track is now the problem-driven remediation plan in
-  `docs/plans/remediation/v3-summary.md`.
+  `docs/plans/remediation/v4-summary.md`.
 - Remediation plan `v1` is complete.
 - Remediation plan `v2` is complete after restoring blocking overlay smoke verification and auditing
   the repository for similar compromised checks.
 - Remediation plan `v3` is complete after release hygiene, release notes governance, and
   user-facing onboarding/deployment improvements were implemented and validated locally.
+- Remediation plan `v4` is complete after moving overlay fallback into relay runtime behavior,
+  restoring the README/developer-doc boundary, and adding bounded Android Gradle caches to CI and
+  release workflows.
 
 Most recent completed tranche:
 
@@ -359,6 +362,16 @@ These items are treated as completed foundation work, not future roadmap items.
 - 2026-03-28: Completed Remediation v3 R3 by rewriting the top-level README flow around operators,
   replacing the self-hosted note with a deployment guide, and adding Linux/Windows relay bootstrap
   installers with auto-start setup.
+- 2026-03-28: Started remediation plan `v4` to repair overlay runtime fallback behavior, restore
+  README ownership boundaries, and speed up Android CI/release jobs with bounded caches.
+- 2026-03-28: Completed Remediation v4 R1 by adding relay-side overlay bridge health tracking,
+  startup/connect timeouts, background recovery probes, and transport suppression until a bridge
+  becomes healthy again.
+- 2026-03-28: Completed Remediation v4 R2 by rewriting the top-level README files back to
+  user/operator entry points, splitting developer instructions into `DEVELOPMENT.md`, and
+  codifying the documentation-surface rule in repository guardrails.
+- 2026-03-28: Completed Remediation v4 R3 by enabling dependency-aware Gradle caching for Android
+  jobs in both `CI` and `Release`.
 - 2026-03-26: Completed relay and agent runtime modularization, frontend port-forward MVP wiring, and capability-boundary alignment as foundational architecture work.
 
 ## Verification Log
@@ -432,6 +445,20 @@ These items are treated as completed foundation work, not future roadmap items.
 - 2026-03-28: local PowerShell parser validation for `scripts/install-relay.ps1` could not be run
   because `pwsh` was not installed in the local environment; Windows GitHub Actions validation is
   still required after push.
+- 2026-03-28: `cargo fmt --all` succeeded after Remediation v4 runtime, documentation, and
+  workflow updates.
+- 2026-03-28: `cargo check --locked -p vibe-relay -p vibe-agent -p vibe-app` succeeded after
+  Remediation v4 runtime, documentation, and workflow updates.
+- 2026-03-28: `cargo test --locked --workspace --all-targets -- --nocapture` succeeded after
+  Remediation v4 runtime, documentation, and workflow updates.
+- 2026-03-28: `cd apps/vibe-app && npm run build` succeeded after Remediation v4 README rewrite,
+  developer-guide split, and runtime changes.
+- 2026-03-28: `bash -n scripts/install-relay.sh` and `./scripts/render-release-notes.sh v0.0.0`
+  succeeded after Remediation v4 documentation and workflow updates.
+- 2026-03-28: `./scripts/dual-process-smoke.sh relay_polling` succeeded after Remediation v4
+  runtime, documentation, and workflow updates.
+- 2026-03-28: `./scripts/dual-process-smoke.sh overlay` succeeded after Remediation v4 overlay
+  runtime fallback and auto-recovery changes.
 - 2026-03-26: `cargo fmt --all` succeeded after the capability-advertisement alignment.
 - 2026-03-26: `cargo test -p vibe-agent -- --nocapture` succeeded after the capability-advertisement alignment.
 - 2026-03-26: `cd apps/vibe-app && npm run build` succeeded after the capability-advertisement alignment.
@@ -477,3 +504,9 @@ These items are treated as completed foundation work, not future roadmap items.
   rules from Remediation R4.
 - 2026-03-28: Remediation v2 classified the remaining Android signing `exit 0` branch in the
   release workflow as a packaging fallback for missing secrets, not as a compromised test gate.
+- 2026-03-28: Remediation v4 keeps overlay recovery scoped to future work selection rather than
+  trying to migrate an already running task/session/forward back onto overlay mid-flight.
+- 2026-03-28: Remediation v4 reaffirms that top-level README files are user/operator surfaces,
+  while contributor workflow and source-build guidance belong in `DEVELOPMENT.md`.
+- 2026-03-28: Remediation v4 chooses Gradle dependency caches keyed by repository inputs instead of
+  broad Android SDK caches to reduce build time without increasing stale-cache risk materially.

@@ -134,6 +134,8 @@ Purpose:
 - catch release-asset naming regressions before publishing
 - ensure repository-owned release notes exist for the next or current release
 - verify bootstrap installers remain syntactically valid after deployment-doc changes
+- ensure top-level README files remain user-facing while developer entry points stay in
+  `DEVELOPMENT.md`
 
 Execution checks:
 
@@ -152,6 +154,10 @@ Manual review:
 - confirm release packaging no longer copies repository README files into published artifacts
 - confirm `docs/releases/unreleased.md` or the target `docs/releases/vX.Y.Z.md` exists and matches
   the shipped work
+- confirm `README.md` and `README.en.md` stay user/operator-facing and do not absorb developer or
+  governance-only content
+- confirm `DEVELOPMENT.md` contains the current developer entry path when build or contributor
+  instructions change
 
 Pass criteria:
 
@@ -162,7 +168,7 @@ Pass criteria:
 Recommended frequency:
 
 - before cutting any release tag
-- whenever release workflow, README onboarding, or deployment scripts change
+- whenever release workflow, README onboarding, `DEVELOPMENT.md`, or deployment scripts change
 
 ### Layer 1: Rust Unit and Contract Tests
 
