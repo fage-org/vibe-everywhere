@@ -1,9 +1,12 @@
 import type {
   AppConfig,
+  AuditRecord,
   CreatePortForwardPayload,
   CreateShellSessionPayload,
   CreateTaskPayload,
   DeviceRecord,
+  GitInspectRequest,
+  GitInspectResponse,
   PortForwardDetailResponse,
   PortForwardRecord,
   PortForwardStatus,
@@ -14,7 +17,11 @@ import type {
   ShellSessionStatus,
   TaskDetailResponse,
   TaskRecord,
-  TaskStatus
+  TaskStatus,
+  WorkspaceBrowseRequest,
+  WorkspaceBrowseResponse,
+  WorkspaceFilePreviewRequest,
+  WorkspaceFilePreviewResponse
 } from "../types";
 import { buildApiUrl } from "./runtime";
 
@@ -39,6 +46,10 @@ type ShellSessionQuery = {
 type PortForwardQuery = {
   deviceId?: string;
   status?: PortForwardStatus | "all";
+  limit?: number;
+};
+
+type AuditQuery = {
   limit?: number;
 };
 
@@ -121,12 +132,27 @@ function buildPortForwardPath(query?: PortForwardQuery) {
   return params.size ? `/api/port-forwards?${params.toString()}` : "/api/port-forwards";
 }
 
+function buildAuditPath(query?: AuditQuery) {
+  const params = new URLSearchParams();
+  if (typeof query?.limit === "number") {
+    params.set("limit", String(query.limit));
+  }
+
+  return params.size ? `/api/audit/events?${params.toString()}` : "/api/audit/events";
+}
+
 export function fetchHealth(baseUrl: string) {
   return requestJson<ServiceHealth>(baseUrl, "/api/health");
 }
 
 export function fetchAppConfig(baseUrl: string) {
   return requestJson<AppConfig>(baseUrl, "/api/app-config");
+}
+
+export function fetchAuditEvents(baseUrl: string, accessToken: string, query?: AuditQuery) {
+  return requestJson<AuditRecord[]>(baseUrl, buildAuditPath(query), {
+    accessToken
+  });
 }
 
 export function fetchDevices(baseUrl: string, accessToken: string) {
@@ -246,6 +272,48 @@ export async function closeShellSession(
       }
     }
   );
+}
+
+export function browseWorkspace(
+  baseUrl: string,
+  payload: WorkspaceBrowseRequest,
+  accessToken: string
+) {
+  return requestJson<WorkspaceBrowseResponse>(baseUrl, "/api/workspace/browse", {
+    accessToken,
+    init: {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }
+  });
+}
+
+export function previewWorkspaceFile(
+  baseUrl: string,
+  payload: WorkspaceFilePreviewRequest,
+  accessToken: string
+) {
+  return requestJson<WorkspaceFilePreviewResponse>(baseUrl, "/api/workspace/preview", {
+    accessToken,
+    init: {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }
+  });
+}
+
+export function inspectGitWorkspace(
+  baseUrl: string,
+  payload: GitInspectRequest,
+  accessToken: string
+) {
+  return requestJson<GitInspectResponse>(baseUrl, "/api/git/inspect", {
+    accessToken,
+    init: {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }
+  });
 }
 
 export function fetchPortForwards(

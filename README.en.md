@@ -8,12 +8,12 @@
 
 Rust-first remote AI control plane: `Rust relay + Rust agent + Vue 3.5 + Tauri 2 app`.
 
-This is not a traditional remote desktop product. It is a control system for multi-device AI workflows, task execution, shell sessions, and TCP port forwarding. The relay provides the control-plane API and state management, the agent runs on the target machine, and the control UI connects through Web or a Tauri desktop shell.
+This is not a traditional remote desktop product. It is an AI-session-first remote development control system. The relay provides the control-plane API and shared state, the agent runs on the target machine to execute AI sessions plus advanced diagnostics, and the control UI connects through Web, a Tauri desktop shell, or the Android shell.
 
 ## Status
 
 - Positioning: personal-edition MVP / open source experimental project
-- Working flows: device registration, task execution, event streaming, shell sessions, relay-first port forwarding, overlay-assisted transport
+- Primary flow: device selection, AI session launch, event-stream supervision, plus advanced terminal and preview tools
 - Technical direction: Rust for protocol, backend, and agent; Vue + Tauri for the control client
 - Mobile status: Android arm64 APK / AAB packaging is working, iOS is still pending
 - Best-fit use cases: self-hosted personal AI operations console, multi-device control plane, cross-platform experimentation
@@ -21,11 +21,11 @@ This is not a traditional remote desktop product. It is a control system for mul
 ## Features
 
 - Rust workspace with shared protocol, backend, agent, and desktop app
-- `vibe-relay` for Axum APIs, device state, task scheduling, shell sessions, and port forwarding
-- `vibe-agent` for registration, polling, provider adapters, shell runtime, and forwarding runtime
-- `vibe-app` for the Vue 3.5 control UI, with `src-tauri` as the desktop and Android shell
+- `vibe-relay` for Axum APIs, device state, AI-session scheduling, and terminal/preview control-plane flows
+- `vibe-agent` for registration, polling, provider adapters, workspace-root execution, and advanced terminal/tunnel runtime
+- `vibe-app` for the Vue 3.5 control UI, now centered on an AI session workspace, with `src-tauri` as the desktop and Android shell
 - Provider integration for `Codex`, `Claude Code`, and `OpenCode`
-- Relay-first task, shell, and TCP forwarding paths
+- Relay-first AI session, terminal, and TCP preview/forwarding paths
 - EasyTier-based overlay-assisted transport
 - Tauri Android arm64 debug APK, release APK, and AAB builds
 - SSE / WebSocket / tunnel based real-time updates

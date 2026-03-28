@@ -17,12 +17,17 @@ pub(super) struct ShellInputQuery {
 pub(super) async fn list_shell_sessions(
     State(state): State<AppState>,
     Query(query): Query<ShellSessionListQuery>,
-) -> Json<Vec<ShellSessionRecord>> {
+    headers: HeaderMap,
+) -> Result<Json<Vec<ShellSessionRecord>>, ApiError> {
+    let actor = actor_from_headers(&state, &headers);
+    ensure_actor_can_read(&actor)?;
+
     let store = state.store.read().await;
     let mut sessions = store
         .shell_sessions
         .values()
         .map(|entry| entry.record.clone())
+        .filter(|session| session.tenant_id == actor.tenant_id)
         .filter(|session| {
             query
                 .device_id
@@ -47,13 +52,17 @@ pub(super) async fn list_shell_sessions(
         sessions.truncate(limit.min(SHELL_SESSION_LIST_LIMIT_MAX));
     }
 
-    Json(sessions)
+    Ok(Json(sessions))
 }
 
 pub(super) async fn create_shell_session(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<CreateShellSessionRequest>,
 ) -> Result<Json<CreateShellSessionResponse>, ApiError> {
+    let actor = actor_from_headers(&state, &headers);
+    ensure_actor_can_write(&actor)?;
+
     let (session, detail, snapshot, start_overlay_proxy) = {
         let mut store = state.store.write().await;
         let device = store
@@ -61,6 +70,7 @@ pub(super) async fn create_shell_session(
             .get(&payload.device_id)
             .cloned()
             .ok_or_else(|| ApiError::not_found("device_not_found", "Device not found"))?;
+        ensure_tenant_access(&actor, &device.tenant_id)?;
         if !device
             .capabilities
             .iter()
@@ -73,7 +83,7 @@ pub(super) async fn create_shell_session(
         }
 
         let transport = preferred_shell_transport(&device);
-        let session = ShellSessionRecord::new(payload, transport.clone());
+        let session = ShellSessionRecord::new(payload, transport.clone(), &actor);
         let start_overlay_proxy = transport == ShellTransportKind::OverlayProxy;
         store.shell_sessions.insert(
             session.id.clone(),
@@ -94,6 +104,16 @@ pub(super) async fn create_shell_session(
 
     persist_snapshot(&state, &snapshot)?;
     publish_shell_session_detail(&state, &detail).await;
+    record_audit(
+        &state,
+        &actor,
+        AuditAction::ShellSessionCreated,
+        "shell_session",
+        session.id.clone(),
+        AuditOutcome::Succeeded,
+        None,
+    )
+    .await?;
 
     if start_overlay_proxy {
         let overlay_state = state.clone();
@@ -109,7 +129,11 @@ pub(super) async fn create_shell_session(
 pub(super) async fn get_shell_session(
     Path(session_id): Path<String>,
     State(state): State<AppState>,
+    headers: HeaderMap,
 ) -> Result<Json<ShellSessionDetailResponse>, ApiError> {
+    let actor = actor_from_headers(&state, &headers);
+    ensure_actor_can_read(&actor)?;
+
     let store = state.store.read().await;
     let Some(entry) = store.shell_sessions.get(&session_id) else {
         return Err(ApiError::not_found(
@@ -117,6 +141,7 @@ pub(super) async fn get_shell_session(
             "Shell session not found",
         ));
     };
+    ensure_tenant_access(&actor, &entry.record.tenant_id)?;
 
     Ok(Json(shell_session_detail(entry)))
 }
@@ -125,15 +150,20 @@ pub(super) async fn shell_session_websocket(
     Path(session_id): Path<String>,
     ws: WebSocketUpgrade,
     State(state): State<AppState>,
+    headers: HeaderMap,
 ) -> Result<Response, ApiError> {
+    let actor = actor_from_headers(&state, &headers);
+    ensure_actor_can_read(&actor)?;
+
     {
         let store = state.store.read().await;
-        if !store.shell_sessions.contains_key(&session_id) {
+        let Some(entry) = store.shell_sessions.get(&session_id) else {
             return Err(ApiError::not_found(
                 "shell_session_not_found",
                 "Shell session not found",
             ));
-        }
+        };
+        ensure_tenant_access(&actor, &entry.record.tenant_id)?;
     }
 
     Ok(ws.on_upgrade(move |socket| async move {
@@ -208,8 +238,12 @@ async fn send_shell_session_snapshot(
 pub(super) async fn append_shell_input(
     Path(session_id): Path<String>,
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<CreateShellInputRequest>,
 ) -> Result<Json<ShellSessionDetailResponse>, ApiError> {
+    let actor = actor_from_headers(&state, &headers);
+    ensure_actor_can_write(&actor)?;
+
     if payload.data.is_empty() {
         return Err(ApiError::bad_request(
             "shell_input_empty",
@@ -225,6 +259,7 @@ pub(super) async fn append_shell_input(
             "Shell session not found",
         ));
     };
+    ensure_tenant_access(&actor, &entry.record.tenant_id)?;
     if entry.record.status.is_terminal() || entry.record.close_requested {
         return Err(ApiError::conflict(
             "shell_session_closed",
@@ -254,7 +289,11 @@ pub(super) async fn get_shell_pending_input(
     Path(session_id): Path<String>,
     Query(query): Query<ShellInputQuery>,
     State(state): State<AppState>,
+    headers: HeaderMap,
 ) -> Result<Json<ShellPendingInputResponse>, ApiError> {
+    let actor = actor_from_headers(&state, &headers);
+    ensure_actor_can_read(&actor)?;
+
     let store = state.store.read().await;
     let Some(entry) = store.shell_sessions.get(&session_id) else {
         return Err(ApiError::not_found(
@@ -262,6 +301,7 @@ pub(super) async fn get_shell_pending_input(
             "Shell session not found",
         ));
     };
+    ensure_tenant_access(&actor, &entry.record.tenant_id)?;
 
     let after_seq = query.after_seq.unwrap_or_default();
     let inputs = entry
@@ -280,20 +320,26 @@ pub(super) async fn get_shell_pending_input(
 pub(super) async fn claim_next_shell_session(
     Path(device_id): Path<String>,
     State(state): State<AppState>,
+    headers: HeaderMap,
 ) -> Result<Json<ClaimShellSessionResponse>, ApiError> {
+    let actor = actor_from_headers(&state, &headers);
+    ensure_actor_can_write(&actor)?;
+
     let mut store = state.store.write().await;
-    if !store.devices.contains_key(&device_id) {
+    let Some(device) = store.devices.get(&device_id) else {
         return Err(ApiError::not_found(
             "device_not_found",
             "Device not found; register device first",
         ));
-    }
+    };
+    ensure_tenant_access(&actor, &device.tenant_id)?;
 
     let mut next_sessions = store
         .shell_sessions
         .values()
         .filter(|entry| {
             entry.record.device_id == device_id
+                && entry.record.tenant_id == actor.tenant_id
                 && entry.record.status == ShellSessionStatus::Pending
                 && entry.record.transport == ShellTransportKind::RelayPolling
         })
@@ -336,8 +382,22 @@ pub(super) async fn claim_next_shell_session(
 pub(super) async fn append_shell_output(
     Path(session_id): Path<String>,
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<AppendShellOutputRequest>,
 ) -> Result<Json<ShellSessionDetailResponse>, ApiError> {
+    let actor = actor_from_headers(&state, &headers);
+    ensure_actor_can_write(&actor)?;
+    {
+        let store = state.store.read().await;
+        let Some(entry) = store.shell_sessions.get(&session_id) else {
+            return Err(ApiError::not_found(
+                "shell_session_not_found",
+                "Shell session not found",
+            ));
+        };
+        ensure_tenant_access(&actor, &entry.record.tenant_id)?;
+    }
+
     let Some(detail) = append_shell_output_internal(&state, &session_id, payload).await? else {
         return Err(ApiError::not_found(
             "shell_session_not_found",
@@ -351,7 +411,11 @@ pub(super) async fn append_shell_output(
 pub(super) async fn close_shell_session(
     Path(session_id): Path<String>,
     State(state): State<AppState>,
+    headers: HeaderMap,
 ) -> Result<Json<ShellSessionDetailResponse>, ApiError> {
+    let actor = actor_from_headers(&state, &headers);
+    ensure_actor_can_write(&actor)?;
+
     let mut store = state.store.write().await;
     let now = now_epoch_millis();
     let Some(entry) = store.shell_sessions.get_mut(&session_id) else {
@@ -360,6 +424,7 @@ pub(super) async fn close_shell_session(
             "Shell session not found",
         ));
     };
+    ensure_tenant_access(&actor, &entry.record.tenant_id)?;
 
     match entry.record.status {
         ShellSessionStatus::Pending => {
@@ -395,6 +460,16 @@ pub(super) async fn close_shell_session(
 
     persist_snapshot(&state, &snapshot)?;
     publish_shell_session_detail(&state, &detail).await;
+    record_audit(
+        &state,
+        &actor,
+        AuditAction::ShellSessionClosed,
+        "shell_session",
+        detail.session.id.clone(),
+        AuditOutcome::Succeeded,
+        None,
+    )
+    .await?;
 
     Ok(Json(detail))
 }

@@ -1,10 +1,11 @@
 use axum::{
     extract::{Request, State},
-    http::Method,
+    http::{HeaderMap, Method},
     middleware::Next,
     response::Response,
 };
 use url::form_urlencoded;
+use vibe_core::{ActorIdentity, UserRole};
 
 use crate::{ApiError, AppState};
 
@@ -55,4 +56,37 @@ pub(crate) fn query_access_token(query: &str) -> Option<String> {
         .find(|(key, _)| key == "access_token")
         .map(|(_, value)| value.into_owned())
         .filter(|value| !value.is_empty())
+}
+
+pub(crate) fn actor_from_headers(state: &AppState, headers: &HeaderMap) -> ActorIdentity {
+    let default_actor = state.config.default_actor();
+
+    ActorIdentity {
+        tenant_id: read_actor_header(headers, "x-vibe-tenant-id")
+            .unwrap_or(default_actor.tenant_id),
+        user_id: read_actor_header(headers, "x-vibe-user-id").unwrap_or(default_actor.user_id),
+        role: read_actor_header(headers, "x-vibe-user-role")
+            .and_then(|value| parse_user_role(&value))
+            .unwrap_or(default_actor.role),
+    }
+}
+
+fn read_actor_header(headers: &HeaderMap, name: &str) -> Option<String> {
+    headers
+        .get(name)
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+}
+
+fn parse_user_role(value: &str) -> Option<UserRole> {
+    match value.trim().to_lowercase().as_str() {
+        "owner" => Some(UserRole::Owner),
+        "admin" => Some(UserRole::Admin),
+        "member" => Some(UserRole::Member),
+        "viewer" => Some(UserRole::Viewer),
+        "agent" => Some(UserRole::Agent),
+        _ => None,
+    }
 }

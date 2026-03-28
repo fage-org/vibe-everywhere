@@ -12,12 +12,17 @@ pub(super) struct TaskListQuery {
 pub(super) async fn list_tasks(
     State(state): State<AppState>,
     Query(query): Query<TaskListQuery>,
-) -> Json<Vec<TaskRecord>> {
+    headers: HeaderMap,
+) -> Result<Json<Vec<TaskRecord>>, ApiError> {
+    let actor = actor_from_headers(&state, &headers);
+    ensure_actor_can_read(&actor)?;
+
     let store = state.store.read().await;
     let mut tasks = store
         .tasks
         .values()
         .map(|entry| entry.record.clone())
+        .filter(|task| task.tenant_id == actor.tenant_id)
         .filter(|task| {
             query
                 .device_id
@@ -48,19 +53,24 @@ pub(super) async fn list_tasks(
         tasks.truncate(limit.min(TASK_LIST_LIMIT_MAX));
     }
 
-    Json(tasks)
+    Ok(Json(tasks))
 }
 
 pub(super) async fn create_task(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<CreateTaskRequest>,
 ) -> Result<Json<CreateTaskResponse>, ApiError> {
+    let actor = actor_from_headers(&state, &headers);
+    ensure_actor_can_write(&actor)?;
+
     let mut store = state.store.write().await;
     let device = store
         .devices
         .get(&payload.device_id)
         .cloned()
         .ok_or_else(|| ApiError::not_found("device_not_found", "Device not found"))?;
+    ensure_tenant_access(&actor, &device.tenant_id)?;
     let provider = device
         .providers
         .iter()
@@ -86,7 +96,7 @@ pub(super) async fn create_task(
     }
 
     let transport = preferred_task_transport(&device);
-    let task = TaskRecord::new(payload, provider.execution_protocol, transport);
+    let task = TaskRecord::new(payload, provider.execution_protocol, transport, &actor);
     let queued_event = TaskEvent {
         seq: 1,
         task_id: task.id.clone(),
@@ -116,6 +126,16 @@ pub(super) async fn create_task(
     persist_snapshot(&state, &snapshot)?;
     emit_task(&state, task.clone()).await;
     emit_task_event(&state, queued_event).await;
+    record_audit(
+        &state,
+        &actor,
+        AuditAction::TaskCreated,
+        "task",
+        task.id.clone(),
+        AuditOutcome::Succeeded,
+        None,
+    )
+    .await?;
     schedule_next_task_dispatch(state.clone(), task.device_id.clone());
 
     Ok(Json(CreateTaskResponse { task }))
@@ -124,11 +144,16 @@ pub(super) async fn create_task(
 pub(super) async fn get_task(
     Path(task_id): Path<String>,
     State(state): State<AppState>,
+    headers: HeaderMap,
 ) -> Result<Json<TaskDetailResponse>, ApiError> {
+    let actor = actor_from_headers(&state, &headers);
+    ensure_actor_can_read(&actor)?;
+
     let store = state.store.read().await;
     let Some(entry) = store.tasks.get(&task_id) else {
         return Err(ApiError::not_found("task_not_found", "Task not found"));
     };
+    ensure_tenant_access(&actor, &entry.record.tenant_id)?;
 
     Ok(Json(TaskDetailResponse {
         task: entry.record.clone(),
@@ -139,7 +164,11 @@ pub(super) async fn get_task(
 pub(super) async fn claim_next_task(
     Path(device_id): Path<String>,
     State(state): State<AppState>,
+    headers: HeaderMap,
 ) -> Result<Json<ClaimTaskResponse>, ApiError> {
+    let actor = actor_from_headers(&state, &headers);
+    ensure_actor_can_write(&actor)?;
+
     let mut store = state.store.write().await;
 
     let Some(device) = store.devices.get(&device_id) else {
@@ -148,6 +177,7 @@ pub(super) async fn claim_next_task(
             "Device not found; register device first",
         ));
     };
+    ensure_tenant_access(&actor, &device.tenant_id)?;
 
     let current_task_id = device.current_task_id.clone();
 
@@ -164,6 +194,7 @@ pub(super) async fn claim_next_task(
         .values()
         .filter(|entry| {
             entry.record.device_id == device_id
+                && entry.record.tenant_id == actor.tenant_id
                 && entry.record.status == TaskStatus::Pending
                 && entry.record.transport == TaskTransportKind::RelayPolling
         })
@@ -207,8 +238,19 @@ pub(super) async fn claim_next_task(
 pub(super) async fn append_task_events(
     Path(task_id): Path<String>,
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<AppendTaskEventsRequest>,
 ) -> Result<Json<TaskDetailResponse>, ApiError> {
+    let actor = actor_from_headers(&state, &headers);
+    ensure_actor_can_write(&actor)?;
+    {
+        let store = state.store.read().await;
+        let Some(entry) = store.tasks.get(&task_id) else {
+            return Err(ApiError::not_found("task_not_found", "Task not found"));
+        };
+        ensure_tenant_access(&actor, &entry.record.tenant_id)?;
+    }
+
     match append_task_events_internal(&state, &task_id, payload).await? {
         Some(detail) => Ok(Json(detail)),
         None => Err(ApiError::not_found("task_not_found", "Task not found")),
@@ -218,13 +260,18 @@ pub(super) async fn append_task_events(
 pub(super) async fn cancel_task(
     Path(task_id): Path<String>,
     State(state): State<AppState>,
+    headers: HeaderMap,
 ) -> Result<Json<TaskDetailResponse>, ApiError> {
+    let actor = actor_from_headers(&state, &headers);
+    ensure_actor_can_write(&actor)?;
+
     let mut store = state.store.write().await;
     let now = now_epoch_millis();
     let (task, event, detail, snapshot, should_schedule_next) = {
         let Some(entry) = store.tasks.get_mut(&task_id) else {
             return Err(ApiError::not_found("task_not_found", "Task not found"));
         };
+        ensure_tenant_access(&actor, &entry.record.tenant_id)?;
 
         match entry.record.status {
             TaskStatus::Pending => {
@@ -257,6 +304,16 @@ pub(super) async fn cancel_task(
     persist_snapshot(&state, &snapshot)?;
     emit_task(&state, task.clone()).await;
     emit_task_event(&state, event).await;
+    record_audit(
+        &state,
+        &actor,
+        AuditAction::TaskCanceled,
+        "task",
+        task.id.clone(),
+        AuditOutcome::Succeeded,
+        None,
+    )
+    .await?;
     if should_schedule_next {
         schedule_next_task_dispatch(state.clone(), task.device_id.clone());
     }

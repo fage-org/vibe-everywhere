@@ -46,12 +46,17 @@ enum OverlayPortForwardClientEvent {
 pub(super) async fn list_port_forwards(
     State(state): State<AppState>,
     Query(query): Query<PortForwardListQuery>,
-) -> Json<Vec<PortForwardRecord>> {
+    headers: HeaderMap,
+) -> Result<Json<Vec<PortForwardRecord>>, ApiError> {
+    let actor = actor_from_headers(&state, &headers);
+    ensure_actor_can_read(&actor)?;
+
     let store = state.store.read().await;
     let mut forwards = store
         .port_forwards
         .values()
         .map(|entry| entry.record.clone())
+        .filter(|forward| forward.tenant_id == actor.tenant_id)
         .filter(|forward| {
             query
                 .device_id
@@ -76,13 +81,17 @@ pub(super) async fn list_port_forwards(
         forwards.truncate(limit.min(PORT_FORWARD_LIST_LIMIT_MAX));
     }
 
-    Json(forwards)
+    Ok(Json(forwards))
 }
 
 pub(super) async fn create_port_forward(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<CreatePortForwardRequest>,
 ) -> Result<Json<CreatePortForwardResponse>, ApiError> {
+    let actor = actor_from_headers(&state, &headers);
+    ensure_actor_can_write(&actor)?;
+
     let (forward, snapshot, start_overlay_proxy) = {
         let mut store = state.store.write().await;
         let device = store
@@ -90,6 +99,7 @@ pub(super) async fn create_port_forward(
             .get(&payload.device_id)
             .cloned()
             .ok_or_else(|| ApiError::not_found("device_not_found", "Device not found"))?;
+        ensure_tenant_access(&actor, &device.tenant_id)?;
 
         let relay_port = reserve_forward_port(
             &store,
@@ -109,6 +119,7 @@ pub(super) async fn create_port_forward(
             state.config.forward_host.clone(),
             relay_port,
             transport.clone(),
+            &actor,
         );
         let start_overlay_proxy = transport == PortForwardTransportKind::OverlayProxy;
         store.port_forwards.insert(
@@ -121,6 +132,16 @@ pub(super) async fn create_port_forward(
     };
 
     persist_snapshot(&state, &snapshot)?;
+    record_audit(
+        &state,
+        &actor,
+        AuditAction::PreviewCreated,
+        "preview",
+        forward.id.clone(),
+        AuditOutcome::Succeeded,
+        None,
+    )
+    .await?;
 
     if start_overlay_proxy {
         let overlay_state = state.clone();
@@ -136,7 +157,11 @@ pub(super) async fn create_port_forward(
 pub(super) async fn get_port_forward(
     Path(forward_id): Path<String>,
     State(state): State<AppState>,
+    headers: HeaderMap,
 ) -> Result<Json<PortForwardDetailResponse>, ApiError> {
+    let actor = actor_from_headers(&state, &headers);
+    ensure_actor_can_read(&actor)?;
+
     let store = state.store.read().await;
     let Some(entry) = store.port_forwards.get(&forward_id) else {
         return Err(ApiError::not_found(
@@ -144,6 +169,7 @@ pub(super) async fn get_port_forward(
             "Port forward not found",
         ));
     };
+    ensure_tenant_access(&actor, &entry.record.tenant_id)?;
 
     Ok(Json(PortForwardDetailResponse {
         forward: entry.record.clone(),
@@ -153,8 +179,12 @@ pub(super) async fn get_port_forward(
 pub(super) async fn report_port_forward_state(
     Path(forward_id): Path<String>,
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<ReportPortForwardStateRequest>,
 ) -> Result<Json<PortForwardDetailResponse>, ApiError> {
+    let actor = actor_from_headers(&state, &headers);
+    ensure_actor_can_write(&actor)?;
+
     let device_id = {
         let store = state.store.read().await;
         let Some(entry) = store.port_forwards.get(&forward_id) else {
@@ -163,6 +193,7 @@ pub(super) async fn report_port_forward_state(
                 "Port forward not found",
             ));
         };
+        ensure_tenant_access(&actor, &entry.record.tenant_id)?;
         entry.record.device_id.clone()
     };
 
@@ -191,7 +222,11 @@ pub(super) async fn port_forward_tunnel_websocket(
     Query(query): Query<PortForwardTunnelQuery>,
     ws: WebSocketUpgrade,
     State(state): State<AppState>,
+    headers: HeaderMap,
 ) -> Result<Response, ApiError> {
+    let actor = actor_from_headers(&state, &headers);
+    ensure_actor_can_read(&actor)?;
+
     let device_id = query
         .device_id
         .filter(|value| !value.trim().is_empty())
@@ -210,6 +245,7 @@ pub(super) async fn port_forward_tunnel_websocket(
                 "Port forward not found",
             ));
         };
+        ensure_tenant_access(&actor, &entry.record.tenant_id)?;
         if entry.record.device_id != device_id {
             return Err(ApiError::conflict(
                 "device_mismatch",
@@ -424,20 +460,26 @@ async fn handle_port_forward_tunnel_socket(
 pub(super) async fn claim_next_port_forward(
     Path(device_id): Path<String>,
     State(state): State<AppState>,
+    headers: HeaderMap,
 ) -> Result<Json<ClaimPortForwardResponse>, ApiError> {
+    let actor = actor_from_headers(&state, &headers);
+    ensure_actor_can_write(&actor)?;
+
     let mut store = state.store.write().await;
-    if !store.devices.contains_key(&device_id) {
+    let Some(device) = store.devices.get(&device_id) else {
         return Err(ApiError::not_found(
             "device_not_found",
             "Device not found; register device first",
         ));
-    }
+    };
+    ensure_tenant_access(&actor, &device.tenant_id)?;
 
     let mut next_forwards = store
         .port_forwards
         .values()
         .filter(|entry| {
             entry.record.device_id == device_id
+                && entry.record.tenant_id == actor.tenant_id
                 && entry.record.status == PortForwardStatus::Pending
                 && entry.record.transport == PortForwardTransportKind::RelayTunnel
         })
@@ -476,7 +518,11 @@ pub(super) async fn claim_next_port_forward(
 pub(super) async fn close_port_forward(
     Path(forward_id): Path<String>,
     State(state): State<AppState>,
+    headers: HeaderMap,
 ) -> Result<Json<PortForwardDetailResponse>, ApiError> {
+    let actor = actor_from_headers(&state, &headers);
+    ensure_actor_can_write(&actor)?;
+
     let mut store = state.store.write().await;
     let now = now_epoch_millis();
     let Some(entry) = store.port_forwards.get_mut(&forward_id) else {
@@ -485,6 +531,7 @@ pub(super) async fn close_port_forward(
             "Port forward not found",
         ));
     };
+    ensure_tenant_access(&actor, &entry.record.tenant_id)?;
 
     match entry.record.status {
         PortForwardStatus::Pending => {
@@ -506,6 +553,16 @@ pub(super) async fn close_port_forward(
     drop(store);
 
     persist_snapshot(&state, &snapshot)?;
+    record_audit(
+        &state,
+        &actor,
+        AuditAction::PreviewClosed,
+        "preview",
+        detail.forward.id.clone(),
+        AuditOutcome::Succeeded,
+        None,
+    )
+    .await?;
 
     Ok(Json(detail))
 }

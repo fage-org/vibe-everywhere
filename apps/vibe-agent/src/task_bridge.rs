@@ -345,6 +345,7 @@ printf '%s\n' '{"type":"item.completed","item":{"id":"item_0","type":"agent_mess
             },
             ExecutionProtocol::Cli,
             TaskTransportKind::OverlayProxy,
+            &vibe_core::ActorIdentity::personal_owner(),
         )
     }
 

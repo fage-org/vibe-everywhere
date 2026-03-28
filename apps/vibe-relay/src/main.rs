@@ -6,7 +6,7 @@ use axum::{
         Path, Query, State,
         ws::{Message, WebSocket, WebSocketUpgrade},
     },
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     middleware,
     response::sse::{Event, KeepAlive, Sse},
     response::{IntoResponse, Response},
@@ -14,7 +14,7 @@ use axum::{
 };
 use futures_util::StreamExt;
 use serde::Deserialize;
-use std::{collections::HashMap, convert::Infallible, path::PathBuf, sync::Arc, time::Duration};
+use std::{collections::HashMap, convert::Infallible, sync::Arc, time::Duration};
 use tokio::{
     io::{AsyncBufReadExt, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader},
     net::{TcpListener, TcpStream},
@@ -24,34 +24,40 @@ use tokio::{
 use tower_http::cors::CorsLayer;
 use uuid::Uuid;
 use vibe_core::{
-    AppConfig, AppendShellOutputRequest, AppendTaskEventsRequest, ClaimPortForwardResponse,
-    ClaimShellSessionResponse, ClaimTaskResponse, CreatePortForwardRequest,
-    CreatePortForwardResponse, CreateShellInputRequest, CreateShellSessionRequest,
-    CreateShellSessionResponse, CreateTaskRequest, CreateTaskResponse, DEVICE_OFFLINE_AFTER_MS,
-    DeviceCapability, DeviceRecord, HeartbeatRequest, HeartbeatResponse, OverlayState,
-    PortForwardBridgeEvent, PortForwardBridgeRequest, PortForwardDetailResponse, PortForwardRecord,
-    PortForwardStatus, PortForwardTransportKind, PortForwardTunnelControl, ProviderKind,
-    RegisterDeviceRequest, RegisterDeviceResponse, RelayEventEnvelope, RelayEventType,
-    ReportPortForwardStateRequest, ServiceHealth, ShellBridgeEvent, ShellBridgeRequest,
-    ShellInputRecord, ShellOutputChunk, ShellPendingInputResponse, ShellSessionDetailResponse,
-    ShellSessionRecord, ShellSessionStatus, ShellStreamKind, ShellTransportKind, TaskBridgeEvent,
-    TaskBridgeRequest, TaskDetailResponse, TaskEvent, TaskRecord, TaskStatus, TaskTransportKind,
+    ActorIdentity, AppConfig, AppendShellOutputRequest, AppendTaskEventsRequest, AuditAction,
+    AuditOutcome, AuditRecord, ClaimPortForwardResponse, ClaimShellSessionResponse,
+    ClaimTaskResponse, CreatePortForwardRequest, CreatePortForwardResponse,
+    CreateShellInputRequest, CreateShellSessionRequest, CreateShellSessionResponse,
+    CreateTaskRequest, CreateTaskResponse, DEFAULT_TENANT_ID, DEFAULT_USER_ID,
+    DEVICE_OFFLINE_AFTER_MS, DeviceCapability, DeviceRecord, HeartbeatRequest, HeartbeatResponse,
+    MembershipRecord, OverlayState, PortForwardBridgeEvent, PortForwardBridgeRequest,
+    PortForwardDetailResponse, PortForwardRecord, PortForwardStatus, PortForwardTransportKind,
+    PortForwardTunnelControl, ProviderKind, RegisterDeviceRequest, RegisterDeviceResponse,
+    RelayEventEnvelope, RelayEventType, ReportPortForwardStateRequest, ServiceHealth,
+    ShellBridgeEvent, ShellBridgeRequest, ShellInputRecord, ShellOutputChunk,
+    ShellPendingInputResponse, ShellSessionDetailResponse, ShellSessionRecord, ShellSessionStatus,
+    ShellStreamKind, ShellTransportKind, TaskBridgeEvent, TaskBridgeRequest, TaskDetailResponse,
+    TaskEvent, TaskRecord, TaskStatus, TaskTransportKind, TenantRecord, UserRecord, UserRole,
     default_app_config, now_epoch_millis,
 };
 
 mod auth;
 mod config;
 mod easytier;
+mod git;
 mod port_forwards;
 mod shell;
+mod storage;
 mod store;
 mod tasks;
+mod workspace;
 
-use auth::require_relay_auth;
+use auth::{actor_from_headers, require_relay_auth};
 #[cfg(test)]
 use auth::{query_access_token, request_access_token};
 use config::RelayConfig;
 use easytier::{RelayEasyTierOptions, start_managed_relay_easytier};
+use git::{GitRequestEntry, claim_next_git_request, complete_git_request, inspect_git_workspace};
 #[cfg(test)]
 use port_forwards::{
     PortForwardListQuery, preferred_port_forward_transport, read_bridge_frame_line,
@@ -67,19 +73,26 @@ use shell::{
     create_shell_session, get_shell_pending_input, get_shell_session, list_shell_sessions,
     shell_session_websocket,
 };
-use store::{
-    PortForwardEntry, RelayStore, ShellSessionEntry, TaskEntry, load_relay_store,
-    persist_relay_store,
-};
+use storage::{RelayStorage, build_relay_storage};
+use store::{PortForwardEntry, RelayStore, ShellSessionEntry, TaskEntry};
+#[cfg(test)]
+use store::{load_relay_store, persist_relay_store};
 #[cfg(test)]
 use tasks::{TaskListQuery, dispatch_next_task_for_device, preferred_task_transport, task_detail};
 use tasks::{append_task_events, cancel_task, claim_next_task, create_task, get_task, list_tasks};
+use workspace::{
+    WorkspaceRequestEntry, browse_workspace, claim_next_workspace_request,
+    complete_workspace_request, preview_workspace_file,
+};
 
 #[derive(Clone)]
 struct AppState {
     store: Arc<RwLock<RelayStore>>,
+    storage: Arc<dyn RelayStorage>,
     events_tx: broadcast::Sender<RelayEventEnvelope>,
     shell_session_updates: Arc<RwLock<HashMap<String, broadcast::Sender<String>>>>,
+    workspace_requests: Arc<RwLock<HashMap<String, WorkspaceRequestEntry>>>,
+    git_requests: Arc<RwLock<HashMap<String, GitRequestEntry>>>,
     config: Arc<RelayConfig>,
 }
 
@@ -102,6 +115,14 @@ impl ApiError {
     fn unauthorized(code: &'static str, message: impl Into<String>) -> Self {
         Self {
             status: StatusCode::UNAUTHORIZED,
+            code,
+            message: message.into(),
+        }
+    }
+
+    fn forbidden(code: &'static str, message: impl Into<String>) -> Self {
+        Self {
+            status: StatusCode::FORBIDDEN,
             code,
             message: message.into(),
         }
@@ -132,6 +153,12 @@ impl ApiError {
     }
 }
 
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+struct AuditListQuery {
+    limit: Option<usize>,
+}
+
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         (
@@ -150,26 +177,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let bind_host = std::env::var("VIBE_RELAY_HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
     let bind_port = std::env::var("VIBE_RELAY_PORT").unwrap_or_else(|_| "8787".to_string());
     let config = Arc::new(RelayConfig::from_env(&bind_host, &bind_port));
-    let store = load_relay_store(&config.state_file)?;
+    let storage = build_relay_storage(config.storage_kind.clone(), config.state_file.clone());
+    let mut store = storage.load()?;
+    if seed_governance_records(&mut store, &config.default_actor()) {
+        storage.save(&store)?;
+    }
     let (events_tx, _) = broadcast::channel(256);
     let state = AppState {
         store: Arc::new(RwLock::new(store)),
+        storage,
         events_tx,
         shell_session_updates: Arc::new(RwLock::new(HashMap::new())),
+        workspace_requests: Arc::new(RwLock::new(HashMap::new())),
+        git_requests: Arc::new(RwLock::new(HashMap::new())),
         config: config.clone(),
     };
     let easytier_runtime = start_managed_relay_easytier(RelayEasyTierOptions::from_env());
 
     tokio::spawn(device_presence_loop(state.clone()));
-    let app = build_app(state);
+    let app = build_app(state.clone());
 
     let bind_addr = format!("{bind_host}:{bind_port}");
     let listener = TcpListener::bind(&bind_addr).await?;
 
     println!("vibe-relay listening on http://{bind_addr}");
     println!(
-        "relay state file: {}",
-        resolve_display_path(config.state_file.clone())
+        "relay storage ({}): {}",
+        format!("{:?}", config.storage_kind).to_lowercase(),
+        state.storage.descriptor()
     );
 
     axum::serve(listener, app)
@@ -226,6 +261,14 @@ fn build_app(state: AppState) -> Router {
             post(claim_next_port_forward),
         )
         .route(
+            "/api/devices/:device_id/workspace/claim-next",
+            post(claim_next_workspace_request),
+        )
+        .route(
+            "/api/devices/:device_id/git/claim-next",
+            post(claim_next_git_request),
+        )
+        .route(
             "/api/port-forwards",
             get(list_port_forwards).post(create_port_forward),
         )
@@ -242,6 +285,18 @@ fn build_app(state: AppState) -> Router {
             "/api/port-forwards/:forward_id/close",
             post(close_port_forward),
         )
+        .route("/api/workspace/browse", post(browse_workspace))
+        .route("/api/workspace/preview", post(preview_workspace_file))
+        .route("/api/git/inspect", post(inspect_git_workspace))
+        .route(
+            "/api/workspace/requests/:request_id/complete",
+            post(complete_workspace_request),
+        )
+        .route(
+            "/api/git/requests/:request_id/complete",
+            post(complete_git_request),
+        )
+        .route("/api/audit/events", get(list_audit_events))
         .route("/api/events/stream", get(events_stream))
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
@@ -273,30 +328,59 @@ async fn health(State(state): State<AppState>) -> Json<ServiceHealth> {
     })
 }
 
-async fn app_config(State(state): State<AppState>) -> Json<AppConfig> {
-    Json(default_app_config(
+async fn app_config(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<AppConfig>, ApiError> {
+    let actor = actor_from_headers(&state, &headers);
+    ensure_actor_can_read(&actor)?;
+
+    Ok(Json(default_app_config(
         state.config.public_base_url.clone(),
         state.config.access_token.is_some(),
-    ))
+        state.config.deployment_metadata(),
+        state.config.storage_kind.clone(),
+        actor,
+    )))
 }
 
-async fn list_devices(State(state): State<AppState>) -> Json<Vec<DeviceRecord>> {
+async fn list_devices(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<DeviceRecord>>, ApiError> {
+    let actor = actor_from_headers(&state, &headers);
+    ensure_actor_can_read(&actor)?;
+
     let store = state.store.read().await;
-    let mut devices = store.devices.values().cloned().collect::<Vec<_>>();
+    let mut devices = store
+        .devices
+        .values()
+        .filter(|device| device.tenant_id == actor.tenant_id)
+        .cloned()
+        .collect::<Vec<_>>();
     devices.sort_by(|left, right| {
         right
             .online
             .cmp(&left.online)
             .then_with(|| left.name.cmp(&right.name))
     });
-    Json(devices)
+    Ok(Json(devices))
 }
 
 async fn register_device(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<RegisterDeviceRequest>,
 ) -> Result<Json<RegisterDeviceResponse>, ApiError> {
+    let actor = actor_from_headers(&state, &headers);
+    ensure_actor_can_write(&actor)?;
+    ensure_tenant_access(&actor, &payload.tenant_id)?;
+
     let mut store = state.store.write().await;
+    seed_governance_records(
+        &mut store,
+        &actor_from_record_tenant(&payload.tenant_id, &payload.user_id, actor.role.clone()),
+    );
     let device_id = if payload.id.trim().is_empty() {
         Uuid::new_v4().to_string()
     } else {
@@ -329,6 +413,16 @@ async fn register_device(
 
     persist_snapshot(&state, &snapshot)?;
     emit_device(&state, device.clone()).await;
+    record_audit(
+        &state,
+        &actor,
+        AuditAction::DeviceRegistered,
+        "device",
+        device.id.clone(),
+        AuditOutcome::Succeeded,
+        None,
+    )
+    .await?;
 
     Ok(Json(RegisterDeviceResponse { device }))
 }
@@ -336,8 +430,12 @@ async fn register_device(
 async fn device_heartbeat(
     Path(device_id): Path<String>,
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<HeartbeatRequest>,
 ) -> Result<Json<HeartbeatResponse>, ApiError> {
+    let actor = actor_from_headers(&state, &headers);
+    ensure_actor_can_write(&actor)?;
+
     let mut store = state.store.write().await;
     let now = now_epoch_millis();
     let Some(device) = store.devices.get_mut(&device_id) else {
@@ -346,6 +444,7 @@ async fn device_heartbeat(
             "Device not found; register device first",
         ));
     };
+    ensure_tenant_access(&actor, &device.tenant_id)?;
 
     device.online = true;
     device.last_seen_epoch_ms = now;
@@ -363,8 +462,169 @@ async fn device_heartbeat(
     Ok(Json(HeartbeatResponse { device: response }))
 }
 
+async fn list_audit_events(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<AuditListQuery>,
+) -> Result<Json<Vec<AuditRecord>>, ApiError> {
+    let actor = actor_from_headers(&state, &headers);
+    ensure_actor_can_read(&actor)?;
+
+    let store = state.store.read().await;
+    let mut records = store
+        .audit_records
+        .iter()
+        .filter(|record| record.tenant_id == actor.tenant_id)
+        .cloned()
+        .collect::<Vec<_>>();
+    records.sort_by(|left, right| {
+        right
+            .timestamp_epoch_ms
+            .cmp(&left.timestamp_epoch_ms)
+            .then_with(|| right.id.cmp(&left.id))
+    });
+    records.truncate(
+        query
+            .limit
+            .unwrap_or(AUDIT_RECORD_LIMIT_MAX)
+            .min(AUDIT_RECORD_LIMIT_MAX),
+    );
+
+    Ok(Json(records))
+}
+
 fn api_error_to_anyhow(error: ApiError) -> anyhow::Error {
     anyhow::anyhow!("{}: {}", error.code, error.message)
+}
+
+fn ensure_actor_can_read(actor: &ActorIdentity) -> Result<(), ApiError> {
+    if actor.role.can_read_control_plane() {
+        Ok(())
+    } else {
+        Err(ApiError::forbidden(
+            "read_forbidden",
+            "The current actor cannot read relay resources",
+        ))
+    }
+}
+
+fn ensure_actor_can_write(actor: &ActorIdentity) -> Result<(), ApiError> {
+    if actor.role.can_write_control_plane() {
+        Ok(())
+    } else {
+        Err(ApiError::forbidden(
+            "write_forbidden",
+            "The current actor cannot modify relay resources",
+        ))
+    }
+}
+
+fn ensure_tenant_access(actor: &ActorIdentity, tenant_id: &str) -> Result<(), ApiError> {
+    if actor.tenant_id == tenant_id {
+        Ok(())
+    } else {
+        Err(ApiError::forbidden(
+            "tenant_forbidden",
+            "The current actor cannot access resources from another tenant",
+        ))
+    }
+}
+
+fn seed_governance_records(store: &mut RelayStore, actor: &ActorIdentity) -> bool {
+    let mut changed = false;
+    let now = now_epoch_millis();
+
+    if !store.tenants.contains_key(&actor.tenant_id) {
+        store.tenants.insert(
+            actor.tenant_id.clone(),
+            TenantRecord {
+                id: actor.tenant_id.clone(),
+                name: if actor.tenant_id == DEFAULT_TENANT_ID {
+                    "Personal Workspace".to_string()
+                } else {
+                    actor.tenant_id.clone()
+                },
+                created_at_epoch_ms: now,
+            },
+        );
+        changed = true;
+    }
+
+    if !store.users.contains_key(&actor.user_id) {
+        store.users.insert(
+            actor.user_id.clone(),
+            UserRecord {
+                id: actor.user_id.clone(),
+                display_name: if actor.user_id == DEFAULT_USER_ID {
+                    "Local Admin".to_string()
+                } else {
+                    actor.user_id.clone()
+                },
+                created_at_epoch_ms: now,
+            },
+        );
+        changed = true;
+    }
+
+    if let Some(membership) = store.memberships.iter_mut().find(|membership| {
+        membership.tenant_id == actor.tenant_id && membership.user_id == actor.user_id
+    }) {
+        if membership.role != actor.role {
+            membership.role = actor.role.clone();
+            changed = true;
+        }
+    } else {
+        store.memberships.push(MembershipRecord {
+            tenant_id: actor.tenant_id.clone(),
+            user_id: actor.user_id.clone(),
+            role: actor.role.clone(),
+            created_at_epoch_ms: now,
+        });
+        changed = true;
+    }
+
+    changed
+}
+
+async fn record_audit(
+    state: &AppState,
+    actor: &ActorIdentity,
+    action: AuditAction,
+    resource_kind: impl Into<String>,
+    resource_id: impl Into<String>,
+    outcome: AuditOutcome,
+    message: Option<String>,
+) -> Result<(), ApiError> {
+    let mut store = state.store.write().await;
+    seed_governance_records(&mut store, actor);
+    store.audit_records.push(AuditRecord {
+        id: Uuid::new_v4().to_string(),
+        tenant_id: actor.tenant_id.clone(),
+        user_id: actor.user_id.clone(),
+        actor_role: actor.role.clone(),
+        action,
+        resource_kind: resource_kind.into(),
+        resource_id: resource_id.into(),
+        outcome,
+        message,
+        timestamp_epoch_ms: now_epoch_millis(),
+    });
+    if store.audit_records.len() > AUDIT_RECORD_LIMIT_MAX {
+        let excess = store.audit_records.len() - AUDIT_RECORD_LIMIT_MAX;
+        store.audit_records.drain(0..excess);
+    }
+    let snapshot = store.clone();
+    drop(store);
+
+    persist_snapshot(state, &snapshot)
+}
+
+fn actor_from_record_tenant(tenant_id: &str, user_id: &str, role: UserRole) -> ActorIdentity {
+    ActorIdentity {
+        tenant_id: tenant_id.to_string(),
+        user_id: user_id.to_string(),
+        role,
+    }
 }
 
 async fn events_stream(
@@ -454,7 +714,7 @@ async fn emit_task_event(state: &AppState, task_event: TaskEvent) {
 }
 
 fn persist_snapshot(state: &AppState, snapshot: &RelayStore) -> Result<(), ApiError> {
-    persist_relay_store(&state.config.state_file, snapshot).map_err(|error| {
+    state.storage.save(snapshot).map_err(|error| {
         ApiError::internal(
             "persist_failed",
             format!("failed to persist relay state: {error}"),
@@ -509,10 +769,6 @@ fn push_shell_output(
     }
 }
 
-fn resolve_display_path(path: PathBuf) -> String {
-    path.to_string_lossy().to_string()
-}
-
 async fn shutdown_signal() {
     let _ = tokio::signal::ctrl_c().await;
 }
@@ -522,6 +778,7 @@ const TASK_LIST_LIMIT_MAX: usize = 500;
 const SHELL_SESSION_LIST_LIMIT_MAX: usize = 100;
 const SHELL_OUTPUT_LIMIT_MAX: usize = 1_024;
 const PORT_FORWARD_LIST_LIMIT_MAX: usize = 100;
+const AUDIT_RECORD_LIMIT_MAX: usize = 500;
 const DEFAULT_SHELL_BRIDGE_PORT: u16 = 19_090;
 const DEFAULT_PORT_FORWARD_BRIDGE_PORT: u16 = 19_091;
 const DEFAULT_TASK_BRIDGE_PORT: u16 = 19_092;
@@ -582,13 +839,22 @@ mod tests {
             shell_bridge_port: DEFAULT_SHELL_BRIDGE_PORT,
             port_forward_bridge_port: DEFAULT_PORT_FORWARD_BRIDGE_PORT,
             task_bridge_port: DEFAULT_TASK_BRIDGE_PORT,
+            deployment_mode: vibe_core::DeploymentMode::SelfHosted,
+            documentation_url: None,
+            storage_kind: vibe_core::StorageKind::Memory,
+            default_tenant_id: DEFAULT_TENANT_ID.to_string(),
+            default_user_id: DEFAULT_USER_ID.to_string(),
+            default_user_role: UserRole::Owner,
         };
         configure(&mut config);
 
         AppState {
             store: Arc::new(RwLock::new(store)),
+            storage: build_relay_storage(config.storage_kind.clone(), config.state_file.clone()),
             events_tx,
             shell_session_updates: Arc::new(RwLock::new(HashMap::new())),
+            workspace_requests: Arc::new(RwLock::new(HashMap::new())),
+            git_requests: Arc::new(RwLock::new(HashMap::new())),
             config: Arc::new(config),
         }
     }
@@ -600,6 +866,10 @@ mod tests {
             overlay: Default::default(),
             current_task_id: None,
         }
+    }
+
+    fn test_headers() -> HeaderMap {
+        HeaderMap::new()
     }
 
     fn test_device(id: &str, capabilities: Vec<DeviceCapability>) -> DeviceRecord {
@@ -946,6 +1216,7 @@ mod tests {
         let error = device_heartbeat(
             Path("missing-device".to_string()),
             State(test_state()),
+            test_headers(),
             Json(empty_heartbeat_request()),
         )
         .await
@@ -957,9 +1228,13 @@ mod tests {
 
     #[tokio::test]
     async fn claim_next_task_rejects_unknown_device() {
-        let error = claim_next_task(Path("missing-device".to_string()), State(test_state()))
-            .await
-            .unwrap_err();
+        let error = claim_next_task(
+            Path("missing-device".to_string()),
+            State(test_state()),
+            test_headers(),
+        )
+        .await
+        .unwrap_err();
 
         assert_eq!(error.status, StatusCode::NOT_FOUND);
         assert_eq!(error.code, "device_not_found");
@@ -1008,11 +1283,16 @@ mod tests {
             ]),
             shell_sessions: HashMap::new(),
             port_forwards: HashMap::new(),
+            ..RelayStore::default()
         });
 
-        let Json(claimed) = claim_next_task(Path("device-1".to_string()), State(state.clone()))
-            .await
-            .unwrap();
+        let Json(claimed) = claim_next_task(
+            Path("device-1".to_string()),
+            State(state.clone()),
+            test_headers(),
+        )
+        .await
+        .unwrap();
 
         assert_eq!(
             claimed.task.as_ref().map(|task| task.id.as_str()),
@@ -1049,6 +1329,7 @@ mod tests {
                 tasks: HashMap::new(),
                 shell_sessions: HashMap::new(),
                 port_forwards: HashMap::new(),
+                ..RelayStore::default()
             },
             |config| {
                 config.task_bridge_port = port;
@@ -1235,6 +1516,7 @@ mod tests {
                 tasks: HashMap::new(),
                 shell_sessions: HashMap::new(),
                 port_forwards: HashMap::new(),
+                ..RelayStore::default()
             },
             |config| {
                 config.task_bridge_port = port;
@@ -1287,6 +1569,7 @@ mod tests {
 
         let Json(created) = create_task(
             State(state.clone()),
+            test_headers(),
             Json(CreateTaskRequest {
                 device_id: "device-1".to_string(),
                 provider: ProviderKind::Codex,
@@ -1351,6 +1634,7 @@ mod tests {
                 tasks: HashMap::from([("task-1".to_string(), task)]),
                 shell_sessions: HashMap::new(),
                 port_forwards: HashMap::new(),
+                ..RelayStore::default()
             },
             |config| {
                 config.task_bridge_port = port;
@@ -1412,9 +1696,13 @@ mod tests {
         })
         .await;
 
-        let Json(cancelled) = cancel_task(Path("task-1".to_string()), State(state.clone()))
-            .await
-            .unwrap();
+        let Json(cancelled) = cancel_task(
+            Path("task-1".to_string()),
+            State(state.clone()),
+            test_headers(),
+        )
+        .await
+        .unwrap();
         assert_eq!(cancelled.task.status, TaskStatus::CancelRequested);
 
         let detail = wait_for_task_detail(&state, "task-1", |detail| {
@@ -1460,6 +1748,7 @@ mod tests {
                 tasks: HashMap::from([("task-1".to_string(), task)]),
                 shell_sessions: HashMap::new(),
                 port_forwards: HashMap::new(),
+                ..RelayStore::default()
             },
             |config| {
                 config.task_bridge_port = port;
@@ -1511,6 +1800,7 @@ mod tests {
                 tasks: HashMap::from([("task-1".to_string(), task)]),
                 shell_sessions: HashMap::new(),
                 port_forwards: HashMap::new(),
+                ..RelayStore::default()
             },
             |config| {
                 config.task_bridge_port = port;
@@ -1619,6 +1909,7 @@ mod tests {
             ]),
             shell_sessions: HashMap::new(),
             port_forwards: HashMap::new(),
+            ..RelayStore::default()
         });
 
         let Json(tasks) = list_tasks(
@@ -1629,8 +1920,10 @@ mod tests {
                 provider: Some(ProviderKind::Codex),
                 limit: Some(1),
             }),
+            test_headers(),
         )
-        .await;
+        .await
+        .unwrap();
 
         assert_eq!(tasks.len(), 1);
         assert_eq!(tasks[0].id, "task-2");
@@ -1646,10 +1939,12 @@ mod tests {
             tasks: HashMap::new(),
             shell_sessions: HashMap::new(),
             port_forwards: HashMap::new(),
+            ..RelayStore::default()
         });
 
         let Json(created) = create_shell_session(
             State(state.clone()),
+            test_headers(),
             Json(CreateShellSessionRequest {
                 device_id: "device-1".to_string(),
                 cwd: Some("/tmp".to_string()),
@@ -1660,10 +1955,13 @@ mod tests {
         assert_eq!(created.session.status, ShellSessionStatus::Pending);
         assert_eq!(created.session.transport, ShellTransportKind::RelayPolling);
 
-        let Json(claimed) =
-            claim_next_shell_session(Path("device-1".to_string()), State(state.clone()))
-                .await
-                .unwrap();
+        let Json(claimed) = claim_next_shell_session(
+            Path("device-1".to_string()),
+            State(state.clone()),
+            test_headers(),
+        )
+        .await
+        .unwrap();
         assert_eq!(
             claimed.session.as_ref().map(|session| &session.status),
             Some(&ShellSessionStatus::Active)
@@ -1672,6 +1970,7 @@ mod tests {
         let Json(detail) = append_shell_input(
             Path(created.session.id.clone()),
             State(state.clone()),
+            test_headers(),
             Json(CreateShellInputRequest {
                 data: "pwd\n".to_string(),
             }),
@@ -1681,9 +1980,13 @@ mod tests {
         assert_eq!(detail.inputs.len(), 1);
         assert_eq!(detail.inputs[0].data, "pwd\n");
 
-        let Json(closed) = close_shell_session(Path(created.session.id.clone()), State(state))
-            .await
-            .unwrap();
+        let Json(closed) = close_shell_session(
+            Path(created.session.id.clone()),
+            State(state),
+            test_headers(),
+        )
+        .await
+        .unwrap();
         assert_eq!(closed.session.status, ShellSessionStatus::CloseRequested);
         assert!(closed.session.close_requested);
         assert_eq!(
@@ -1751,6 +2054,7 @@ mod tests {
                 ),
             ]),
             port_forwards: HashMap::new(),
+            ..RelayStore::default()
         });
 
         let Json(sessions) = list_shell_sessions(
@@ -1760,8 +2064,10 @@ mod tests {
                 status: Some(ShellSessionStatus::Active),
                 limit: Some(1),
             }),
+            test_headers(),
         )
-        .await;
+        .await
+        .unwrap();
         assert_eq!(sessions.len(), 1);
         assert_eq!(sessions[0].id, "shell-2");
     }
@@ -1837,12 +2143,16 @@ mod tests {
                 ),
             ]),
             port_forwards: HashMap::new(),
+            ..RelayStore::default()
         });
 
-        let Json(claimed) =
-            claim_next_shell_session(Path("device-1".to_string()), State(state.clone()))
-                .await
-                .unwrap();
+        let Json(claimed) = claim_next_shell_session(
+            Path("device-1".to_string()),
+            State(state.clone()),
+            test_headers(),
+        )
+        .await
+        .unwrap();
 
         assert_eq!(
             claimed.session.as_ref().map(|session| session.id.as_str()),
@@ -1876,6 +2186,7 @@ mod tests {
                 tasks: HashMap::new(),
                 shell_sessions: HashMap::new(),
                 port_forwards: HashMap::new(),
+                ..RelayStore::default()
             },
             |config| {
                 config.forward_host = host.clone();
@@ -2030,6 +2341,7 @@ mod tests {
                 tasks: HashMap::new(),
                 shell_sessions: HashMap::new(),
                 port_forwards: HashMap::new(),
+                ..RelayStore::default()
             },
             |config| {
                 config.forward_host = overlay_host.clone();
@@ -2177,6 +2489,7 @@ mod tests {
                 tasks: HashMap::new(),
                 shell_sessions: HashMap::new(),
                 port_forwards: HashMap::new(),
+                ..RelayStore::default()
             },
             |config| {
                 config.forward_host = overlay_host.clone();
@@ -2189,6 +2502,7 @@ mod tests {
 
         let Json(created) = create_port_forward(
             State(state.clone()),
+            test_headers(),
             Json(CreatePortForwardRequest {
                 device_id: "device-1".to_string(),
                 protocol: vibe_core::PortForwardProtocol::Tcp,
@@ -2252,10 +2566,12 @@ mod tests {
             tasks: HashMap::new(),
             shell_sessions: HashMap::new(),
             port_forwards: HashMap::new(),
+            ..RelayStore::default()
         });
 
         let Json(created) = create_port_forward(
             State(state.clone()),
+            test_headers(),
             Json(CreatePortForwardRequest {
                 device_id: "device-1".to_string(),
                 protocol: vibe_core::PortForwardProtocol::Tcp,
@@ -2272,18 +2588,25 @@ mod tests {
             PortForwardTransportKind::RelayTunnel
         );
 
-        let Json(claimed) =
-            claim_next_port_forward(Path("device-1".to_string()), State(state.clone()))
-                .await
-                .unwrap();
+        let Json(claimed) = claim_next_port_forward(
+            Path("device-1".to_string()),
+            State(state.clone()),
+            test_headers(),
+        )
+        .await
+        .unwrap();
         assert_eq!(
             claimed.forward.as_ref().map(|forward| &forward.status),
             Some(&PortForwardStatus::Active)
         );
 
-        let Json(closed) = close_port_forward(Path(created.forward.id.clone()), State(state))
-            .await
-            .unwrap();
+        let Json(closed) = close_port_forward(
+            Path(created.forward.id.clone()),
+            State(state),
+            test_headers(),
+        )
+        .await
+        .unwrap();
         assert_eq!(closed.forward.status, PortForwardStatus::CloseRequested);
     }
 
@@ -2306,11 +2629,13 @@ mod tests {
                     10,
                 ),
             )]),
+            ..RelayStore::default()
         });
 
         let Json(detail) = report_port_forward_state(
             Path("forward-1".to_string()),
             State(state.clone()),
+            test_headers(),
             Json(ReportPortForwardStateRequest {
                 device_id: "device-1".to_string(),
                 status: Some(PortForwardStatus::Closed),
@@ -2357,6 +2682,7 @@ mod tests {
                     ),
                 ),
             ]),
+            ..RelayStore::default()
         });
 
         let Json(forwards) = list_port_forwards(
@@ -2366,8 +2692,10 @@ mod tests {
                 status: Some(PortForwardStatus::Active),
                 limit: Some(1),
             }),
+            test_headers(),
         )
-        .await;
+        .await
+        .unwrap();
 
         assert_eq!(forwards.len(), 1);
         assert_eq!(forwards[0].id, "forward-2");
@@ -2440,12 +2768,16 @@ mod tests {
                     },
                 ),
             ]),
+            ..RelayStore::default()
         });
 
-        let Json(claimed) =
-            claim_next_port_forward(Path("device-1".to_string()), State(state.clone()))
-                .await
-                .unwrap();
+        let Json(claimed) = claim_next_port_forward(
+            Path("device-1".to_string()),
+            State(state.clone()),
+            test_headers(),
+        )
+        .await
+        .unwrap();
 
         assert_eq!(
             claimed.forward.as_ref().map(|forward| forward.id.as_str()),
@@ -2488,6 +2820,7 @@ mod tests {
             tasks: HashMap::new(),
             shell_sessions: HashMap::new(),
             port_forwards: HashMap::new(),
+            ..RelayStore::default()
         };
 
         persist_relay_store(&path, &store).unwrap();

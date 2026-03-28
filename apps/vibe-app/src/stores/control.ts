@@ -7,6 +7,7 @@ import {
   createShellSession,
   createTask,
   fetchAppConfig,
+  fetchAuditEvents,
   fetchDevices,
   fetchHealth,
   fetchPortForwards,
@@ -26,8 +27,21 @@ import {
   resolveInitialRelayAccessToken,
   resolveInitialRelayBaseUrl
 } from "../lib/runtime";
+import { i18n } from "../lib/i18n";
+import {
+  buildPreviewActivity,
+  buildTaskActivity,
+  publishSystemActivity,
+  readNotificationPermission,
+  type ActivityItem
+} from "../lib/notifications";
+import {
+  resolveCurrentPlatformCapability,
+  supportsSystemNotifications
+} from "../lib/platform";
 import type {
   AppConfig,
+  AuditRecord,
   CreatePortForwardPayload,
   CreateTaskPayload,
   DeviceRecord,
@@ -72,6 +86,8 @@ let activeShellSocketSessionId: string | null = null;
 const TASK_HISTORY_LIMIT = 200;
 const SHELL_HISTORY_LIMIT = 100;
 const PORT_FORWARD_HISTORY_LIMIT = 100;
+const AUDIT_HISTORY_LIMIT = 200;
+const ACTIVITY_HISTORY_LIMIT = 120;
 const SHELL_POLL_INTERVAL_MS = 1_500;
 const PORT_FORWARD_POLL_INTERVAL_MS = 1_500;
 
@@ -84,11 +100,13 @@ export const useControlStore = defineStore("control", {
     localAppConfig: null as AppConfig | null,
     appConfig: null as AppConfig | null,
     health: null as ServiceHealth | null,
+    auditRecords: [] as AuditRecord[],
+    activities: [] as ActivityItem[],
     devices: [] as DeviceRecord[],
     tasks: [] as TaskRecord[],
     shellSessions: [] as ShellSessionRecord[],
     portForwards: [] as PortForwardRecord[],
-    taskScope: "all" as "all" | "selected_device",
+    taskScope: "selected_device" as "all" | "selected_device",
     taskStatusFilter: "all" as TaskStatus | "all",
     shellScope: "selected_device" as "all" | "selected_device",
     shellStatusFilter: "all" as ShellSessionStatus | "all",
@@ -104,7 +122,10 @@ export const useControlStore = defineStore("control", {
     isBootstrapping: false,
     isShellPolling: false,
     isPortForwardPolling: false,
+    isAuditLoading: false,
     shellSocketState: "disconnected" as "disconnected" | "connecting" | "connected",
+    notificationPermission: "default" as NotificationPermission,
+    errorCode: null as string | null,
     errorMessage: "",
     draft: {
       title: "",
@@ -201,6 +222,17 @@ export const useControlStore = defineStore("control", {
           label: formatProviderLabel(provider.kind, provider.executionProtocol),
           executionProtocol: provider.executionProtocol
         }));
+    },
+    unreadActivityCount(state) {
+      return state.activities.filter((activity) => activity.unread).length;
+    },
+    recentActivities(state) {
+      return [...state.activities].sort(
+        (left, right) => right.timestampEpochMs - left.timestampEpochMs
+      );
+    },
+    currentPlatformCapability(state) {
+      return resolveCurrentPlatformCapability(state.appConfig);
     }
   },
   actions: {
@@ -210,9 +242,11 @@ export const useControlStore = defineStore("control", {
       }
 
       this.isBootstrapping = true;
+      this.errorCode = null;
       this.errorMessage = "";
 
       try {
+        this.notificationPermission = readNotificationPermission();
         this.localAppConfig = await loadTauriConfig();
         this.appConfig = this.localAppConfig;
         this.relayBaseUrl = await resolveInitialRelayBaseUrl();
@@ -229,6 +263,7 @@ export const useControlStore = defineStore("control", {
         this.startPortForwardPolling();
         this.connectShellSocket();
       } catch (error) {
+        this.errorCode = null;
         this.errorMessage = formatError(error);
       } finally {
         this.isBootstrapping = false;
@@ -241,6 +276,7 @@ export const useControlStore = defineStore("control", {
         persistRelayBaseUrl(this.relayBaseUrl);
         persistRelayAccessToken(this.relayAccessToken);
         if (!this.relayBaseUrl) {
+          this.errorCode = null;
           this.errorMessage = "";
           this.resetRemoteState();
           return;
@@ -266,7 +302,7 @@ export const useControlStore = defineStore("control", {
 
         this.appConfig = appConfig;
         this.health = health;
-        const [devices, tasks, shellSessions, portForwards] = await Promise.all([
+        const [devices, tasks, shellSessions, portForwards, auditRecords] = await Promise.all([
           fetchDevices(this.relayBaseUrl, this.relayAccessToken),
           fetchTasks(this.relayBaseUrl, this.relayAccessToken, { limit: TASK_HISTORY_LIMIT }),
           fetchShellSessions(this.relayBaseUrl, this.relayAccessToken, {
@@ -274,13 +310,18 @@ export const useControlStore = defineStore("control", {
           }),
           fetchPortForwards(this.relayBaseUrl, this.relayAccessToken, {
             limit: PORT_FORWARD_HISTORY_LIMIT
+          }),
+          fetchAuditEvents(this.relayBaseUrl, this.relayAccessToken, {
+            limit: AUDIT_HISTORY_LIMIT
           })
         ]);
         this.devices = devices;
         this.tasks = tasks;
         this.shellSessions = shellSessions;
         this.portForwards = portForwards;
+        this.auditRecords = auditRecords;
         this.ensureSelections();
+        this.syncTaskSelectionToDevice();
         this.syncShellSelectionToDevice();
         this.syncPortForwardSelectionToDevice();
 
@@ -319,8 +360,15 @@ export const useControlStore = defineStore("control", {
       await runStoreAction(this, async () => {
         this.selectedDeviceId = deviceId;
         this.ensureSelections();
+        this.syncTaskSelectionToDevice();
         this.syncShellSelectionToDevice();
         this.syncPortForwardSelectionToDevice();
+        if (
+          this.selectedTaskId &&
+          this.selectedTaskDetail?.task.id !== this.selectedTaskId
+        ) {
+          await this.loadTaskDetail(this.selectedTaskId);
+        }
         if (
           this.selectedShellSessionId &&
           this.selectedShellSessionDetail?.session.id !== this.selectedShellSessionId
@@ -345,6 +393,38 @@ export const useControlStore = defineStore("control", {
     },
     selectPortForward(forwardId: string) {
       this.selectedPortForwardId = forwardId;
+    },
+    async openActivity(activityId: string) {
+      const activity = this.activities.find((item) => item.id === activityId);
+      if (!activity) {
+        return;
+      }
+
+      activity.unread = false;
+
+      if (activity.deviceId) {
+        this.selectedDeviceId = activity.deviceId;
+        this.ensureSelections();
+        this.syncTaskSelectionToDevice();
+        this.syncShellSelectionToDevice();
+        this.syncPortForwardSelectionToDevice();
+      }
+
+      if (activity.resourceKind === "task") {
+        await this.selectTask(activity.resourceId);
+        return;
+      }
+
+      if (activity.resourceKind === "preview") {
+        await this.refreshPortForwardsFromPoll();
+        this.selectPortForward(activity.resourceId);
+      }
+    },
+    markAllActivitiesRead() {
+      this.activities = this.activities.map((activity) => ({
+        ...activity,
+        unread: false
+      }));
     },
     async loadTaskDetail(taskId: string) {
       this.selectedTaskDetail = await fetchTaskDetail(
@@ -414,7 +494,8 @@ export const useControlStore = defineStore("control", {
 
         const targetPort = parsePort(this.portForwardDraft.targetPort);
         if (targetPort === null) {
-          this.errorMessage = "Target port must be an integer between 1 and 65535.";
+          this.errorCode = "targetPortInvalid";
+          this.errorMessage = "";
           return;
         }
 
@@ -509,6 +590,8 @@ export const useControlStore = defineStore("control", {
       this.disconnectShellSocket();
       this.appConfig = this.localAppConfig;
       this.health = null;
+      this.auditRecords = [];
+      this.activities = [];
       this.devices = [];
       this.tasks = [];
       this.shellSessions = [];
@@ -633,6 +716,7 @@ export const useControlStore = defineStore("control", {
           this.selectedShellSessionDetail = detail;
           this.upsertShellSession(detail.session);
         } catch (error) {
+          this.errorCode = null;
           this.errorMessage = formatError(error);
         }
       });
@@ -693,6 +777,7 @@ export const useControlStore = defineStore("control", {
           this.upsertShellSession(this.selectedShellSessionDetail.session);
         }
       } catch (error) {
+        this.errorCode = null;
         this.errorMessage = formatError(error);
       } finally {
         this.isShellPolling = false;
@@ -708,12 +793,14 @@ export const useControlStore = defineStore("control", {
 
       this.isPortForwardPolling = true;
       try {
-        this.portForwards = await fetchPortForwards(this.relayBaseUrl, this.relayAccessToken, {
+        const portForwards = await fetchPortForwards(this.relayBaseUrl, this.relayAccessToken, {
           limit: PORT_FORWARD_HISTORY_LIMIT
         });
+        this.reconcilePortForwards(portForwards);
         this.ensureSelections();
         this.syncPortForwardSelectionToDevice();
       } catch (error) {
+        this.errorCode = null;
         this.errorMessage = formatError(error);
       } finally {
         this.isPortForwardPolling = false;
@@ -733,6 +820,7 @@ export const useControlStore = defineStore("control", {
       }
 
       this.ensureSelections();
+      this.syncTaskSelectionToDevice();
       this.syncShellSelectionToDevice();
       this.syncPortForwardSelectionToDevice();
     },
@@ -752,6 +840,7 @@ export const useControlStore = defineStore("control", {
     },
     upsertTask(task: TaskRecord) {
       const existingIndex = this.tasks.findIndex((item) => item.id === task.id);
+      const previous = existingIndex >= 0 ? this.tasks[existingIndex] : null;
       if (existingIndex >= 0) {
         this.tasks.splice(existingIndex, 1, task);
       } else {
@@ -767,6 +856,11 @@ export const useControlStore = defineStore("control", {
           task,
           events: this.selectedTaskDetail.events
         };
+      }
+
+      const activity = buildTaskActivity(previous, task, i18n.global.t);
+      if (activity) {
+        this.pushActivity(activity);
       }
     },
     upsertShellSession(session: ShellSessionRecord) {
@@ -791,6 +885,7 @@ export const useControlStore = defineStore("control", {
     },
     upsertPortForward(forward: PortForwardRecord) {
       const existingIndex = this.portForwards.findIndex((item) => item.id === forward.id);
+      const previous = existingIndex >= 0 ? this.portForwards[existingIndex] : null;
       if (existingIndex >= 0) {
         this.portForwards.splice(existingIndex, 1, forward);
       } else {
@@ -799,6 +894,11 @@ export const useControlStore = defineStore("control", {
       this.portForwards.sort((left, right) => right.createdAtEpochMs - left.createdAtEpochMs);
       if (this.portForwards.length > PORT_FORWARD_HISTORY_LIMIT) {
         this.portForwards = this.portForwards.slice(0, PORT_FORWARD_HISTORY_LIMIT);
+      }
+
+      const activity = buildPreviewActivity(previous, forward, i18n.global.t);
+      if (activity) {
+        this.pushActivity(activity);
       }
     },
     upsertTaskEvent(taskEvent: TaskEvent) {
@@ -809,8 +909,55 @@ export const useControlStore = defineStore("control", {
         };
       }
     },
+    reconcilePortForwards(forwards: PortForwardRecord[]) {
+      const nextIds = new Set(forwards.map((forward) => forward.id));
+      for (const forward of forwards) {
+        this.upsertPortForward(forward);
+      }
+      this.portForwards = this.portForwards
+        .filter((forward) => nextIds.has(forward.id))
+        .slice(0, PORT_FORWARD_HISTORY_LIMIT);
+    },
+    pushActivity(activity: ActivityItem) {
+      const existingIndex = this.activities.findIndex(
+        (item) => item.fingerprint === activity.fingerprint
+      );
+      if (existingIndex >= 0) {
+        this.activities.splice(existingIndex, 1, activity);
+      } else {
+        this.activities.unshift(activity);
+      }
+      this.activities.sort((left, right) => right.timestampEpochMs - left.timestampEpochMs);
+      if (this.activities.length > ACTIVITY_HISTORY_LIMIT) {
+        this.activities = this.activities.slice(0, ACTIVITY_HISTORY_LIMIT);
+      }
+
+      void this.publishActivity(activity);
+    },
+    async publishActivity(activity: ActivityItem) {
+      const enabled =
+        supportsSystemNotifications(this.appConfig) &&
+        (this.appConfig?.notificationChannels ?? []).includes("system");
+      this.notificationPermission = await publishSystemActivity(activity, enabled);
+    },
     normalizeShellInput(value: string) {
       return value.endsWith("\n") ? value : `${value}\n`;
+    },
+    syncTaskSelectionToDevice() {
+      if (this.taskScope !== "selected_device" || !this.selectedDeviceId) {
+        return;
+      }
+
+      const current = this.tasks.find((task) => task.id === this.selectedTaskId);
+      if (current?.deviceId === this.selectedDeviceId) {
+        return;
+      }
+
+      const fallback = this.tasks.find((task) => task.deviceId === this.selectedDeviceId);
+      this.selectedTaskId = fallback?.id ?? null;
+      if (!fallback) {
+        this.selectedTaskDetail = null;
+      }
     },
     syncShellSelectionToDevice() {
       if (this.shellScope !== "selected_device" || !this.selectedDeviceId) {
@@ -858,13 +1005,15 @@ function formatError(error: unknown) {
 }
 
 async function runStoreAction(
-  store: { errorMessage: string },
+  store: { errorCode: string | null; errorMessage: string },
   operation: () => Promise<void>
 ) {
   try {
+    store.errorCode = null;
     store.errorMessage = "";
     await operation();
   } catch (error) {
+    store.errorCode = null;
     store.errorMessage = formatError(error);
   }
 }

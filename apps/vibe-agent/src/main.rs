@@ -21,18 +21,25 @@ use tokio_tungstenite::{
 };
 use uuid::Uuid;
 use vibe_core::{
-    AppendShellOutputRequest, AppendTaskEventsRequest, ClaimPortForwardResponse,
-    ClaimShellSessionResponse, ClaimTaskResponse, DEFAULT_TENANT_ID, DEFAULT_USER_ID,
-    DeviceCapability, DevicePlatform, ExecutionProtocol, HEARTBEAT_INTERVAL_MS, HeartbeatRequest,
-    HeartbeatResponse, OverlayNetworkStatus, PortForwardDetailResponse, PortForwardRecord,
-    PortForwardStatus, PortForwardTransportKind, PortForwardTunnelControl, ProviderKind,
-    ProviderStatus, RegisterDeviceRequest, RegisterDeviceResponse, ReportPortForwardStateRequest,
-    ShellOutputChunkInput, ShellPendingInputResponse, ShellSessionRecord, ShellSessionStatus,
-    ShellStreamKind, TaskDetailResponse, TaskEventInput, TaskEventKind, TaskRecord, TaskStatus,
+    AppendShellOutputRequest, AppendTaskEventsRequest, ClaimGitOperationResponse,
+    ClaimPortForwardResponse, ClaimShellSessionResponse, ClaimTaskResponse,
+    ClaimWorkspaceOperationResponse, CompleteGitOperationRequest,
+    CompleteWorkspaceOperationRequest, DEFAULT_TENANT_ID, DEFAULT_USER_ID, DeviceCapability,
+    DevicePlatform, ExecutionProtocol, GitChangedFile, GitCommitSummary, GitDiffStats,
+    GitFileStatus, GitInspectResponse, GitInspectState, GitOperationRequest, GitOperationResult,
+    HEARTBEAT_INTERVAL_MS, HeartbeatRequest, HeartbeatResponse, OverlayNetworkStatus,
+    PortForwardDetailResponse, PortForwardRecord, PortForwardStatus, PortForwardTransportKind,
+    PortForwardTunnelControl, ProviderKind, ProviderStatus, RegisterDeviceRequest,
+    RegisterDeviceResponse, ReportPortForwardStateRequest, ShellOutputChunkInput,
+    ShellPendingInputResponse, ShellSessionRecord, ShellSessionStatus, ShellStreamKind,
+    TaskDetailResponse, TaskEventInput, TaskEventKind, TaskRecord, TaskStatus,
+    WorkspaceBrowseResponse, WorkspaceEntry, WorkspaceEntryKind, WorkspaceFilePreviewResponse,
+    WorkspaceOperationRequest, WorkspaceOperationResult, WorkspacePreviewKind,
 };
 
 mod config;
 mod easytier;
+mod git_runtime;
 mod port_forward_bridge;
 mod port_forward_runtime;
 mod providers;
@@ -40,12 +47,14 @@ mod shell_bridge;
 mod shell_runtime;
 mod task_bridge;
 mod task_runtime;
+mod workspace_runtime;
 
 use config::{
     base_metadata, build_relay_websocket_url, default_device_name, ensure_task_cwd,
     normalize_base_url, resolve_task_cwd, resolve_working_root,
 };
 use easytier::{AgentEasyTierOptions, initial_overlay_status, start_managed_agent_easytier};
+use git_runtime::git_loop;
 use port_forward_runtime::port_forward_loop;
 use providers::{
     acp_update_to_events, build_provider_command, detect_providers, provider_stdout_to_task_events,
@@ -54,6 +63,7 @@ use providers::{
 use providers::{claude_jsonl_to_task_events, codex_jsonl_to_task_events};
 use shell_runtime::shell_session_loop;
 use task_runtime::task_loop;
+use workspace_runtime::workspace_loop;
 
 const ACP_PROTOCOL_VERSION: u64 = 1;
 const ACP_CANCEL_POLL_MS: u64 = 1_000;
@@ -69,6 +79,12 @@ struct Cli {
 
     #[arg(long, env = "VIBE_DEVICE_ID")]
     device_id: Option<String>,
+
+    #[arg(long, env = "VIBE_TENANT_ID", default_value = DEFAULT_TENANT_ID)]
+    tenant_id: String,
+
+    #[arg(long, env = "VIBE_USER_ID", default_value = DEFAULT_USER_ID)]
+    user_id: String,
 
     #[arg(long, env = "VIBE_WORKING_ROOT", default_value = ".")]
     working_root: PathBuf,
@@ -102,6 +118,8 @@ struct SharedState {
 
 #[derive(Clone)]
 struct AgentProfile {
+    tenant_id: String,
+    user_id: String,
     device_id: String,
     device_name: String,
     platform: DevicePlatform,
@@ -114,7 +132,12 @@ enum HeartbeatOutcome {
 }
 
 fn advertised_device_capabilities() -> Vec<DeviceCapability> {
-    vec![DeviceCapability::AiSession, DeviceCapability::Shell]
+    vec![
+        DeviceCapability::AiSession,
+        DeviceCapability::Shell,
+        DeviceCapability::WorkspaceBrowse,
+        DeviceCapability::GitInspect,
+    ]
 }
 
 #[tokio::main]
@@ -123,6 +146,8 @@ async fn main() -> Result<()> {
     let relay_url = normalize_base_url(&cli.relay_url);
     let working_root = resolve_working_root(&cli.working_root)?;
     let mut profile = AgentProfile {
+        tenant_id: cli.tenant_id.clone(),
+        user_id: cli.user_id.clone(),
         device_id: cli
             .device_id
             .clone()
@@ -179,6 +204,15 @@ async fn main() -> Result<()> {
         header_value.set_sensitive(true);
         default_headers.insert(AUTHORIZATION, header_value);
     }
+    default_headers.insert(
+        "x-vibe-tenant-id",
+        HeaderValue::from_str(&profile.tenant_id).context("invalid tenant id header")?,
+    );
+    default_headers.insert(
+        "x-vibe-user-id",
+        HeaderValue::from_str(&profile.user_id).context("invalid user id header")?,
+    );
+    default_headers.insert("x-vibe-user-role", HeaderValue::from_static("agent"));
 
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(30))
@@ -256,6 +290,48 @@ async fn main() -> Result<()> {
         }
     });
 
+    let workspace_client = client.clone();
+    let workspace_relay_url = relay_url.clone();
+    let workspace_profile = profile.clone();
+    let workspace_shared = shared.clone();
+    let workspace_working_root = working_root.clone();
+    let workspace_poll_interval_ms = cli.poll_interval_ms;
+    tokio::spawn(async move {
+        if let Err(error) = workspace_loop(
+            workspace_client,
+            workspace_relay_url,
+            workspace_profile,
+            workspace_shared,
+            workspace_working_root,
+            workspace_poll_interval_ms,
+        )
+        .await
+        {
+            eprintln!("workspace loop stopped: {error:#}");
+        }
+    });
+
+    let git_client = client.clone();
+    let git_relay_url = relay_url.clone();
+    let git_profile = profile.clone();
+    let git_shared = shared.clone();
+    let git_working_root = working_root.clone();
+    let git_poll_interval_ms = cli.poll_interval_ms;
+    tokio::spawn(async move {
+        if let Err(error) = git_loop(
+            git_client,
+            git_relay_url,
+            git_profile,
+            git_shared,
+            git_working_root,
+            git_poll_interval_ms,
+        )
+        .await
+        {
+            eprintln!("git loop stopped: {error:#}");
+        }
+    });
+
     let task_result = task_loop(
         client,
         relay_url,
@@ -308,8 +384,8 @@ async fn build_register_device_request(
     shared: &SharedState,
 ) -> RegisterDeviceRequest {
     RegisterDeviceRequest {
-        tenant_id: DEFAULT_TENANT_ID.to_string(),
-        user_id: DEFAULT_USER_ID.to_string(),
+        tenant_id: profile.tenant_id.clone(),
+        user_id: profile.user_id.clone(),
         id: profile.device_id.clone(),
         name: profile.device_name.clone(),
         platform: profile.platform.clone(),
@@ -495,7 +571,12 @@ mod tests {
     fn advertised_device_capabilities_match_current_mvp_surface() {
         assert_eq!(
             advertised_device_capabilities(),
-            vec![DeviceCapability::AiSession, DeviceCapability::Shell]
+            vec![
+                DeviceCapability::AiSession,
+                DeviceCapability::Shell,
+                DeviceCapability::WorkspaceBrowse,
+                DeviceCapability::GitInspect,
+            ]
         );
     }
 
@@ -516,6 +597,8 @@ mod tests {
             overlay: Arc::new(RwLock::new(OverlayNetworkStatus::default())),
         };
         let profile = AgentProfile {
+            tenant_id: "team-a".to_string(),
+            user_id: "agent-1".to_string(),
             device_id: "device-1".to_string(),
             device_name: "Workstation".to_string(),
             platform: DevicePlatform::Linux,
@@ -524,6 +607,8 @@ mod tests {
 
         let request = build_register_device_request(&profile, &shared).await;
 
+        assert_eq!(request.tenant_id, "team-a");
+        assert_eq!(request.user_id, "agent-1");
         assert_eq!(request.id, "device-1");
         assert_eq!(request.name, "Workstation");
         assert_eq!(request.platform, DevicePlatform::Linux);

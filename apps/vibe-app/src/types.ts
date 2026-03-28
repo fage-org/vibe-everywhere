@@ -26,6 +26,12 @@ export type PortForwardStatus =
   | "close_requested"
   | "closed"
   | "failed";
+export type UserRole = "owner" | "admin" | "member" | "viewer" | "agent";
+export type AuthMode = "disabled" | "access_token";
+export type StorageKind = "file" | "memory" | "external";
+export type DeploymentMode = "self_hosted" | "hosted_compatible";
+export type NotificationChannel = "in_app" | "system";
+export type ControlClientKind = "web" | "tauri_desktop" | "android";
 export type ShellStreamKind = "stdout" | "stderr" | "system";
 export type PortForwardProtocol = "tcp";
 export type PortForwardTransportKind = "relay_tunnel" | "overlay_proxy";
@@ -172,6 +178,114 @@ export type PortForwardDetailResponse = {
   forward: PortForwardRecord;
 };
 
+export type WorkspaceEntryKind = "directory" | "file";
+
+export type WorkspaceEntry = {
+  path: string;
+  name: string;
+  kind: WorkspaceEntryKind;
+  sizeBytes: number | null;
+  modifiedAtEpochMs: number | null;
+};
+
+export type WorkspaceBrowseRequest = {
+  deviceId: string;
+  sessionCwd?: string;
+  path?: string;
+};
+
+export type WorkspaceBrowseResponse = {
+  deviceId: string;
+  rootPath: string;
+  path: string;
+  parentPath: string | null;
+  entries: WorkspaceEntry[];
+};
+
+export type WorkspacePreviewKind = "text" | "binary" | "directory";
+
+export type WorkspaceFilePreviewRequest = {
+  deviceId: string;
+  sessionCwd?: string;
+  path: string;
+  line?: number;
+  limit?: number;
+};
+
+export type WorkspaceFilePreviewResponse = {
+  deviceId: string;
+  rootPath: string;
+  path: string;
+  kind: WorkspacePreviewKind;
+  content: string | null;
+  truncated: boolean;
+  line: number | null;
+  totalLines: number | null;
+  sizeBytes: number;
+};
+
+export type GitInspectState = "ready" | "not_repository" | "git_unavailable";
+
+export type GitFileStatus =
+  | "modified"
+  | "added"
+  | "deleted"
+  | "renamed"
+  | "copied"
+  | "updated_but_unmerged"
+  | "untracked"
+  | "type_changed"
+  | "unknown";
+
+export type GitInspectRequest = {
+  deviceId: string;
+  sessionCwd?: string;
+};
+
+export type GitChangedFile = {
+  path: string;
+  repoPath: string;
+  status: GitFileStatus;
+  staged: boolean;
+  unstaged: boolean;
+};
+
+export type GitCommitSummary = {
+  id: string;
+  shortId: string;
+  summary: string;
+  authorName: string;
+  committedAtEpochMs: number;
+};
+
+export type GitDiffStats = {
+  changedFiles: number;
+  stagedFiles: number;
+  unstagedFiles: number;
+  untrackedFiles: number;
+  conflictedFiles: number;
+  stagedAdditions: number;
+  stagedDeletions: number;
+  unstagedAdditions: number;
+  unstagedDeletions: number;
+};
+
+export type GitInspectResponse = {
+  deviceId: string;
+  workspaceRoot: string;
+  repoRoot: string | null;
+  scopePath: string | null;
+  state: GitInspectState;
+  branchName: string | null;
+  upstreamBranch: string | null;
+  aheadCount: number;
+  behindCount: number;
+  hasCommits: boolean;
+  changedFiles: GitChangedFile[];
+  recentCommits: GitCommitSummary[];
+  diffStats: GitDiffStats;
+};
+
 export type ServiceHealth = {
   service: string;
   status: string;
@@ -180,10 +294,61 @@ export type ServiceHealth = {
   taskCount: number;
 };
 
+export type ActorIdentity = {
+  tenantId: string;
+  userId: string;
+  role: UserRole;
+};
+
+export type PlatformCapability = {
+  client: ControlClientKind;
+  mobileOptimized: boolean;
+  supportsSystemNotifications: boolean;
+  supportsPersistedRuntimeConfig: boolean;
+  prefersExplicitRemoteRelayUrl: boolean;
+};
+
+export type DeploymentMetadata = {
+  mode: DeploymentMode;
+  displayName: string;
+  relayPublicOrigin: string;
+  documentationUrl: string | null;
+};
+
+export type AuditAction =
+  | "device_registered"
+  | "task_created"
+  | "task_canceled"
+  | "shell_session_created"
+  | "shell_session_closed"
+  | "preview_created"
+  | "preview_closed";
+
+export type AuditOutcome = "succeeded" | "rejected" | "failed";
+
+export type AuditRecord = {
+  id: string;
+  tenantId: string;
+  userId: string;
+  actorRole: UserRole;
+  action: AuditAction;
+  resourceKind: string;
+  resourceId: string;
+  outcome: AuditOutcome;
+  message: string | null;
+  timestampEpochMs: number;
+};
+
 export type AppConfig = {
   appName: string;
   defaultRelayBaseUrl: string;
   requiresAuth: boolean;
+  authMode: AuthMode;
+  storageKind: StorageKind;
+  deployment: DeploymentMetadata;
+  currentActor: ActorIdentity;
+  notificationChannels: NotificationChannel[];
+  platformMatrix: PlatformCapability[];
   supportedTargets: string[];
   controlClients: string[];
   featureFlags: string[];

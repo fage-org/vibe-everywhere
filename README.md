@@ -8,12 +8,12 @@
 
 Rust-first 的远程 AI 控制平面：`Rust relay + Rust agent + Vue 3.5 + Tauri 2 app`。
 
-它不是传统远程桌面，而是一个面向多设备 AI 协作、任务执行、Shell 会话和 TCP 端口转发的控制系统。服务端负责设备注册、状态维护和控制面 API，Agent 运行在被控设备上执行任务，控制端可以使用 Web 或 Tauri 桌面壳连接整个系统。
+它不是传统远程桌面，而是一个以 AI Session 为中心的远程开发控制系统。服务端负责设备注册、状态维护和控制面 API，Agent 运行在被控设备上执行 AI 会话、工作区相关操作和高级诊断能力，控制端可以通过 Web、Tauri 桌面壳和 Android 壳连接整个系统。
 
 ## 项目状态
 
 - 当前定位：个人版 MVP / 开源实验项目
-- 当前已打通：设备注册、任务执行、事件流、Shell Session、Relay-first 端口转发、Overlay 辅助转发
+- 当前主流程：设备选择、AI Session 发起、事件流监督、高级 Terminal / Preview 工具
 - 当前技术方向：以 Rust 为核心，控制端统一走 Vue + Tauri，服务端和 Agent 统一协议
 - 当前移动端：Android arm64 APK / AAB 已打通，iOS 待补齐
 - 当前适用场景：个人远程 AI 工作台、自托管多设备控制面、跨平台实验性远程协作
@@ -21,11 +21,11 @@ Rust-first 的远程 AI 控制平面：`Rust relay + Rust agent + Vue 3.5 + Taur
 ## 核心能力
 
 - Rust workspace 架构，协议、服务端、Agent、桌面端共享同一仓库
-- `vibe-relay` 提供 Axum API、设备状态管理、任务与会话调度
-- `vibe-agent` 提供设备注册、轮询执行、Provider 适配、Shell 与端口转发运行时
-- `vibe-app` 提供 Vue 3.5 控制台，`src-tauri` 提供桌面壳和 Android 移动壳
+- `vibe-relay` 提供 Axum API、设备状态管理、AI Session 调度、Terminal 与 Preview 控制面
+- `vibe-agent` 提供设备注册、轮询执行、Provider 适配、Workspace 根目录运行时以及高级 Terminal / Tunnel 能力
+- `vibe-app` 提供 Vue 3.5 控制台，当前以 AI Session 工作台为主，`src-tauri` 提供桌面壳和 Android 移动壳
 - 支持 `Codex`、`Claude Code`、`OpenCode` Provider 接入
-- 支持 Relay-first 任务、Shell、TCP 端口转发
+- 支持 Relay-first AI Session、Terminal、TCP 预览/转发
 - 支持基于 EasyTier 的 Overlay 辅助传输
 - 支持 Tauri Android arm64 调试 APK、release APK 与 AAB 构建
 - 支持 SSE / WebSocket / Tunnel 等多种实时通道

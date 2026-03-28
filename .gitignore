@@ -3,6 +3,7 @@ dist/
 node_modules/
 .DS_Store
 *.log
+private/
 apps/vibe-app/src-tauri/gen/android/**/.gradle/
 apps/vibe-app/src-tauri/gen/android/**/build/
 apps/vibe-app/src-tauri/gen/android/app/src/main/jniLibs/

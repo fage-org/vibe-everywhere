@@ -1,13 +1,17 @@
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, path::Path as FsPath};
 use vibe_core::{
-    DeviceRecord, PortForwardRecord, ShellInputRecord, ShellOutputChunk, ShellSessionRecord,
-    TaskEvent, TaskRecord,
+    AuditRecord, DeviceRecord, MembershipRecord, PortForwardRecord, ShellInputRecord,
+    ShellOutputChunk, ShellSessionRecord, TaskEvent, TaskRecord, TenantRecord, UserRecord,
 };
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(default)]
 pub(crate) struct RelayStore {
+    pub(crate) tenants: HashMap<String, TenantRecord>,
+    pub(crate) users: HashMap<String, UserRecord>,
+    pub(crate) memberships: Vec<MembershipRecord>,
+    pub(crate) audit_records: Vec<AuditRecord>,
     pub(crate) devices: HashMap<String, DeviceRecord>,
     pub(crate) tasks: HashMap<String, TaskEntry>,
     pub(crate) shell_sessions: HashMap<String, ShellSessionEntry>,

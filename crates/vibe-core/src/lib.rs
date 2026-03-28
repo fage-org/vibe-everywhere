@@ -10,6 +10,72 @@ pub const HEARTBEAT_INTERVAL_MS: u64 = 5_000;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
+pub enum UserRole {
+    Owner,
+    Admin,
+    Member,
+    Viewer,
+    Agent,
+}
+
+impl UserRole {
+    pub fn can_read_control_plane(&self) -> bool {
+        matches!(
+            self,
+            Self::Owner | Self::Admin | Self::Member | Self::Viewer | Self::Agent
+        )
+    }
+
+    pub fn can_write_control_plane(&self) -> bool {
+        matches!(self, Self::Owner | Self::Admin | Self::Member | Self::Agent)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ActorIdentity {
+    pub tenant_id: String,
+    pub user_id: String,
+    pub role: UserRole,
+}
+
+impl ActorIdentity {
+    pub fn personal_owner() -> Self {
+        Self {
+            tenant_id: DEFAULT_TENANT_ID.to_string(),
+            user_id: DEFAULT_USER_ID.to_string(),
+            role: UserRole::Owner,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct TenantRecord {
+    pub id: String,
+    pub name: String,
+    pub created_at_epoch_ms: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct UserRecord {
+    pub id: String,
+    pub display_name: String,
+    pub created_at_epoch_ms: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct MembershipRecord {
+    pub tenant_id: String,
+    pub user_id: String,
+    pub role: UserRole,
+    pub created_at_epoch_ms: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
 pub enum DevicePlatform {
     Windows,
     Macos,
@@ -50,6 +116,7 @@ pub enum DeviceCapability {
     Shell,
     FileSync,
     WorkspaceBrowse,
+    GitInspect,
     Notifications,
 }
 
@@ -285,10 +352,11 @@ impl TaskRecord {
         request: CreateTaskRequest,
         execution_protocol: ExecutionProtocol,
         transport: TaskTransportKind,
+        actor: &ActorIdentity,
     ) -> Self {
         Self {
-            tenant_id: DEFAULT_TENANT_ID.to_string(),
-            user_id: DEFAULT_USER_ID.to_string(),
+            tenant_id: actor.tenant_id.clone(),
+            user_id: actor.user_id.clone(),
             id: Uuid::new_v4().to_string(),
             device_id: request.device_id,
             title: request
@@ -439,10 +507,14 @@ pub struct ShellSessionRecord {
 }
 
 impl ShellSessionRecord {
-    pub fn new(request: CreateShellSessionRequest, transport: ShellTransportKind) -> Self {
+    pub fn new(
+        request: CreateShellSessionRequest,
+        transport: ShellTransportKind,
+        actor: &ActorIdentity,
+    ) -> Self {
         Self {
-            tenant_id: DEFAULT_TENANT_ID.to_string(),
-            user_id: DEFAULT_USER_ID.to_string(),
+            tenant_id: actor.tenant_id.clone(),
+            user_id: actor.user_id.clone(),
             id: Uuid::new_v4().to_string(),
             device_id: request.device_id,
             cwd: request.cwd,
@@ -633,10 +705,11 @@ impl PortForwardRecord {
         relay_host: String,
         relay_port: u16,
         transport: PortForwardTransportKind,
+        actor: &ActorIdentity,
     ) -> Self {
         Self {
-            tenant_id: DEFAULT_TENANT_ID.to_string(),
-            user_id: DEFAULT_USER_ID.to_string(),
+            tenant_id: actor.tenant_id.clone(),
+            user_id: actor.user_id.clone(),
             id: Uuid::new_v4().to_string(),
             device_id: request.device_id,
             protocol: request.protocol,
@@ -719,6 +792,350 @@ pub struct PortForwardDetailResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum WorkspaceEntryKind {
+    Directory,
+    File,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceEntry {
+    pub path: String,
+    pub name: String,
+    pub kind: WorkspaceEntryKind,
+    pub size_bytes: Option<u64>,
+    pub modified_at_epoch_ms: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceBrowseRequest {
+    pub device_id: String,
+    pub session_cwd: Option<String>,
+    pub path: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceBrowseResponse {
+    pub device_id: String,
+    pub root_path: String,
+    pub path: String,
+    pub parent_path: Option<String>,
+    pub entries: Vec<WorkspaceEntry>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum WorkspacePreviewKind {
+    Text,
+    Binary,
+    Directory,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceFilePreviewRequest {
+    pub device_id: String,
+    pub session_cwd: Option<String>,
+    pub path: String,
+    pub line: Option<u64>,
+    pub limit: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceFilePreviewResponse {
+    pub device_id: String,
+    pub root_path: String,
+    pub path: String,
+    pub kind: WorkspacePreviewKind,
+    pub content: Option<String>,
+    pub truncated: bool,
+    pub line: Option<u64>,
+    pub total_lines: Option<u64>,
+    pub size_bytes: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum GitInspectState {
+    Ready,
+    NotRepository,
+    GitUnavailable,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum GitFileStatus {
+    Modified,
+    Added,
+    Deleted,
+    Renamed,
+    Copied,
+    UpdatedButUnmerged,
+    Untracked,
+    TypeChanged,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct GitInspectRequest {
+    pub device_id: String,
+    pub session_cwd: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct GitChangedFile {
+    pub path: String,
+    pub repo_path: String,
+    pub status: GitFileStatus,
+    pub staged: bool,
+    pub unstaged: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct GitCommitSummary {
+    pub id: String,
+    pub short_id: String,
+    pub summary: String,
+    pub author_name: String,
+    pub committed_at_epoch_ms: u64,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct GitDiffStats {
+    pub changed_files: u64,
+    pub staged_files: u64,
+    pub unstaged_files: u64,
+    pub untracked_files: u64,
+    pub conflicted_files: u64,
+    pub staged_additions: u64,
+    pub staged_deletions: u64,
+    pub unstaged_additions: u64,
+    pub unstaged_deletions: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct GitInspectResponse {
+    pub device_id: String,
+    pub workspace_root: String,
+    pub repo_root: Option<String>,
+    pub scope_path: Option<String>,
+    pub state: GitInspectState,
+    pub branch_name: Option<String>,
+    pub upstream_branch: Option<String>,
+    pub ahead_count: u64,
+    pub behind_count: u64,
+    pub has_commits: bool,
+    pub changed_files: Vec<GitChangedFile>,
+    pub recent_commits: Vec<GitCommitSummary>,
+    pub diff_stats: GitDiffStats,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum WorkspaceOperationRequest {
+    Browse {
+        id: String,
+        device_id: String,
+        session_cwd: Option<String>,
+        path: Option<String>,
+    },
+    Preview {
+        id: String,
+        device_id: String,
+        session_cwd: Option<String>,
+        path: String,
+        line: Option<u64>,
+        limit: Option<u64>,
+    },
+}
+
+impl WorkspaceOperationRequest {
+    pub fn id(&self) -> &str {
+        match self {
+            Self::Browse { id, .. } | Self::Preview { id, .. } => id,
+        }
+    }
+
+    pub fn device_id(&self) -> &str {
+        match self {
+            Self::Browse { device_id, .. } | Self::Preview { device_id, .. } => device_id,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ClaimWorkspaceOperationResponse {
+    pub request: Option<WorkspaceOperationRequest>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum WorkspaceOperationResult {
+    Browse {
+        response: WorkspaceBrowseResponse,
+    },
+    Preview {
+        response: WorkspaceFilePreviewResponse,
+    },
+    Error {
+        message: String,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CompleteWorkspaceOperationRequest {
+    pub device_id: String,
+    pub result: WorkspaceOperationResult,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum GitOperationRequest {
+    Inspect {
+        id: String,
+        device_id: String,
+        session_cwd: Option<String>,
+    },
+}
+
+impl GitOperationRequest {
+    pub fn id(&self) -> &str {
+        match self {
+            Self::Inspect { id, .. } => id,
+        }
+    }
+
+    pub fn device_id(&self) -> &str {
+        match self {
+            Self::Inspect { device_id, .. } => device_id,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ClaimGitOperationResponse {
+    pub request: Option<GitOperationRequest>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum GitOperationResult {
+    Inspect { response: GitInspectResponse },
+    Error { message: String },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CompleteGitOperationRequest {
+    pub device_id: String,
+    pub result: GitOperationResult,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum DeploymentMode {
+    SelfHosted,
+    HostedCompatible,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum AuthMode {
+    Disabled,
+    AccessToken,
+    External,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum StorageKind {
+    File,
+    Memory,
+    External,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum NotificationChannel {
+    InApp,
+    System,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ControlClientKind {
+    Web,
+    TauriDesktop,
+    Android,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct PlatformCapability {
+    pub client: ControlClientKind,
+    pub mobile_optimized: bool,
+    pub supports_system_notifications: bool,
+    pub supports_persisted_runtime_config: bool,
+    pub prefers_explicit_remote_relay_url: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DeploymentMetadata {
+    pub mode: DeploymentMode,
+    pub display_name: String,
+    pub relay_public_origin: String,
+    pub documentation_url: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum AuditAction {
+    DeviceRegistered,
+    TaskCreated,
+    TaskCanceled,
+    ShellSessionCreated,
+    ShellSessionClosed,
+    PreviewCreated,
+    PreviewClosed,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum AuditOutcome {
+    Succeeded,
+    Rejected,
+    Failed,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AuditRecord {
+    pub id: String,
+    pub tenant_id: String,
+    pub user_id: String,
+    pub actor_role: UserRole,
+    pub action: AuditAction,
+    pub resource_kind: String,
+    pub resource_id: String,
+    pub outcome: AuditOutcome,
+    pub message: Option<String>,
+    pub timestamp_epoch_ms: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ServiceHealth {
     pub service: String,
@@ -734,6 +1151,12 @@ pub struct AppConfig {
     pub app_name: String,
     pub default_relay_base_url: String,
     pub requires_auth: bool,
+    pub auth_mode: AuthMode,
+    pub storage_kind: StorageKind,
+    pub deployment: DeploymentMetadata,
+    pub current_actor: ActorIdentity,
+    pub notification_channels: Vec<NotificationChannel>,
+    pub platform_matrix: Vec<PlatformCapability>,
     pub supported_targets: Vec<String>,
     pub control_clients: Vec<String>,
     pub feature_flags: Vec<String>,
@@ -769,11 +1192,46 @@ pub struct RelayEventEnvelope {
 pub fn default_app_config(
     default_relay_base_url: impl Into<String>,
     requires_auth: bool,
+    deployment: DeploymentMetadata,
+    storage_kind: StorageKind,
+    current_actor: ActorIdentity,
 ) -> AppConfig {
     AppConfig {
         app_name: "Vibe Everywhere".to_string(),
         default_relay_base_url: default_relay_base_url.into(),
         requires_auth,
+        auth_mode: if requires_auth {
+            AuthMode::AccessToken
+        } else {
+            AuthMode::Disabled
+        },
+        storage_kind,
+        deployment,
+        current_actor,
+        notification_channels: vec![NotificationChannel::InApp, NotificationChannel::System],
+        platform_matrix: vec![
+            PlatformCapability {
+                client: ControlClientKind::Web,
+                mobile_optimized: false,
+                supports_system_notifications: true,
+                supports_persisted_runtime_config: true,
+                prefers_explicit_remote_relay_url: false,
+            },
+            PlatformCapability {
+                client: ControlClientKind::TauriDesktop,
+                mobile_optimized: false,
+                supports_system_notifications: true,
+                supports_persisted_runtime_config: true,
+                prefers_explicit_remote_relay_url: false,
+            },
+            PlatformCapability {
+                client: ControlClientKind::Android,
+                mobile_optimized: true,
+                supports_system_notifications: true,
+                supports_persisted_runtime_config: true,
+                prefers_explicit_remote_relay_url: true,
+            },
+        ],
         supported_targets: vec![
             "Windows".to_string(),
             "macOS".to_string(),
@@ -790,6 +1248,7 @@ pub fn default_app_config(
             "provider_adapters".to_string(),
             "provider_protocol_reporting".to_string(),
             "opencode_acp_mvp".to_string(),
+            "session_git_inspect".to_string(),
             "easytier_embedded_ready".to_string(),
             "easytier_embedded_agent".to_string(),
             "easytier_embedded_relay".to_string(),

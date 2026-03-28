@@ -39,8 +39,10 @@ export function isLoopbackRelayBaseUrl(value: string) {
   }
 }
 
-export function getRelayBaseUrlPlaceholder() {
-  return isMobileControlClient() ? "http://192.168.1.10:8787" : "http://127.0.0.1:8787";
+export function getRelayBaseUrlPlaceholder(prefersExplicitRemoteRelayUrl = isMobileControlClient()) {
+  return prefersExplicitRemoteRelayUrl
+    ? "http://192.168.1.10:8787"
+    : "http://127.0.0.1:8787";
 }
 
 export function resolveInitialRelayAccessToken(): string {
