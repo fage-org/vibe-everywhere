@@ -11,8 +11,8 @@ use tokio::{sync::watch, task::JoinHandle};
 use url::Url;
 use uuid::Uuid;
 
-const EASYTIER_RESTART_DELAY_SECS: u64 = 5;
-const EASYTIER_STATUS_POLL_SECS: u64 = 3;
+const DEFAULT_EASYTIER_RESTART_DELAY_SECS: u64 = 5;
+const DEFAULT_EASYTIER_STATUS_POLL_SECS: u64 = 3;
 const DEFAULT_LISTENER_PORT: u16 = 11010;
 
 #[derive(Debug, Clone)]
@@ -111,7 +111,7 @@ async fn run_supervisor(options: RelayEasyTierOptions, mut shutdown_rx: watch::R
 
         tokio::select! {
             _ = shutdown_rx.changed() => break,
-            _ = tokio::time::sleep(Duration::from_secs(EASYTIER_RESTART_DELAY_SECS)) => {}
+            _ = tokio::time::sleep(Duration::from_secs(easytier_restart_delay_secs())) => {}
         }
     }
 }
@@ -129,7 +129,7 @@ async fn monitor_instance(
     instance: &NetworkInstance,
     shutdown_rx: &mut watch::Receiver<bool>,
 ) -> Result<()> {
-    let mut poll = tokio::time::interval(Duration::from_secs(EASYTIER_STATUS_POLL_SECS));
+    let mut poll = tokio::time::interval(Duration::from_secs(easytier_status_poll_secs()));
 
     loop {
         tokio::select! {
@@ -262,6 +262,21 @@ fn parse_bool_env(name: &str) -> Option<bool> {
             "0" | "false" | "no" | "off" => Some(false),
             _ => None,
         })
+}
+
+fn parse_u64_env(name: &str) -> Option<u64> {
+    env::var(name)
+        .ok()
+        .and_then(|value| value.trim().parse::<u64>().ok())
+        .filter(|value| *value > 0)
+}
+
+fn easytier_restart_delay_secs() -> u64 {
+    parse_u64_env("VIBE_EASYTIER_RESTART_DELAY_SECS").unwrap_or(DEFAULT_EASYTIER_RESTART_DELAY_SECS)
+}
+
+fn easytier_status_poll_secs() -> u64 {
+    parse_u64_env("VIBE_EASYTIER_STATUS_POLL_SECS").unwrap_or(DEFAULT_EASYTIER_STATUS_POLL_SECS)
 }
 
 #[cfg(test)]
