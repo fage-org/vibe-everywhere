@@ -90,9 +90,6 @@ $WinDivertDll = Find-RequiredFile `
   -SearchRoot $TargetDir `
   -Filter "WinDivert.dll" `
   -Pattern '[\\/]WinDivert\.dll$'
-if ($null -eq $WinDivertDll) {
-  throw "failed to locate WinDivert.dll under $TargetDir; ensure WINDIVERT_DLL_OUTPUT points to $TargetDir during cargo build"
-}
 
 Copy-IfFound -File $PacketDll -DestinationDir $TargetDir
 Copy-IfFound -File $WintunDll -DestinationDir $TargetDir
@@ -102,11 +99,18 @@ Copy-IfFound -File $WinDivertDll -DestinationDir $TargetDir
 $StagedFiles = @(
   "Packet.dll",
   "wintun.dll",
-  "WinDivert64.sys",
+  "WinDivert64.sys"
+) | ForEach-Object {
+  Join-Path $TargetDir $_
+} | Where-Object { Test-Path $_ } | Sort-Object
+
+$OptionalFiles = @(
   "WinDivert.dll"
 ) | ForEach-Object {
   Join-Path $TargetDir $_
 } | Where-Object { Test-Path $_ } | Sort-Object
+
+$StagedFiles = @($StagedFiles + $OptionalFiles)
 
 if ($StagedFiles.Count -eq 0) {
   throw "no Windows runtime files were staged into $TargetDir"
