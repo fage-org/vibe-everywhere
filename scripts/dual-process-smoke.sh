@@ -81,6 +81,8 @@ sock.connect(("8.8.8.8", 53))
 print(sock.getsockname()[0])
 PY2
 )}
+OVERLAY_BOOTSTRAP_HOST=""
+OVERLAY_AGENT_NODE_IP=""
 
 pick_port() {
   python3 - "$1" <<'PY2'
@@ -105,6 +107,9 @@ if [[ "$MODE" == "overlay" ]]; then
   EASYTIER_PORT=$(pick_port "$HOST")
   EASYTIER_NETWORK_NAME="vibe-smoke-net"
   EASYTIER_SECRET="vibe-smoke-secret"
+  # Keep the bootstrap path deterministic for same-host CI while leaving product defaults untouched.
+  OVERLAY_BOOTSTRAP_HOST=${VIBE_TEST_OVERLAY_BOOTSTRAP_HOST:-127.0.0.1}
+  OVERLAY_AGENT_NODE_IP=${VIBE_TEST_OVERLAY_NODE_IP:-10.44.0.2/24}
   EXPECTED_TRANSPORT="overlay_proxy"
   RELAY_EXTRA_ENV=(
     VIBE_EASYTIER_RELAY_ENABLED=1
@@ -115,7 +120,8 @@ if [[ "$MODE" == "overlay" ]]; then
   AGENT_EXTRA_ENV=(
     VIBE_EASYTIER_NETWORK_NAME="$EASYTIER_NETWORK_NAME"
     VIBE_EASYTIER_NETWORK_SECRET="$EASYTIER_SECRET"
-    VIBE_EASYTIER_BOOTSTRAP_URL="tcp://$HOST:$EASYTIER_PORT"
+    VIBE_EASYTIER_BOOTSTRAP_URL="tcp://$OVERLAY_BOOTSTRAP_HOST:$EASYTIER_PORT"
+    VIBE_EASYTIER_NODE_IP="$OVERLAY_AGENT_NODE_IP"
     VIBE_EASYTIER_NO_LISTENER=true
   )
 fi
@@ -206,7 +212,7 @@ if [[ "$MODE" == "overlay" ]]; then
   overlay_ready=0
   for _ in $(seq 1 120); do
     curl -fsS "$BASE_URL/api/devices" >"$TMP_DIR/devices.json"
-    if python3 - "$DEVICE_ID" "$TMP_DIR/devices.json" >"$TMP_DIR/device.json" <<'PY2'
+    if python3 - "$DEVICE_ID" "$TMP_DIR/devices.json" >"$TMP_DIR/overlay-summary.json" <<'PY2'
 import json, sys
 needle = sys.argv[1]
 devices = json.load(open(sys.argv[2], 'r', encoding='utf-8'))
@@ -215,18 +221,31 @@ for device in devices:
         continue
     overlay = device.get("overlay", {})
     node_ip = overlay.get("nodeIp")
+    summary = {
+        "deviceId": device.get("id"),
+        "overlayState": overlay.get("state"),
+        "nodeIp": node_ip,
+        "relayUrl": overlay.get("relayUrl"),
+        "lastError": overlay.get("lastError"),
+        "networkName": overlay.get("networkName"),
+    }
+    print(json.dumps(summary, ensure_ascii=False))
     if overlay.get("state") == "connected" and isinstance(node_ip, str) and node_ip.strip():
-        print(json.dumps(device))
         raise SystemExit(0)
 raise SystemExit(1)
 PY2
     then
+      cp "$TMP_DIR/overlay-summary.json" "$TMP_DIR/device.json"
       overlay_ready=1
       break
     fi
     sleep 0.5
   done
   if [[ "$overlay_ready" != "1" ]]; then
+    if [[ -f "$TMP_DIR/overlay-summary.json" ]]; then
+      echo "last overlay summary:" >&2
+      cat "$TMP_DIR/overlay-summary.json" >&2
+    fi
     echo "overlay did not become ready in time" >&2
     exit 1
   fi

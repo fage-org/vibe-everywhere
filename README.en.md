@@ -339,7 +339,7 @@ The repository includes two workflows:
   - Runs formatting checks, workspace builds, workspace tests, frontend build, `relay_polling` smoke tests, Windows Rust/Tauri MSI bundling validation, and Android debug APK builds with artifact upload
 - `Release`
   - Triggers on `v*` tags
-  - Runs full verification, best-effort `overlay` smoke tests, Linux and Windows CLI packaging, Linux and Windows Tauri desktop packaging, Android debug APK / release APK / AAB packaging, and GitHub Release asset publishing
+  - Runs full verification, blocking `overlay` smoke tests, Linux and Windows CLI packaging, Linux and Windows Tauri desktop packaging, Android debug APK / release APK / AAB packaging, and GitHub Release asset publishing
 
 Release example:
 

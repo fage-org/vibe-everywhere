@@ -22,8 +22,8 @@ The active plan set is:
 - process governance: [`docs/plans/process.md`](./docs/plans/process.md)
 - active iteration summary: [`docs/plans/iterations/v1-summary.md`](./docs/plans/iterations/v1-summary.md)
 - active iteration details: [`docs/plans/iterations/v1-details.md`](./docs/plans/iterations/v1-details.md)
-- active remediation summary: [`docs/plans/remediation/v1-summary.md`](./docs/plans/remediation/v1-summary.md)
-- active remediation details: [`docs/plans/remediation/v1-details.md`](./docs/plans/remediation/v1-details.md)
+- active remediation summary: [`docs/plans/remediation/v2-summary.md`](./docs/plans/remediation/v2-summary.md)
+- active remediation details: [`docs/plans/remediation/v2-details.md`](./docs/plans/remediation/v2-details.md)
 
 Every completed iteration or remediation item must update this file and the active versioned plan
 files listed above.
@@ -155,10 +155,10 @@ Current planned implementation target:
 
 - Iteration 0 through Iteration 11 are completed for the current roadmap baseline.
 - The active execution track is now the problem-driven remediation plan in
-  `docs/plans/remediation/v1-summary.md`.
-- Remediation R1 through R7 are completed.
-- Remediation plan `v1` is complete. Any new remediation phase should start a new versioned plan
-  instead of extending the finished `v1` files into a different phase.
+  `docs/plans/remediation/v2-summary.md`.
+- Remediation plan `v1` is complete.
+- Remediation plan `v2` is complete after restoring blocking overlay smoke verification and auditing
+  the repository for similar compromised checks.
 
 Most recent completed tranche:
 
@@ -342,6 +342,12 @@ These items are treated as completed foundation work, not future roadmap items.
 - 2026-03-28: Simplified the main connections surface back to the current client only, while keeping mobile relay behavior safe by treating mobile user agents as explicit-remote relay clients even when they are running in a browser.
 - 2026-03-28: Completed Remediation R7 by reconciling README, testing guidance, planning-process rules, and repository guardrails with the repaired navigation, visibility, and networking model.
 - 2026-03-28: Added durable manual QA expectations for sidebar/bottom-nav sections, current-client-only platform surfacing, governance default hiding, and development-only loopback behavior.
+- 2026-03-28: Started remediation plan `v2` to repair release-verification integrity after finding
+  that the release workflow still treated `overlay` smoke as best-effort.
+- 2026-03-28: Completed Remediation v2 R1 by stabilizing the same-host overlay smoke harness with a
+  test-only loopback bootstrap path, deterministic overlay node IP, and richer timeout diagnostics.
+- 2026-03-28: Completed Remediation v2 R2 by auditing the repository for similar compromised
+  verification patterns and removing the release overlay smoke forced-success bypass.
 - 2026-03-26: Completed relay and agent runtime modularization, frontend port-forward MVP wiring, and capability-boundary alignment as foundational architecture work.
 
 ## Verification Log
@@ -390,6 +396,14 @@ These items are treated as completed foundation work, not future roadmap items.
 - 2026-03-28: `cd apps/vibe-app && npm run build` succeeded after Remediation R6 current-client detection alignment.
 - 2026-03-28: file-content review completed after Remediation R7 docs/tests/process realignment.
 - 2026-03-28: `cd apps/vibe-app && npm run build` succeeded after Remediation R7 docs/tests/process realignment.
+- 2026-03-28: `cargo fmt --all --check` succeeded after Remediation v2 verification-integrity
+  repair.
+- 2026-03-28: `./scripts/dual-process-smoke.sh relay_polling` succeeded after Remediation v2
+  verification-integrity repair.
+- 2026-03-28: `./scripts/dual-process-smoke.sh overlay` succeeded after Remediation v2
+  verification-integrity repair.
+- 2026-03-28: repository search for forced-success or best-effort verification markers confirmed
+  that no release-critical smoke test remains intentionally non-blocking after Remediation v2.
 - 2026-03-26: `cargo fmt --all` succeeded after the capability-advertisement alignment.
 - 2026-03-26: `cargo test -p vibe-agent -- --nocapture` succeeded after the capability-advertisement alignment.
 - 2026-03-26: `cd apps/vibe-app && npm run build` succeeded after the capability-advertisement alignment.
@@ -430,3 +444,8 @@ These items are treated as completed foundation work, not future roadmap items.
 - 2026-03-28: Remediation R5 treats platform information as descriptive runtime metadata, not as an in-page selector; any future download/open/install actions must become explicit product actions rather than visual implication.
 - 2026-03-28: Remediation R6 keeps the product promise aligned with what the runtime can actually identify: Android native is explicit, mobile web remains `web`, and the default UI avoids showing other platform identities when the user cannot switch to them there.
 - 2026-03-28: Remediation R7 makes documentation and manual verification part of the feature completion bar; UI/model changes are not complete until README, TESTING, plan records, and guardrails are updated in the same tranche.
+- 2026-03-28: Remediation v2 keeps test-only loopback and fixed overlay node IP behavior confined
+  to the smoke harness; product/runtime defaults remain governed by the non-hardcoded public-origin
+  rules from Remediation R4.
+- 2026-03-28: Remediation v2 classified the remaining Android signing `exit 0` branch in the
+  release workflow as a packaging fallback for missing secrets, not as a compromised test gate.

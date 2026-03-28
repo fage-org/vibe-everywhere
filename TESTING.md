@@ -205,6 +205,8 @@ Existing smoke entrypoint:
 - overlay task dispatch
 - overlay shell session activation, input, output, and completion
 - overlay port-forward activation, byte forwarding, and close
+- same-host CI harness stability through a test-only bootstrap host and explicit overlay node IP,
+  without changing product/runtime defaults
 
 Execution commands:
 
@@ -225,6 +227,7 @@ Recommended frequency:
 
 - run `relay_polling` on every PR in CI
 - run `overlay` on release branches, nightly CI, or before shipping networking changes
+- treat `overlay` as blocking release verification, not best-effort signal
 
 ### Layer 3: Frontend Manual Regression
 

@@ -92,15 +92,7 @@ jobs:
         run: ./scripts/dual-process-smoke.sh relay_polling
 
       - name: Run overlay smoke test
-        shell: bash
-        run: |
-          set +e
-          ./scripts/dual-process-smoke.sh overlay
-          status=$?
-          if [[ $status -ne 0 ]]; then
-            echo "::notice::Overlay smoke test failed with exit code ${status}; continuing because this check is non-blocking on shared CI runners."
-          fi
-          exit 0
+        run: ./scripts/dual-process-smoke.sh overlay
 
   build-cli:
     name: Build CLI (${{ matrix.label }})

@@ -123,3 +123,4 @@ Examples include:
 - visibility-gating rules
 - platform-surfacing rules
 - documentation/update workflow rules
+- verification/test-integrity rules
