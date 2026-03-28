@@ -51,20 +51,6 @@ function Show-Log {
   Get-Content -Path $Path -TotalCount 300
 }
 
-function Get-PrimaryIpv4 {
-  try {
-    $client = [System.Net.Sockets.UdpClient]::new()
-    try {
-      $client.Connect("8.8.8.8", 53)
-      return ([System.Net.IPEndPoint]$client.Client.LocalEndPoint).Address.IPAddressToString
-    } finally {
-      $client.Dispose()
-    }
-  } catch {
-    return "127.0.0.1"
-  }
-}
-
 function Get-FreeTcpPort {
   param([string]$Address)
 
@@ -94,7 +80,14 @@ function Invoke-JsonRequest {
 }
 
 try {
-  $HostIp = Get-PrimaryIpv4
+  # Keep the Windows smoke harness on loopback so GitHub-hosted runner interface selection does
+  # not affect relay startup or local health checks. This is harness-only behavior, not a product
+  # default.
+  $HostIp = if ($env:VIBE_TEST_TCP_HOST) {
+    $env:VIBE_TEST_TCP_HOST
+  } else {
+    "127.0.0.1"
+  }
   $RelayPort = Get-FreeTcpPort $HostIp
   $BaseUrl = "http://$HostIp`:$RelayPort"
   $DeviceId = "smoke-agent"
