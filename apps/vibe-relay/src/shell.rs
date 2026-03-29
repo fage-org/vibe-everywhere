@@ -19,7 +19,7 @@ pub(super) async fn list_shell_sessions(
     Query(query): Query<ShellSessionListQuery>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<ShellSessionRecord>>, ApiError> {
-    let actor = actor_from_headers(&state, &headers);
+    let actor = require_control_actor(&state, &headers, None).await?;
     ensure_actor_can_read(&actor)?;
 
     let store = state.store.read().await;
@@ -60,7 +60,7 @@ pub(super) async fn create_shell_session(
     headers: HeaderMap,
     Json(payload): Json<CreateShellSessionRequest>,
 ) -> Result<Json<CreateShellSessionResponse>, ApiError> {
-    let actor = actor_from_headers(&state, &headers);
+    let actor = require_control_actor(&state, &headers, None).await?;
     ensure_actor_can_write(&actor)?;
 
     let (session, detail, snapshot, start_overlay_proxy) = {
@@ -131,7 +131,7 @@ pub(super) async fn get_shell_session(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<Json<ShellSessionDetailResponse>, ApiError> {
-    let actor = actor_from_headers(&state, &headers);
+    let actor = require_control_actor(&state, &headers, None).await?;
     ensure_actor_can_read(&actor)?;
 
     let store = state.store.read().await;
@@ -151,8 +151,9 @@ pub(super) async fn shell_session_websocket(
     ws: WebSocketUpgrade,
     State(state): State<AppState>,
     headers: HeaderMap,
+    uri: Uri,
 ) -> Result<Response, ApiError> {
-    let actor = actor_from_headers(&state, &headers);
+    let actor = require_control_actor(&state, &headers, Some(&uri)).await?;
     ensure_actor_can_read(&actor)?;
 
     {
@@ -241,7 +242,7 @@ pub(super) async fn append_shell_input(
     headers: HeaderMap,
     Json(payload): Json<CreateShellInputRequest>,
 ) -> Result<Json<ShellSessionDetailResponse>, ApiError> {
-    let actor = actor_from_headers(&state, &headers);
+    let actor = require_control_actor(&state, &headers, None).await?;
     ensure_actor_can_write(&actor)?;
 
     if payload.data.is_empty() {
@@ -291,8 +292,7 @@ pub(super) async fn get_shell_pending_input(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<Json<ShellPendingInputResponse>, ApiError> {
-    let actor = actor_from_headers(&state, &headers);
-    ensure_actor_can_read(&actor)?;
+    let auth = require_device_auth(&state, &headers, None).await?;
 
     let store = state.store.read().await;
     let Some(entry) = store.shell_sessions.get(&session_id) else {
@@ -301,7 +301,13 @@ pub(super) async fn get_shell_pending_input(
             "Shell session not found",
         ));
     };
-    ensure_tenant_access(&actor, &entry.record.tenant_id)?;
+    ensure_tenant_access(&auth.actor, &entry.record.tenant_id)?;
+    if entry.record.device_id != auth.device_id {
+        return Err(ApiError::forbidden(
+            "device_forbidden",
+            "The current device credential cannot access another device shell session",
+        ));
+    }
 
     let after_seq = query.after_seq.unwrap_or_default();
     let inputs = entry
@@ -322,8 +328,8 @@ pub(super) async fn claim_next_shell_session(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<Json<ClaimShellSessionResponse>, ApiError> {
-    let actor = actor_from_headers(&state, &headers);
-    ensure_actor_can_write(&actor)?;
+    let auth = require_device_auth(&state, &headers, None).await?;
+    ensure_authenticated_device_matches(&auth, &device_id)?;
 
     let mut store = state.store.write().await;
     let Some(device) = store.devices.get(&device_id) else {
@@ -332,14 +338,14 @@ pub(super) async fn claim_next_shell_session(
             "Device not found; register device first",
         ));
     };
-    ensure_tenant_access(&actor, &device.tenant_id)?;
+    ensure_tenant_access(&auth.actor, &device.tenant_id)?;
 
     let mut next_sessions = store
         .shell_sessions
         .values()
         .filter(|entry| {
             entry.record.device_id == device_id
-                && entry.record.tenant_id == actor.tenant_id
+                && entry.record.tenant_id == auth.actor.tenant_id
                 && entry.record.status == ShellSessionStatus::Pending
                 && entry.record.transport == ShellTransportKind::RelayPolling
         })
@@ -385,8 +391,13 @@ pub(super) async fn append_shell_output(
     headers: HeaderMap,
     Json(payload): Json<AppendShellOutputRequest>,
 ) -> Result<Json<ShellSessionDetailResponse>, ApiError> {
-    let actor = actor_from_headers(&state, &headers);
-    ensure_actor_can_write(&actor)?;
+    let auth = require_device_auth(&state, &headers, None).await?;
+    if payload.device_id != auth.device_id {
+        return Err(ApiError::forbidden(
+            "device_forbidden",
+            "The current device credential cannot publish shell output for another device",
+        ));
+    }
     {
         let store = state.store.read().await;
         let Some(entry) = store.shell_sessions.get(&session_id) else {
@@ -395,7 +406,13 @@ pub(super) async fn append_shell_output(
                 "Shell session not found",
             ));
         };
-        ensure_tenant_access(&actor, &entry.record.tenant_id)?;
+        ensure_tenant_access(&auth.actor, &entry.record.tenant_id)?;
+        if entry.record.device_id != auth.device_id {
+            return Err(ApiError::forbidden(
+                "device_forbidden",
+                "The current device credential cannot publish shell output for another device",
+            ));
+        }
     }
 
     let Some(detail) = append_shell_output_internal(&state, &session_id, payload).await? else {
@@ -413,7 +430,7 @@ pub(super) async fn close_shell_session(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<Json<ShellSessionDetailResponse>, ApiError> {
-    let actor = actor_from_headers(&state, &headers);
+    let actor = require_control_actor(&state, &headers, None).await?;
     ensure_actor_can_write(&actor)?;
 
     let mut store = state.store.write().await;
@@ -565,11 +582,12 @@ async fn run_overlay_shell_session_inner(state: &AppState, session_id: &str) -> 
     };
     let (read_half, mut write_half) = stream.into_split();
     let mut lines = BufReader::new(read_half).lines();
+    let bridge_token = load_device_credential(state, &device_id).await;
 
     if let Err(error) = write_shell_bridge_request(
         &mut write_half,
         &ShellBridgeRequest::Start {
-            token: state.config.access_token.clone(),
+            token: bridge_token,
             session_id: session_id.to_string(),
             cwd,
         },

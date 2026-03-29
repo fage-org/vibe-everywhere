@@ -1,9 +1,9 @@
 use anyhow::{Context, Result, bail};
-use std::env;
+use std::{env, sync::Arc};
 use tokio::{
     io::{AsyncReadExt, AsyncWrite, AsyncWriteExt},
     net::{TcpListener, TcpStream},
-    sync::watch,
+    sync::{RwLock, watch},
     task::JoinHandle,
 };
 use vibe_core::{PortForwardBridgeEvent, PortForwardBridgeRequest};
@@ -25,7 +25,7 @@ impl PortForwardBridgeRuntime {
 
 pub fn start_port_forward_bridge_server(
     enabled: bool,
-    shared_token: Option<String>,
+    shared_token: Arc<RwLock<Option<String>>>,
 ) -> Option<PortForwardBridgeRuntime> {
     if !enabled {
         return None;
@@ -52,7 +52,7 @@ fn port_forward_bridge_port() -> u16 {
 
 async fn run_server(
     port: u16,
-    shared_token: Option<String>,
+    shared_token: Arc<RwLock<Option<String>>>,
     mut shutdown_rx: watch::Receiver<bool>,
 ) -> Result<()> {
     let bind_addr = format!("0.0.0.0:{port}");
@@ -80,7 +80,10 @@ async fn run_server(
     Ok(())
 }
 
-async fn handle_connection(mut stream: TcpStream, shared_token: Option<String>) -> Result<()> {
+async fn handle_connection(
+    mut stream: TcpStream,
+    shared_token: Arc<RwLock<Option<String>>>,
+) -> Result<()> {
     let Some(line) = read_frame_line(&mut stream).await? else {
         return Ok(());
     };
@@ -94,6 +97,7 @@ async fn handle_connection(mut stream: TcpStream, shared_token: Option<String>) 
             target_host,
             target_port,
         } => {
+            let shared_token = shared_token.read().await.clone();
             if shared_token.as_deref() != token.as_deref() {
                 send_event(
                     &mut stream,
@@ -234,9 +238,12 @@ mod tests {
 
         let bridge_task = tokio::spawn(async move {
             let (stream, _) = bridge_listener.accept().await.unwrap();
-            handle_connection(stream, Some("shared-token".to_string()))
-                .await
-                .unwrap();
+            handle_connection(
+                stream,
+                Arc::new(RwLock::new(Some("shared-token".to_string()))),
+            )
+            .await
+            .unwrap();
         });
 
         let mut client = TcpStream::connect(bridge_addr).await.unwrap();
@@ -272,9 +279,12 @@ mod tests {
 
         let bridge_task = tokio::spawn(async move {
             let (stream, _) = listener.accept().await.unwrap();
-            handle_connection(stream, Some("shared-token".to_string()))
-                .await
-                .unwrap();
+            handle_connection(
+                stream,
+                Arc::new(RwLock::new(Some("shared-token".to_string()))),
+            )
+            .await
+            .unwrap();
         });
 
         let mut client = TcpStream::connect(addr).await.unwrap();

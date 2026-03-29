@@ -1,9 +1,9 @@
 use anyhow::{Context, Result};
-use std::{env, path::PathBuf, process::Stdio, time::Duration};
+use std::{env, path::PathBuf, process::Stdio, sync::Arc, time::Duration};
 use tokio::{
     io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader},
     net::{TcpListener, TcpStream},
-    sync::{mpsc, watch},
+    sync::{RwLock, mpsc, watch},
     task::JoinHandle,
 };
 use vibe_core::{ShellBridgeEvent, ShellBridgeRequest, ShellStreamKind};
@@ -26,7 +26,7 @@ impl ShellBridgeRuntime {
 pub fn start_shell_bridge_server(
     enabled: bool,
     working_root: PathBuf,
-    shared_token: Option<String>,
+    shared_token: Arc<RwLock<Option<String>>>,
 ) -> Option<ShellBridgeRuntime> {
     if !enabled {
         return None;
@@ -54,7 +54,7 @@ fn shell_bridge_port() -> u16 {
 async fn run_server(
     port: u16,
     working_root: PathBuf,
-    shared_token: Option<String>,
+    shared_token: Arc<RwLock<Option<String>>>,
     mut shutdown_rx: watch::Receiver<bool>,
 ) -> Result<()> {
     let bind_addr = format!("0.0.0.0:{port}");
@@ -86,7 +86,7 @@ async fn run_server(
 async fn handle_connection(
     stream: TcpStream,
     working_root: PathBuf,
-    shared_token: Option<String>,
+    shared_token: Arc<RwLock<Option<String>>>,
 ) -> Result<()> {
     let (read_half, mut write_half) = stream.into_split();
     let mut lines = BufReader::new(read_half).lines();
@@ -106,6 +106,7 @@ async fn handle_connection(
             session_id,
             cwd,
         } => {
+            let shared_token = shared_token.read().await.clone();
             if shared_token.as_deref() != token.as_deref() {
                 send_event(
                     &mut write_half,

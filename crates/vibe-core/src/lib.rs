@@ -22,12 +22,12 @@ impl UserRole {
     pub fn can_read_control_plane(&self) -> bool {
         matches!(
             self,
-            Self::Owner | Self::Admin | Self::Member | Self::Viewer | Self::Agent
+            Self::Owner | Self::Admin | Self::Member | Self::Viewer
         )
     }
 
     pub fn can_write_control_plane(&self) -> bool {
-        matches!(self, Self::Owner | Self::Admin | Self::Member | Self::Agent)
+        matches!(self, Self::Owner | Self::Admin | Self::Member)
     }
 }
 
@@ -244,6 +244,7 @@ pub struct RegisterDeviceRequest {
 #[serde(rename_all = "camelCase")]
 pub struct RegisterDeviceResponse {
     pub device: DeviceRecord,
+    pub device_credential: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -1183,6 +1184,7 @@ impl RelayEventType {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct RelayEventEnvelope {
+    pub tenant_id: String,
     pub event_type: RelayEventType,
     pub device: Option<DeviceRecord>,
     pub task: Option<TaskRecord>,

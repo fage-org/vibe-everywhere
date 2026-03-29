@@ -18,7 +18,7 @@ The planning system is intentionally split into:
 | Plan Type | Active Version | Summary | Details | Status |
 | --- | --- | --- | --- | --- |
 | Iteration roadmap | v4 | [`iterations/v4-summary.md`](./iterations/v4-summary.md) | [`iterations/v4-details.md`](./iterations/v4-details.md) | active |
-| Problem remediation | v9 | [`remediation/v9-summary.md`](./remediation/v9-summary.md) | [`remediation/v9-details.md`](./remediation/v9-details.md) | active |
+| Problem remediation | v10 | [`remediation/v10-summary.md`](./remediation/v10-summary.md) | [`remediation/v10-details.md`](./remediation/v10-details.md) | active |
 | Process governance | shared | [`process.md`](./process.md) | n/a | mandatory |
 
 ## Query Guide

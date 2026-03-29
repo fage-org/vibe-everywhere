@@ -12,10 +12,18 @@ pub(crate) struct RelayStore {
     pub(crate) users: HashMap<String, UserRecord>,
     pub(crate) memberships: Vec<MembershipRecord>,
     pub(crate) audit_records: Vec<AuditRecord>,
+    pub(crate) device_credentials: HashMap<String, DeviceCredentialRecord>,
     pub(crate) devices: HashMap<String, DeviceRecord>,
     pub(crate) tasks: HashMap<String, TaskEntry>,
     pub(crate) shell_sessions: HashMap<String, ShellSessionEntry>,
     pub(crate) port_forwards: HashMap<String, PortForwardEntry>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub(crate) struct DeviceCredentialRecord {
+    pub(crate) device_id: String,
+    pub(crate) token: String,
+    pub(crate) issued_at_epoch_ms: u64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]

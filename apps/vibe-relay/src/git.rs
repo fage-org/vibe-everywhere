@@ -27,9 +27,12 @@ pub(super) struct GitRequestEntry {
 
 pub(super) async fn inspect_git_workspace(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<GitInspectRequest>,
 ) -> Result<Json<GitInspectResponse>, ApiError> {
-    ensure_git_capability(&state, &payload.device_id).await?;
+    let actor = require_control_actor(&state, &headers, None).await?;
+    ensure_actor_can_read(&actor)?;
+    ensure_git_capability(&state, &actor, &payload.device_id).await?;
 
     let result = submit_git_request(
         &state,
@@ -52,12 +55,16 @@ pub(super) async fn inspect_git_workspace(
 pub(super) async fn claim_next_git_request(
     Path(device_id): Path<String>,
     State(state): State<AppState>,
+    headers: HeaderMap,
 ) -> Result<Json<ClaimGitOperationResponse>, ApiError> {
+    let auth = require_device_auth(&state, &headers, None).await?;
+    ensure_authenticated_device_matches(&auth, &device_id)?;
     {
         let store = state.store.read().await;
-        if !store.devices.contains_key(&device_id) {
+        let Some(device) = store.devices.get(&device_id) else {
             return Err(ApiError::not_found("device_not_found", "Device not found"));
-        }
+        };
+        ensure_tenant_access(&auth.actor, &device.tenant_id)?;
     }
 
     cleanup_expired_git_requests(&state.git_requests).await;
@@ -82,8 +89,16 @@ pub(super) async fn claim_next_git_request(
 pub(super) async fn complete_git_request(
     Path(request_id): Path<String>,
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<CompleteGitOperationRequest>,
 ) -> Result<StatusCode, ApiError> {
+    let auth = require_device_auth(&state, &headers, None).await?;
+    if payload.device_id != auth.device_id {
+        return Err(ApiError::forbidden(
+            "device_forbidden",
+            "The current device credential cannot complete another device Git request",
+        ));
+    }
     let mut requests = state.git_requests.write().await;
     let Some(entry) = requests.get_mut(&request_id) else {
         return Err(ApiError::not_found(
@@ -106,11 +121,16 @@ pub(super) async fn complete_git_request(
     Ok(StatusCode::NO_CONTENT)
 }
 
-async fn ensure_git_capability(state: &AppState, device_id: &str) -> Result<(), ApiError> {
+async fn ensure_git_capability(
+    state: &AppState,
+    actor: &ActorIdentity,
+    device_id: &str,
+) -> Result<(), ApiError> {
     let store = state.store.read().await;
     let Some(device) = store.devices.get(device_id) else {
         return Err(ApiError::not_found("device_not_found", "Device not found"));
     };
+    ensure_tenant_access(actor, &device.tenant_id)?;
 
     if device
         .capabilities

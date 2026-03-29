@@ -11,6 +11,7 @@ param(
   [string]$PublicRelayBaseUrl = $env:RELAY_PUBLIC_BASE_URL,
   [string]$RelayForwardHost = $env:RELAY_FORWARD_HOST,
   [string]$RelayAccessToken = $env:RELAY_ACCESS_TOKEN,
+  [string]$RelayEnrollmentToken = $env:RELAY_ENROLLMENT_TOKEN,
   [string]$RelayDeploymentMode = $(if ($env:RELAY_DEPLOYMENT_MODE) { $env:RELAY_DEPLOYMENT_MODE } else { "self_hosted" }),
   [switch]$SkipStartupTask
 )
@@ -118,6 +119,10 @@ if ($RelayForwardHost) {
 
 if ($RelayAccessToken) {
   $envLines += ('$env:VIBE_RELAY_ACCESS_TOKEN = ''{0}''' -f (Escape-SingleQuotedLiteral $RelayAccessToken))
+}
+
+if ($RelayEnrollmentToken) {
+  $envLines += ('$env:VIBE_RELAY_ENROLLMENT_TOKEN = ''{0}''' -f (Escape-SingleQuotedLiteral $RelayEnrollmentToken))
 }
 
 $envLines | Set-Content -Path $envScriptPath -Encoding UTF8

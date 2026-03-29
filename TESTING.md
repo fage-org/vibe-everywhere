@@ -192,6 +192,7 @@ Existing high-value coverage:
 
 - `apps/vibe-agent/src/main.rs`
   - device registration request construction
+  - agent identity persistence and device-credential reuse
   - relay websocket URL rewriting
   - Codex and Claude structured event mapping
   - default advertised capability boundary
@@ -210,6 +211,7 @@ Existing high-value coverage:
   - non-repository handling and changed-file / recent-commit collection
 - `apps/vibe-relay/src/main.rs`
   - task create/claim/cancel/state transitions
+  - control-plane versus device-credential route boundaries
   - workspace browse / preview request claim-complete orchestration
   - Git inspect request claim-complete orchestration
   - shell create/claim/detail/filter behavior
@@ -322,7 +324,7 @@ Manual checklist:
 1. Launch relay and agent locally.
 2. Launch `apps/vibe-app` with `npm run dev`.
 3. Verify desktop uses sidebar navigation and mobile-width uses bottom navigation for `Sessions`, `Devices`, and `Advanced`, and that the legacy `#/connections` deep link redirects into `Sessions`.
-4. Verify relay URL and optional token can be applied from the top of the `Sessions` primary workflow.
+4. Verify relay URL and the control-plane access token can be applied from the top of the `Sessions` primary workflow.
 5. Verify language switching between English and Simplified Chinese updates visible section copy.
 6. Verify light, dark, and system theme switching updates all primary sections without layout regressions.
 7. Verify `Sessions` keeps the everyday workflow on one page: relay connection, device selection, session creation, and result review.
@@ -333,8 +335,10 @@ Manual checklist:
 12. Verify `Devices` shows inventory, runtime metadata, deployment metadata, current-client-only platform information, provider availability, and selected-device workload counts.
 13. Create a shell session in `Advanced`, send input, verify timeline ordering, and close the session.
 14. Create a preview / port forward in `Advanced`, verify status updates, relay endpoint display, and close flow.
-15. Toggle task, shell, and port-forward filters to verify selected-device scoping.
-16. Verify narrow-width layout no longer collapses back into one long all-in-one page.
+15. Start the agent with `VIBE_RELAY_ENROLLMENT_TOKEN`, restart it once, and verify the same device reconnects successfully without placing the control-plane token on the agent host.
+16. Confirm the agent working root now contains `.vibe-agent/identity.json` after first registration and that deleting it forces re-enrollment on the next start.
+17. Toggle task, shell, and port-forward filters to verify selected-device scoping.
+18. Verify narrow-width layout no longer collapses back into one long all-in-one page.
 
 Recommended frequency:
 
@@ -459,6 +463,8 @@ Run the networking or transport change gate, then complete:
 - Tauri shell manual validation
 - Android device manual validation when mobile artifacts are included
 - environment-variable sanity checks for tokenized relay access
+  - confirm control clients use `VIBE_RELAY_ACCESS_TOKEN` while agents use `VIBE_RELAY_ENROLLMENT_TOKEN`
+  - confirm deleting the persisted agent identity forces a fresh enrollment instead of silently reusing the human control token
 - GitHub Actions release packaging for Linux, Windows, and Android
 
 ## Current Coverage Gaps
@@ -474,7 +480,8 @@ These areas should be added next if the goal is a more complete automated test s
 3. `apps/vibe-agent/src/config.rs`
    - add env parsing tests for polling, heartbeat, working root, and command overrides
 4. `apps/vibe-relay/src/auth.rs`, `apps/vibe-relay/src/config.rs`, `apps/vibe-relay/src/store.rs`
-   - add focused unit tests for token extraction, config defaults, and state-file path handling
+   - add focused unit tests for control-token, enrollment-token, and device-credential extraction,
+     config defaults, and state-file path handling
 5. `apps/vibe-relay/src/workspace.rs` and `apps/vibe-relay/src/git.rs`
    - add dual-process smoke coverage for request timeout, agent completion, and API wiring through real relay / agent binaries
 6. `apps/vibe-app`
@@ -505,11 +512,12 @@ When validating a change, record:
 
 Date:
 
-- `2026-03-28`
+- `2026-03-29`
 
 Workspace state:
 
-- Android mobile support changes applied in the workspace before execution
+- relay and agent auth-boundary hardening plus deployment-doc/test-plan updates applied in the
+  workspace before execution
 
 Executed commands:
 
@@ -518,13 +526,15 @@ cargo fmt --all
 cargo check -p vibe-relay -p vibe-agent -p vibe-app
 cargo test --workspace --all-targets -- --nocapture
 cd apps/vibe-app && npm run build
+bash -n scripts/install-relay.sh
 ./scripts/dual-process-smoke.sh relay_polling
+./scripts/dual-process-smoke.sh overlay
 ```
 
 Result:
 
 - all commands passed
-- `relay_polling` smoke passed with successful task execution and relay-tunnel port forwarding
-- route-backed primary sections, current-client-only platform surfacing, and relay/public-origin cleanup are now reflected in the docs and manual checklist
+- `relay_polling` and `overlay` smoke both passed with split control/enrollment token coverage
+- docs, installers, and manual verification now reflect the control-token plus enrollment-token auth model and persisted agent identity file
 - frontend manual regression not executed in this run
 - Tauri GUI manual validation not executed in this run

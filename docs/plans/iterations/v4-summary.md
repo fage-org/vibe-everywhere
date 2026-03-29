@@ -41,4 +41,4 @@ Full implementation detail lives in [`v4-details.md`](./v4-details.md).
 - Need the previous workflow-normalization epoch:
   read [`v3-summary.md`](./v3-summary.md).
 - Need the active remediation track:
-  read [`../remediation/v9-summary.md`](../remediation/v9-summary.md).
+  read [`../remediation/v10-summary.md`](../remediation/v10-summary.md).

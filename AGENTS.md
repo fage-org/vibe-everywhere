@@ -80,6 +80,8 @@ Prefer focused Rust unit or integration-style tests near parsing, request orches
 - Distinguish relay/public-origin configuration from target-service defaults. A local preview target such as `127.0.0.1` on the device is not the same thing as a client-facing relay address.
 - Keep configuration precedence explicit and stable: user choice first, then persisted client config, then relay-provided config, then safe fallback defaults.
 - Do not infer hosted versus self-hosted behavior from string matching on domains or addresses. Use explicit deployment metadata or feature flags instead.
+- Do not trust client-supplied `x-vibe-*` tenant, user, or role headers for relay identity. Relay auth must come from configured control tokens, explicit enrollment tokens, or issued device credentials.
+- Do not use the human control-plane token as the default long-lived device secret when a dedicated enrollment token plus issued device credential flow is available.
 
 ## Commit & Pull Request Guidelines
 Git history is not available in this workspace snapshot, so use Conventional Commit style, for example `feat(agent): add claude stream-json mapping`. Pull requests should state the affected crate/app, summarize behavior changes, list validation commands run, and include screenshots for UI updates. Call out new `VIBE_*` environment variables or system dependencies explicitly, and never include secrets, auth tokens, or local machine-specific config in commits.

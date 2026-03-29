@@ -30,8 +30,8 @@ pub(crate) async fn port_forward_loop(
     client: reqwest::Client,
     relay_url: String,
     profile: AgentProfile,
+    auth: AgentAuthState,
     shared: SharedState,
-    relay_access_token: Option<String>,
     poll_interval_ms: u64,
 ) -> Result<()> {
     let active_forwards = Arc::new(Mutex::new(HashSet::new()));
@@ -44,7 +44,7 @@ pub(crate) async fn port_forward_loop(
             client.clone(),
             relay_url.clone(),
             profile.device_id.clone(),
-            relay_access_token.clone(),
+            auth.clone(),
             active_forwards.clone(),
             poll_interval_ms,
         )
@@ -53,13 +53,13 @@ pub(crate) async fn port_forward_loop(
             eprintln!("failed to resume port forwards: {error:#}");
         }
 
-        match claim_next_port_forward(&client, &relay_url, &profile.device_id).await {
+        match claim_next_port_forward(&client, &relay_url, &profile.device_id, &auth).await {
             Ok(ClaimNextPortForwardOutcome::Forward(Some(forward))) => {
                 spawn_port_forward_worker(
                     client.clone(),
                     relay_url.clone(),
                     profile.device_id.clone(),
-                    relay_access_token.clone(),
+                    auth.clone(),
                     active_forwards.clone(),
                     forward,
                     poll_interval_ms,
@@ -73,7 +73,7 @@ pub(crate) async fn port_forward_loop(
                     profile.device_id
                 );
                 if let Err(error) =
-                    register_current_device(&client, &relay_url, &profile, &shared).await
+                    register_current_device(&client, &relay_url, &profile, &shared, &auth).await
                 {
                     eprintln!("device re-registration failed: {error:#}");
                 }
@@ -89,19 +89,25 @@ async fn resume_port_forwards(
     client: reqwest::Client,
     relay_url: String,
     device_id: String,
-    relay_access_token: Option<String>,
+    auth: AgentAuthState,
     active_forwards: Arc<Mutex<HashSet<String>>>,
     poll_interval_ms: u64,
 ) -> Result<()> {
-    let mut forwards =
-        list_port_forwards_by_status(&client, &relay_url, &device_id, PortForwardStatus::Active)
-            .await?;
+    let mut forwards = list_port_forwards_by_status(
+        &client,
+        &relay_url,
+        &device_id,
+        PortForwardStatus::Active,
+        &auth,
+    )
+    .await?;
     forwards.extend(
         list_port_forwards_by_status(
             &client,
             &relay_url,
             &device_id,
             PortForwardStatus::CloseRequested,
+            &auth,
         )
         .await?,
     );
@@ -111,7 +117,7 @@ async fn resume_port_forwards(
             client.clone(),
             relay_url.clone(),
             device_id.clone(),
-            relay_access_token.clone(),
+            auth.clone(),
             active_forwards.clone(),
             forward,
             poll_interval_ms,
@@ -126,7 +132,7 @@ async fn spawn_port_forward_worker(
     client: reqwest::Client,
     relay_url: String,
     device_id: String,
-    relay_access_token: Option<String>,
+    auth: AgentAuthState,
     active_forwards: Arc<Mutex<HashSet<String>>>,
     forward: PortForwardRecord,
     poll_interval_ms: u64,
@@ -148,7 +154,7 @@ async fn spawn_port_forward_worker(
             client,
             relay_url,
             device_id,
-            relay_access_token,
+            auth,
             forward,
             poll_interval_ms,
         )
@@ -165,10 +171,11 @@ async fn claim_next_port_forward(
     client: &reqwest::Client,
     relay_url: &str,
     device_id: &str,
+    auth: &AgentAuthState,
 ) -> Result<ClaimNextPortForwardOutcome> {
     let endpoint = format!("{relay_url}/api/devices/{device_id}/port-forwards/claim-next");
-    let response = client
-        .post(endpoint)
+    let device_credential = auth.device_credential().await;
+    let response = with_bearer(client.post(endpoint), device_credential.as_deref())
         .send()
         .await
         .context("failed to claim port forward")?;
@@ -192,10 +199,11 @@ async fn list_port_forwards_by_status(
     relay_url: &str,
     device_id: &str,
     status: PortForwardStatus,
+    auth: &AgentAuthState,
 ) -> Result<Vec<PortForwardRecord>> {
     let endpoint = format!("{relay_url}/api/port-forwards");
-    let response = client
-        .get(endpoint)
+    let device_credential = auth.device_credential().await;
+    let response = with_bearer(client.get(endpoint), device_credential.as_deref())
         .query(&[
             ("deviceId", device_id.to_string()),
             (
@@ -230,10 +238,11 @@ async fn get_port_forward_detail(
     client: &reqwest::Client,
     relay_url: &str,
     forward_id: &str,
+    auth: &AgentAuthState,
 ) -> Result<Option<PortForwardRecord>> {
     let endpoint = format!("{relay_url}/api/port-forwards/{forward_id}");
-    let response = client
-        .get(endpoint)
+    let device_credential = auth.device_credential().await;
+    let response = with_bearer(client.get(endpoint), device_credential.as_deref())
         .send()
         .await
         .context("failed to fetch port-forward detail")?;
@@ -257,10 +266,11 @@ async fn report_port_forward_state(
     relay_url: &str,
     forward_id: &str,
     payload: ReportPortForwardStateRequest,
+    auth: &AgentAuthState,
 ) -> Result<Option<PortForwardRecord>> {
     let endpoint = format!("{relay_url}/api/port-forwards/{forward_id}/report");
-    let response = client
-        .post(endpoint)
+    let device_credential = auth.device_credential().await;
+    let response = with_bearer(client.post(endpoint), device_credential.as_deref())
         .json(&payload)
         .send()
         .await
@@ -284,7 +294,7 @@ async fn supervise_port_forward(
     client: reqwest::Client,
     relay_url: String,
     device_id: String,
-    relay_access_token: Option<String>,
+    auth: AgentAuthState,
     forward: PortForwardRecord,
     poll_interval_ms: u64,
 ) -> Result<()> {
@@ -293,7 +303,7 @@ async fn supervise_port_forward(
 
     loop {
         let Some(latest_forward) =
-            get_port_forward_detail(&client, &relay_url, &current_forward.id).await?
+            get_port_forward_detail(&client, &relay_url, &current_forward.id, &auth).await?
         else {
             return Ok(());
         };
@@ -312,6 +322,7 @@ async fn supervise_port_forward(
                         error: None,
                         clear_error: true,
                     },
+                    &auth,
                 )
                 .await;
                 return Ok(());
@@ -327,7 +338,7 @@ async fn supervise_port_forward(
             &client,
             &relay_url,
             &device_id,
-            relay_access_token.as_deref(),
+            &auth,
             &current_forward,
             poll_interval_ms,
         )
@@ -352,15 +363,16 @@ async fn run_port_forward_tunnel_session(
     client: &reqwest::Client,
     relay_url: &str,
     device_id: &str,
-    relay_access_token: Option<&str>,
+    auth: &AgentAuthState,
     forward: &PortForwardRecord,
     poll_interval_ms: u64,
 ) -> Result<PortForwardTunnelSessionOutcome> {
+    let device_credential = auth.device_credential().await;
     let ws_url = build_relay_websocket_url(
         relay_url,
         &format!("/api/port-forwards/{}/tunnel/ws", forward.id),
         device_id,
-        relay_access_token,
+        device_credential.as_deref(),
     )?;
     let (mut ws_stream, _) = connect_async(ws_url.as_str())
         .await
@@ -400,6 +412,7 @@ async fn run_port_forward_tunnel_session(
                                                 error: None,
                                                 clear_error: true,
                                             },
+                                            auth,
                                         )
                                         .await;
                                         send_port_forward_tunnel_control(
@@ -423,6 +436,7 @@ async fn run_port_forward_tunnel_session(
                                                 error: Some(message.clone()),
                                                 clear_error: false,
                                             },
+                                            auth,
                                         )
                                         .await;
                                         send_port_forward_tunnel_control(
@@ -466,6 +480,7 @@ async fn run_port_forward_tunnel_session(
                                     error: Some(message.clone()),
                                     clear_error: false,
                                 },
+                                auth,
                             )
                             .await;
                             send_port_forward_tunnel_control(
@@ -525,6 +540,7 @@ async fn run_port_forward_tunnel_session(
                                         error: Some(error_message.clone()),
                                         clear_error: false,
                                     },
+                                    auth,
                                 )
                                 .await;
                             }
@@ -542,7 +558,7 @@ async fn run_port_forward_tunnel_session(
                 }
             }
             _ = detail_interval.tick() => {
-                let Some(detail) = get_port_forward_detail(client, relay_url, &forward.id).await? else {
+                let Some(detail) = get_port_forward_detail(client, relay_url, &forward.id, auth).await? else {
                     close_active_target_stream(&mut active_target).await;
                     let _ = ws_stream.close(None).await;
                     return Ok(PortForwardTunnelSessionOutcome::Closed);
@@ -561,6 +577,7 @@ async fn run_port_forward_tunnel_session(
                                 error: None,
                                 clear_error: true,
                             },
+                            auth,
                         )
                         .await;
                         let _ = ws_stream.close(None).await;

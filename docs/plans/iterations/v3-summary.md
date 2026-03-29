@@ -45,4 +45,4 @@ Full implementation detail lives in [`v3-details.md`](./v3-details.md).
 - Need the previous verification-hardening phase:
   read [`v2-summary.md`](./v2-summary.md).
 - Need the active remediation track:
-  read [`../remediation/v9-summary.md`](../remediation/v9-summary.md).
+  read [`../remediation/v10-summary.md`](../remediation/v10-summary.md).

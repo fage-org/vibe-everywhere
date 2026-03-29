@@ -14,6 +14,7 @@ pub(crate) async fn shell_session_loop(
     client: reqwest::Client,
     relay_url: String,
     profile: AgentProfile,
+    auth: AgentAuthState,
     shared: SharedState,
     working_root: PathBuf,
     poll_interval_ms: u64,
@@ -23,11 +24,12 @@ pub(crate) async fn shell_session_loop(
     loop {
         interval.tick().await;
 
-        match claim_next_shell_session(&client, &relay_url, &profile.device_id).await {
+        match claim_next_shell_session(&client, &relay_url, &profile.device_id, &auth).await {
             Ok(ClaimNextShellSessionOutcome::Session(Some(session))) => {
                 let session_client = client.clone();
                 let session_relay_url = relay_url.clone();
                 let session_device_id = profile.device_id.clone();
+                let session_auth = auth.clone();
                 let session_working_root = working_root.clone();
                 tokio::spawn(async move {
                     let session_id = session.id.clone();
@@ -35,6 +37,7 @@ pub(crate) async fn shell_session_loop(
                         session_client,
                         session_relay_url,
                         session_device_id,
+                        session_auth,
                         session_working_root,
                         session,
                     )
@@ -51,7 +54,7 @@ pub(crate) async fn shell_session_loop(
                     profile.device_id
                 );
                 if let Err(error) =
-                    register_current_device(&client, &relay_url, &profile, &shared).await
+                    register_current_device(&client, &relay_url, &profile, &shared, &auth).await
                 {
                     eprintln!("device re-registration failed: {error:#}");
                 }
@@ -67,10 +70,11 @@ async fn claim_next_shell_session(
     client: &reqwest::Client,
     relay_url: &str,
     device_id: &str,
+    auth: &AgentAuthState,
 ) -> Result<ClaimNextShellSessionOutcome> {
     let endpoint = format!("{relay_url}/api/devices/{device_id}/shell/claim-next");
-    let response = client
-        .post(endpoint)
+    let device_credential = auth.device_credential().await;
+    let response = with_bearer(client.post(endpoint), device_credential.as_deref())
         .send()
         .await
         .context("failed to claim shell session")?;
@@ -93,6 +97,7 @@ async fn run_shell_session(
     client: reqwest::Client,
     relay_url: String,
     device_id: String,
+    auth: AgentAuthState,
     working_root: PathBuf,
     session: ShellSessionRecord,
 ) -> Result<()> {
@@ -105,6 +110,7 @@ async fn run_shell_session(
                 &relay_url,
                 &session.id,
                 &device_id,
+                &auth,
                 error.to_string(),
             )
             .await?;
@@ -127,6 +133,7 @@ async fn run_shell_session(
                 &relay_url,
                 &session.id,
                 &device_id,
+                &auth,
                 format!("failed to spawn shell: {error}"),
             )
             .await?;
@@ -142,6 +149,7 @@ async fn run_shell_session(
                 &relay_url,
                 &session.id,
                 &device_id,
+                &auth,
                 "shell stdin unavailable".to_string(),
             )
             .await?;
@@ -156,6 +164,7 @@ async fn run_shell_session(
                 &relay_url,
                 &session.id,
                 &device_id,
+                &auth,
                 "shell stdout unavailable".to_string(),
             )
             .await?;
@@ -170,6 +179,7 @@ async fn run_shell_session(
                 &relay_url,
                 &session.id,
                 &device_id,
+                &auth,
                 "shell stderr unavailable".to_string(),
             )
             .await?;
@@ -185,6 +195,7 @@ async fn run_shell_session(
         &client,
         &relay_url,
         &session.id,
+        &auth,
         AppendShellOutputRequest {
             device_id: device_id.clone(),
             status: Some(ShellSessionStatus::Active),
@@ -211,7 +222,8 @@ async fn run_shell_session(
         interval.tick().await;
 
         let pending =
-            fetch_shell_pending_input(&client, &relay_url, &session.id, last_input_seq).await?;
+            fetch_shell_pending_input(&client, &relay_url, &session.id, last_input_seq, &auth)
+                .await?;
         for input in pending.inputs {
             stdin
                 .write_all(input.data.as_bytes())
@@ -236,6 +248,7 @@ async fn run_shell_session(
                 &client,
                 &relay_url,
                 &session.id,
+                &auth,
                 AppendShellOutputRequest {
                     device_id: device_id.clone(),
                     status: None,
@@ -273,6 +286,7 @@ async fn run_shell_session(
                 &client,
                 &relay_url,
                 &session.id,
+                &auth,
                 AppendShellOutputRequest {
                     device_id: device_id.clone(),
                     status: Some(final_status),
@@ -294,12 +308,14 @@ async fn report_shell_session_start_failure(
     relay_url: &str,
     session_id: &str,
     device_id: &str,
+    auth: &AgentAuthState,
     message: String,
 ) -> Result<()> {
     append_shell_output_update(
         client,
         relay_url,
         session_id,
+        auth,
         AppendShellOutputRequest {
             device_id: device_id.to_string(),
             status: Some(ShellSessionStatus::Failed),
@@ -319,11 +335,12 @@ async fn fetch_shell_pending_input(
     relay_url: &str,
     session_id: &str,
     after_seq: u64,
+    auth: &AgentAuthState,
 ) -> Result<ShellPendingInputResponse> {
     let endpoint =
         format!("{relay_url}/api/shell/sessions/{session_id}/input?afterSeq={after_seq}");
-    let response = client
-        .get(endpoint)
+    let device_credential = auth.device_credential().await;
+    let response = with_bearer(client.get(endpoint), device_credential.as_deref())
         .send()
         .await
         .context("failed to fetch shell session input")?
@@ -340,6 +357,7 @@ async fn append_shell_output_update(
     client: &reqwest::Client,
     relay_url: &str,
     session_id: &str,
+    auth: &AgentAuthState,
     payload: AppendShellOutputRequest,
 ) -> Result<()> {
     if payload.outputs.is_empty()
@@ -351,8 +369,8 @@ async fn append_shell_output_update(
     }
 
     let endpoint = format!("{relay_url}/api/shell/sessions/{session_id}/output");
-    client
-        .post(endpoint)
+    let device_credential = auth.device_credential().await;
+    with_bearer(client.post(endpoint), device_credential.as_deref())
         .json(&payload)
         .send()
         .await

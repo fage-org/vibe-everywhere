@@ -153,8 +153,17 @@ DEVICE_ID="smoke-agent"
 DEVICE_NAME="Dual Process Smoke Agent"
 FAKE_CODEX="$TMP_DIR/fake-codex.sh"
 EXPECTED_TRANSPORT="relay_polling"
+CONTROL_TOKEN="${VIBE_TEST_RELAY_ACCESS_TOKEN:-smoke-control-token}"
+ENROLLMENT_TOKEN="${VIBE_TEST_RELAY_ENROLLMENT_TOKEN:-smoke-enrollment-token}"
+AGENT_WORKING_ROOT="$TMP_DIR/agent-working-root"
 RELAY_EXTRA_ENV=()
 AGENT_EXTRA_ENV=()
+
+mkdir -p "$AGENT_WORKING_ROOT"
+
+api_curl() {
+  curl -fsS -H "authorization: Bearer $CONTROL_TOKEN" "$@"
+}
 
 if [[ "$MODE" == "overlay" ]]; then
   reserve_port EASYTIER_PORT
@@ -225,18 +234,20 @@ echo "starting vibe-relay on $BASE_URL (mode=$MODE)"
     VIBE_RELAY_STATE_FILE="$TMP_DIR/relay-state.json" \
     VIBE_RELAY_FORWARD_HOST="$HOST" \
     VIBE_RELAY_FORWARD_BIND_HOST="$HOST" \
+    VIBE_RELAY_ACCESS_TOKEN="$CONTROL_TOKEN" \
+    VIBE_RELAY_ENROLLMENT_TOKEN="$ENROLLMENT_TOKEN" \
     "${RELAY_EXTRA_ENV[@]}" \
     target/debug/vibe-relay
 ) >"$TMP_DIR/relay.log" 2>&1 &
 RELAY_PID=$!
 
 for _ in $(seq 1 100); do
-  if curl -fsS "$BASE_URL/api/health" >/dev/null 2>&1; then
+  if api_curl "$BASE_URL/api/health" >/dev/null 2>&1; then
     break
   fi
   sleep 0.2
 done
-curl -fsS "$BASE_URL/api/health" >"$TMP_DIR/health.json"
+api_curl "$BASE_URL/api/health" >"$TMP_DIR/health.json"
 
 echo "starting vibe-agent"
 (
@@ -245,7 +256,8 @@ echo "starting vibe-agent"
     VIBE_RELAY_URL="$BASE_URL" \
     VIBE_DEVICE_ID="$DEVICE_ID" \
     VIBE_DEVICE_NAME="$DEVICE_NAME" \
-    VIBE_WORKING_ROOT="$ROOT_DIR" \
+    VIBE_WORKING_ROOT="$AGENT_WORKING_ROOT" \
+    VIBE_RELAY_ENROLLMENT_TOKEN="$ENROLLMENT_TOKEN" \
     VIBE_POLL_INTERVAL_MS=200 \
     VIBE_HEARTBEAT_INTERVAL_MS=500 \
     VIBE_CODEX_COMMAND="$FAKE_CODEX" \
@@ -257,7 +269,7 @@ AGENT_PID=$!
 echo "waiting for agent registration"
 registered=0
 for _ in $(seq 1 100); do
-  curl -fsS "$BASE_URL/api/devices" >"$TMP_DIR/devices.json"
+  api_curl "$BASE_URL/api/devices" >"$TMP_DIR/devices.json"
   if python3 - "$DEVICE_ID" "$TMP_DIR/devices.json" >"$TMP_DIR/device.json" <<'PY2'
 import json, sys
 needle = sys.argv[1]
@@ -285,7 +297,7 @@ if [[ "$MODE" == "overlay" ]]; then
   echo "waiting for overlay connectivity"
   overlay_ready=0
   for _ in $(seq 1 120); do
-    curl -fsS "$BASE_URL/api/devices" >"$TMP_DIR/devices.json"
+    api_curl "$BASE_URL/api/devices" >"$TMP_DIR/devices.json"
     if python3 - "$DEVICE_ID" "$TMP_DIR/devices.json" >"$TMP_DIR/overlay-summary.json" <<'PY2'
 import json, sys
 needle = sys.argv[1]
@@ -384,7 +396,7 @@ print(json.dumps({
 }))
 PY2
 )
-  curl -fsS -H 'content-type: application/json' -d "$task_payload" "$BASE_URL/api/tasks" >"$create_path"
+  api_curl -H 'content-type: application/json' -d "$task_payload" "$BASE_URL/api/tasks" >"$create_path"
   task_id=$(python3 - "$create_path" <<'PY2'
 import json, sys
 print(json.load(open(sys.argv[1], 'r', encoding='utf-8'))["task"]["id"])
@@ -394,7 +406,7 @@ PY2
   echo "waiting for task $task_id"
   status=""
   for _ in $(seq 1 180); do
-    curl -fsS "$BASE_URL/api/tasks/$task_id" >"$detail_path"
+    api_curl "$BASE_URL/api/tasks/$task_id" >"$detail_path"
     status=$(python3 - "$detail_path" <<'PY2'
 import json, sys
 print(json.load(open(sys.argv[1], 'r', encoding='utf-8'))["task"]["status"])
@@ -485,7 +497,7 @@ print(json.dumps({
 }))
 PY2
   )
-  curl -fsS -H 'content-type: application/json' -d "$SHELL_PAYLOAD" "$BASE_URL/api/shell/sessions" >"$TMP_DIR/create-shell.json"
+  api_curl -H 'content-type: application/json' -d "$SHELL_PAYLOAD" "$BASE_URL/api/shell/sessions" >"$TMP_DIR/create-shell.json"
   SHELL_ID=$(python3 - "$TMP_DIR/create-shell.json" <<'PY2'
 import json, sys
 print(json.load(open(sys.argv[1], 'r', encoding='utf-8'))["session"]["id"])
@@ -496,7 +508,7 @@ PY2
   shell_status=""
   shell_transport=""
   for _ in $(seq 1 150); do
-    curl -fsS "$BASE_URL/api/shell/sessions/$SHELL_ID" >"$TMP_DIR/shell-detail.json"
+    api_curl "$BASE_URL/api/shell/sessions/$SHELL_ID" >"$TMP_DIR/shell-detail.json"
     readarray -t shell_info < <(python3 - "$TMP_DIR/shell-detail.json" <<'PY2'
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
@@ -541,14 +553,14 @@ print(json.dumps({
 }))
 PY2
   )
-  curl -fsS -H 'content-type: application/json' -d "$SHELL_INPUT_PAYLOAD" "$BASE_URL/api/shell/sessions/$SHELL_ID/input" >"$TMP_DIR/append-shell-input.json"
+  api_curl -H 'content-type: application/json' -d "$SHELL_INPUT_PAYLOAD" "$BASE_URL/api/shell/sessions/$SHELL_ID/input" >"$TMP_DIR/append-shell-input.json"
 
   echo "waiting for shell session $SHELL_ID output and completion"
   shell_status=""
   shell_transport=""
   shell_marker_found=0
   for _ in $(seq 1 180); do
-    curl -fsS "$BASE_URL/api/shell/sessions/$SHELL_ID" >"$TMP_DIR/shell-detail.json"
+    api_curl "$BASE_URL/api/shell/sessions/$SHELL_ID" >"$TMP_DIR/shell-detail.json"
     if python3 - "$TMP_DIR/shell-detail.json" >"$TMP_DIR/shell-summary.json" <<'PY2'
 import json, sys
 payload = json.load(open(sys.argv[1], 'r', encoding='utf-8'))
@@ -678,7 +690,7 @@ print(json.dumps({
 }))
 PY2
   )
-  curl -fsS -H 'content-type: application/json' -d "$PORT_FORWARD_PAYLOAD" "$BASE_URL/api/port-forwards" >"$TMP_DIR/create-port-forward.json"
+  api_curl -H 'content-type: application/json' -d "$PORT_FORWARD_PAYLOAD" "$BASE_URL/api/port-forwards" >"$TMP_DIR/create-port-forward.json"
   readarray -t port_forward_info < <(python3 - "$TMP_DIR/create-port-forward.json" <<'PY2'
 import json, sys
 forward = json.load(open(sys.argv[1], 'r', encoding='utf-8'))["forward"]
@@ -696,7 +708,7 @@ PY2
   port_forward_status=""
   port_forward_transport=""
   for _ in $(seq 1 150); do
-    curl -fsS "$BASE_URL/api/port-forwards/$PORT_FORWARD_ID" >"$TMP_DIR/port-forward-detail.json"
+    api_curl "$BASE_URL/api/port-forwards/$PORT_FORWARD_ID" >"$TMP_DIR/port-forward-detail.json"
     readarray -t port_forward_state < <(python3 - "$TMP_DIR/port-forward-detail.json" <<'PY2'
 import json, sys
 forward = json.load(open(sys.argv[1], 'r', encoding='utf-8'))["forward"]
@@ -752,7 +764,7 @@ PY2
     port_forward_status=""
     port_forward_transport=""
     for _ in $(seq 1 150); do
-      curl -fsS "$BASE_URL/api/port-forwards/$PORT_FORWARD_ID" >"$TMP_DIR/port-forward-detail.json"
+      api_curl "$BASE_URL/api/port-forwards/$PORT_FORWARD_ID" >"$TMP_DIR/port-forward-detail.json"
       readarray -t port_forward_state < <(python3 - "$TMP_DIR/port-forward-detail.json" <<'PY2'
 import json, sys
 forward = json.load(open(sys.argv[1], 'r', encoding='utf-8'))["forward"]
@@ -783,12 +795,12 @@ PY2
     fi
 
     echo "closing transitional no_tun port forward $PORT_FORWARD_ID"
-    curl -fsS -X POST "$BASE_URL/api/port-forwards/$PORT_FORWARD_ID/close" >"$TMP_DIR/close-port-forward-transition.json"
+    api_curl -X POST "$BASE_URL/api/port-forwards/$PORT_FORWARD_ID/close" >"$TMP_DIR/close-port-forward-transition.json"
 
     port_forward_status=""
     port_forward_transport=""
     for _ in $(seq 1 150); do
-      curl -fsS "$BASE_URL/api/port-forwards/$PORT_FORWARD_ID" >"$TMP_DIR/port-forward-detail.json"
+      api_curl "$BASE_URL/api/port-forwards/$PORT_FORWARD_ID" >"$TMP_DIR/port-forward-detail.json"
       readarray -t port_forward_state < <(python3 - "$TMP_DIR/port-forward-detail.json" <<'PY2'
 import json, sys
 forward = json.load(open(sys.argv[1], 'r', encoding='utf-8'))["forward"]
@@ -832,7 +844,7 @@ print(json.dumps({
 }))
 PY2
     )
-    curl -fsS -H 'content-type: application/json' -d "$PORT_FORWARD_PAYLOAD" "$BASE_URL/api/port-forwards" >"$TMP_DIR/create-port-forward.json"
+    api_curl -H 'content-type: application/json' -d "$PORT_FORWARD_PAYLOAD" "$BASE_URL/api/port-forwards" >"$TMP_DIR/create-port-forward.json"
     readarray -t port_forward_info < <(python3 - "$TMP_DIR/create-port-forward.json" <<'PY2'
 import json, sys
 forward = json.load(open(sys.argv[1], 'r', encoding='utf-8'))["forward"]
@@ -854,7 +866,7 @@ PY2
 
     port_forward_status=""
     for _ in $(seq 1 150); do
-      curl -fsS "$BASE_URL/api/port-forwards/$PORT_FORWARD_ID" >"$TMP_DIR/port-forward-detail.json"
+      api_curl "$BASE_URL/api/port-forwards/$PORT_FORWARD_ID" >"$TMP_DIR/port-forward-detail.json"
       readarray -t port_forward_state < <(python3 - "$TMP_DIR/port-forward-detail.json" <<'PY2'
 import json, sys
 forward = json.load(open(sys.argv[1], 'r', encoding='utf-8'))["forward"]
@@ -943,12 +955,12 @@ PY2
   fi
 
   echo "closing port forward $PORT_FORWARD_ID"
-  curl -fsS -X POST "$BASE_URL/api/port-forwards/$PORT_FORWARD_ID/close" >"$TMP_DIR/close-port-forward.json"
+  api_curl -X POST "$BASE_URL/api/port-forwards/$PORT_FORWARD_ID/close" >"$TMP_DIR/close-port-forward.json"
 
   port_forward_status=""
   port_forward_transport=""
   for _ in $(seq 1 150); do
-    curl -fsS "$BASE_URL/api/port-forwards/$PORT_FORWARD_ID" >"$TMP_DIR/port-forward-detail.json"
+    api_curl "$BASE_URL/api/port-forwards/$PORT_FORWARD_ID" >"$TMP_DIR/port-forward-detail.json"
     readarray -t port_forward_state < <(python3 - "$TMP_DIR/port-forward-detail.json" <<'PY2'
 import json, sys
 forward = json.load(open(sys.argv[1], 'r', encoding='utf-8'))["forward"]
@@ -1051,7 +1063,7 @@ print(json.dumps({
 }))
 PY2
   )
-  curl -fsS -H 'content-type: application/json' -d "$PORT_FORWARD_PAYLOAD" "$BASE_URL/api/port-forwards" >"$TMP_DIR/create-port-forward.json"
+  api_curl -H 'content-type: application/json' -d "$PORT_FORWARD_PAYLOAD" "$BASE_URL/api/port-forwards" >"$TMP_DIR/create-port-forward.json"
   readarray -t port_forward_info < <(python3 - "$TMP_DIR/create-port-forward.json" <<'PY2'
 import json, sys
 forward = json.load(open(sys.argv[1], 'r', encoding='utf-8'))["forward"]
@@ -1075,7 +1087,7 @@ PY2
   port_forward_status=""
   port_forward_transport=""
   for _ in $(seq 1 150); do
-    curl -fsS "$BASE_URL/api/port-forwards/$PORT_FORWARD_ID" >"$TMP_DIR/port-forward-detail.json"
+    api_curl "$BASE_URL/api/port-forwards/$PORT_FORWARD_ID" >"$TMP_DIR/port-forward-detail.json"
     readarray -t port_forward_state < <(python3 - "$TMP_DIR/port-forward-detail.json" <<'PY2'
 import json, sys
 forward = json.load(open(sys.argv[1], 'r', encoding='utf-8'))["forward"]
@@ -1141,12 +1153,12 @@ print(json.dumps({
 PY2
 
   echo "closing port forward $PORT_FORWARD_ID"
-  curl -fsS -X POST "$BASE_URL/api/port-forwards/$PORT_FORWARD_ID/close" >"$TMP_DIR/close-port-forward.json"
+  api_curl -X POST "$BASE_URL/api/port-forwards/$PORT_FORWARD_ID/close" >"$TMP_DIR/close-port-forward.json"
 
   port_forward_status=""
   port_forward_transport=""
   for _ in $(seq 1 150); do
-    curl -fsS "$BASE_URL/api/port-forwards/$PORT_FORWARD_ID" >"$TMP_DIR/port-forward-detail.json"
+    api_curl "$BASE_URL/api/port-forwards/$PORT_FORWARD_ID" >"$TMP_DIR/port-forward-detail.json"
     readarray -t port_forward_state < <(python3 - "$TMP_DIR/port-forward-detail.json" <<'PY2'
 import json, sys
 forward = json.load(open(sys.argv[1], 'r', encoding='utf-8'))["forward"]

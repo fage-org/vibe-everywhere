@@ -10,7 +10,7 @@ use std::{
 use tokio::{
     io::{AsyncBufReadExt, AsyncWrite, AsyncWriteExt, BufReader},
     net::{TcpListener, TcpStream},
-    sync::watch,
+    sync::{RwLock, watch},
     task::JoinHandle,
 };
 use vibe_core::{TaskBridgeEvent, TaskBridgeRequest};
@@ -32,7 +32,7 @@ impl TaskBridgeRuntime {
 pub fn start_task_bridge_server(
     enabled: bool,
     working_root: PathBuf,
-    shared_token: Option<String>,
+    shared_token: Arc<RwLock<Option<String>>>,
     shared: super::SharedState,
 ) -> Option<TaskBridgeRuntime> {
     if !enabled {
@@ -62,7 +62,7 @@ fn task_bridge_port() -> u16 {
 async fn run_server(
     port: u16,
     working_root: PathBuf,
-    shared_token: Option<String>,
+    shared_token: Arc<RwLock<Option<String>>>,
     shared: super::SharedState,
     mut shutdown_rx: watch::Receiver<bool>,
 ) -> Result<()> {
@@ -96,7 +96,7 @@ async fn run_server(
 async fn handle_connection(
     stream: TcpStream,
     working_root: PathBuf,
-    shared_token: Option<String>,
+    shared_token: Arc<RwLock<Option<String>>>,
     shared: super::SharedState,
 ) -> Result<()> {
     let (read_half, write_half) = stream.into_split();
@@ -113,6 +113,7 @@ async fn handle_connection(
         .context("invalid task bridge start frame")?;
     let task = match request {
         TaskBridgeRequest::Start { token, task } => {
+            let shared_token = shared_token.read().await.clone();
             if shared_token.as_deref() != token.as_deref() {
                 let mut sink =
                     BridgeTaskExecutionSink::new(write_half, Arc::new(AtomicBool::new(false)));
@@ -399,7 +400,7 @@ printf '%s\n' '{"type":"item.completed","item":{"id":"item_0","type":"agent_mess
             run_server(
                 port,
                 server_root,
-                Some("shared-secret".to_string()),
+                Arc::new(RwLock::new(Some("shared-secret".to_string()))),
                 server_shared,
                 shutdown_rx,
             )
@@ -474,7 +475,7 @@ printf '%s\n' '{"type":"item.completed","item":{"id":"item_0","type":"agent_mess
             run_server(
                 port,
                 root,
-                Some("shared-secret".to_string()),
+                Arc::new(RwLock::new(Some("shared-secret".to_string()))),
                 test_shared_state(command.to_string_lossy().to_string()),
                 shutdown_rx,
             )

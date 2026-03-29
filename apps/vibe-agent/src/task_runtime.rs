@@ -87,6 +87,7 @@ struct RelayTaskExecutionSink<'a> {
     relay_url: &'a str,
     task_id: &'a str,
     device_id: &'a str,
+    auth: &'a AgentAuthState,
 }
 
 impl TaskExecutionSink for RelayTaskExecutionSink<'_> {
@@ -95,6 +96,7 @@ impl TaskExecutionSink for RelayTaskExecutionSink<'_> {
             self.client,
             self.relay_url,
             self.task_id,
+            self.auth,
             AppendTaskEventsRequest {
                 device_id: self.device_id.to_string(),
                 status: update.status,
@@ -108,7 +110,7 @@ impl TaskExecutionSink for RelayTaskExecutionSink<'_> {
     }
 
     async fn is_cancel_requested(&mut self) -> Result<bool> {
-        is_task_cancel_requested(self.client, self.relay_url, self.task_id).await
+        is_task_cancel_requested(self.client, self.relay_url, self.task_id, self.auth).await
     }
 }
 
@@ -161,6 +163,7 @@ pub(crate) async fn task_loop(
     client: reqwest::Client,
     relay_url: String,
     profile: AgentProfile,
+    auth: AgentAuthState,
     shared: SharedState,
     working_root: PathBuf,
     poll_interval_ms: u64,
@@ -178,7 +181,7 @@ pub(crate) async fn task_loop(
                     continue;
                 }
 
-                match claim_next_task(&client, &relay_url, &profile.device_id).await {
+                match claim_next_task(&client, &relay_url, &profile.device_id, &auth).await {
                     Ok(ClaimNextTaskOutcome::Task(Some(task))) => {
                         if !try_mark_local_task_started(&shared.current_task_id, &task.id).await {
                             continue;
@@ -189,6 +192,7 @@ pub(crate) async fn task_loop(
                             &client,
                             &relay_url,
                             &profile.device_id,
+                            &auth,
                             &shared,
                             &working_root,
                             task,
@@ -207,7 +211,7 @@ pub(crate) async fn task_loop(
                             profile.device_id
                         );
                         if let Err(error) =
-                            register_current_device(&client, &relay_url, &profile, &shared).await
+                            register_current_device(&client, &relay_url, &profile, &shared, &auth).await
                         {
                             eprintln!("device re-registration failed: {error:#}");
                         }
@@ -227,10 +231,11 @@ async fn claim_next_task(
     client: &reqwest::Client,
     relay_url: &str,
     device_id: &str,
+    auth: &AgentAuthState,
 ) -> Result<ClaimNextTaskOutcome> {
     let endpoint = format!("{relay_url}/api/devices/{device_id}/tasks/claim-next");
-    let response = client
-        .post(endpoint)
+    let device_credential = auth.device_credential().await;
+    let response = with_bearer(client.post(endpoint), device_credential.as_deref())
         .send()
         .await
         .context("failed to claim task")?;
@@ -253,6 +258,7 @@ async fn execute_task(
     client: &reqwest::Client,
     relay_url: &str,
     device_id: &str,
+    auth: &AgentAuthState,
     shared: &SharedState,
     working_root: &Path,
     task: TaskRecord,
@@ -263,6 +269,7 @@ async fn execute_task(
         relay_url,
         task_id: &task_id,
         device_id,
+        auth,
     };
     execute_task_with_sink(&mut sink, &shared.providers, working_root, task).await
 }
@@ -1578,11 +1585,12 @@ async fn push_task_update(
     client: &reqwest::Client,
     relay_url: &str,
     task_id: &str,
+    auth: &AgentAuthState,
     payload: AppendTaskEventsRequest,
 ) -> Result<()> {
     let endpoint = format!("{relay_url}/api/tasks/{task_id}/events");
-    client
-        .post(endpoint)
+    let device_credential = auth.device_credential().await;
+    with_bearer(client.post(endpoint), device_credential.as_deref())
         .json(&payload)
         .send()
         .await
@@ -1597,10 +1605,11 @@ async fn fetch_task_detail(
     client: &reqwest::Client,
     relay_url: &str,
     task_id: &str,
+    auth: &AgentAuthState,
 ) -> Result<TaskDetailResponse> {
     let endpoint = format!("{relay_url}/api/tasks/{task_id}");
-    let response = client
-        .get(endpoint)
+    let device_credential = auth.device_credential().await;
+    let response = with_bearer(client.get(endpoint), device_credential.as_deref())
         .send()
         .await
         .context("failed to fetch task detail")?
@@ -1617,8 +1626,9 @@ async fn is_task_cancel_requested(
     client: &reqwest::Client,
     relay_url: &str,
     task_id: &str,
+    auth: &AgentAuthState,
 ) -> Result<bool> {
-    let detail = fetch_task_detail(client, relay_url, task_id).await?;
+    let detail = fetch_task_detail(client, relay_url, task_id, auth).await?;
     Ok(matches!(detail.task.status, TaskStatus::CancelRequested))
 }
 

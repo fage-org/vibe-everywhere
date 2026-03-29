@@ -1,10 +1,12 @@
 use anyhow::{Context, Result, bail};
 use clap::Parser;
 use futures_util::{SinkExt, StreamExt};
-use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
+use reqwest::header::AUTHORIZATION;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
+    fs,
     path::{Path, PathBuf},
     process::Stdio,
     sync::Arc,
@@ -50,8 +52,8 @@ mod task_runtime;
 mod workspace_runtime;
 
 use config::{
-    base_metadata, build_relay_websocket_url, default_device_name, ensure_task_cwd,
-    normalize_base_url, resolve_task_cwd, resolve_working_root,
+    base_metadata, build_relay_websocket_url, default_agent_identity_path, default_device_name,
+    ensure_task_cwd, normalize_base_url, resolve_task_cwd, resolve_working_root,
 };
 use easytier::{AgentEasyTierOptions, initial_overlay_status, start_managed_agent_easytier};
 use git_runtime::git_loop;
@@ -95,8 +97,11 @@ struct Cli {
     #[arg(long, env = "VIBE_HEARTBEAT_INTERVAL_MS", default_value_t = HEARTBEAT_INTERVAL_MS)]
     heartbeat_interval_ms: u64,
 
+    #[arg(long, env = "VIBE_RELAY_ENROLLMENT_TOKEN")]
+    relay_enrollment_token: Option<String>,
+
     #[arg(long, env = "VIBE_RELAY_ACCESS_TOKEN")]
-    relay_access_token: Option<String>,
+    relay_access_token_compat: Option<String>,
 
     #[arg(long, env = "VIBE_EASYTIER_NETWORK_NAME")]
     easytier_network_name: Option<String>,
@@ -126,6 +131,60 @@ struct AgentProfile {
     capabilities: Vec<DeviceCapability>,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+struct AgentIdentityState {
+    device_id: Option<String>,
+    device_credential: Option<String>,
+}
+
+#[derive(Clone)]
+struct AgentAuthState {
+    enrollment_token: Option<String>,
+    identity_path: PathBuf,
+    device_credential: Arc<RwLock<Option<String>>>,
+}
+
+impl AgentAuthState {
+    fn new(
+        enrollment_token: Option<String>,
+        identity_path: PathBuf,
+        device_credential: Option<String>,
+    ) -> Self {
+        Self {
+            enrollment_token,
+            identity_path,
+            device_credential: Arc::new(RwLock::new(device_credential)),
+        }
+    }
+
+    fn enrollment_token(&self) -> Option<&str> {
+        self.enrollment_token.as_deref()
+    }
+
+    async fn device_credential(&self) -> Option<String> {
+        self.device_credential.read().await.clone()
+    }
+
+    fn device_credential_slot(&self) -> Arc<RwLock<Option<String>>> {
+        self.device_credential.clone()
+    }
+
+    async fn update_device_identity(&self, device_id: &str, device_credential: &str) -> Result<()> {
+        {
+            let mut guard = self.device_credential.write().await;
+            *guard = Some(device_credential.to_string());
+        }
+
+        persist_agent_identity_state(
+            &self.identity_path,
+            &AgentIdentityState {
+                device_id: Some(device_id.to_string()),
+                device_credential: Some(device_credential.to_string()),
+            },
+        )
+    }
+}
+
 enum HeartbeatOutcome {
     Accepted,
     DeviceMissing,
@@ -152,18 +211,71 @@ fn resolve_relay_url(value: Option<&str>, allow_local_dev_fallback: bool) -> Res
     bail!("missing relay URL; set --relay-url or VIBE_RELAY_URL")
 }
 
+fn trim_optional_token(value: Option<&str>) -> Option<String> {
+    value
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| value.to_string())
+}
+
+fn load_agent_identity_state(path: &Path) -> Result<AgentIdentityState> {
+    if !path.exists() {
+        return Ok(AgentIdentityState::default());
+    }
+
+    let bytes = fs::read(path)
+        .with_context(|| format!("failed to read agent identity state {}", path.display()))?;
+    serde_json::from_slice(&bytes)
+        .with_context(|| format!("failed to decode agent identity state {}", path.display()))
+}
+
+fn persist_agent_identity_state(path: &Path, state: &AgentIdentityState) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).with_context(|| {
+            format!(
+                "failed to create parent directory for agent identity state {}",
+                path.display()
+            )
+        })?;
+    }
+
+    let encoded =
+        serde_json::to_vec_pretty(state).context("failed to encode agent identity state")?;
+    fs::write(path, encoded)
+        .with_context(|| format!("failed to persist agent identity state {}", path.display()))
+}
+
+fn with_bearer(request: reqwest::RequestBuilder, token: Option<&str>) -> reqwest::RequestBuilder {
+    match token.map(str::trim).filter(|value| !value.is_empty()) {
+        Some(token) => request.header(AUTHORIZATION, format!("Bearer {token}")),
+        None => request,
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
     let relay_url = resolve_relay_url(cli.relay_url.as_deref(), cfg!(debug_assertions))?;
     let working_root = resolve_working_root(&cli.working_root)?;
+    let identity_path = default_agent_identity_path(&working_root);
+    let identity_state = load_agent_identity_state(&identity_path)?;
+    let initial_device_id = cli
+        .device_id
+        .clone()
+        .or(identity_state.device_id.clone())
+        .unwrap_or_else(|| Uuid::new_v4().to_string());
+    let initial_device_credential = identity_state
+        .device_id
+        .as_deref()
+        .filter(|stored_id| *stored_id == initial_device_id)
+        .and(identity_state.device_credential.clone());
+    let enrollment_token = trim_optional_token(cli.relay_enrollment_token.as_deref())
+        .or_else(|| trim_optional_token(cli.relay_access_token_compat.as_deref()));
+    let auth = AgentAuthState::new(enrollment_token, identity_path, initial_device_credential);
     let mut profile = AgentProfile {
         tenant_id: cli.tenant_id.clone(),
         user_id: cli.user_id.clone(),
-        device_id: cli
-            .device_id
-            .clone()
-            .unwrap_or_else(|| Uuid::new_v4().to_string()),
+        device_id: initial_device_id,
         device_name: cli.device_name.clone().unwrap_or_else(default_device_name),
         platform: DevicePlatform::current(),
         capabilities: advertised_device_capabilities(),
@@ -186,64 +298,48 @@ async fn main() -> Result<()> {
     let easytier_enabled = easytier_options.enabled();
     let easytier_runtime = start_managed_agent_easytier(easytier_options, shared.overlay.clone());
 
-    let relay_access_token = cli
-        .relay_access_token
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(|value| value.to_string());
-
     let shell_bridge_runtime = shell_bridge::start_shell_bridge_server(
         easytier_enabled,
         working_root.clone(),
-        relay_access_token.clone(),
+        auth.device_credential_slot(),
     );
     let port_forward_bridge_runtime = port_forward_bridge::start_port_forward_bridge_server(
         easytier_enabled,
-        relay_access_token.clone(),
+        auth.device_credential_slot(),
     );
     let task_bridge_runtime = task_bridge::start_task_bridge_server(
         easytier_enabled,
         working_root.clone(),
-        relay_access_token.clone(),
+        auth.device_credential_slot(),
         shared.clone(),
     );
 
-    let mut default_headers = HeaderMap::new();
-    if let Some(token) = relay_access_token.as_deref() {
-        let mut header_value = HeaderValue::from_str(&format!("Bearer {token}"))
-            .context("invalid relay access token")?;
-        header_value.set_sensitive(true);
-        default_headers.insert(AUTHORIZATION, header_value);
-    }
-    default_headers.insert(
-        "x-vibe-tenant-id",
-        HeaderValue::from_str(&profile.tenant_id).context("invalid tenant id header")?,
-    );
-    default_headers.insert(
-        "x-vibe-user-id",
-        HeaderValue::from_str(&profile.user_id).context("invalid user id header")?,
-    );
-    default_headers.insert("x-vibe-user-role", HeaderValue::from_static("agent"));
-
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(30))
-        .default_headers(default_headers)
         .build()
         .context("failed to build reqwest client")?;
 
-    let registered_device = register_current_device(&client, &relay_url, &profile, &shared).await?;
+    if auth.device_credential().await.is_none() {
+        let registered_device =
+            register_current_device(&client, &relay_url, &profile, &shared, &auth).await?;
 
-    println!(
-        "registered agent {} ({}) on {}",
-        registered_device.device.name, registered_device.device.id, relay_url
-    );
+        println!(
+            "registered agent {} ({}) on {}",
+            registered_device.device.name, registered_device.device.id, relay_url
+        );
 
-    profile.device_id = registered_device.device.id.clone();
+        profile.device_id = registered_device.device.id.clone();
+    } else {
+        println!(
+            "loaded persisted agent credential for {} ({}) on {}",
+            profile.device_name, profile.device_id, relay_url
+        );
+    }
     let heartbeat_state = shared.clone();
     let heartbeat_client = client.clone();
     let heartbeat_relay_url = relay_url.clone();
     let heartbeat_profile = profile.clone();
+    let heartbeat_auth = auth.clone();
     let heartbeat_interval_ms = cli.heartbeat_interval_ms;
 
     tokio::spawn(async move {
@@ -251,6 +347,7 @@ async fn main() -> Result<()> {
             heartbeat_client,
             heartbeat_relay_url,
             heartbeat_profile,
+            heartbeat_auth,
             heartbeat_state,
             heartbeat_interval_ms,
         )
@@ -263,6 +360,7 @@ async fn main() -> Result<()> {
     let shell_client = client.clone();
     let shell_relay_url = relay_url.clone();
     let shell_profile = profile.clone();
+    let shell_auth = auth.clone();
     let shell_shared = shared.clone();
     let shell_working_root = working_root.clone();
     let shell_poll_interval_ms = cli.poll_interval_ms;
@@ -271,6 +369,7 @@ async fn main() -> Result<()> {
             shell_client,
             shell_relay_url,
             shell_profile,
+            shell_auth,
             shell_shared,
             shell_working_root,
             shell_poll_interval_ms,
@@ -284,16 +383,16 @@ async fn main() -> Result<()> {
     let port_forward_client = client.clone();
     let port_forward_relay_url = relay_url.clone();
     let port_forward_profile = profile.clone();
+    let port_forward_auth = auth.clone();
     let port_forward_shared = shared.clone();
-    let port_forward_access_token = relay_access_token.clone();
     let port_forward_poll_interval_ms = cli.poll_interval_ms;
     tokio::spawn(async move {
         if let Err(error) = port_forward_loop(
             port_forward_client,
             port_forward_relay_url,
             port_forward_profile,
+            port_forward_auth,
             port_forward_shared,
-            port_forward_access_token,
             port_forward_poll_interval_ms,
         )
         .await
@@ -305,6 +404,7 @@ async fn main() -> Result<()> {
     let workspace_client = client.clone();
     let workspace_relay_url = relay_url.clone();
     let workspace_profile = profile.clone();
+    let workspace_auth = auth.clone();
     let workspace_shared = shared.clone();
     let workspace_working_root = working_root.clone();
     let workspace_poll_interval_ms = cli.poll_interval_ms;
@@ -313,6 +413,7 @@ async fn main() -> Result<()> {
             workspace_client,
             workspace_relay_url,
             workspace_profile,
+            workspace_auth,
             workspace_shared,
             workspace_working_root,
             workspace_poll_interval_ms,
@@ -326,6 +427,7 @@ async fn main() -> Result<()> {
     let git_client = client.clone();
     let git_relay_url = relay_url.clone();
     let git_profile = profile.clone();
+    let git_auth = auth.clone();
     let git_shared = shared.clone();
     let git_working_root = working_root.clone();
     let git_poll_interval_ms = cli.poll_interval_ms;
@@ -334,6 +436,7 @@ async fn main() -> Result<()> {
             git_client,
             git_relay_url,
             git_profile,
+            git_auth,
             git_shared,
             git_working_root,
             git_poll_interval_ms,
@@ -348,6 +451,7 @@ async fn main() -> Result<()> {
         client,
         relay_url,
         profile,
+        auth,
         shared,
         working_root,
         cli.poll_interval_ms,
@@ -374,10 +478,10 @@ async fn register_device(
     client: &reqwest::Client,
     relay_url: &str,
     payload: RegisterDeviceRequest,
+    enrollment_token: Option<&str>,
 ) -> Result<RegisterDeviceResponse> {
     let endpoint = format!("{relay_url}/api/devices/register");
-    let response = client
-        .post(endpoint)
+    let response = with_bearer(client.post(endpoint), enrollment_token)
         .json(&payload)
         .send()
         .await
@@ -413,15 +517,20 @@ async fn register_current_device(
     relay_url: &str,
     profile: &AgentProfile,
     shared: &SharedState,
+    auth: &AgentAuthState,
 ) -> Result<RegisterDeviceResponse> {
     let payload = build_register_device_request(profile, shared).await;
-    register_device(client, relay_url, payload).await
+    let response = register_device(client, relay_url, payload, auth.enrollment_token()).await?;
+    auth.update_device_identity(&response.device.id, &response.device_credential)
+        .await?;
+    Ok(response)
 }
 
 async fn heartbeat_loop(
     client: reqwest::Client,
     relay_url: String,
     profile: AgentProfile,
+    auth: AgentAuthState,
     shared: SharedState,
     heartbeat_interval_ms: u64,
 ) -> Result<()> {
@@ -438,7 +547,7 @@ async fn heartbeat_loop(
             current_task_id,
         };
 
-        match send_heartbeat(&client, &relay_url, &profile.device_id, payload).await {
+        match send_heartbeat(&client, &relay_url, &profile.device_id, &auth, payload).await {
             Ok(HeartbeatOutcome::Accepted) => {}
             Ok(HeartbeatOutcome::DeviceMissing) => {
                 eprintln!(
@@ -446,7 +555,7 @@ async fn heartbeat_loop(
                     profile.device_id
                 );
                 if let Err(error) =
-                    register_current_device(&client, &relay_url, &profile, &shared).await
+                    register_current_device(&client, &relay_url, &profile, &shared, &auth).await
                 {
                     eprintln!("device re-registration failed: {error:#}");
                 }
@@ -462,11 +571,12 @@ async fn send_heartbeat(
     client: &reqwest::Client,
     relay_url: &str,
     device_id: &str,
+    auth: &AgentAuthState,
     payload: HeartbeatRequest,
 ) -> Result<HeartbeatOutcome> {
     let endpoint = format!("{relay_url}/api/devices/{device_id}/heartbeat");
-    let response = client
-        .post(endpoint)
+    let device_credential = auth.device_credential().await;
+    let response = with_bearer(client.post(endpoint), device_credential.as_deref())
         .json(&payload)
         .send()
         .await

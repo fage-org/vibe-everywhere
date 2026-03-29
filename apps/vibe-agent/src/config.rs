@@ -24,6 +24,10 @@ pub(crate) fn normalize_base_url(url: &str) -> String {
     url.trim_end_matches('/').to_string()
 }
 
+pub(crate) fn default_agent_identity_path(working_root: &Path) -> PathBuf {
+    working_root.join(".vibe-agent").join("identity.json")
+}
+
 pub(crate) fn build_relay_websocket_url(
     relay_url: &str,
     path: &str,

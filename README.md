@@ -46,7 +46,8 @@ Vibe Everywhere 是一个面向自建场景的远程 AI 控制面。你在自己
 ```bash
 curl -fsSL https://raw.githubusercontent.com/fage-ac-org/vibe-everywhere/main/scripts/install-relay.sh -o install-relay.sh
 sudo RELAY_PUBLIC_BASE_URL=https://relay.example.com \
-  RELAY_ACCESS_TOKEN=change-me \
+  RELAY_ACCESS_TOKEN=change-control-token \
+  RELAY_ENROLLMENT_TOKEN=change-agent-enrollment-token \
   bash install-relay.sh
 ```
 
@@ -55,7 +56,8 @@ sudo RELAY_PUBLIC_BASE_URL=https://relay.example.com \
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\install-relay.ps1 `
   -PublicRelayBaseUrl https://relay.example.com `
-  -RelayAccessToken change-me
+  -RelayAccessToken change-control-token `
+  -RelayEnrollmentToken change-agent-enrollment-token
 ```
 
 ### 2. 在目标机器启动 Agent
@@ -64,13 +66,19 @@ powershell -ExecutionPolicy Bypass -File .\scripts\install-relay.ps1 `
 
 ```bash
 VIBE_RELAY_URL=https://relay.example.com \
-VIBE_RELAY_ACCESS_TOKEN=change-me \
+VIBE_RELAY_ENROLLMENT_TOKEN=change-agent-enrollment-token \
 VIBE_DEVICE_NAME=build-node-01 \
 ./vibe-agent
 ```
 
 Windows 下请保留解压后的 side-by-side 运行时文件与 `vibe-agent.exe` 同目录，不要只单独拷出
 `vibe-agent.exe`。
+
+推荐做法是把人类控制端和设备注册分成两条凭证：
+
+- Web、桌面端、Android 控制端继续使用 `VIBE_RELAY_ACCESS_TOKEN`
+- Agent 使用 `VIBE_RELAY_ENROLLMENT_TOKEN` 完成首次注册
+- Agent 首次注册成功后会在工作目录下写入 `.vibe-agent/identity.json`，后续重启优先复用该设备凭证
 
 如果你希望执行 AI Session，目标机器还需要安装至少一个 Provider CLI：
 
@@ -90,7 +98,7 @@ Windows 下请保留解压后的 side-by-side 运行时文件与 `vibe-agent.exe
 
 1. 先部署 relay。
 2. 在目标机器启动 agent。
-3. 先用 Web 或桌面端进入 Session 主流程，确认链路、设备和 Provider 都正常。
+3. 先用 Web 或桌面端输入控制面 token，进入 Session 主流程，确认链路、设备和 Provider 都正常。
 4. 需要移动访问时再安装 Android 客户端。
 
 ## 下载

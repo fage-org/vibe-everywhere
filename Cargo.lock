@@ -7280,7 +7280,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "vibe-agent"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "anyhow",
  "cidr",
@@ -7288,6 +7288,7 @@ dependencies = [
  "easytier",
  "futures-util",
  "reqwest 0.12.28",
+ "serde",
  "serde_json",
  "tokio",
  "tokio-tungstenite",
@@ -7299,7 +7300,7 @@ dependencies = [
 
 [[package]]
 name = "vibe-app"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "serde",
  "tauri",
@@ -7310,7 +7311,7 @@ dependencies = [
 
 [[package]]
 name = "vibe-core"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "serde",
  "uuid",
@@ -7318,7 +7319,7 @@ dependencies = [
 
 [[package]]
 name = "vibe-relay"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "anyhow",
  "async-stream",

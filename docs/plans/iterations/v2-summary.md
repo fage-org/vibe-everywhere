@@ -34,4 +34,4 @@ Full implementation detail lives in [`v2-details.md`](./v2-details.md).
 - Need the baseline roadmap history:
   read [`v1-summary.md`](./v1-summary.md).
 - Need the active remediation track:
-  read [`../remediation/v9-summary.md`](../remediation/v9-summary.md).
+  read [`../remediation/v10-summary.md`](../remediation/v10-summary.md).

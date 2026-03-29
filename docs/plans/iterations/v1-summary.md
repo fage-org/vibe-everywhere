@@ -32,11 +32,11 @@ Full implementation detail lives in [`v1-details.md`](./v1-details.md).
   first post-baseline verification phase as historical context.
 - New work should not be appended here unless it is baseline-history maintenance.
 - Post-baseline UI, workflow, and runtime fixes are tracked in the versioned remediation plans,
-  with the current active tranche in [`../remediation/v9-summary.md`](../remediation/v9-summary.md).
+  with the current active tranche in [`../remediation/v10-summary.md`](../remediation/v10-summary.md).
 
 ## Lookup Notes
 
 - Need detailed acceptance or implementation notes:
   read [`v1-details.md`](./v1-details.md).
 - Need the active current repair work:
-  read [`../remediation/v9-summary.md`](../remediation/v9-summary.md).
+  read [`../remediation/v10-summary.md`](../remediation/v10-summary.md).

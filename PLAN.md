@@ -22,8 +22,8 @@ The active plan set is:
 - process governance: [`docs/plans/process.md`](./docs/plans/process.md)
 - active iteration summary: [`docs/plans/iterations/v4-summary.md`](./docs/plans/iterations/v4-summary.md)
 - active iteration details: [`docs/plans/iterations/v4-details.md`](./docs/plans/iterations/v4-details.md)
-- active remediation summary: [`docs/plans/remediation/v9-summary.md`](./docs/plans/remediation/v9-summary.md)
-- active remediation details: [`docs/plans/remediation/v9-details.md`](./docs/plans/remediation/v9-details.md)
+- active remediation summary: [`docs/plans/remediation/v10-summary.md`](./docs/plans/remediation/v10-summary.md)
+- active remediation details: [`docs/plans/remediation/v10-details.md`](./docs/plans/remediation/v10-details.md)
 
 Every completed iteration or remediation item must update this file and the active versioned plan
 files listed above.
@@ -168,7 +168,7 @@ Current planned implementation target:
   and workspace browsing into the `Sessions` route, redirects the legacy `Connections` route into
   that primary workflow, and moves deployment/current-client/governance context into `Devices`.
 - The active remediation track remains the problem-driven remediation plan in
-  `docs/plans/remediation/v9-summary.md`.
+  `docs/plans/remediation/v10-summary.md`.
 - Remediation plan `v1` is complete.
 - Remediation plan `v2` is complete after restoring blocking overlay smoke verification and auditing
   the repository for similar compromised checks.
@@ -188,9 +188,14 @@ Current planned implementation target:
 - Remediation plan `v9` is complete after GitHub-hosted `CI` run `23689144327` restored hosted
   Linux overlay smoke as a verified required gate, aligned release publish dependencies, and
   reconciled stale workflow/documentation claims.
+- Remediation plan `v10` is complete locally after splitting agent enrollment from the control
+  token, issuing device credentials, retiring external actor-header trust, and aligning
+  installers/docs/smoke coverage with the delivered auth model.
 
 Most recent completed tranche:
 
+- Remediation 10: relay and agent auth-boundary hardening across control-plane tokens, agent
+  enrollment, device credentials, installers, and smoke coverage
 - Iteration 14: session-first primary workflow productization across navigation, result review,
   and documentation
 - Iteration 13: workflow and release verification normalization
@@ -405,6 +410,9 @@ These items are treated as completed foundation work, not future roadmap items.
 - 2026-03-28: Completed Iteration 9 by adding shared platform helpers, platform capability matrix rendering, explicit client/deployment guidance, and tighter narrow-width dashboard behavior.
 - 2026-03-28: Completed Iteration 10 by extending `AppConfig` with deployment/auth/storage metadata, updating the Tauri shell config path, and adding `docs/self-hosted.md`.
 - 2026-03-28: Completed Iteration 11 by introducing tenant/user/membership/audit/store abstractions, actor-aware relay write/read boundaries, agent-provided actor headers, and audit/event governance UI.
+- 2026-03-29: Completed Remediation v10 locally by splitting agent enrollment from the human
+  control token, issuing and persisting device credentials, tightening device-only route auth,
+  retiring external `x-vibe-*` actor-header trust, and aligning installers/docs/smoke harnesses.
 - 2026-03-28: Marked the Iteration 0-11 baseline roadmap as complete and reset the current target to future planning.
 - 2026-03-28: Added `docs/problem-remediation-plan.md` to track the post-baseline dashboard, deployment-guidance, platform-surfacing, and loopback-default repair work item by item.
 - 2026-03-28: Introduced the versioned planning system under `docs/plans/`, with shared process governance plus `summary` and `details` files for iteration plan v1 and remediation plan v1.
@@ -637,6 +645,25 @@ These items are treated as completed foundation work, not future roadmap items.
   session-first primary workflow productization changes.
 - 2026-03-29: `./scripts/render-release-notes.sh v0.0.0 >/dev/null` succeeded after the Iteration
   14 release-note updates.
+- 2026-03-29: `cargo fmt --all --check` succeeded after Remediation v10 relay and agent
+  auth-boundary hardening.
+- 2026-03-29: `cargo check -p vibe-relay -p vibe-agent -p vibe-app` succeeded after Remediation
+  v10 relay and agent auth-boundary hardening.
+- 2026-03-29: `cargo test --workspace --all-targets -- --nocapture` succeeded after Remediation
+  v10 relay and agent auth-boundary hardening.
+- 2026-03-29: `cd apps/vibe-app && npm run build` succeeded after Remediation v10 operator-doc and
+  smoke-harness updates.
+- 2026-03-29: `bash -n scripts/install-relay.sh` and `bash -n scripts/dual-process-smoke.sh`
+  succeeded after Remediation v10 installer and smoke-harness updates.
+- 2026-03-29: `./scripts/dual-process-smoke.sh relay_polling` succeeded after Remediation v10
+  enabled split control/enrollment token coverage in the real relay-plus-agent path.
+- 2026-03-29: `./scripts/dual-process-smoke.sh overlay` succeeded after Remediation v10 enabled
+  split control/enrollment token coverage in the real overlay relay-plus-agent path.
+- 2026-03-29: `./scripts/render-release-notes.sh v0.0.0 >/dev/null` succeeded after the
+  Remediation v10 release-note updates.
+- 2026-03-29: local PowerShell parser validation for `scripts/install-relay.ps1` and
+  `scripts/dual-process-smoke.ps1` could not be run because `pwsh` was not installed in the local
+  environment.
 - 2026-03-28: `cargo fmt --all` succeeded after Remediation v4 runtime, documentation, and
   workflow updates.
 - 2026-03-28: `cargo check --locked -p vibe-relay -p vibe-agent -p vibe-app` succeeded after
@@ -694,7 +721,9 @@ These items are treated as completed foundation work, not future roadmap items.
 - 2026-03-28: Iteration 8 routes “system notifications” through the active runtime's Notification API when supported; there is still no background push service or OS-specific native notification bridge.
 - 2026-03-28: Iteration 9 isolates client detection and relay-URL preference rules in frontend runtime helpers, but the current capability matrix still models mobile-native support at the product level rather than maintaining separate Web-mobile and Android-native forks.
 - 2026-03-28: Iteration 10 keeps `external` storage as a compatibility placeholder that still reuses file-backed persistence until a real external store is introduced.
-- 2026-03-28: Iteration 11 enforces tenant and role boundaries in relay handlers and records audit trails, but identity is still derived from configured defaults or explicit headers rather than a full signed user-session model.
+- 2026-03-28: Iteration 11 established tenant and role boundaries plus audit trails, but the human
+  auth model is still not a full signed user-session system; it remains a shared control-plane
+  token today.
 - 2026-03-28: Decided to run the next repair tranche as a problem-driven remediation track instead of reopening the completed Iteration 0-11 roadmap table.
 - 2026-03-28: Remediation R1 intentionally keeps governance, deployment guidance, and platform semantics present inside the new `Connections` route so that R2-R5 can still be repaired item by item without silently changing their chosen modes.
 - 2026-03-28: Remediation R2 keeps the governance/audit implementation code available behind a dedicated feature flag instead of deleting it, so future enterprise work can re-enable it deliberately without default-path leakage.
@@ -742,3 +771,12 @@ These items are treated as completed foundation work, not future roadmap items.
 - 2026-03-29: Interactive Web, Tauri Desktop, and Android manual regression was not run in this
   local turn; compile/build validation passed, but multi-client visual/runtime QA is still required
   before release.
+- 2026-03-29: Remediation v10 intentionally keeps one shared human control-plane token for now;
+  per-user API keys or OIDC remain future work so this repair does not turn into an enterprise-auth
+  program.
+- 2026-03-29: Remediation v10 stores issued device credentials in relay state as plaintext because
+  the relay must present them to local overlay bridge paths; hashing or an indirection/reissue
+  design can be revisited later if the bridge contract changes.
+- 2026-03-29: Remediation v10 keeps query `access_token` support on websocket/SSE-compatible paths
+  for backward compatibility, but identity now comes only from control tokens, enrollment tokens,
+  or issued device credentials rather than client-supplied actor headers.

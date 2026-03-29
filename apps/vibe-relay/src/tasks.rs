@@ -14,7 +14,7 @@ pub(super) async fn list_tasks(
     Query(query): Query<TaskListQuery>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<TaskRecord>>, ApiError> {
-    let actor = actor_from_headers(&state, &headers);
+    let actor = require_control_actor(&state, &headers, None).await?;
     ensure_actor_can_read(&actor)?;
 
     let store = state.store.read().await;
@@ -61,7 +61,7 @@ pub(super) async fn create_task(
     headers: HeaderMap,
     Json(payload): Json<CreateTaskRequest>,
 ) -> Result<Json<CreateTaskResponse>, ApiError> {
-    let actor = actor_from_headers(&state, &headers);
+    let actor = require_control_actor(&state, &headers, None).await?;
     ensure_actor_can_write(&actor)?;
 
     let mut store = state.store.write().await;
@@ -146,14 +146,25 @@ pub(super) async fn get_task(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<Json<TaskDetailResponse>, ApiError> {
-    let actor = actor_from_headers(&state, &headers);
-    ensure_actor_can_read(&actor)?;
+    let subject = authenticate_control_or_device(&state, &headers, None).await?;
+    let actor = subject.actor().clone();
+    if let AuthenticatedSubject::Control(actor) = &subject {
+        ensure_actor_can_read(actor)?;
+    }
 
     let store = state.store.read().await;
     let Some(entry) = store.tasks.get(&task_id) else {
         return Err(ApiError::not_found("task_not_found", "Task not found"));
     };
     ensure_tenant_access(&actor, &entry.record.tenant_id)?;
+    if let AuthenticatedSubject::Device(device) = &subject
+        && entry.record.device_id != device.device_id
+    {
+        return Err(ApiError::forbidden(
+            "device_forbidden",
+            "The current device credential cannot access another device task",
+        ));
+    }
 
     Ok(Json(TaskDetailResponse {
         task: entry.record.clone(),
@@ -166,8 +177,8 @@ pub(super) async fn claim_next_task(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<Json<ClaimTaskResponse>, ApiError> {
-    let actor = actor_from_headers(&state, &headers);
-    ensure_actor_can_write(&actor)?;
+    let auth = require_device_auth(&state, &headers, None).await?;
+    ensure_authenticated_device_matches(&auth, &device_id)?;
 
     let mut store = state.store.write().await;
 
@@ -177,7 +188,7 @@ pub(super) async fn claim_next_task(
             "Device not found; register device first",
         ));
     };
-    ensure_tenant_access(&actor, &device.tenant_id)?;
+    ensure_tenant_access(&auth.actor, &device.tenant_id)?;
 
     let current_task_id = device.current_task_id.clone();
 
@@ -194,7 +205,7 @@ pub(super) async fn claim_next_task(
         .values()
         .filter(|entry| {
             entry.record.device_id == device_id
-                && entry.record.tenant_id == actor.tenant_id
+                && entry.record.tenant_id == auth.actor.tenant_id
                 && entry.record.status == TaskStatus::Pending
                 && entry.record.transport == TaskTransportKind::RelayPolling
         })
@@ -241,14 +252,25 @@ pub(super) async fn append_task_events(
     headers: HeaderMap,
     Json(payload): Json<AppendTaskEventsRequest>,
 ) -> Result<Json<TaskDetailResponse>, ApiError> {
-    let actor = actor_from_headers(&state, &headers);
-    ensure_actor_can_write(&actor)?;
+    let auth = require_device_auth(&state, &headers, None).await?;
+    if payload.device_id != auth.device_id {
+        return Err(ApiError::forbidden(
+            "device_forbidden",
+            "The current device credential cannot publish events for another device",
+        ));
+    }
     {
         let store = state.store.read().await;
         let Some(entry) = store.tasks.get(&task_id) else {
             return Err(ApiError::not_found("task_not_found", "Task not found"));
         };
-        ensure_tenant_access(&actor, &entry.record.tenant_id)?;
+        ensure_tenant_access(&auth.actor, &entry.record.tenant_id)?;
+        if entry.record.device_id != auth.device_id {
+            return Err(ApiError::forbidden(
+                "device_forbidden",
+                "The current device credential cannot publish events for another device",
+            ));
+        }
     }
 
     match append_task_events_internal(&state, &task_id, payload).await? {
@@ -262,7 +284,7 @@ pub(super) async fn cancel_task(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<Json<TaskDetailResponse>, ApiError> {
-    let actor = actor_from_headers(&state, &headers);
+    let actor = require_control_actor(&state, &headers, None).await?;
     ensure_actor_can_write(&actor)?;
 
     let mut store = state.store.write().await;
@@ -611,10 +633,11 @@ async fn run_overlay_task_inner(state: &AppState, task_id: &str) -> anyhow::Resu
 
     let (read_half, mut write_half) = stream.into_split();
     let mut lines = BufReader::new(read_half).lines();
+    let bridge_token = load_device_credential(state, &task.device_id).await;
     if let Err(error) = write_task_bridge_request(
         &mut write_half,
         &TaskBridgeRequest::Start {
-            token: state.config.access_token.clone(),
+            token: bridge_token,
             task: task.clone(),
         },
     )

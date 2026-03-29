@@ -48,7 +48,8 @@ The repository currently ships two install scripts:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/fage-ac-org/vibe-everywhere/main/scripts/install-relay.sh -o install-relay.sh
 sudo RELAY_PUBLIC_BASE_URL=https://relay.example.com \
-  RELAY_ACCESS_TOKEN=change-me \
+  RELAY_ACCESS_TOKEN=change-control-token \
+  RELAY_ENROLLMENT_TOKEN=change-agent-enrollment-token \
   bash install-relay.sh
 ```
 
@@ -57,7 +58,8 @@ sudo RELAY_PUBLIC_BASE_URL=https://relay.example.com \
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\install-relay.ps1 `
   -PublicRelayBaseUrl https://relay.example.com `
-  -RelayAccessToken change-me
+  -RelayAccessToken change-control-token `
+  -RelayEnrollmentToken change-agent-enrollment-token
 ```
 
 ### 2. Start an Agent on the Target Machine
@@ -66,13 +68,20 @@ Download the CLI package from GitHub Releases, extract it, and start `vibe-agent
 
 ```bash
 VIBE_RELAY_URL=https://relay.example.com \
-VIBE_RELAY_ACCESS_TOKEN=change-me \
+VIBE_RELAY_ENROLLMENT_TOKEN=change-agent-enrollment-token \
 VIBE_DEVICE_NAME=build-node-01 \
 ./vibe-agent
 ```
 
 On Windows, keep the extracted side-by-side runtime files next to `vibe-agent.exe` instead of
 copying the executable out by itself.
+
+Recommended credential split:
+
+- Web, desktop, and Android control clients keep using `VIBE_RELAY_ACCESS_TOKEN`
+- agents use `VIBE_RELAY_ENROLLMENT_TOKEN` for initial registration
+- after the first successful registration, the agent persists its issued device credential in
+  `.vibe-agent/identity.json` under the working root and reuses that identity on restart
 
 To execute AI sessions, the target machine still needs at least one provider CLI:
 
@@ -92,7 +101,7 @@ Recommended flow:
 
 1. deploy the relay
 2. start at least one agent
-3. enter the session-first flow from Web or desktop and confirm relay, device, and provider readiness
+3. enter the session-first flow from Web or desktop with the control-plane token and confirm relay, device, and provider readiness
 4. add Android when mobile access is needed
 
 ## Downloads

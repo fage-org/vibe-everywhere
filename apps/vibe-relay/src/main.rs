@@ -6,8 +6,7 @@ use axum::{
         Path, Query, State,
         ws::{Message, WebSocket, WebSocketUpgrade},
     },
-    http::{HeaderMap, StatusCode},
-    middleware,
+    http::{HeaderMap, StatusCode, Uri},
     response::sse::{Event, KeepAlive, Sse},
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -42,7 +41,7 @@ use vibe_core::{
     ShellBridgeEvent, ShellBridgeRequest, ShellInputRecord, ShellOutputChunk,
     ShellPendingInputResponse, ShellSessionDetailResponse, ShellSessionRecord, ShellSessionStatus,
     ShellStreamKind, ShellTransportKind, TaskBridgeEvent, TaskBridgeRequest, TaskDetailResponse,
-    TaskEvent, TaskRecord, TaskStatus, TaskTransportKind, TenantRecord, UserRecord, UserRole,
+    TaskEvent, TaskRecord, TaskStatus, TaskTransportKind, TenantRecord, UserRecord,
     default_app_config, now_epoch_millis,
 };
 
@@ -57,7 +56,11 @@ mod store;
 mod tasks;
 mod workspace;
 
-use auth::{actor_from_headers, require_relay_auth};
+use auth::{
+    AuthenticatedSubject, authenticate_control_or_device, ensure_authenticated_device_matches,
+    issue_device_credential, require_control_actor, require_device_auth,
+    require_registration_actor,
+};
 #[cfg(test)]
 use auth::{query_access_token, request_access_token};
 use config::RelayConfig;
@@ -79,7 +82,7 @@ use shell::{
     shell_session_websocket,
 };
 use storage::{RelayStorage, build_relay_storage};
-use store::{PortForwardEntry, RelayStore, ShellSessionEntry, TaskEntry};
+use store::{DeviceCredentialRecord, PortForwardEntry, RelayStore, ShellSessionEntry, TaskEntry};
 #[cfg(test)]
 use store::{load_relay_store, persist_relay_store};
 #[cfg(test)]
@@ -574,11 +577,7 @@ fn build_app(state: AppState) -> Router {
             post(complete_git_request),
         )
         .route("/api/audit/events", get(list_audit_events))
-        .route("/api/events/stream", get(events_stream))
-        .route_layer(middleware::from_fn_with_state(
-            state.clone(),
-            require_relay_auth,
-        ));
+        .route("/api/events/stream", get(events_stream));
 
     Router::new()
         .route("/api/health", get(health))
@@ -605,19 +604,13 @@ async fn health(State(state): State<AppState>) -> Json<ServiceHealth> {
     })
 }
 
-async fn app_config(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-) -> Result<Json<AppConfig>, ApiError> {
-    let actor = actor_from_headers(&state, &headers);
-    ensure_actor_can_read(&actor)?;
-
+async fn app_config(State(state): State<AppState>) -> Result<Json<AppConfig>, ApiError> {
     Ok(Json(default_app_config(
         state.config.public_base_url.clone(),
         state.config.access_token.is_some(),
         state.config.deployment_metadata(),
         state.config.storage_kind.clone(),
-        actor,
+        state.config.default_actor(),
     )))
 }
 
@@ -625,7 +618,7 @@ async fn list_devices(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<DeviceRecord>>, ApiError> {
-    let actor = actor_from_headers(&state, &headers);
+    let actor = require_control_actor(&state, &headers, None).await?;
     ensure_actor_can_read(&actor)?;
 
     let store = state.store.read().await;
@@ -649,15 +642,10 @@ async fn register_device(
     headers: HeaderMap,
     Json(payload): Json<RegisterDeviceRequest>,
 ) -> Result<Json<RegisterDeviceResponse>, ApiError> {
-    let actor = actor_from_headers(&state, &headers);
-    ensure_actor_can_write(&actor)?;
-    ensure_tenant_access(&actor, &payload.tenant_id)?;
+    let actor = require_registration_actor(&state, &headers, None).await?;
 
     let mut store = state.store.write().await;
-    seed_governance_records(
-        &mut store,
-        &actor_from_record_tenant(&payload.tenant_id, &payload.user_id, actor.role.clone()),
-    );
+    seed_governance_records(&mut store, &actor);
     let device_id = if payload.id.trim().is_empty() {
         Uuid::new_v4().to_string()
     } else {
@@ -670,8 +658,8 @@ async fn register_device(
         .and_then(|device| device.current_task_id.clone());
 
     let device = DeviceRecord {
-        tenant_id: payload.tenant_id,
-        user_id: payload.user_id,
+        tenant_id: actor.tenant_id.clone(),
+        user_id: actor.user_id.clone(),
         id: device_id.clone(),
         name: payload.name,
         platform: payload.platform,
@@ -683,6 +671,15 @@ async fn register_device(
         last_seen_epoch_ms: now_epoch_millis(),
         current_task_id,
     };
+    let device_credential = issue_device_credential();
+    store.device_credentials.insert(
+        device.id.clone(),
+        DeviceCredentialRecord {
+            device_id: device.id.clone(),
+            token: device_credential.clone(),
+            issued_at_epoch_ms: now_epoch_millis(),
+        },
+    );
 
     store.devices.insert(device_id, device.clone());
     let snapshot = store.clone();
@@ -701,7 +698,10 @@ async fn register_device(
     )
     .await?;
 
-    Ok(Json(RegisterDeviceResponse { device }))
+    Ok(Json(RegisterDeviceResponse {
+        device,
+        device_credential,
+    }))
 }
 
 async fn device_heartbeat(
@@ -710,8 +710,8 @@ async fn device_heartbeat(
     headers: HeaderMap,
     Json(payload): Json<HeartbeatRequest>,
 ) -> Result<Json<HeartbeatResponse>, ApiError> {
-    let actor = actor_from_headers(&state, &headers);
-    ensure_actor_can_write(&actor)?;
+    let auth = require_device_auth(&state, &headers, None).await?;
+    ensure_authenticated_device_matches(&auth, &device_id)?;
 
     let mut store = state.store.write().await;
     let now = now_epoch_millis();
@@ -721,7 +721,7 @@ async fn device_heartbeat(
             "Device not found; register device first",
         ));
     };
-    ensure_tenant_access(&actor, &device.tenant_id)?;
+    ensure_tenant_access(&auth.actor, &device.tenant_id)?;
 
     device.online = true;
     device.last_seen_epoch_ms = now;
@@ -744,7 +744,7 @@ async fn list_audit_events(
     headers: HeaderMap,
     Query(query): Query<AuditListQuery>,
 ) -> Result<Json<Vec<AuditRecord>>, ApiError> {
-    let actor = actor_from_headers(&state, &headers);
+    let actor = require_control_actor(&state, &headers, None).await?;
     ensure_actor_can_read(&actor)?;
 
     let store = state.store.read().await;
@@ -805,6 +805,16 @@ fn ensure_tenant_access(actor: &ActorIdentity, tenant_id: &str) -> Result<(), Ap
             "The current actor cannot access resources from another tenant",
         ))
     }
+}
+
+async fn load_device_credential(state: &AppState, device_id: &str) -> Option<String> {
+    state
+        .store
+        .read()
+        .await
+        .device_credentials
+        .get(device_id)
+        .map(|credential| credential.token.clone())
 }
 
 fn seed_governance_records(store: &mut RelayStore, actor: &ActorIdentity) -> bool {
@@ -896,23 +906,22 @@ async fn record_audit(
     persist_snapshot(state, &snapshot)
 }
 
-fn actor_from_record_tenant(tenant_id: &str, user_id: &str, role: UserRole) -> ActorIdentity {
-    ActorIdentity {
-        tenant_id: tenant_id.to_string(),
-        user_id: user_id.to_string(),
-        role,
-    }
-}
-
 async fn events_stream(
     State(state): State<AppState>,
-) -> Sse<impl futures_core::Stream<Item = Result<Event, Infallible>>> {
+    headers: HeaderMap,
+    uri: Uri,
+) -> Result<Sse<impl futures_core::Stream<Item = Result<Event, Infallible>>>, ApiError> {
+    let actor = require_control_actor(&state, &headers, Some(&uri)).await?;
+    ensure_actor_can_read(&actor)?;
     let mut receiver = state.events_tx.subscribe();
 
     let event_stream = stream! {
         loop {
             match receiver.recv().await {
                 Ok(message) => {
+                    if message.tenant_id != actor.tenant_id {
+                        continue;
+                    }
                     let data = serde_json::to_string(&message).unwrap_or_else(|_| "{}".to_string());
                     yield Ok(Event::default().event(message.event_type.as_str()).data(data));
                 }
@@ -922,7 +931,7 @@ async fn events_stream(
         }
     };
 
-    Sse::new(event_stream).keep_alive(KeepAlive::default())
+    Ok(Sse::new(event_stream).keep_alive(KeepAlive::default()))
 }
 
 async fn device_presence_loop(state: AppState) {
@@ -965,6 +974,7 @@ async fn device_presence_loop(state: AppState) {
 
 async fn emit_device(state: &AppState, device: DeviceRecord) {
     let _ = state.events_tx.send(RelayEventEnvelope {
+        tenant_id: device.tenant_id.clone(),
         event_type: RelayEventType::DeviceUpdated,
         device: Some(device),
         task: None,
@@ -974,6 +984,7 @@ async fn emit_device(state: &AppState, device: DeviceRecord) {
 
 async fn emit_task(state: &AppState, task: TaskRecord) {
     let _ = state.events_tx.send(RelayEventEnvelope {
+        tenant_id: task.tenant_id.clone(),
         event_type: RelayEventType::TaskUpdated,
         device: None,
         task: Some(task),
@@ -982,7 +993,16 @@ async fn emit_task(state: &AppState, task: TaskRecord) {
 }
 
 async fn emit_task_event(state: &AppState, task_event: TaskEvent) {
+    let tenant_id = state
+        .store
+        .read()
+        .await
+        .tasks
+        .get(&task_event.task_id)
+        .map(|entry| entry.record.tenant_id.clone())
+        .unwrap_or_default();
     let _ = state.events_tx.send(RelayEventEnvelope {
+        tenant_id,
         event_type: RelayEventType::TaskEvent,
         device: None,
         task: None,
@@ -1069,6 +1089,7 @@ mod tests {
     use axum::{body::Body, http::Request as HttpRequest};
     use futures_util::SinkExt;
     use tokio_tungstenite::{connect_async, tungstenite::Message as WsMessage};
+    use vibe_core::UserRole;
 
     #[test]
     fn query_access_token_extracts_and_decodes_token() {
@@ -1098,14 +1119,25 @@ mod tests {
         test_state_with_store_and_config(store, |_| {})
     }
 
-    fn test_state_with_store_and_config<F>(store: RelayStore, configure: F) -> AppState
+    fn test_state_with_store_and_config<F>(mut store: RelayStore, configure: F) -> AppState
     where
         F: FnOnce(&mut RelayConfig),
     {
         let (events_tx, _) = broadcast::channel(16);
+        for device_id in store.devices.keys() {
+            store
+                .device_credentials
+                .entry(device_id.clone())
+                .or_insert_with(|| DeviceCredentialRecord {
+                    device_id: device_id.clone(),
+                    token: test_device_token(device_id),
+                    issued_at_epoch_ms: 1,
+                });
+        }
         let mut config = RelayConfig {
             public_base_url: "http://127.0.0.1:8787".to_string(),
             access_token: None,
+            enrollment_token: None,
             state_file: std::env::temp_dir()
                 .join(format!("vibe-relay-test-{}", Uuid::new_v4()))
                 .join("relay-state.json"),
@@ -1152,6 +1184,20 @@ mod tests {
 
     fn test_headers() -> HeaderMap {
         HeaderMap::new()
+    }
+
+    fn test_device_token(device_id: &str) -> String {
+        format!("test-device-token-{device_id}")
+    }
+
+    fn test_device_headers(_state: &AppState, device_id: &str) -> HeaderMap {
+        let token = test_device_token(device_id);
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            axum::http::header::AUTHORIZATION,
+            axum::http::HeaderValue::from_str(&format!("Bearer {token}")).unwrap(),
+        );
+        headers
     }
 
     fn test_device(id: &str, capabilities: Vec<DeviceCapability>) -> DeviceRecord {
@@ -1326,10 +1372,13 @@ mod tests {
     ) -> vibe_core::WorkspaceOperationRequest {
         tokio::time::timeout(Duration::from_secs(2), async {
             loop {
-                let Json(response) =
-                    claim_next_workspace_request(Path(device_id.to_string()), State(state.clone()))
-                        .await
-                        .unwrap();
+                let Json(response) = claim_next_workspace_request(
+                    Path(device_id.to_string()),
+                    State(state.clone()),
+                    test_device_headers(state, device_id),
+                )
+                .await
+                .unwrap();
                 if let Some(request) = response.request {
                     return request;
                 }
@@ -1346,10 +1395,13 @@ mod tests {
     ) -> vibe_core::GitOperationRequest {
         tokio::time::timeout(Duration::from_secs(2), async {
             loop {
-                let Json(response) =
-                    claim_next_git_request(Path(device_id.to_string()), State(state.clone()))
-                        .await
-                        .unwrap();
+                let Json(response) = claim_next_git_request(
+                    Path(device_id.to_string()),
+                    State(state.clone()),
+                    test_device_headers(state, device_id),
+                )
+                .await
+                .unwrap();
                 if let Some(request) = response.request {
                     return request;
                 }
@@ -1534,7 +1586,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn heartbeat_rejects_unknown_device() {
+    async fn heartbeat_requires_device_credential() {
         let error = device_heartbeat(
             Path("missing-device".to_string()),
             State(test_state()),
@@ -1544,12 +1596,12 @@ mod tests {
         .await
         .unwrap_err();
 
-        assert_eq!(error.status, StatusCode::NOT_FOUND);
-        assert_eq!(error.code, "device_not_found");
+        assert_eq!(error.status, StatusCode::UNAUTHORIZED);
+        assert_eq!(error.code, "device_auth_required");
     }
 
     #[tokio::test]
-    async fn claim_next_task_rejects_unknown_device() {
+    async fn claim_next_task_requires_device_credential() {
         let error = claim_next_task(
             Path("missing-device".to_string()),
             State(test_state()),
@@ -1558,8 +1610,8 @@ mod tests {
         .await
         .unwrap_err();
 
-        assert_eq!(error.status, StatusCode::NOT_FOUND);
-        assert_eq!(error.code, "device_not_found");
+        assert_eq!(error.status, StatusCode::UNAUTHORIZED);
+        assert_eq!(error.code, "device_auth_required");
     }
 
     #[test]
@@ -1655,7 +1707,7 @@ mod tests {
         let Json(claimed) = claim_next_task(
             Path("device-1".to_string()),
             State(state.clone()),
-            test_headers(),
+            test_device_headers(&state, "device-1"),
         )
         .await
         .unwrap();
@@ -1685,6 +1737,7 @@ mod tests {
 
         let error = browse_workspace(
             State(state),
+            test_headers(),
             Json(vibe_core::WorkspaceBrowseRequest {
                 device_id: "device-1".to_string(),
                 session_cwd: Some("src".to_string()),
@@ -1712,6 +1765,7 @@ mod tests {
         let browse_task = tokio::spawn(async move {
             browse_workspace(
                 State(browse_state),
+                test_headers(),
                 Json(vibe_core::WorkspaceBrowseRequest {
                     device_id: "device-1".to_string(),
                     session_cwd: Some("src".to_string()),
@@ -1740,6 +1794,7 @@ mod tests {
         complete_workspace_request(
             Path(request_id),
             State(state.clone()),
+            test_device_headers(&state, "device-1"),
             Json(vibe_core::CompleteWorkspaceOperationRequest {
                 device_id: "device-1".to_string(),
                 result: vibe_core::WorkspaceOperationResult::Browse {
@@ -1775,10 +1830,13 @@ mod tests {
     #[tokio::test]
     async fn complete_workspace_request_rejects_device_mismatch() {
         let state = test_state_with_store(RelayStore {
-            devices: HashMap::from([(
-                "device-1".to_string(),
-                test_device("device-1", vec![DeviceCapability::WorkspaceBrowse]),
-            )]),
+            devices: HashMap::from([
+                (
+                    "device-1".to_string(),
+                    test_device("device-1", vec![DeviceCapability::WorkspaceBrowse]),
+                ),
+                ("device-2".to_string(), test_device("device-2", vec![])),
+            ]),
             ..RelayStore::default()
         });
 
@@ -1786,6 +1844,7 @@ mod tests {
         let preview_task = tokio::spawn(async move {
             preview_workspace_file(
                 State(preview_state),
+                test_headers(),
                 Json(vibe_core::WorkspaceFilePreviewRequest {
                     device_id: "device-1".to_string(),
                     session_cwd: Some("src".to_string()),
@@ -1802,6 +1861,7 @@ mod tests {
         let error = complete_workspace_request(
             Path(request_id.clone()),
             State(state.clone()),
+            test_device_headers(&state, "device-2"),
             Json(vibe_core::CompleteWorkspaceOperationRequest {
                 device_id: "device-2".to_string(),
                 result: vibe_core::WorkspaceOperationResult::Error {
@@ -1817,7 +1877,8 @@ mod tests {
 
         complete_workspace_request(
             Path(request_id),
-            State(state),
+            State(state.clone()),
+            test_device_headers(&state, "device-1"),
             Json(vibe_core::CompleteWorkspaceOperationRequest {
                 device_id: "device-1".to_string(),
                 result: vibe_core::WorkspaceOperationResult::Preview {
@@ -1852,6 +1913,7 @@ mod tests {
 
         let error = inspect_git_workspace(
             State(state),
+            test_headers(),
             Json(vibe_core::GitInspectRequest {
                 device_id: "device-1".to_string(),
                 session_cwd: Some("src".to_string()),
@@ -1878,6 +1940,7 @@ mod tests {
         let inspect_task = tokio::spawn(async move {
             inspect_git_workspace(
                 State(inspect_state),
+                test_headers(),
                 Json(vibe_core::GitInspectRequest {
                     device_id: "device-1".to_string(),
                     session_cwd: Some("src".to_string()),
@@ -1902,6 +1965,7 @@ mod tests {
         complete_git_request(
             Path(request_id),
             State(state.clone()),
+            test_device_headers(&state, "device-1"),
             Json(vibe_core::CompleteGitOperationRequest {
                 device_id: "device-1".to_string(),
                 result: vibe_core::GitOperationResult::Inspect {
@@ -1960,10 +2024,13 @@ mod tests {
     #[tokio::test]
     async fn complete_git_request_rejects_device_mismatch() {
         let state = test_state_with_store(RelayStore {
-            devices: HashMap::from([(
-                "device-1".to_string(),
-                test_device("device-1", vec![DeviceCapability::GitInspect]),
-            )]),
+            devices: HashMap::from([
+                (
+                    "device-1".to_string(),
+                    test_device("device-1", vec![DeviceCapability::GitInspect]),
+                ),
+                ("device-2".to_string(), test_device("device-2", vec![])),
+            ]),
             ..RelayStore::default()
         });
 
@@ -1971,6 +2038,7 @@ mod tests {
         let inspect_task = tokio::spawn(async move {
             inspect_git_workspace(
                 State(inspect_state),
+                test_headers(),
                 Json(vibe_core::GitInspectRequest {
                     device_id: "device-1".to_string(),
                     session_cwd: None,
@@ -1984,6 +2052,7 @@ mod tests {
         let error = complete_git_request(
             Path(request_id.clone()),
             State(state.clone()),
+            test_device_headers(&state, "device-2"),
             Json(vibe_core::CompleteGitOperationRequest {
                 device_id: "device-2".to_string(),
                 result: vibe_core::GitOperationResult::Error {
@@ -1999,7 +2068,8 @@ mod tests {
 
         complete_git_request(
             Path(request_id),
-            State(state),
+            State(state.clone()),
+            test_device_headers(&state, "device-1"),
             Json(vibe_core::CompleteGitOperationRequest {
                 device_id: "device-1".to_string(),
                 result: vibe_core::GitOperationResult::Error {
@@ -2778,7 +2848,7 @@ mod tests {
         let Json(claimed) = claim_next_shell_session(
             Path("device-1".to_string()),
             State(state.clone()),
-            test_headers(),
+            test_device_headers(&state, "device-1"),
         )
         .await
         .unwrap();
@@ -3005,7 +3075,7 @@ mod tests {
         let Json(claimed) = claim_next_shell_session(
             Path("device-1".to_string()),
             State(state.clone()),
-            test_headers(),
+            test_device_headers(&state, "device-1"),
         )
         .await
         .unwrap();
@@ -3081,6 +3151,7 @@ mod tests {
                 "{base_url}/api/devices/{}/port-forwards/claim-next",
                 created.forward.device_id
             ))
+            .bearer_auth(test_device_token(&created.forward.device_id))
             .send()
             .await
             .unwrap()
@@ -3099,8 +3170,9 @@ mod tests {
         let ws_url = test_websocket_url(
             &base_url,
             &format!(
-                "/api/port-forwards/{}/tunnel/ws?deviceId=device-1",
-                claimed_forward.id
+                "/api/port-forwards/{}/tunnel/ws?deviceId=device-1&access_token={}",
+                claimed_forward.id,
+                test_device_token("device-1")
             ),
         );
         let (mut ws_stream, _) = connect_async(ws_url.as_str()).await.unwrap();
@@ -3257,7 +3329,7 @@ mod tests {
                     target_host,
                     target_port,
                 } => {
-                    assert_eq!(token, None);
+                    assert_eq!(token, Some(test_device_token("device-1")));
                     assert_eq!(forward_id, expected_forward_id);
                     assert_eq!(target_host, expected_target_host);
                     assert_eq!(target_port, expected_target_port);
@@ -3447,7 +3519,7 @@ mod tests {
         let Json(claimed) = claim_next_port_forward(
             Path("device-1".to_string()),
             State(state.clone()),
-            test_headers(),
+            test_device_headers(&state, "device-1"),
         )
         .await
         .unwrap();
@@ -3531,7 +3603,7 @@ mod tests {
         let Json(detail) = report_port_forward_state(
             Path("forward-1".to_string()),
             State(state.clone()),
-            test_headers(),
+            test_device_headers(&state, "device-1"),
             Json(ReportPortForwardStateRequest {
                 device_id: "device-1".to_string(),
                 status: Some(PortForwardStatus::Closed),
@@ -3718,7 +3790,7 @@ mod tests {
         let Json(claimed) = claim_next_port_forward(
             Path("device-1".to_string()),
             State(state.clone()),
-            test_headers(),
+            test_device_headers(&state, "device-1"),
         )
         .await
         .unwrap();

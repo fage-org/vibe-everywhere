@@ -48,8 +48,19 @@ pub(super) async fn list_port_forwards(
     Query(query): Query<PortForwardListQuery>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<PortForwardRecord>>, ApiError> {
-    let actor = actor_from_headers(&state, &headers);
-    ensure_actor_can_read(&actor)?;
+    let subject = authenticate_control_or_device(&state, &headers, None).await?;
+    let actor = subject.actor().clone();
+    match &subject {
+        AuthenticatedSubject::Control(actor) => ensure_actor_can_read(actor)?,
+        AuthenticatedSubject::Device(device) => {
+            if query.device_id.as_deref() != Some(device.device_id.as_str()) {
+                return Err(ApiError::forbidden(
+                    "device_forbidden",
+                    "The current device credential can only list its own port forwards",
+                ));
+            }
+        }
+    }
 
     let store = state.store.read().await;
     let mut forwards = store
@@ -89,7 +100,7 @@ pub(super) async fn create_port_forward(
     headers: HeaderMap,
     Json(payload): Json<CreatePortForwardRequest>,
 ) -> Result<Json<CreatePortForwardResponse>, ApiError> {
-    let actor = actor_from_headers(&state, &headers);
+    let actor = require_control_actor(&state, &headers, None).await?;
     ensure_actor_can_write(&actor)?;
 
     let (forward, snapshot, start_overlay_proxy) = {
@@ -165,8 +176,11 @@ pub(super) async fn get_port_forward(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<Json<PortForwardDetailResponse>, ApiError> {
-    let actor = actor_from_headers(&state, &headers);
-    ensure_actor_can_read(&actor)?;
+    let subject = authenticate_control_or_device(&state, &headers, None).await?;
+    let actor = subject.actor().clone();
+    if let AuthenticatedSubject::Control(actor) = &subject {
+        ensure_actor_can_read(actor)?;
+    }
 
     let store = state.store.read().await;
     let Some(entry) = store.port_forwards.get(&forward_id) else {
@@ -176,6 +190,14 @@ pub(super) async fn get_port_forward(
         ));
     };
     ensure_tenant_access(&actor, &entry.record.tenant_id)?;
+    if let AuthenticatedSubject::Device(device) = &subject
+        && entry.record.device_id != device.device_id
+    {
+        return Err(ApiError::forbidden(
+            "device_forbidden",
+            "The current device credential cannot access another device port forward",
+        ));
+    }
 
     Ok(Json(PortForwardDetailResponse {
         forward: entry.record.clone(),
@@ -188,8 +210,13 @@ pub(super) async fn report_port_forward_state(
     headers: HeaderMap,
     Json(payload): Json<ReportPortForwardStateRequest>,
 ) -> Result<Json<PortForwardDetailResponse>, ApiError> {
-    let actor = actor_from_headers(&state, &headers);
-    ensure_actor_can_write(&actor)?;
+    let auth = require_device_auth(&state, &headers, None).await?;
+    if payload.device_id != auth.device_id {
+        return Err(ApiError::forbidden(
+            "device_forbidden",
+            "The current device credential cannot report state for another device",
+        ));
+    }
 
     let device_id = {
         let store = state.store.read().await;
@@ -199,7 +226,13 @@ pub(super) async fn report_port_forward_state(
                 "Port forward not found",
             ));
         };
-        ensure_tenant_access(&actor, &entry.record.tenant_id)?;
+        ensure_tenant_access(&auth.actor, &entry.record.tenant_id)?;
+        if entry.record.device_id != auth.device_id {
+            return Err(ApiError::forbidden(
+                "device_forbidden",
+                "The current device credential cannot report state for another device",
+            ));
+        }
         entry.record.device_id.clone()
     };
 
@@ -229,9 +262,9 @@ pub(super) async fn port_forward_tunnel_websocket(
     ws: WebSocketUpgrade,
     State(state): State<AppState>,
     headers: HeaderMap,
+    uri: Uri,
 ) -> Result<Response, ApiError> {
-    let actor = actor_from_headers(&state, &headers);
-    ensure_actor_can_read(&actor)?;
+    let auth = require_device_auth(&state, &headers, Some(&uri)).await?;
 
     let device_id = query
         .device_id
@@ -251,8 +284,8 @@ pub(super) async fn port_forward_tunnel_websocket(
                 "Port forward not found",
             ));
         };
-        ensure_tenant_access(&actor, &entry.record.tenant_id)?;
-        if entry.record.device_id != device_id {
+        ensure_tenant_access(&auth.actor, &entry.record.tenant_id)?;
+        if entry.record.device_id != device_id || auth.device_id != device_id {
             return Err(ApiError::conflict(
                 "device_mismatch",
                 "Port forward device does not match tunnel source",
@@ -468,8 +501,8 @@ pub(super) async fn claim_next_port_forward(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<Json<ClaimPortForwardResponse>, ApiError> {
-    let actor = actor_from_headers(&state, &headers);
-    ensure_actor_can_write(&actor)?;
+    let auth = require_device_auth(&state, &headers, None).await?;
+    ensure_authenticated_device_matches(&auth, &device_id)?;
 
     let mut store = state.store.write().await;
     let Some(device) = store.devices.get(&device_id) else {
@@ -478,14 +511,14 @@ pub(super) async fn claim_next_port_forward(
             "Device not found; register device first",
         ));
     };
-    ensure_tenant_access(&actor, &device.tenant_id)?;
+    ensure_tenant_access(&auth.actor, &device.tenant_id)?;
 
     let mut next_forwards = store
         .port_forwards
         .values()
         .filter(|entry| {
             entry.record.device_id == device_id
-                && entry.record.tenant_id == actor.tenant_id
+                && entry.record.tenant_id == auth.actor.tenant_id
                 && entry.record.status == PortForwardStatus::Pending
                 && entry.record.transport == PortForwardTransportKind::RelayTunnel
         })
@@ -526,7 +559,7 @@ pub(super) async fn close_port_forward(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<Json<PortForwardDetailResponse>, ApiError> {
-    let actor = actor_from_headers(&state, &headers);
+    let actor = require_control_actor(&state, &headers, None).await?;
     ensure_actor_can_write(&actor)?;
 
     let mut store = state.store.write().await;
@@ -708,7 +741,7 @@ async fn run_overlay_port_forward_inner(state: &AppState, forward_id: &str) -> a
                     stream,
                     forward.device_id.clone(),
                     node_ip.clone(),
-                    state.config.access_token.clone(),
+                    load_device_credential(&state, &forward.device_id).await,
                     forward.clone(),
                     connection_id,
                     client_events_tx.clone(),

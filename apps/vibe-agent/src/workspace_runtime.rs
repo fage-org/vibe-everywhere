@@ -21,6 +21,7 @@ pub(crate) async fn workspace_loop(
     client: reqwest::Client,
     relay_url: String,
     profile: AgentProfile,
+    auth: AgentAuthState,
     shared: SharedState,
     working_root: PathBuf,
     poll_interval_ms: u64,
@@ -30,11 +31,12 @@ pub(crate) async fn workspace_loop(
     loop {
         interval.tick().await;
 
-        match claim_next_workspace_request(&client, &relay_url, &profile.device_id).await {
+        match claim_next_workspace_request(&client, &relay_url, &profile.device_id, &auth).await {
             Ok(ClaimNextWorkspaceOutcome::Request(Some(request))) => {
                 let workspace_client = client.clone();
                 let workspace_relay_url = relay_url.clone();
                 let workspace_device_id = profile.device_id.clone();
+                let workspace_auth = auth.clone();
                 let workspace_working_root = working_root.clone();
                 tokio::spawn(async move {
                     let request_id = request.id().to_string();
@@ -42,6 +44,7 @@ pub(crate) async fn workspace_loop(
                         workspace_client,
                         workspace_relay_url,
                         workspace_device_id,
+                        workspace_auth,
                         workspace_working_root,
                         request,
                     )
@@ -58,7 +61,7 @@ pub(crate) async fn workspace_loop(
                     profile.device_id
                 );
                 if let Err(error) =
-                    register_current_device(&client, &relay_url, &profile, &shared).await
+                    register_current_device(&client, &relay_url, &profile, &shared, &auth).await
                 {
                     eprintln!("device re-registration failed: {error:#}");
                 }
@@ -74,10 +77,11 @@ async fn claim_next_workspace_request(
     client: &reqwest::Client,
     relay_url: &str,
     device_id: &str,
+    auth: &AgentAuthState,
 ) -> Result<ClaimNextWorkspaceOutcome> {
     let endpoint = format!("{relay_url}/api/devices/{device_id}/workspace/claim-next");
-    let response = client
-        .post(endpoint)
+    let device_credential = auth.device_credential().await;
+    let response = with_bearer(client.post(endpoint), device_credential.as_deref())
         .send()
         .await
         .context("failed to claim workspace request")?;
@@ -100,6 +104,7 @@ async fn run_workspace_request(
     client: reqwest::Client,
     relay_url: String,
     device_id: String,
+    auth: AgentAuthState,
     working_root: PathBuf,
     request: WorkspaceOperationRequest,
 ) -> Result<()> {
@@ -138,7 +143,7 @@ async fn run_workspace_request(
         message: error.to_string(),
     });
 
-    complete_workspace_request(&client, &relay_url, &request_id, &device_id, result).await
+    complete_workspace_request(&client, &relay_url, &request_id, &device_id, result, &auth).await
 }
 
 fn handle_workspace_browse(
@@ -276,10 +281,11 @@ async fn complete_workspace_request(
     request_id: &str,
     device_id: &str,
     result: WorkspaceOperationResult,
+    auth: &AgentAuthState,
 ) -> Result<()> {
     let endpoint = format!("{relay_url}/api/workspace/requests/{request_id}/complete");
-    client
-        .post(endpoint)
+    let device_credential = auth.device_credential().await;
+    with_bearer(client.post(endpoint), device_credential.as_deref())
         .json(&CompleteWorkspaceOperationRequest {
             device_id: device_id.to_string(),
             result,

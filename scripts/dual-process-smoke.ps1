@@ -77,6 +77,9 @@ function Invoke-JsonRequest {
     Uri = $Uri
     Method = $Method
     TimeoutSec = 5
+    Headers = @{
+      Authorization = "Bearer $ControlToken"
+    }
   }
   if ($InvokeRestMethodSupportsNoProxy) {
     $invokeArgs.NoProxy = $true
@@ -179,12 +182,24 @@ try {
   $BaseUrl = "http://$HostIp`:$RelayPort"
   $DeviceId = "smoke-agent"
   $DeviceName = "Windows Smoke Agent"
+  $ControlToken = if ($env:VIBE_TEST_RELAY_ACCESS_TOKEN) {
+    $env:VIBE_TEST_RELAY_ACCESS_TOKEN
+  } else {
+    "smoke-control-token"
+  }
+  $EnrollmentToken = if ($env:VIBE_TEST_RELAY_ENROLLMENT_TOKEN) {
+    $env:VIBE_TEST_RELAY_ENROLLMENT_TOKEN
+  } else {
+    "smoke-enrollment-token"
+  }
   $RelayStdout = Join-Path $TmpDir "relay.stdout.log"
   $RelayStderr = Join-Path $TmpDir "relay.stderr.log"
   $AgentStdout = Join-Path $TmpDir "agent.stdout.log"
   $AgentStderr = Join-Path $TmpDir "agent.stderr.log"
   $FakeCodex = Join-Path $TmpDir "fake-codex.cmd"
   $PackageDir = Join-Path $TmpDir "windows-cli-package"
+  $AgentWorkingRoot = Join-Path $TmpDir "agent-working-root"
+  New-Item -ItemType Directory -Force -Path $AgentWorkingRoot | Out-Null
 
   Write-Host "building vibe-agent and vibe-relay binaries"
   Push-Location $RootDir
@@ -218,6 +233,8 @@ exit /b 0
     VIBE_RELAY_STATE_FILE = (Join-Path $TmpDir "relay-state.json")
     VIBE_RELAY_FORWARD_HOST = $HostIp
     VIBE_RELAY_FORWARD_BIND_HOST = $HostIp
+    VIBE_RELAY_ACCESS_TOKEN = $ControlToken
+    VIBE_RELAY_ENROLLMENT_TOKEN = $EnrollmentToken
   }
   $RelayProcess = Start-LoggedProcess `
     -FilePath (Join-Path $PackageDir "vibe-relay.exe") `
@@ -253,7 +270,8 @@ exit /b 0
     VIBE_RELAY_URL = $BaseUrl
     VIBE_DEVICE_ID = $DeviceId
     VIBE_DEVICE_NAME = $DeviceName
-    VIBE_WORKING_ROOT = $RootDir
+    VIBE_WORKING_ROOT = $AgentWorkingRoot
+    VIBE_RELAY_ENROLLMENT_TOKEN = $EnrollmentToken
     VIBE_POLL_INTERVAL_MS = "200"
     VIBE_HEARTBEAT_INTERVAL_MS = "500"
     VIBE_CODEX_COMMAND = $FakeCodex

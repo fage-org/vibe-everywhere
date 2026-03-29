@@ -9,6 +9,7 @@ use vibe_core::{
 pub(crate) struct RelayConfig {
     pub(crate) public_base_url: String,
     pub(crate) access_token: Option<String>,
+    pub(crate) enrollment_token: Option<String>,
     pub(crate) state_file: PathBuf,
     pub(crate) forward_host: String,
     pub(crate) forward_bind_host: String,
@@ -35,6 +36,10 @@ impl RelayConfig {
         Self {
             public_base_url: public_base_url.clone(),
             access_token: std::env::var("VIBE_RELAY_ACCESS_TOKEN")
+                .ok()
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty()),
+            enrollment_token: std::env::var("VIBE_RELAY_ENROLLMENT_TOKEN")
                 .ok()
                 .map(|value| value.trim().to_string())
                 .filter(|value| !value.is_empty()),

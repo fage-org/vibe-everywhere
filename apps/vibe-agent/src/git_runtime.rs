@@ -26,6 +26,7 @@ pub(crate) async fn git_loop(
     client: reqwest::Client,
     relay_url: String,
     profile: AgentProfile,
+    auth: AgentAuthState,
     shared: SharedState,
     working_root: PathBuf,
     poll_interval_ms: u64,
@@ -35,11 +36,12 @@ pub(crate) async fn git_loop(
     loop {
         interval.tick().await;
 
-        match claim_next_git_request(&client, &relay_url, &profile.device_id).await {
+        match claim_next_git_request(&client, &relay_url, &profile.device_id, &auth).await {
             Ok(ClaimNextGitOutcome::Request(Some(request))) => {
                 let git_client = client.clone();
                 let git_relay_url = relay_url.clone();
                 let git_device_id = profile.device_id.clone();
+                let git_auth = auth.clone();
                 let git_working_root = working_root.clone();
                 tokio::spawn(async move {
                     let request_id = request.id().to_string();
@@ -47,6 +49,7 @@ pub(crate) async fn git_loop(
                         git_client,
                         git_relay_url,
                         git_device_id,
+                        git_auth,
                         git_working_root,
                         request,
                     )
@@ -63,7 +66,7 @@ pub(crate) async fn git_loop(
                     profile.device_id
                 );
                 if let Err(error) =
-                    register_current_device(&client, &relay_url, &profile, &shared).await
+                    register_current_device(&client, &relay_url, &profile, &shared, &auth).await
                 {
                     eprintln!("device re-registration failed: {error:#}");
                 }
@@ -79,10 +82,11 @@ async fn claim_next_git_request(
     client: &reqwest::Client,
     relay_url: &str,
     device_id: &str,
+    auth: &AgentAuthState,
 ) -> Result<ClaimNextGitOutcome> {
     let endpoint = format!("{relay_url}/api/devices/{device_id}/git/claim-next");
-    let response = client
-        .post(endpoint)
+    let device_credential = auth.device_credential().await;
+    let response = with_bearer(client.post(endpoint), device_credential.as_deref())
         .send()
         .await
         .context("failed to claim git request")?;
@@ -105,6 +109,7 @@ async fn run_git_request(
     client: reqwest::Client,
     relay_url: String,
     device_id: String,
+    auth: AgentAuthState,
     working_root: PathBuf,
     request: GitOperationRequest,
 ) -> Result<()> {
@@ -121,7 +126,7 @@ async fn run_git_request(
         message: error.to_string(),
     });
 
-    complete_git_request(&client, &relay_url, &request_id, &device_id, result).await
+    complete_git_request(&client, &relay_url, &request_id, &device_id, result, &auth).await
 }
 
 fn handle_git_inspect(
@@ -224,10 +229,11 @@ async fn complete_git_request(
     request_id: &str,
     device_id: &str,
     result: GitOperationResult,
+    auth: &AgentAuthState,
 ) -> Result<()> {
     let endpoint = format!("{relay_url}/api/git/requests/{request_id}/complete");
-    client
-        .post(endpoint)
+    let device_credential = auth.device_credential().await;
+    with_bearer(client.post(endpoint), device_credential.as_deref())
         .json(&CompleteGitOperationRequest {
             device_id: device_id.to_string(),
             result,
