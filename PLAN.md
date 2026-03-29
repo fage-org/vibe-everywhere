@@ -20,8 +20,8 @@ The active plan set is:
 
 - planning index: [`docs/plans/README.md`](./docs/plans/README.md)
 - process governance: [`docs/plans/process.md`](./docs/plans/process.md)
-- active iteration summary: [`docs/plans/iterations/v4-summary.md`](./docs/plans/iterations/v4-summary.md)
-- active iteration details: [`docs/plans/iterations/v4-details.md`](./docs/plans/iterations/v4-details.md)
+- active iteration summary: [`docs/plans/iterations/v5-summary.md`](./docs/plans/iterations/v5-summary.md)
+- active iteration details: [`docs/plans/iterations/v5-details.md`](./docs/plans/iterations/v5-details.md)
 - active remediation summary: [`docs/plans/remediation/v11-summary.md`](./docs/plans/remediation/v11-summary.md)
 - active remediation details: [`docs/plans/remediation/v11-details.md`](./docs/plans/remediation/v11-details.md)
 
@@ -151,14 +151,15 @@ When an iteration is completed and verified:
 | 12 | Delivery Verification Hardening | completed |
 | 13 | Workflow And Release Verification Normalization | completed |
 | 14 | Session-First Primary Workflow Productization | completed |
+| 15 | Conversation-First Threaded AI Sessions | in_progress |
 
 ## Current Iteration
 
 Current planned implementation target:
 
 - Iteration 0 through Iteration 11 are completed for the current roadmap baseline.
-- Iteration roadmap `v4` is active for session-first primary workflow productization after the
-  workflow and release verification normalization epoch.
+- Iteration roadmap `v5` is active for the conversation-first remote coding workspace epoch after
+  the session-first primary workflow consolidation.
 - Iteration 12 completed the first delivery-verification hardening phase, including Windows smoke
   coverage and the initial hosted Linux overlay diagnostic split.
 - Iteration 13 restores GitHub-hosted Linux `overlay` smoke as a blocking gate in both `CI` and
@@ -167,6 +168,16 @@ Current planned implementation target:
 - Iteration 14 consolidates relay connection, device selection, session launch, Git/result review,
   and workspace browsing into the `Sessions` route, redirects the legacy `Connections` route into
   that primary workflow, and moves deployment/current-client/governance context into `Devices`.
+- Iteration 15 is in progress for durable conversations, provider-native threaded continuation,
+  inline user-choice prompts, and truthful ACP capability signaling where only OpenCode is
+  currently advertised as standard ACP.
+- Iteration 15 also now tracks ACP completion follow-up explicitly: stable OpenCode session-update
+  coverage and stored-session validation are implemented, while authenticated startup, richer
+  transcript-safe session lifecycle support, and extension methods remain queued in the active v5
+  detail plan.
+- Iteration 15 now uses `user-specified` Mode 3 for ACP continuation: prefer standard
+  `session/resume` when the agent advertises it, and avoid `session/load` on the hot conversation
+  path because it replays prior messages into the current transcript model.
 - The active remediation track remains the problem-driven remediation plan in
   `docs/plans/remediation/v11-summary.md`.
 - Remediation plan `v1` is complete.
@@ -368,6 +379,24 @@ Most recent completed tranche:
 - Dependencies: Iteration roadmap `v3`.
 - Notes: completed on 2026-03-29 after local compile and frontend build validation succeeded.
 
+### Iteration 15: Conversation-First Threaded AI Sessions
+
+- Objective: replace the session-monitoring dashboard with a durable conversation-first remote
+  coding workspace.
+- Scope summary: add persisted conversations and linked task runs, continue supported providers by
+  native session/thread handle instead of history replay, move Git/files/raw trace into secondary
+  inspectors, and surface provider choice prompts inline with option chips plus custom input.
+- Key deliverables: conversation relay APIs and storage, provider-native resume plumbing for
+  supported providers, chat-first `Sessions` UI, one-time connect gate behavior, and inline
+  interaction responses.
+- Exit criteria: users can reopen long-lived conversations, send follow-up turns into the same
+  provider-native thread, answer provider choice prompts inline, and keep diagnostics secondary to
+  the transcript.
+- Dependencies: Iteration roadmap `v4`.
+- Notes: started on 2026-03-29 as roadmap version `v5` with user-specified Mode C; core
+  implementation landed the same day with automated validation complete and targeted manual QA
+  still pending.
+
 ## Completed Foundation Work
 
 The repository already completed substantial groundwork before this product plan replaced the old
@@ -388,6 +417,12 @@ These items are treated as completed foundation work, not future roadmap items.
 - 2026-03-27: Added `docs/iteration-specs.md` as the decision-complete per-iteration implementation document.
 - 2026-03-27: Marked Iteration 0 as completed and set Iteration 1 as the next execution target.
 - 2026-03-27: Added hardening rules that forbid hardcoded relay addresses, locale strings, and theme/config behavior in future iterations.
+- 2026-03-29: Started iteration roadmap `v5` to replace the session dashboard with a
+  conversation-first threaded remote coding model.
+- 2026-03-29: Landed durable conversation storage and APIs, provider-native resume plumbing, and
+  a chat-first `Sessions` UI with inline provider choice responses for Iteration 15.
+- 2026-03-29: Updated `README.md`, `README.en.md`, `TESTING.md`, and `AGENTS.md` to match the
+  conversation-first product model and long-term UI guardrails.
 - 2026-03-27: Completed Iteration 1 by restructuring the dashboard into a device rail, AI session list, and session workspace instead of three equal low-level panels.
 - 2026-03-27: Demoted terminal and preview tunnel flows into an advanced tools section while preserving the existing shell and port-forward backend paths.
 - 2026-03-27: Updated `README.md` and `README.en.md` to describe the product as an AI-session-first remote development control plane.
@@ -680,6 +715,16 @@ These items are treated as completed foundation work, not future roadmap items.
   session-first primary workflow productization changes.
 - 2026-03-29: `./scripts/render-release-notes.sh v0.0.0 >/dev/null` succeeded after the Iteration
   14 release-note updates.
+- 2026-03-29: `cargo check -p vibe-relay -p vibe-agent` succeeded after the Iteration 15
+  conversation/thread persistence and provider-native resume changes.
+- 2026-03-29: `cargo test --workspace --all-targets -- --nocapture` succeeded after the Iteration
+  15 conversation/thread persistence and provider-native resume changes.
+- 2026-03-29: `cd apps/vibe-app && npm run build` succeeded after the Iteration 15
+  conversation-first `Sessions` UI rewrite.
+- 2026-03-29: `./scripts/dual-process-smoke.sh relay_polling` succeeded after the Iteration 15
+  conversation/thread persistence and provider-native resume changes.
+- 2026-03-29: `./scripts/dual-process-smoke.sh overlay` succeeded after the Iteration 15
+  conversation/thread persistence and provider-native resume changes.
 - 2026-03-29: `cargo fmt --all --check` succeeded after Remediation v10 relay and agent
   auth-boundary hardening.
 - 2026-03-29: `cargo check -p vibe-relay -p vibe-agent -p vibe-app` succeeded after Remediation

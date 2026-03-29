@@ -15,8 +15,11 @@ pub(crate) fn build_provider_command(
 
     match task.provider {
         ProviderKind::Codex => {
+            command.arg("exec");
+            if let Some(session_id) = task.provider_session_id.as_deref() {
+                command.arg("resume").arg(session_id);
+            }
             command
-                .arg("exec")
                 .arg("--json")
                 .arg("--skip-git-repo-check")
                 .arg("--full-auto")
@@ -28,9 +31,11 @@ pub(crate) fn build_provider_command(
             command.arg(&task.prompt);
         }
         ProviderKind::ClaudeCode => {
+            command.arg("-p");
+            if let Some(session_id) = task.provider_session_id.as_deref() {
+                command.arg("--resume").arg(session_id);
+            }
             command
-                .arg("-p")
-                .arg(&task.prompt)
                 .arg("--output-format")
                 .arg("stream-json")
                 .arg("--verbose")
@@ -54,9 +59,15 @@ pub(crate) fn build_provider_command(
             if let Some(model) = &task.model {
                 command.arg("--model").arg(model);
             }
+            command.arg(&task.prompt);
         }
         ProviderKind::OpenCode => {
             command.arg("run");
+            if let Some(session_id) = task.provider_session_id.as_deref() {
+                command.arg("--session").arg(session_id);
+            } else {
+                command.arg("--title").arg(&task.title);
+            }
             if let Some(model) = &task.model {
                 command.arg("--model").arg(model);
             }
@@ -99,7 +110,7 @@ pub(crate) fn acp_update_to_events(params: &Value) -> Vec<TaskEventInput> {
         "user_message_chunk" => {
             text_events_from_content(update.get("content"), TaskEventKind::System)
         }
-        "thought_message_chunk" => {
+        "agent_thought_chunk" | "thought_message_chunk" => {
             text_events_from_content(update.get("content"), TaskEventKind::Status)
         }
         "tool_call" => vec![TaskEventInput {
@@ -121,6 +132,18 @@ pub(crate) fn acp_update_to_events(params: &Value) -> Vec<TaskEventInput> {
         "plan" => vec![TaskEventInput {
             kind: TaskEventKind::Status,
             message: format_plan_update(update),
+        }],
+        "session_info_update" => vec![TaskEventInput {
+            kind: TaskEventKind::System,
+            message: format_session_info_update(update),
+        }],
+        "usage_update" => vec![TaskEventInput {
+            kind: TaskEventKind::Status,
+            message: format_usage_update(update),
+        }],
+        "available_commands_update" => vec![TaskEventInput {
+            kind: TaskEventKind::System,
+            message: format_available_commands_update(update),
         }],
         "config_option_update" => vec![TaskEventInput {
             kind: TaskEventKind::System,
@@ -157,6 +180,17 @@ pub(crate) fn provider_stdout_to_task_events(
     }
 }
 
+pub(crate) fn provider_stdout_session_id(
+    provider_kind: &ProviderKind,
+    line: &str,
+) -> Option<String> {
+    match provider_kind {
+        ProviderKind::Codex => codex_jsonl_session_id(line),
+        ProviderKind::ClaudeCode => claude_jsonl_session_id(line),
+        ProviderKind::OpenCode => None,
+    }
+}
+
 pub(crate) fn claude_jsonl_to_task_events(line: &str) -> Vec<TaskEventInput> {
     let message = match serde_json::from_str::<Value>(line) {
         Ok(value) => value,
@@ -185,6 +219,20 @@ pub(crate) fn claude_jsonl_to_task_events(line: &str) -> Vec<TaskEventInput> {
             message: format!("Claude event {event_type}: {}", compact_json(&message)),
         }],
     }
+}
+
+fn claude_jsonl_session_id(line: &str) -> Option<String> {
+    let message = serde_json::from_str::<Value>(line).ok()?;
+    if message.get("type").and_then(Value::as_str) != Some("system") {
+        return None;
+    }
+    if message.get("subtype").and_then(Value::as_str) != Some("init") {
+        return None;
+    }
+    message
+        .get("session_id")
+        .and_then(Value::as_str)
+        .map(str::to_string)
 }
 
 pub(crate) fn codex_jsonl_to_task_events(line: &str) -> Vec<TaskEventInput> {
@@ -241,6 +289,17 @@ pub(crate) fn codex_jsonl_to_task_events(line: &str) -> Vec<TaskEventInput> {
     }
 }
 
+fn codex_jsonl_session_id(line: &str) -> Option<String> {
+    let message = serde_json::from_str::<Value>(line).ok()?;
+    if message.get("type").and_then(Value::as_str) != Some("thread.started") {
+        return None;
+    }
+    message
+        .get("thread_id")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+}
+
 struct ProviderDefinition {
     kind: ProviderKind,
     command_env: &'static str,
@@ -293,7 +352,7 @@ fn detect_provider(
 }
 
 fn advertised_execution_protocol(kind: ProviderKind, supports_acp: bool) -> ExecutionProtocol {
-    if supports_acp && matches!(kind, ProviderKind::OpenCode | ProviderKind::Codex) {
+    if supports_acp && matches!(kind, ProviderKind::OpenCode) {
         ExecutionProtocol::Acp
     } else {
         ExecutionProtocol::Cli
@@ -306,7 +365,7 @@ fn provider_definitions() -> Vec<ProviderDefinition> {
             kind: ProviderKind::Codex,
             command_env: "VIBE_CODEX_COMMAND",
             default_command: "codex",
-            supports_acp: true,
+            supports_acp: false,
         },
         ProviderDefinition {
             kind: ProviderKind::ClaudeCode,
@@ -431,6 +490,92 @@ fn format_plan_update(update: &Value) -> String {
         }
     }
     compact_json(update)
+}
+
+fn format_available_commands_update(update: &Value) -> String {
+    let commands = update
+        .get("availableCommands")
+        .or_else(|| update.get("available_commands"))
+        .and_then(Value::as_array);
+    let Some(commands) = commands else {
+        return compact_json(update);
+    };
+
+    let rendered = commands
+        .iter()
+        .filter_map(|command| {
+            let name = command.get("name").and_then(Value::as_str)?.trim();
+            if name.is_empty() {
+                return None;
+            }
+            let description = command
+                .get("description")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .unwrap_or_default();
+            Some(if description.is_empty() {
+                name.to_string()
+            } else {
+                format!("{name}: {description}")
+            })
+        })
+        .collect::<Vec<_>>();
+
+    if rendered.is_empty() {
+        compact_json(update)
+    } else {
+        format!("ACP available commands: {}", rendered.join(", "))
+    }
+}
+
+fn format_session_info_update(update: &Value) -> String {
+    let mut parts = Vec::new();
+
+    if let Some(title) = update.get("title") {
+        match title {
+            Value::Null => parts.push("title cleared".to_string()),
+            Value::String(value) if !value.trim().is_empty() => {
+                parts.push(format!("title={}", value.trim()))
+            }
+            _ => {}
+        }
+    }
+
+    if let Some(updated_at) = update.get("updatedAt") {
+        match updated_at {
+            Value::Null => parts.push("updated_at cleared".to_string()),
+            Value::String(value) if !value.trim().is_empty() => {
+                parts.push(format!("updated_at={}", value.trim()))
+            }
+            _ => {}
+        }
+    }
+
+    if parts.is_empty() {
+        compact_json(update)
+    } else {
+        format!("ACP session info updated: {}", parts.join(", "))
+    }
+}
+
+fn format_usage_update(update: &Value) -> String {
+    let (Some(used), Some(size)) = (
+        update.get("used").and_then(Value::as_u64),
+        update.get("size").and_then(Value::as_u64),
+    ) else {
+        return compact_json(update);
+    };
+
+    let mut message = format!("ACP session usage: {used}/{size} tokens in context");
+    if let Some(cost) = update.get("cost").and_then(Value::as_object) {
+        if let (Some(amount), Some(currency)) = (
+            cost.get("amount").and_then(Value::as_f64),
+            cost.get("currency").and_then(Value::as_str),
+        ) {
+            message.push_str(&format!(" cost={amount:.4} {currency}"));
+        }
+    }
+    message
 }
 
 fn format_config_update(update: &Value) -> String {
@@ -767,4 +912,112 @@ fn codex_item_summary(item_type: &str, item: &Value, started: bool) -> String {
 
 fn compact_json(value: &Value) -> String {
     serde_json::to_string(value).unwrap_or_else(|_| "{}".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn codex_is_no_longer_advertised_as_acp() {
+        let codex = provider_definitions()
+            .into_iter()
+            .find(|definition| definition.kind == ProviderKind::Codex)
+            .expect("codex provider definition");
+
+        assert!(!codex.supports_acp);
+        assert_eq!(
+            advertised_execution_protocol(codex.kind, codex.supports_acp),
+            ExecutionProtocol::Cli
+        );
+    }
+
+    #[test]
+    fn opencode_remains_advertised_as_acp() {
+        let opencode = provider_definitions()
+            .into_iter()
+            .find(|definition| definition.kind == ProviderKind::OpenCode)
+            .expect("opencode provider definition");
+
+        assert!(opencode.supports_acp);
+        assert_eq!(
+            advertised_execution_protocol(opencode.kind, opencode.supports_acp),
+            ExecutionProtocol::Acp
+        );
+    }
+
+    #[test]
+    fn stable_agent_thought_chunk_maps_to_status_event() {
+        let events = acp_update_to_events(&json!({
+            "update": {
+                "sessionUpdate": "agent_thought_chunk",
+                "content": [{"type": "text", "text": "thinking"}]
+            }
+        }));
+
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].kind, TaskEventKind::Status);
+        assert_eq!(events[0].message, "thinking");
+    }
+
+    #[test]
+    fn available_commands_update_maps_to_system_event() {
+        let events = acp_update_to_events(&json!({
+            "update": {
+                "sessionUpdate": "available_commands_update",
+                "availableCommands": [
+                    {
+                        "name": "create_plan",
+                        "description": "Draft a plan for the task"
+                    },
+                    {
+                        "name": "fix_tests",
+                        "description": "Repair failing tests"
+                    }
+                ]
+            }
+        }));
+
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].kind, TaskEventKind::System);
+        assert!(events[0].message.contains("create_plan"));
+        assert!(events[0].message.contains("fix_tests"));
+    }
+
+    #[test]
+    fn session_info_update_maps_to_system_event() {
+        let events = acp_update_to_events(&json!({
+            "update": {
+                "sessionUpdate": "session_info_update",
+                "title": "Refactor auth",
+                "updatedAt": "2026-03-29T10:11:12Z"
+            }
+        }));
+
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].kind, TaskEventKind::System);
+        assert!(events[0].message.contains("Refactor auth"));
+        assert!(events[0].message.contains("2026-03-29T10:11:12Z"));
+    }
+
+    #[test]
+    fn usage_update_maps_to_status_event() {
+        let events = acp_update_to_events(&json!({
+            "update": {
+                "sessionUpdate": "usage_update",
+                "used": 4096,
+                "size": 128000,
+                "cost": {
+                    "amount": 1.23,
+                    "currency": "USD"
+                }
+            }
+        }));
+
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].kind, TaskEventKind::Status);
+        assert!(events[0].message.contains("4096/128000"));
+        assert!(events[0].message.contains("USD"));
+    }
 }

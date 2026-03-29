@@ -9,6 +9,7 @@ export type TaskStatus =
   | "pending"
   | "assigned"
   | "running"
+  | "waiting_input"
   | "cancel_requested"
   | "succeeded"
   | "failed"
@@ -85,12 +86,15 @@ export type TaskRecord = {
   userId: string;
   id: string;
   deviceId: string;
+  conversationId: string | null;
   title: string;
   provider: ProviderKind;
   executionProtocol: ExecutionProtocol;
   prompt: string;
   cwd: string | null;
   model: string | null;
+  providerSessionId: string | null;
+  pendingInputRequestId: string | null;
   status: TaskStatus;
   cancelRequested: boolean;
   createdAtEpochMs: number;
@@ -113,6 +117,55 @@ export type TaskEvent = {
 export type TaskDetailResponse = {
   task: TaskRecord;
   events: TaskEvent[];
+  pendingInputRequest: ConversationInputRequest | null;
+};
+
+export type ConversationRecord = {
+  tenantId: string;
+  userId: string;
+  id: string;
+  deviceId: string;
+  title: string;
+  provider: ProviderKind;
+  executionProtocol: ExecutionProtocol;
+  cwd: string | null;
+  model: string | null;
+  providerSessionId: string | null;
+  latestTaskId: string | null;
+  pendingInputRequestId: string | null;
+  archived: boolean;
+  createdAtEpochMs: number;
+  updatedAtEpochMs: number;
+};
+
+export type ConversationInputOption = {
+  id: string;
+  label: string;
+  description: string | null;
+  requiresTextInput: boolean;
+};
+
+export type ConversationInputRequestStatus = "pending" | "answered" | "canceled";
+
+export type ConversationInputRequest = {
+  id: string;
+  conversationId: string;
+  taskId: string;
+  prompt: string;
+  options: ConversationInputOption[];
+  allowCustomInput: boolean;
+  customInputPlaceholder: string | null;
+  status: ConversationInputRequestStatus;
+  selectedOptionId: string | null;
+  responseText: string | null;
+  createdAtEpochMs: number;
+  answeredAtEpochMs: number | null;
+};
+
+export type ConversationDetailResponse = {
+  conversation: ConversationRecord;
+  tasks: TaskDetailResponse[];
+  pendingInputRequest: ConversationInputRequest | null;
 };
 
 export type ShellTransportKind = "relay_polling" | "overlay_proxy";
@@ -368,6 +421,36 @@ export type CreateTaskPayload = {
   cwd?: string;
   model?: string;
   title?: string;
+};
+
+export type CreateConversationPayload = {
+  deviceId: string;
+  provider: ProviderKind;
+  prompt: string;
+  cwd?: string;
+  model?: string;
+  title?: string;
+};
+
+export type CreateConversationResponse = {
+  conversation: ConversationRecord;
+  task: TaskRecord;
+};
+
+export type SendConversationMessagePayload = {
+  prompt: string;
+  model?: string;
+  title?: string;
+};
+
+export type SendConversationMessageResponse = {
+  conversation: ConversationRecord;
+  task: TaskRecord;
+};
+
+export type RespondConversationInputPayload = {
+  optionId?: string;
+  text?: string;
 };
 
 export type CreateShellSessionPayload = {

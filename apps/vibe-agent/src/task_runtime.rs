@@ -50,6 +50,7 @@ impl TaskCompletion {
 pub(crate) struct TaskExecutionUpdate {
     pub(crate) status: Option<TaskStatus>,
     pub(crate) execution_protocol: Option<ExecutionProtocol>,
+    pub(crate) provider_session_id: Option<String>,
     pub(crate) events: Vec<TaskEventInput>,
     pub(crate) exit_code: Option<i32>,
     pub(crate) error: Option<String>,
@@ -60,6 +61,7 @@ impl TaskExecutionUpdate {
         Self {
             status: None,
             execution_protocol: None,
+            provider_session_id: None,
             events: vec![TaskEventInput {
                 kind,
                 message: message.into(),
@@ -75,6 +77,17 @@ pub(crate) trait TaskExecutionSink {
     async fn push_update(&mut self, update: TaskExecutionUpdate) -> Result<()>;
 
     async fn is_cancel_requested(&mut self) -> Result<bool>;
+
+    async fn create_input_request(
+        &mut self,
+        _request: CreateConversationInputRequest,
+    ) -> Result<ConversationInputRequest> {
+        bail!("interactive input requests are not supported by this task sink")
+    }
+
+    async fn fetch_input_request(&mut self, _request_id: &str) -> Result<ConversationInputRequest> {
+        bail!("interactive input requests are not supported by this task sink")
+    }
 
     async fn push_event(&mut self, kind: TaskEventKind, message: impl Into<String>) -> Result<()> {
         self.push_update(TaskExecutionUpdate::event(kind, message))
@@ -101,6 +114,7 @@ impl TaskExecutionSink for RelayTaskExecutionSink<'_> {
                 device_id: self.device_id.to_string(),
                 status: update.status,
                 execution_protocol: update.execution_protocol,
+                provider_session_id: update.provider_session_id,
                 events: update.events,
                 exit_code: update.exit_code,
                 error: update.error,
@@ -111,6 +125,31 @@ impl TaskExecutionSink for RelayTaskExecutionSink<'_> {
 
     async fn is_cancel_requested(&mut self) -> Result<bool> {
         is_task_cancel_requested(self.client, self.relay_url, self.task_id, self.auth).await
+    }
+
+    async fn create_input_request(
+        &mut self,
+        request: CreateConversationInputRequest,
+    ) -> Result<ConversationInputRequest> {
+        create_task_input_request(
+            self.client,
+            self.relay_url,
+            self.task_id,
+            self.auth,
+            request,
+        )
+        .await
+    }
+
+    async fn fetch_input_request(&mut self, request_id: &str) -> Result<ConversationInputRequest> {
+        fetch_task_input_request(
+            self.client,
+            self.relay_url,
+            self.task_id,
+            request_id,
+            self.auth,
+        )
+        .await
     }
 }
 
@@ -130,6 +169,12 @@ struct ManagedTerminal {
     output: Arc<RwLock<String>>,
     output_limit: Option<usize>,
     exit_status: Arc<RwLock<Option<TerminalExitStatus>>>,
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+struct AcpAgentCapabilities {
+    list_sessions: bool,
+    resume_sessions: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -294,6 +339,7 @@ where
             sink.push_update(TaskExecutionUpdate {
                 status: Some(TaskStatus::Failed),
                 execution_protocol: Some(execution_protocol),
+                provider_session_id: task.provider_session_id.clone(),
                 events: vec![TaskEventInput {
                     kind: TaskEventKind::System,
                     message: "provider missing from device capabilities".to_string(),
@@ -314,6 +360,7 @@ where
             sink.push_update(TaskExecutionUpdate {
                 status: Some(TaskStatus::Failed),
                 execution_protocol: Some(execution_protocol),
+                provider_session_id: task.provider_session_id.clone(),
                 events: vec![TaskEventInput {
                     kind: TaskEventKind::System,
                     message: message.clone(),
@@ -348,6 +395,7 @@ where
         sink.push_update(TaskExecutionUpdate {
             status: Some(TaskStatus::Failed),
             execution_protocol: Some(execution_protocol),
+            provider_session_id: task.provider_session_id.clone(),
             events: vec![TaskEventInput {
                 kind: TaskEventKind::System,
                 message: message.clone(),
@@ -362,6 +410,7 @@ where
     sink.push_update(TaskExecutionUpdate {
         status: Some(TaskStatus::Running),
         execution_protocol: Some(execution_protocol.clone()),
+        provider_session_id: task.provider_session_id.clone(),
         events: startup_events,
         exit_code: None,
         error: None,
@@ -393,6 +442,7 @@ where
     sink.push_update(TaskExecutionUpdate {
         status: Some(completion.status),
         execution_protocol: Some(execution_protocol),
+        provider_session_id: task.provider_session_id.clone(),
         events: vec![TaskEventInput {
             kind: TaskEventKind::System,
             message: completion.message,
@@ -429,12 +479,26 @@ where
     let mut stderr_lines = stderr.map(|handle| BufReader::new(handle).lines());
     let mut cancel_interval = tokio::time::interval(Duration::from_millis(ACP_CANCEL_POLL_MS));
     let mut cancel_requested = false;
+    let mut discovered_provider_session_id = task.provider_session_id.clone();
 
     loop {
         tokio::select! {
             result = next_line(&mut stdout_lines), if stdout_lines.is_some() => {
                 match result? {
                     Some(line) => {
+                        if let Some(provider_session_id) = provider_stdout_session_id(&provider.kind, &line) {
+                            if discovered_provider_session_id.as_deref() != Some(provider_session_id.as_str()) {
+                                discovered_provider_session_id = Some(provider_session_id.clone());
+                                sink.push_update(TaskExecutionUpdate {
+                                    status: None,
+                                    execution_protocol: None,
+                                    provider_session_id: Some(provider_session_id),
+                                    events: Vec::new(),
+                                    exit_code: None,
+                                    error: None,
+                                }).await?;
+                            }
+                        }
                         for event in provider_stdout_to_task_events(&provider.kind, &line) {
                             sink.push_event(event.kind, event.message).await?;
                         }
@@ -505,12 +569,26 @@ where
     let mut stderr_lines = stderr.map(|handle| BufReader::new(handle).lines());
     let mut cancel_interval = tokio::time::interval(Duration::from_millis(ACP_CANCEL_POLL_MS));
     let mut cancel_requested = false;
+    let mut discovered_provider_session_id = task.provider_session_id.clone();
 
     loop {
         tokio::select! {
             result = next_line(&mut stdout_lines), if stdout_lines.is_some() => {
                 match result? {
                     Some(line) => {
+                        if let Some(provider_session_id) = provider_stdout_session_id(&provider.kind, &line) {
+                            if discovered_provider_session_id.as_deref() != Some(provider_session_id.as_str()) {
+                                discovered_provider_session_id = Some(provider_session_id.clone());
+                                sink.push_update(TaskExecutionUpdate {
+                                    status: None,
+                                    execution_protocol: None,
+                                    provider_session_id: Some(provider_session_id),
+                                    events: Vec::new(),
+                                    exit_code: None,
+                                    error: None,
+                                }).await?;
+                            }
+                        }
                         for event in provider_stdout_to_task_events(&provider.kind, &line) {
                             sink.push_event(event.kind, event.message).await?;
                         }
@@ -567,125 +645,349 @@ where
     }
 
     let mut acp = spawn_acp_process(provider, cwd)?;
-
-    let initialize_id = acp.next_request_id();
-    send_rpc_request(
-        &mut acp,
-        initialize_id,
-        "initialize",
-        json!({
-            "protocolVersion": ACP_PROTOCOL_VERSION,
-            "clientCapabilities": {
-                "fs": {
-                    "readTextFile": true,
-                    "writeTextFile": true
+    let execution = async {
+        let initialize_id = acp.next_request_id();
+        send_rpc_request(
+            &mut acp,
+            initialize_id,
+            "initialize",
+            json!({
+                "protocolVersion": ACP_PROTOCOL_VERSION,
+                "clientCapabilities": {
+                    "fs": {
+                        "readTextFile": true,
+                        "writeTextFile": true
+                    },
+                    "terminal": true
                 },
-                "terminal": true
-            },
-            "clientInfo": {
-                "name": "vibe-agent",
-                "version": env!("CARGO_PKG_VERSION")
+                "clientInfo": {
+                    "name": "vibe-agent",
+                    "version": env!("CARGO_PKG_VERSION")
+                }
+            }),
+        )
+        .await?;
+        let initialize_result =
+            wait_for_rpc_response(sink, &mut acp, initialize_id, "initialize").await?;
+        if let Some(auth_methods) = initialize_result
+            .get("authMethods")
+            .and_then(Value::as_array)
+        {
+            if !auth_methods.is_empty() {
+                sink.push_event(
+                    TaskEventKind::System,
+                    format!(
+                        "OpenCode ACP advertised auth methods: {}",
+                        serde_json::to_string(auth_methods).unwrap_or_else(|_| "[]".to_string())
+                    ),
+                )
+                .await?;
             }
-        }),
-    )
-    .await?;
-    let initialize_result =
-        wait_for_rpc_response(sink, &mut acp, initialize_id, "initialize").await?;
-    if let Some(auth_methods) = initialize_result
-        .get("authMethods")
-        .and_then(Value::as_array)
-    {
-        if !auth_methods.is_empty() {
+        }
+        let agent_capabilities = parse_acp_agent_capabilities(&initialize_result);
+
+        let (session_id, session_result, resumed_existing_session) = if let Some(session_id) =
+            task.provider_session_id.clone()
+        {
             sink.push_event(
                 TaskEventKind::System,
-                format!(
-                    "OpenCode ACP advertised auth methods: {}",
-                    serde_json::to_string(auth_methods).unwrap_or_else(|_| "[]".to_string())
-                ),
+                format!("OpenCode ACP resuming session: {session_id}"),
             )
             .await?;
-        }
-    }
+            sink.push_update(TaskExecutionUpdate {
+                status: None,
+                execution_protocol: None,
+                provider_session_id: Some(session_id.clone()),
+                events: Vec::new(),
+                exit_code: None,
+                error: None,
+            })
+            .await?;
 
-    let session_new_id = acp.next_request_id();
+            if agent_capabilities.resume_sessions {
+                let session_result =
+                    resume_acp_session(sink, &mut acp, &session_id, cwd).await?;
+                sink.push_event(
+                    TaskEventKind::System,
+                    format!("OpenCode ACP resumed session via session/resume: {session_id}"),
+                )
+                .await?;
+                (session_id, Some(session_result), true)
+            } else {
+                if agent_capabilities.list_sessions {
+                    match find_listed_acp_session(sink, &mut acp, &session_id).await {
+                        Ok(Some(session_info)) => {
+                            sink.push_event(
+                                TaskEventKind::System,
+                                format!(
+                                    "OpenCode ACP confirmed stored session: {session_id}{}",
+                                    format_listed_acp_session_suffix(&session_info)
+                                ),
+                            )
+                            .await?;
+                        }
+                        Ok(None) => {
+                            bail!(
+                                "OpenCode ACP session {session_id} was not returned by session/list; the stored conversation handle is likely stale"
+                            );
+                        }
+                        Err(error) => {
+                            sink.push_event(
+                                TaskEventKind::System,
+                                format!(
+                                    "OpenCode ACP session/list validation failed for {session_id}: {error}"
+                                ),
+                            )
+                            .await?;
+                        }
+                    }
+                }
+                (session_id, None, true)
+            }
+        } else {
+            let session_new_id = acp.next_request_id();
+            send_rpc_request(
+                &mut acp,
+                session_new_id,
+                "session/new",
+                json!({
+                    "cwd": cwd.to_string_lossy(),
+                    "mcpServers": []
+                }),
+            )
+            .await?;
+            let session_result =
+                wait_for_rpc_response(sink, &mut acp, session_new_id, "session/new").await?;
+            let session_id = session_result
+                .get("sessionId")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+                .context("ACP session/new did not return a sessionId")?;
+
+            sink.push_update(TaskExecutionUpdate {
+                status: None,
+                execution_protocol: None,
+                provider_session_id: Some(session_id.clone()),
+                events: Vec::new(),
+                exit_code: None,
+                error: None,
+            })
+            .await?;
+            sink.push_event(
+                TaskEventKind::System,
+                format!("OpenCode ACP session established: {session_id}"),
+            )
+            .await?;
+            (session_id, Some(session_result), false)
+        };
+
+        if let Some(model) = task.model.as_deref() {
+            if let Some(session_result) = session_result.as_ref() {
+                apply_acp_model_override(
+                    sink,
+                    &mut acp,
+                    &session_id,
+                    session_result.get("configOptions"),
+                    model,
+                )
+                .await?;
+            } else if resumed_existing_session {
+                sink.push_event(
+                    TaskEventKind::System,
+                    format!(
+                        "OpenCode ACP resumed session {session_id}; model override is kept on the existing session"
+                    ),
+                )
+                .await?;
+            }
+        }
+
+        let prompt_id = acp.next_request_id();
+        send_rpc_request(
+            &mut acp,
+            prompt_id,
+            "session/prompt",
+            json!({
+                "sessionId": session_id,
+                "prompt": [
+                    {
+                        "type": "text",
+                        "text": task.prompt
+                    }
+                ]
+            }),
+        )
+        .await?;
+
+        let mut cancel_sent = false;
+        let prompt_result =
+            wait_for_prompt_response(sink, &mut acp, prompt_id, &session_id, &mut cancel_sent)
+                .await?;
+
+        if let Some(message) = format_prompt_usage(prompt_result.get("usage")) {
+            sink.push_event(TaskEventKind::Status, message).await?;
+        }
+        let stop_reason = prompt_result
+            .get("stopReason")
+            .and_then(Value::as_str)
+            .unwrap_or("end_turn");
+
+        let completion = match stop_reason {
+            "cancelled" => TaskCompletion::canceled("ACP task canceled", None),
+            "refusal" => TaskCompletion::failed(
+                "ACP task refused to continue",
+                "agent returned stopReason=refusal",
+                None,
+            ),
+            "max_tokens" => TaskCompletion::succeeded("ACP task reached max tokens"),
+            "max_turn_requests" => TaskCompletion::succeeded("ACP task reached max turn requests"),
+            _ => TaskCompletion::succeeded("ACP task finished successfully"),
+        };
+
+        Ok(completion)
+    }
+    .await;
+
+    cleanup_terminals(&mut acp).await;
+    shutdown_acp_process(&mut acp).await;
+
+    execution
+}
+
+fn parse_acp_agent_capabilities(initialize_result: &Value) -> AcpAgentCapabilities {
+    AcpAgentCapabilities {
+        list_sessions: initialize_result
+            .get("agentCapabilities")
+            .and_then(|caps| caps.get("sessionCapabilities"))
+            .and_then(|caps| caps.get("list"))
+            .is_some_and(|value| !value.is_null()),
+        resume_sessions: initialize_result
+            .get("agentCapabilities")
+            .and_then(|caps| caps.get("sessionCapabilities"))
+            .and_then(|caps| caps.get("resume"))
+            .is_some_and(|value| !value.is_null()),
+    }
+}
+
+async fn resume_acp_session<S>(
+    sink: &mut S,
+    acp: &mut AcpProcess,
+    session_id: &str,
+    cwd: &Path,
+) -> Result<Value>
+where
+    S: TaskExecutionSink,
+{
+    let request_id = acp.next_request_id();
     send_rpc_request(
-        &mut acp,
-        session_new_id,
-        "session/new",
+        acp,
+        request_id,
+        "session/resume",
         json!({
+            "sessionId": session_id,
             "cwd": cwd.to_string_lossy(),
             "mcpServers": []
         }),
     )
     .await?;
-    let session_result =
-        wait_for_rpc_response(sink, &mut acp, session_new_id, "session/new").await?;
-    let session_id = session_result
-        .get("sessionId")
-        .and_then(Value::as_str)
-        .map(str::to_string)
-        .context("ACP session/new did not return a sessionId")?;
+    wait_for_rpc_response(sink, acp, request_id, "session/resume").await
+}
 
-    sink.push_event(
-        TaskEventKind::System,
-        format!("OpenCode ACP session established: {session_id}"),
-    )
-    .await?;
+async fn find_listed_acp_session<S>(
+    sink: &mut S,
+    acp: &mut AcpProcess,
+    session_id: &str,
+) -> Result<Option<Value>>
+where
+    S: TaskExecutionSink,
+{
+    let mut cursor: Option<String> = None;
 
-    if let Some(model) = task.model.as_deref() {
-        apply_acp_model_override(
-            sink,
-            &mut acp,
-            &session_id,
-            session_result.get("configOptions"),
-            model,
-        )
-        .await?;
+    loop {
+        let request_id = acp.next_request_id();
+        let mut params = json!({});
+        if let Some(next_cursor) = cursor.as_ref() {
+            params["cursor"] = Value::String(next_cursor.clone());
+        }
+
+        send_rpc_request(acp, request_id, "session/list", params).await?;
+        let result = wait_for_rpc_response(sink, acp, request_id, "session/list").await?;
+
+        if let Some(found) = result
+            .get("sessions")
+            .and_then(Value::as_array)
+            .and_then(|sessions| {
+                sessions
+                    .iter()
+                    .find(|session| {
+                        session
+                            .get("sessionId")
+                            .and_then(Value::as_str)
+                            .is_some_and(|candidate| candidate == session_id)
+                    })
+                    .cloned()
+            })
+        {
+            return Ok(Some(found));
+        }
+
+        cursor = result
+            .get("nextCursor")
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        if cursor.is_none() {
+            return Ok(None);
+        }
+    }
+}
+
+fn format_listed_acp_session_suffix(session_info: &Value) -> String {
+    let mut parts = Vec::new();
+
+    if let Some(title) = session_info.get("title").and_then(Value::as_str) {
+        let title = title.trim();
+        if !title.is_empty() {
+            parts.push(format!("title={title}"));
+        }
     }
 
-    let prompt_id = acp.next_request_id();
-    send_rpc_request(
-        &mut acp,
-        prompt_id,
-        "session/prompt",
-        json!({
-            "sessionId": session_id,
-            "prompt": [
-                {
-                    "type": "text",
-                    "text": task.prompt
-                }
-            ]
-        }),
-    )
-    .await?;
+    if let Some(updated_at) = session_info.get("updatedAt").and_then(Value::as_str) {
+        let updated_at = updated_at.trim();
+        if !updated_at.is_empty() {
+            parts.push(format!("updated_at={updated_at}"));
+        }
+    }
 
-    let mut cancel_sent = false;
-    let prompt_result =
-        wait_for_prompt_response(sink, &mut acp, prompt_id, &session_id, &mut cancel_sent).await;
+    if parts.is_empty() {
+        String::new()
+    } else {
+        format!(" ({})", parts.join(", "))
+    }
+}
 
-    cleanup_terminals(&mut acp).await;
-    shutdown_acp_process(&mut acp).await;
+fn format_prompt_usage(usage: Option<&Value>) -> Option<String> {
+    let usage = usage?;
+    let total_tokens = usage.get("totalTokens").and_then(Value::as_u64)?;
+    let input_tokens = usage.get("inputTokens").and_then(Value::as_u64)?;
+    let output_tokens = usage.get("outputTokens").and_then(Value::as_u64)?;
 
-    let prompt_result = prompt_result?;
-    let stop_reason = prompt_result
-        .get("stopReason")
-        .and_then(Value::as_str)
-        .unwrap_or("end_turn");
+    let mut parts = vec![
+        format!("total={total_tokens}"),
+        format!("input={input_tokens}"),
+        format!("output={output_tokens}"),
+    ];
 
-    let completion = match stop_reason {
-        "cancelled" => TaskCompletion::canceled("ACP task canceled", None),
-        "refusal" => TaskCompletion::failed(
-            "ACP task refused to continue",
-            "agent returned stopReason=refusal",
-            None,
-        ),
-        "max_tokens" => TaskCompletion::succeeded("ACP task reached max tokens"),
-        "max_turn_requests" => TaskCompletion::succeeded("ACP task reached max turn requests"),
-        _ => TaskCompletion::succeeded("ACP task finished successfully"),
-    };
+    if let Some(thought_tokens) = usage.get("thoughtTokens").and_then(Value::as_u64) {
+        parts.push(format!("thought={thought_tokens}"));
+    }
+    if let Some(cached_read_tokens) = usage.get("cachedReadTokens").and_then(Value::as_u64) {
+        parts.push(format!("cache_read={cached_read_tokens}"));
+    }
+    if let Some(cached_write_tokens) = usage.get("cachedWriteTokens").and_then(Value::as_u64) {
+        parts.push(format!("cache_write={cached_write_tokens}"));
+    }
 
-    Ok(completion)
+    Some(format!("ACP turn usage: {}", parts.join(" ")))
 }
 
 fn spawn_acp_process(provider: &ProviderStatus, cwd: &Path) -> Result<AcpProcess> {
@@ -937,7 +1239,7 @@ where
 {
     match method {
         "session/request_permission" => {
-            let response = build_permission_response(&params, cancel_sent)?;
+            let response = resolve_permission_request(sink, &params, cancel_sent).await?;
             let message = permission_log_message(&params, &response);
             sink.push_event(TaskEventKind::System, message).await?;
             send_rpc_response(acp, id, response).await?
@@ -986,7 +1288,14 @@ where
     Ok(())
 }
 
-fn build_permission_response(params: &Value, cancel_sent: bool) -> Result<Value> {
+async fn resolve_permission_request<S>(
+    sink: &mut S,
+    params: &Value,
+    cancel_sent: bool,
+) -> Result<Value>
+where
+    S: TaskExecutionSink,
+{
     if cancel_sent {
         return Ok(json!({
             "outcome": {
@@ -999,20 +1308,43 @@ fn build_permission_response(params: &Value, cancel_sent: bool) -> Result<Value>
         .get("options")
         .and_then(Value::as_array)
         .context("permission request missing options")?;
-    let selected = options
-        .iter()
-        .find(|option| option.get("kind").and_then(Value::as_str) == Some("allow_once"))
-        .or_else(|| {
-            options
-                .iter()
-                .find(|option| option.get("kind").and_then(Value::as_str) == Some("allow_always"))
-        })
-        .or_else(|| options.first())
-        .context("permission request had no selectable options")?;
-    let option_id = selected
-        .get("optionId")
+    let prompt = params
+        .get("toolCall")
+        .and_then(|tool_call| tool_call.get("title"))
         .and_then(Value::as_str)
-        .context("permission option missing optionId")?;
+        .filter(|title| !title.trim().is_empty())
+        .map(str::to_string)
+        .unwrap_or_else(|| "Permission required".to_string());
+    let request = sink
+        .create_input_request(CreateConversationInputRequest {
+            prompt,
+            options: options
+                .iter()
+                .map(permission_option_to_conversation_option)
+                .collect(),
+            allow_custom_input: false,
+            custom_input_placeholder: None,
+        })
+        .await?;
+    let response = wait_for_input_request_response(sink, &request.id).await?;
+    let Some(response) = response else {
+        return Ok(json!({
+            "outcome": {
+                "outcome": "cancelled"
+            }
+        }));
+    };
+    if response.status != ConversationInputRequestStatus::Answered {
+        return Ok(json!({
+            "outcome": {
+                "outcome": "cancelled"
+            }
+        }));
+    }
+    let option_id = response
+        .selected_option_id
+        .as_deref()
+        .context("permission request answered without a selected option")?;
 
     Ok(json!({
         "outcome": {
@@ -1020,6 +1352,31 @@ fn build_permission_response(params: &Value, cancel_sent: bool) -> Result<Value>
             "optionId": option_id
         }
     }))
+}
+
+fn permission_option_to_conversation_option(option: &Value) -> ConversationInputOption {
+    let option_id = option
+        .get("optionId")
+        .and_then(Value::as_str)
+        .unwrap_or("unknown")
+        .to_string();
+    let label = option
+        .get("label")
+        .and_then(Value::as_str)
+        .or_else(|| option.get("title").and_then(Value::as_str))
+        .or_else(|| option.get("kind").and_then(Value::as_str))
+        .unwrap_or(&option_id)
+        .to_string();
+    let description = option
+        .get("description")
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    ConversationInputOption {
+        id: option_id,
+        label,
+        description,
+        requires_text_input: false,
+    }
 }
 
 fn permission_log_message(params: &Value, response: &Value) -> String {
@@ -1042,6 +1399,27 @@ fn permission_log_message(params: &Value, response: &Value) -> String {
                 .and_then(Value::as_str)
                 .unwrap_or("unknown");
             format!("ACP permission auto-selected {option_id} for {title}")
+        }
+    }
+}
+
+async fn wait_for_input_request_response<S>(
+    sink: &mut S,
+    request_id: &str,
+) -> Result<Option<ConversationInputRequest>>
+where
+    S: TaskExecutionSink,
+{
+    let mut interval = tokio::time::interval(Duration::from_millis(ACP_CANCEL_POLL_MS));
+
+    loop {
+        interval.tick().await;
+        if sink.is_cancel_requested().await? {
+            return Ok(None);
+        }
+        let request = sink.fetch_input_request(request_id).await?;
+        if request.status != ConversationInputRequestStatus::Pending {
+            return Ok(Some(request));
         }
     }
 }
@@ -1601,6 +1979,51 @@ async fn push_task_update(
     Ok(())
 }
 
+async fn create_task_input_request(
+    client: &reqwest::Client,
+    relay_url: &str,
+    task_id: &str,
+    auth: &AgentAuthState,
+    payload: CreateConversationInputRequest,
+) -> Result<ConversationInputRequest> {
+    let endpoint = format!("{relay_url}/api/tasks/{task_id}/input-requests");
+    let device_credential = auth.device_credential().await;
+    let response = with_bearer(client.post(endpoint), device_credential.as_deref())
+        .json(&payload)
+        .send()
+        .await
+        .context("failed to create task input request")?
+        .error_for_status()
+        .context("relay rejected task input request")?
+        .json::<ConversationInputRequest>()
+        .await
+        .context("invalid task input request response")?;
+
+    Ok(response)
+}
+
+async fn fetch_task_input_request(
+    client: &reqwest::Client,
+    relay_url: &str,
+    task_id: &str,
+    request_id: &str,
+    auth: &AgentAuthState,
+) -> Result<ConversationInputRequest> {
+    let endpoint = format!("{relay_url}/api/tasks/{task_id}/input-requests/{request_id}");
+    let device_credential = auth.device_credential().await;
+    let response = with_bearer(client.get(endpoint), device_credential.as_deref())
+        .send()
+        .await
+        .context("failed to fetch task input request")?
+        .error_for_status()
+        .context("relay rejected task input request fetch")?
+        .json::<ConversationInputRequest>()
+        .await
+        .context("invalid task input request payload")?;
+
+    Ok(response)
+}
+
 async fn fetch_task_detail(
     client: &reqwest::Client,
     relay_url: &str,
@@ -1664,5 +2087,68 @@ where
             .await
             .context("failed to read provider output"),
         None => Ok(None),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_acp_agent_capabilities_detects_session_list_support() {
+        let capabilities = parse_acp_agent_capabilities(&json!({
+            "agentCapabilities": {
+                "sessionCapabilities": {
+                    "list": {}
+                }
+            }
+        }));
+
+        assert!(capabilities.list_sessions);
+    }
+
+    #[test]
+    fn parse_acp_agent_capabilities_detects_session_resume_support() {
+        let capabilities = parse_acp_agent_capabilities(&json!({
+            "agentCapabilities": {
+                "sessionCapabilities": {
+                    "resume": {}
+                }
+            }
+        }));
+
+        assert!(capabilities.resume_sessions);
+    }
+
+    #[test]
+    fn format_listed_acp_session_suffix_renders_title_and_updated_at() {
+        let suffix = format_listed_acp_session_suffix(&json!({
+            "sessionId": "session_123",
+            "title": "Refactor auth",
+            "updatedAt": "2026-03-29T10:11:12Z"
+        }));
+
+        assert!(suffix.contains("Refactor auth"));
+        assert!(suffix.contains("2026-03-29T10:11:12Z"));
+    }
+
+    #[test]
+    fn format_prompt_usage_renders_optional_token_breakdown() {
+        let message = format_prompt_usage(Some(&json!({
+            "totalTokens": 9000,
+            "inputTokens": 4000,
+            "outputTokens": 3000,
+            "thoughtTokens": 1500,
+            "cachedReadTokens": 400,
+            "cachedWriteTokens": 100
+        })))
+        .expect("prompt usage message");
+
+        assert!(message.contains("total=9000"));
+        assert!(message.contains("input=4000"));
+        assert!(message.contains("output=3000"));
+        assert!(message.contains("thought=1500"));
+        assert!(message.contains("cache_read=400"));
+        assert!(message.contains("cache_write=100"));
     }
 }

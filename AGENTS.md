@@ -20,7 +20,9 @@ Use `cargo fmt --all` for Rust formatting. Follow Rust defaults: `snake_case` fo
 
 ## Product And UX Guardrails
 - Do not keep growing the control app as one long, all-in-one dashboard. When multiple top-level workflows coexist, they must be separated by explicit navigation such as tabs or route-backed sections.
-- When AI session launch is the primary workflow, do not isolate relay connection or device-selection prerequisites on a separate top-level page; keep required setup inside the session-first flow and reserve secondary views for management or advanced tools.
+- When long-lived AI conversation is the primary workflow, do not isolate relay connection or device-selection prerequisites on a separate top-level page; keep required setup inside the conversation-first flow and reserve secondary views for management or advanced tools.
+- Do not regress the primary surface from durable conversation threads back into disposable task cards. The transcript/composer must remain primary, while Git, files, raw trace, shell, and preview stay secondary or explicitly invoked.
+- When provider runtime asks the user to choose, approve, or clarify, surface that interaction inline in the active conversation. If the protocol supports free-form text, the UI must offer a custom-input path in addition to fixed options.
 - Do not present incomplete enterprise, governance, or admin surfaces in the default end-user flow. Hide them behind explicit feature flags or dedicated management areas until they are truly ready.
 - Do not render operator or deployment guidance as always-on primary dashboard prose. Detailed self-hosted guidance belongs in docs, drawers, tooltips, or contextual validation, not as the main description for everyday users.
 - Do not make display-only capability summaries look interactive. If users cannot switch, download, or open a client from the UI, the surface must not read like a selector.

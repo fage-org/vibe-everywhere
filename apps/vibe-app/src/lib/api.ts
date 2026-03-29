@@ -1,6 +1,11 @@
 import type {
   AppConfig,
   AuditRecord,
+  ConversationDetailResponse,
+  ConversationInputRequest,
+  ConversationRecord,
+  CreateConversationPayload,
+  CreateConversationResponse,
   CreatePortForwardPayload,
   CreateShellSessionPayload,
   CreateTaskPayload,
@@ -11,6 +16,9 @@ import type {
   PortForwardRecord,
   PortForwardStatus,
   ProviderKind,
+  RespondConversationInputPayload,
+  SendConversationMessagePayload,
+  SendConversationMessageResponse,
   ServiceHealth,
   ShellSessionDetailResponse,
   ShellSessionRecord,
@@ -51,6 +59,11 @@ type PortForwardQuery = {
 
 type AuditQuery = {
   limit?: number;
+};
+
+type ConversationQuery = {
+  deviceId?: string;
+  archived?: boolean;
 };
 
 async function requestJson<T>(
@@ -141,6 +154,20 @@ function buildAuditPath(query?: AuditQuery) {
   return params.size ? `/api/audit/events?${params.toString()}` : "/api/audit/events";
 }
 
+function buildConversationPath(query?: ConversationQuery) {
+  const params = new URLSearchParams();
+  if (query?.deviceId) {
+    params.set("deviceId", query.deviceId);
+  }
+  if (typeof query?.archived === "boolean") {
+    params.set("archived", String(query.archived));
+  }
+
+  return params.size
+    ? `/api/conversations?${params.toString()}`
+    : "/api/conversations";
+}
+
 export function fetchHealth(baseUrl: string) {
   return requestJson<ServiceHealth>(baseUrl, "/api/health");
 }
@@ -165,6 +192,100 @@ export function fetchTasks(baseUrl: string, accessToken: string, query?: TaskQue
   return requestJson<TaskRecord[]>(baseUrl, buildTaskPath(query), {
     accessToken
   });
+}
+
+export function fetchConversations(
+  baseUrl: string,
+  accessToken: string,
+  query?: ConversationQuery
+) {
+  return requestJson<ConversationRecord[]>(baseUrl, buildConversationPath(query), {
+    accessToken
+  });
+}
+
+export function fetchConversationDetail(
+  baseUrl: string,
+  conversationId: string,
+  accessToken: string
+) {
+  return requestJson<ConversationDetailResponse>(
+    baseUrl,
+    `/api/conversations/${conversationId}`,
+    {
+      accessToken
+    }
+  );
+}
+
+export function createConversation(
+  baseUrl: string,
+  payload: CreateConversationPayload,
+  accessToken: string
+) {
+  return requestJson<CreateConversationResponse>(baseUrl, "/api/conversations", {
+    accessToken,
+    init: {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }
+  });
+}
+
+export function sendConversationMessage(
+  baseUrl: string,
+  conversationId: string,
+  payload: SendConversationMessagePayload,
+  accessToken: string
+) {
+  return requestJson<SendConversationMessageResponse>(
+    baseUrl,
+    `/api/conversations/${conversationId}/messages`,
+    {
+      accessToken,
+      init: {
+        method: "POST",
+        body: JSON.stringify(payload)
+      }
+    }
+  );
+}
+
+export function archiveConversation(
+  baseUrl: string,
+  conversationId: string,
+  accessToken: string
+) {
+  return requestJson<ConversationRecord>(
+    baseUrl,
+    `/api/conversations/${conversationId}/archive`,
+    {
+      accessToken,
+      init: {
+        method: "POST"
+      }
+    }
+  );
+}
+
+export function respondTaskInputRequest(
+  baseUrl: string,
+  taskId: string,
+  requestId: string,
+  payload: RespondConversationInputPayload,
+  accessToken: string
+) {
+  return requestJson<ConversationInputRequest>(
+    baseUrl,
+    `/api/tasks/${taskId}/input-requests/${requestId}/respond`,
+    {
+      accessToken,
+      init: {
+        method: "POST",
+        body: JSON.stringify(payload)
+      }
+    }
+  );
 }
 
 export function fetchTaskDetail(baseUrl: string, taskId: string, accessToken: string) {

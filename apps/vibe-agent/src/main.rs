@@ -26,15 +26,16 @@ use vibe_core::{
     AppendShellOutputRequest, AppendTaskEventsRequest, ClaimGitOperationResponse,
     ClaimPortForwardResponse, ClaimShellSessionResponse, ClaimTaskResponse,
     ClaimWorkspaceOperationResponse, CompleteGitOperationRequest,
-    CompleteWorkspaceOperationRequest, DEFAULT_TENANT_ID, DEFAULT_USER_ID, DeviceCapability,
-    DevicePlatform, ExecutionProtocol, GitChangedFile, GitCommitSummary, GitDiffStats,
-    GitFileStatus, GitInspectResponse, GitInspectState, GitOperationRequest, GitOperationResult,
-    HEARTBEAT_INTERVAL_MS, HeartbeatRequest, HeartbeatResponse, OverlayNetworkStatus,
-    PortForwardDetailResponse, PortForwardRecord, PortForwardStatus, PortForwardTransportKind,
-    PortForwardTunnelControl, ProviderKind, ProviderStatus, RegisterDeviceRequest,
-    RegisterDeviceResponse, ReportPortForwardStateRequest, ShellOutputChunkInput,
-    ShellPendingInputResponse, ShellSessionRecord, ShellSessionStatus, ShellStreamKind,
-    TaskDetailResponse, TaskEventInput, TaskEventKind, TaskRecord, TaskStatus,
+    CompleteWorkspaceOperationRequest, ConversationInputOption, ConversationInputRequest,
+    ConversationInputRequestStatus, CreateConversationInputRequest, DEFAULT_TENANT_ID,
+    DEFAULT_USER_ID, DeviceCapability, DevicePlatform, ExecutionProtocol, GitChangedFile,
+    GitCommitSummary, GitDiffStats, GitFileStatus, GitInspectResponse, GitInspectState,
+    GitOperationRequest, GitOperationResult, HEARTBEAT_INTERVAL_MS, HeartbeatRequest,
+    HeartbeatResponse, OverlayNetworkStatus, PortForwardDetailResponse, PortForwardRecord,
+    PortForwardStatus, PortForwardTransportKind, PortForwardTunnelControl, ProviderKind,
+    ProviderStatus, RegisterDeviceRequest, RegisterDeviceResponse, ReportPortForwardStateRequest,
+    ShellOutputChunkInput, ShellPendingInputResponse, ShellSessionRecord, ShellSessionStatus,
+    ShellStreamKind, TaskDetailResponse, TaskEventInput, TaskEventKind, TaskRecord, TaskStatus,
     WorkspaceBrowseResponse, WorkspaceEntry, WorkspaceEntryKind, WorkspaceFilePreviewResponse,
     WorkspaceOperationRequest, WorkspaceOperationResult, WorkspacePreviewKind,
 };
@@ -59,7 +60,8 @@ use easytier::{AgentEasyTierOptions, initial_overlay_status, start_managed_agent
 use git_runtime::git_loop;
 use port_forward_runtime::port_forward_loop;
 use providers::{
-    acp_update_to_events, build_provider_command, detect_providers, provider_stdout_to_task_events,
+    acp_update_to_events, build_provider_command, detect_providers, provider_stdout_session_id,
+    provider_stdout_to_task_events,
 };
 #[cfg(test)]
 use providers::{claude_jsonl_to_task_events, codex_jsonl_to_task_events};
@@ -734,8 +736,8 @@ mod tests {
             current_task_id: Arc::new(RwLock::new(None)),
             metadata: BTreeMap::from([("arch".to_string(), "x86_64".to_string())]),
             providers: vec![ProviderStatus {
-                kind: ProviderKind::Codex,
-                command: "codex".to_string(),
+                kind: ProviderKind::OpenCode,
+                command: "opencode".to_string(),
                 available: true,
                 version: Some("1.0.0".to_string()),
                 execution_protocol: ExecutionProtocol::Acp,

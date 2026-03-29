@@ -25,6 +25,7 @@ const TASK_STATUS_OPTIONS = [
   "pending",
   "assigned",
   "running",
+  "waiting_input",
   "cancel_requested",
   "succeeded",
   "failed",
@@ -926,7 +927,7 @@ function taskStatusClass(status: string) {
   if (status === "running" || status === "assigned") {
     return statusBadgeClass("running")
   }
-  if (status === "pending" || status === "cancel_requested") {
+  if (status === "pending" || status === "cancel_requested" || status === "waiting_input") {
     return statusBadgeClass("warning")
   }
   if (status === "succeeded") {

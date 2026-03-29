@@ -1,13 +1,20 @@
 <script setup lang="ts">
+import { computed } from "vue"
+import { storeToRefs } from "pinia"
 import { useI18n } from "vue-i18n"
 import {
-  Activity,
-  BellRing,
+  Archive,
+  Bot,
   FolderCode,
   GitBranch,
+  LoaderCircle,
+  MessageSquarePlus,
   RefreshCw,
+  Send,
   Server,
-  Sparkles
+  Sparkles,
+  UserRound,
+  WandSparkles
 } from "lucide-vue-next"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -20,1327 +27,944 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
+import type { ConversationInputOption, TaskDetailResponse, TaskEvent } from "@/types"
 import { useDashboardController } from "@/views/dashboard/controller"
+
+type TranscriptTurn = {
+  detail: TaskDetailResponse
+  assistantText: string
+  toolEvents: TaskEvent[]
+  systemEvents: TaskEvent[]
+}
+
+const CUSTOM_INPUT_SENTINEL = "__custom_input__"
 
 const { t } = useI18n()
 const dashboard = useDashboardController()
-
+const store = dashboard.store
 const {
-  TASK_SCOPE_OPTIONS,
-  TASK_STATUS_OPTIONS,
-  activityItems,
-  activities,
-  aiSessions,
-  activitySeverityClass,
-  appConfig,
-  appName,
-  canCancel,
   canPreviewGitChangedFile,
-  canSubmit,
-  currentClientKind,
-  deviceSessionCount,
-  deviceShellCount,
-  devices,
-  draft,
-  eventKindClass,
-  eventState,
-  formatAuthRequirement,
   formatConnectionState,
-  formatControlClient,
-  formatDevicePresence,
+  formatExecutionProtocol,
   formatEventKind,
   formatGitDrift,
   formatGitFileStatus,
-  formatProviderSummary,
-  formatScopeOption,
+  formatProviderKind,
   formatTaskStatus,
-  formatTaskStatusOption,
   formatTimestamp,
   gitError,
   gitInspect,
   gitLoading,
-  health,
-  locale,
-  localeOptions,
-  localizedErrorMessage,
   nativeSelectClass,
   openGitChangedFile,
   openWorkspaceEntry,
-  providerBadgeClass,
   refreshGitInspect,
   refreshWorkspace,
-  relayAccessTokenInput,
-  relayInput,
   relayPlaceholder,
-  selectedDevice,
-  selectedDeviceAvailableProviderCount,
-  selectedDeviceAvailableProviders,
-  selectedDevicePreviewCount,
-  selectedDeviceSessionCount,
-  selectedDeviceShellCount,
-  selectedDeviceSupportsGitInspect,
-  selectedDeviceSupportsWorkspace,
-  selectedDeviceUnavailableProviders,
-  selectedDeviceWorkingRoot,
   selectedStateClass,
-  selectedTask,
-  selectedTaskDetail,
-  selectedWorkspacePath,
   sessionEventCounts,
   sessionLaunchState,
-  showGitInspect,
-  showMobileRelayHint,
-  statusBadgeClass,
-  store,
-  supervisionSummary,
-  switchLocale,
-  switchTheme,
-  taskScope,
   taskStatusClass,
-  taskStatusFilter,
-  tasks,
-  themeMode,
-  themeOptions,
-  unreadActivityCount,
-  visibleChangedFileCount,
   workspaceError,
   workspaceListing,
   workspaceLoading,
-  workspacePreview,
-  workspacePreviewLoading,
-  navigateWorkspaceUp
+  workspacePreview
 } = dashboard
+
+const {
+  conversations,
+  devices,
+  draft,
+  eventState,
+  pendingConversationInputDraft,
+  relayAccessTokenInput,
+  relayBaseUrl,
+  relayInput,
+  selectedConversationDetail,
+  selectedConversationId,
+  selectedDevice
+} = storeToRefs(store)
+
+const availableProviders = computed(() => store.availableProviders)
+const selectedConversation = computed(() => store.selectedConversation)
+const pendingInputRequest = computed(() => store.conversationPendingInput)
+const currentConversationTask = computed(() => store.conversationCurrentTask)
+const setupReady = computed(() => sessionLaunchState.value === "ready")
+const showSetupPanel = computed(() => {
+  if (!relayBaseUrl.value) {
+    return true
+  }
+  if (!devices.value.length) {
+    return true
+  }
+  if (selectedConversation.value) {
+    return false
+  }
+
+  return !setupReady.value
+})
+const canSendPrompt = computed(() => {
+  if (!draft.value.prompt.trim() || !relayBaseUrl.value) {
+    return false
+  }
+
+  if (selectedConversation.value) {
+    const device = devices.value.find((item) => item.id === selectedConversation.value?.deviceId)
+    return Boolean(device?.online)
+  }
+
+  return setupReady.value && Boolean(draft.value.provider)
+})
+const transcriptTurns = computed<TranscriptTurn[]>(() =>
+  (selectedConversationDetail.value?.tasks ?? []).map((detail) => ({
+    detail,
+    assistantText: buildAssistantText(detail),
+    toolEvents: detail.events.filter(
+      (event) => event.kind === "tool_call" || event.kind === "tool_output"
+    ),
+    systemEvents: detail.events.filter(
+      (event) =>
+        event.kind === "system" ||
+        event.kind === "status" ||
+        event.kind === "provider_stderr"
+    )
+  }))
+)
+const selectedPendingOption = computed(() =>
+  pendingInputRequest.value?.options.find(
+    (option) => option.id === pendingConversationInputDraft.value.optionId
+  )
+)
+const showPendingTextInput = computed(() => {
+  if (!pendingInputRequest.value) {
+    return false
+  }
+  if (!pendingInputRequest.value.options.length && pendingInputRequest.value.allowCustomInput) {
+    return true
+  }
+  if (pendingConversationInputDraft.value.optionId === CUSTOM_INPUT_SENTINEL) {
+    return true
+  }
+
+  return Boolean(selectedPendingOption.value?.requiresTextInput)
+})
+const canSubmitPendingText = computed(
+  () => showPendingTextInput.value && Boolean(pendingConversationInputDraft.value.text.trim())
+)
+
+function buildAssistantText(detail: TaskDetailResponse) {
+  const assistant = detail.events
+    .filter((event) => event.kind === "assistant_delta")
+    .map((event) => event.message)
+    .join("")
+    .trim()
+  if (assistant) {
+    return assistant
+  }
+
+  return detail.events
+    .filter((event) => event.kind === "provider_stdout")
+    .map((event) => event.message)
+    .join("\n")
+    .trim()
+}
+
+function deviceName(deviceId: string) {
+  return devices.value.find((device) => device.id === deviceId)?.name ?? deviceId
+}
+
+function latestConversationTask(conversationId: string) {
+  return store.tasks.find((task) => task.conversationId === conversationId) ?? null
+}
+
+function selectDevice(deviceId: string) {
+  void store.selectDevice(deviceId)
+}
+
+function handleDeviceChange(event: Event) {
+  const deviceId = (event.target as HTMLSelectElement).value
+  if (!deviceId) {
+    return
+  }
+  selectDevice(deviceId)
+}
+
+function selectConversation(conversationId: string) {
+  void store.selectConversation(conversationId)
+}
+
+function submitPrompt() {
+  void store.sendConversationPrompt()
+}
+
+function startNewConversation() {
+  store.startNewConversationDraft()
+}
+
+function archiveConversation() {
+  void store.archiveSelectedConversation()
+}
+
+function chooseProvider(provider: string) {
+  draft.value.provider = provider as typeof draft.value.provider
+}
+
+function choosePendingOption(option: ConversationInputOption) {
+  pendingConversationInputDraft.value.optionId = option.id
+  if (!option.requiresTextInput) {
+    void store.respondToConversationInput({ optionId: option.id })
+  }
+}
+
+function choosePendingCustomInput() {
+  pendingConversationInputDraft.value.optionId = CUSTOM_INPUT_SENTINEL
+}
+
+function submitPendingInput() {
+  const optionId = pendingConversationInputDraft.value.optionId
+  void store.respondToConversationInput({
+    optionId: optionId && optionId !== CUSTOM_INPUT_SENTINEL ? optionId : undefined,
+    text: pendingConversationInputDraft.value.text.trim() || undefined
+  })
+}
+
+function previewGitChangedFile(path: string) {
+  const file = gitInspect.value?.changedFiles.find((item) => item.path === path)
+  if (!file) {
+    return
+  }
+  void openGitChangedFile(file)
+}
+
+function refreshInspector() {
+  void Promise.all([refreshGitInspect(), refreshWorkspace()])
+}
 </script>
 
 <template>
-  <section class="space-y-4">
-    <Card class="overflow-hidden border-border/70 bg-card/85 text-foreground shadow-2xl backdrop-blur-xl">
-      <CardContent class="grid gap-6 p-6 xl:grid-cols-[1.2fr_1fr]">
-        <div class="space-y-5">
-          <Badge variant="outline" class="border-sky-500/30 bg-sky-500/12 text-sky-700 dark:text-sky-100">
-            <Sparkles class="size-3.5" />
-            {{ t("dashboard.sessions.primaryBadge") }}
-          </Badge>
+  <section class="grid gap-4 2xl:grid-cols-[260px_minmax(0,1fr)_320px]">
+    <div class="space-y-4">
+      <Card class="border-border/70 bg-card/85 shadow-xl backdrop-blur-xl">
+        <CardContent class="space-y-4 p-4">
+          <div class="flex items-start justify-between gap-3">
+            <div class="space-y-1">
+              <Badge
+                variant="outline"
+                class="border-amber-500/30 bg-amber-500/12 text-amber-700 dark:text-amber-100"
+              >
+                <WandSparkles class="size-3.5" />
+                {{ t("dashboard.chat.liveBadge") }}
+              </Badge>
+              <h2 class="text-lg font-semibold tracking-tight text-foreground">
+                {{
+                  showSetupPanel
+                    ? t("dashboard.chat.setupTitle")
+                    : t("dashboard.chat.threadControl")
+                }}
+              </h2>
+              <p class="text-sm leading-6 text-muted-foreground">
+                {{
+                  showSetupPanel
+                    ? t("dashboard.chat.setupSummary")
+                    : t("dashboard.chat.threadSummary")
+                }}
+              </p>
+            </div>
 
-          <div class="space-y-3">
-            <h2 class="text-4xl font-semibold tracking-tight text-foreground md:text-5xl">
-              {{ appName }}
-            </h2>
-            <p class="max-w-3xl text-base leading-7 text-muted-foreground md:text-lg">
-              {{ t("dashboard.sessions.primaryDescription") }}
-            </p>
+            <Button type="button" variant="outline" size="sm" @click="startNewConversation">
+              <MessageSquarePlus class="size-4" />
+              {{ t("dashboard.chat.newConversation") }}
+            </Button>
           </div>
 
-          <div class="flex flex-wrap gap-2">
-            <Badge variant="outline" class="border-border/70 bg-background/55 text-foreground">
-              1. {{ t("dashboard.sessions.steps.connect") }}
-            </Badge>
-            <Badge variant="outline" class="border-border/70 bg-background/55 text-foreground">
-              2. {{ t("dashboard.sessions.steps.chooseDevice") }}
-            </Badge>
-            <Badge variant="outline" class="border-border/70 bg-background/55 text-foreground">
-              3. {{ t("dashboard.sessions.steps.start") }}
-            </Badge>
-            <Badge variant="outline" class="border-border/70 bg-background/55 text-foreground">
-              4. {{ t("dashboard.sessions.steps.review") }}
-            </Badge>
-          </div>
-
-          <div class="grid gap-3 sm:grid-cols-3">
-            <div class="rounded-2xl border border-border/70 bg-background/55 p-4">
-              <p class="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+          <div class="grid gap-3 sm:grid-cols-3 2xl:grid-cols-1">
+            <div class="rounded-2xl border border-border/70 bg-background/55 p-3">
+              <p class="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
                 {{ t("dashboard.shell.connectionState") }}
               </p>
               <div class="mt-2 flex items-center gap-2 text-sm font-medium text-foreground">
-                <Activity class="size-4 text-amber-400" />
+                <Sparkles class="size-4 text-amber-500" />
                 {{ formatConnectionState(eventState) }}
               </div>
             </div>
-            <div class="rounded-2xl border border-border/70 bg-background/55 p-4">
-              <p class="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+            <div class="rounded-2xl border border-border/70 bg-background/55 p-3">
+              <p class="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
                 {{ t("dashboard.shell.selectedDevice") }}
               </p>
               <p class="mt-2 text-sm font-medium text-foreground">
                 {{ selectedDevice?.name ?? t("dashboard.shell.noDeviceSelected") }}
               </p>
             </div>
-            <div class="rounded-2xl border border-border/70 bg-background/55 p-4">
-              <p class="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                {{ t("dashboard.deployment.currentClient") }}
+            <div class="rounded-2xl border border-border/70 bg-background/55 p-3">
+              <p class="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                {{ t("dashboard.stats.aiSessions") }}
               </p>
               <p class="mt-2 text-sm font-medium text-foreground">
-                {{ formatControlClient(currentClientKind) }}
+                {{ conversations.length }}
               </p>
             </div>
           </div>
-        </div>
 
-        <div class="space-y-4 rounded-3xl border border-amber-400/20 bg-gradient-to-b from-amber-400/12 via-background/70 to-transparent p-5 shadow-inner">
-          <div class="space-y-3">
+          <div v-if="showSetupPanel" class="space-y-3 rounded-3xl border border-amber-500/20 bg-amber-500/8 p-4">
             <div class="space-y-2">
-              <label class="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+              <label class="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
                 {{ t("dashboard.relayBaseUrl") }}
               </label>
-              <div class="flex flex-col gap-2 sm:flex-row">
+              <div class="flex flex-col gap-2">
                 <Input
                   v-model="relayInput"
                   :placeholder="relayPlaceholder"
-                  class="border-border/70 bg-background/70 text-foreground placeholder:text-muted-foreground"
+                  class="border-border/70 bg-background/75"
                 />
-                <Button class="sm:min-w-28" @click="store.applyRelayBaseUrl">
+                <Button type="button" @click="store.applyRelayBaseUrl">
                   {{ t("common.connect") }}
                 </Button>
               </div>
             </div>
 
             <div class="space-y-2">
-              <label class="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+              <label class="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
                 {{ t("dashboard.fields.accessToken") }}
               </label>
-              <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-                <Input
-                  v-model="relayAccessTokenInput"
-                  type="password"
-                  :placeholder="t('common.optionalAccessToken')"
-                  class="border-border/70 bg-background/70 text-foreground placeholder:text-muted-foreground"
-                />
-                <span class="text-xs text-muted-foreground">
-                  {{ formatAuthRequirement(appConfig?.requiresAuth) }}
-                </span>
-              </div>
-            </div>
-
-            <div v-if="showMobileRelayHint" class="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-700 dark:text-amber-100">
-              {{ t("dashboard.mobileRemoteHint") }}
-            </div>
-          </div>
-
-          <Separator class="bg-border/70" />
-
-          <div class="grid gap-4 lg:grid-cols-2">
-            <div class="space-y-2">
-              <label class="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                {{ t("locale.label") }}
-              </label>
-              <div class="flex flex-wrap gap-2">
-                <Button
-                  v-for="option in localeOptions"
-                  :key="option.value"
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  :class="
-                    option.value === locale
-                      ? 'border-sky-400/40 bg-sky-400/15 text-sky-900 hover:bg-sky-400/20 dark:text-white'
-                      : 'border-border/70 bg-background/55 text-foreground hover:bg-accent/70'
-                  "
-                  @click="switchLocale(option.value)"
-                >
-                  {{ option.label }}
-                </Button>
-              </div>
+              <Input
+                v-model="relayAccessTokenInput"
+                type="password"
+                :placeholder="t('common.optionalAccessToken')"
+                class="border-border/70 bg-background/75"
+              />
             </div>
 
             <div class="space-y-2">
-              <label class="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                {{ t("theme.label") }}
+              <label class="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                {{ t("dashboard.shell.selectedDevice") }}
               </label>
-              <div class="flex flex-wrap gap-2">
-                <Button
-                  v-for="option in themeOptions"
-                  :key="option.value"
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  :class="
-                    option.value === themeMode
-                      ? 'border-emerald-400/40 bg-emerald-400/15 text-emerald-900 hover:bg-emerald-400/20 dark:text-emerald-50'
-                      : 'border-border/70 bg-background/55 text-foreground hover:bg-accent/70'
-                  "
-                  @click="switchTheme(option.value)"
-                >
-                  {{ option.label }}
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-            <div class="rounded-2xl border border-border/70 bg-background/55 p-3">
-              <p class="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                {{ t("dashboard.stats.onlineDevices") }}
-              </p>
-              <p class="mt-2 text-2xl font-semibold text-foreground">
-                {{ health?.onlineDeviceCount ?? 0 }}
-              </p>
-            </div>
-            <div class="rounded-2xl border border-border/70 bg-background/55 p-3">
-              <p class="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                {{ t("dashboard.stats.devices") }}
-              </p>
-              <p class="mt-2 text-2xl font-semibold text-foreground">
-                {{ health?.deviceCount ?? 0 }}
-              </p>
-            </div>
-            <div class="rounded-2xl border border-border/70 bg-background/55 p-3">
-              <p class="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                {{ t("dashboard.stats.aiSessions") }}
-              </p>
-              <p class="mt-2 text-2xl font-semibold text-foreground">
-                {{ tasks.length }}
-              </p>
-            </div>
-            <div class="rounded-2xl border border-border/70 bg-background/55 p-3">
-              <p class="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                {{ t("dashboard.stats.unreadActivity") }}
-              </p>
-              <p class="mt-2 text-2xl font-semibold text-foreground">
-                {{ unreadActivityCount }}
-              </p>
-            </div>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-
-    <Card
-      v-if="localizedErrorMessage"
-      class="border-rose-500/25 bg-rose-500/10 text-rose-700 shadow-none dark:text-rose-100"
-    >
-      <CardContent class="p-4">
-        <p class="text-sm">{{ localizedErrorMessage }}</p>
-      </CardContent>
-    </Card>
-
-    <section class="grid gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
-      <div class="space-y-4">
-        <Card class="border-border/70 bg-card/80 shadow-xl backdrop-blur-xl">
-          <CardHeader class="flex flex-row items-start justify-between gap-4 space-y-0">
-            <div class="space-y-1">
-              <CardTitle class="flex items-center gap-2 text-foreground">
-                <Server class="size-4 text-sky-300" />
-                {{ t("dashboard.sessions.devicePickerTitle") }}
-              </CardTitle>
-              <CardDescription>
-                {{ t("dashboard.sessions.devicePickerDescription") }}
-              </CardDescription>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              class="border-border/70 bg-background/55 text-foreground hover:bg-accent/70"
-              @click="store.reloadAll"
-            >
-              <RefreshCw class="size-4" />
-              {{ t("common.refresh") }}
-            </Button>
-          </CardHeader>
-          <CardContent class="pt-0">
-            <ScrollArea class="h-[26rem] pr-3">
-              <div class="space-y-3">
-                <button
-                  v-for="device in devices"
-                  :key="device.id"
-                  type="button"
-                  class="w-full rounded-2xl border p-4 text-left transition-colors"
-                  :class="selectedStateClass(selectedDevice?.id === device.id)"
-                  @click="store.selectDevice(device.id)"
-                >
-                  <div class="flex items-start justify-between gap-3">
-                    <div class="space-y-1">
-                      <p class="font-medium text-foreground">{{ device.name }}</p>
-                      <p class="text-sm text-muted-foreground">
-                        {{ device.platform }} · {{ device.metadata.arch }}
-                      </p>
-                    </div>
-                    <Badge
-                      variant="outline"
-                      :class="device.online ? statusBadgeClass('online') : statusBadgeClass('offline')"
-                    >
-                      {{ formatDevicePresence(device.online) }}
-                    </Badge>
-                  </div>
-
-                  <p class="mt-3 font-mono text-xs text-muted-foreground">
-                    {{ device.metadata.workingRoot ?? t("common.useAgentWorkingRoot") }}
-                  </p>
-
-                  <div class="mt-3 flex flex-wrap gap-2">
-                    <Badge variant="outline" class="border-border/70 bg-background/55 text-foreground">
-                      {{ t("dashboard.devices.sessions", { count: deviceSessionCount(device.id) }) }}
-                    </Badge>
-                    <Badge variant="outline" class="border-border/70 bg-background/55 text-foreground">
-                      {{ t("dashboard.devices.terminals", { count: deviceShellCount(device.id) }) }}
-                    </Badge>
-                  </div>
-
-                  <div class="mt-3 flex flex-wrap gap-2">
-                    <Badge
-                      v-for="provider in device.providers"
-                      :key="provider.kind"
-                      variant="outline"
-                      :class="providerBadgeClass(provider.available)"
-                    >
-                      {{ formatProviderSummary(provider.kind, provider.executionProtocol) }}
-                    </Badge>
-                  </div>
-                </button>
-              </div>
-            </ScrollArea>
-          </CardContent>
-        </Card>
-
-        <Card class="border-border/70 bg-card/80 shadow-xl backdrop-blur-xl">
-          <CardHeader class="space-y-4">
-            <div class="flex flex-row items-start justify-between gap-4 space-y-0">
-              <div class="space-y-1">
-                <CardTitle class="flex items-center gap-2 text-foreground">
-                  <Sparkles class="size-4 text-amber-300" />
-                  {{ t("dashboard.sessions.recentTitle") }}
-                </CardTitle>
-                <CardDescription>
-                  {{
-                    t("dashboard.sessions.visibleSummary", {
-                      visible: aiSessions.length,
-                      total: tasks.length
-                    })
-                  }}
-                </CardDescription>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                class="border-border/70 bg-background/55 text-foreground hover:bg-accent/70"
-                :disabled="!canCancel"
-                @click="store.cancelSelectedTask"
+              <select
+                :value="selectedDevice?.id ?? ''"
+                :class="nativeSelectClass"
+                @change="handleDeviceChange"
               >
-                {{ t("common.cancel") }}
-              </Button>
+                <option value="" disabled>
+                  {{ t("dashboard.shell.noDeviceSelected") }}
+                </option>
+                <option v-for="device in devices" :key="device.id" :value="device.id">
+                  {{ device.name }}
+                </option>
+              </select>
+            </div>
+
+            <div class="space-y-2">
+              <label class="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                {{ t("common.provider") }}
+              </label>
+              <div class="flex flex-wrap gap-2">
+                <Button
+                  v-for="provider in availableProviders"
+                  :key="provider.kind"
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  :class="
+                    draft.provider === provider.kind
+                      ? 'border-sky-500/40 bg-sky-500/15 text-sky-900 hover:bg-sky-500/20 dark:text-white'
+                      : 'border-border/70 bg-background/55 text-foreground hover:bg-accent/70'
+                  "
+                  @click="chooseProvider(provider.kind)"
+                >
+                  {{ formatProviderKind(provider.kind) }}
+                </Button>
+              </div>
             </div>
 
             <div class="grid gap-3 sm:grid-cols-2">
-              <label class="grid gap-2">
-                <span class="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                  {{ t("common.scope") }}
-                </span>
-                <select v-model="taskScope" :class="nativeSelectClass">
-                  <option v-for="option in TASK_SCOPE_OPTIONS" :key="option" :value="option">
-                    {{ formatScopeOption(option) }}
-                  </option>
-                </select>
+              <div class="space-y-2">
+                <label class="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                  {{ t("common.title") }}
+                </label>
+                <Input v-model="draft.title" :placeholder="t('dashboard.chat.autoTitleHint')" />
+              </div>
+              <div class="space-y-2">
+                <label class="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                  {{ t("common.model") }}
+                </label>
+                <Input v-model="draft.model" :placeholder="t('common.defaultModel')" />
+              </div>
+            </div>
+
+            <div class="space-y-2">
+              <label class="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                {{ t("dashboard.chat.cwd") }}
               </label>
-
-              <label class="grid gap-2">
-                <span class="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                  {{ t("common.status") }}
-                </span>
-                <select v-model="taskStatusFilter" :class="nativeSelectClass">
-                  <option v-for="option in TASK_STATUS_OPTIONS" :key="option" :value="option">
-                    {{ formatTaskStatusOption(option) }}
-                  </option>
-                </select>
-              </label>
+              <Input v-model="draft.cwd" :placeholder="t('common.useAgentWorkingRoot')" />
             </div>
-          </CardHeader>
-          <CardContent class="pt-0">
-            <p v-if="!aiSessions.length" class="mb-3 text-sm text-muted-foreground">
-              {{ t("dashboard.sessions.empty") }}
-            </p>
-            <ScrollArea class="h-[22rem] pr-3">
-              <div class="space-y-3">
-                <button
-                  v-for="task in aiSessions"
-                  :key="task.id"
-                  type="button"
-                  class="w-full rounded-2xl border p-4 text-left transition-colors"
-                  :class="selectedStateClass(selectedTask?.id === task.id)"
-                  @click="store.selectTask(task.id)"
-                >
-                  <div class="flex items-start justify-between gap-3">
-                    <div class="space-y-1">
-                      <p class="font-medium text-foreground">{{ task.title }}</p>
-                      <p class="text-sm text-muted-foreground">
-                        {{ formatProviderSummary(task.provider, task.executionProtocol) }}
-                      </p>
-                    </div>
-                    <Badge variant="outline" :class="taskStatusClass(task.status)">
-                      {{ formatTaskStatus(task.status) }}
-                    </Badge>
-                  </div>
+          </div>
 
-                  <p class="mt-3 font-mono text-xs text-muted-foreground">
-                    {{ task.cwd ?? t("common.useAgentWorkingRoot") }}
-                  </p>
-                  <p class="mt-2 text-xs text-muted-foreground">
-                    {{ formatTimestamp(task.startedAtEpochMs ?? task.createdAtEpochMs) }}
-                  </p>
-                </button>
-              </div>
-            </ScrollArea>
-          </CardContent>
-        </Card>
-
-        <Card class="border-border/70 bg-card/80 shadow-xl backdrop-blur-xl">
-          <CardHeader class="flex flex-row items-start justify-between gap-4 space-y-0">
-            <div class="space-y-1">
-              <CardTitle class="flex items-center gap-2 text-foreground">
-                <BellRing class="size-4 text-sky-300" />
-                {{ t("dashboard.activity.title") }}
-              </CardTitle>
-              <CardDescription>
-                {{
-                  t("dashboard.activity.summary", {
-                    unread: unreadActivityCount,
-                    total: activities.length
-                  })
-                }}
-              </CardDescription>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              class="border-border/70 bg-background/55 text-foreground hover:bg-accent/70"
-              :disabled="!activities.length"
-              @click="store.markAllActivitiesRead"
-            >
-              {{ t("dashboard.activity.markAllRead") }}
-            </Button>
-          </CardHeader>
-          <CardContent class="pt-0">
-            <div
-              v-if="!activityItems.length"
-              class="rounded-2xl border border-dashed border-border/70 bg-background/55 p-4 text-sm text-muted-foreground"
-            >
-              {{ t("dashboard.activity.empty") }}
-            </div>
-            <ScrollArea v-else class="h-[18rem] pr-3">
-              <div class="space-y-3">
-                <button
-                  v-for="activity in activityItems"
-                  :key="activity.id"
-                  type="button"
-                  class="w-full rounded-2xl border border-border/70 bg-background/55 p-4 text-left transition hover:bg-accent/30"
-                  @click="store.openActivity(activity.id)"
-                >
-                  <div class="flex flex-col gap-3">
-                    <div class="flex flex-wrap items-center gap-2">
-                      <Badge variant="outline" :class="activitySeverityClass(activity.severity)">
-                        {{ activity.title }}
-                      </Badge>
-                      <Badge
-                        v-if="activity.unread"
-                        variant="outline"
-                        class="border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-100"
-                      >
-                        {{ t("dashboard.activity.unread") }}
-                      </Badge>
-                    </div>
-                    <p class="text-sm text-foreground">{{ activity.description }}</p>
-                    <span class="text-xs text-muted-foreground">
-                      {{ formatTimestamp(activity.timestampEpochMs) }}
-                    </span>
-                  </div>
-                </button>
-              </div>
-            </ScrollArea>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div class="space-y-4">
-        <Card class="border-border/70 bg-card/80 shadow-xl backdrop-blur-xl">
-          <CardHeader class="space-y-4">
-            <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-              <div class="space-y-1">
-                <CardTitle class="flex items-center gap-2 text-foreground">
-                  <FolderCode class="size-4 text-emerald-300" />
-                  {{ t("dashboard.sessions.launchTitle") }}
-                </CardTitle>
-                <CardDescription>{{ t("dashboard.sessions.launchDescription") }}</CardDescription>
-              </div>
-              <Button :disabled="!canSubmit" @click="store.submitTask">
-                {{ t("dashboard.sessions.start") }}
+          <details v-else class="rounded-2xl border border-border/70 bg-background/55 p-4">
+            <summary class="cursor-pointer text-sm font-medium text-foreground">
+              {{ t("dashboard.chat.switchRelay") }}
+            </summary>
+            <div class="mt-3 space-y-3">
+              <Input
+                v-model="relayInput"
+                :placeholder="relayPlaceholder"
+                class="border-border/70 bg-background/75"
+              />
+              <Input
+                v-model="relayAccessTokenInput"
+                type="password"
+                :placeholder="t('common.optionalAccessToken')"
+                class="border-border/70 bg-background/75"
+              />
+              <Button type="button" size="sm" @click="store.applyRelayBaseUrl">
+                {{ t("dashboard.chat.reconnect") }}
               </Button>
             </div>
+          </details>
+        </CardContent>
+      </Card>
 
-            <div v-if="selectedDevice" class="grid gap-3 md:grid-cols-3">
-              <div class="rounded-2xl border border-border/70 bg-background/55 p-4">
-                <p class="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                  {{ t("dashboard.workspace.device") }}
-                </p>
-                <p class="mt-2 text-sm font-medium text-foreground">{{ selectedDevice.name }}</p>
-                <p class="mt-1 text-xs text-muted-foreground">
-                  {{ selectedDevice.platform }} · {{ selectedDevice.metadata.arch }}
-                </p>
-              </div>
-              <div class="rounded-2xl border border-border/70 bg-background/55 p-4">
-                <p class="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                  {{ t("dashboard.workspace.workingRoot") }}
-                </p>
-                <p class="mt-2 font-mono text-xs text-foreground">{{ selectedDeviceWorkingRoot }}</p>
-                <p class="mt-1 text-xs text-muted-foreground">
-                  {{ t("dashboard.workspace.relativePathHint") }}
-                </p>
-              </div>
-              <div class="rounded-2xl border border-border/70 bg-background/55 p-4">
-                <p class="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                  {{ t("dashboard.workspace.deviceCapacity") }}
-                </p>
-                <p class="mt-2 text-sm font-medium text-foreground">
-                  {{
-                    t("dashboard.workspace.providers", {
-                      count: selectedDeviceAvailableProviderCount
-                    })
-                  }}
-                </p>
-                <p class="mt-1 text-xs text-muted-foreground">
-                  {{
-                    t("dashboard.workspace.capacitySummary", {
-                      sessions: selectedDeviceSessionCount,
-                      terminals: selectedDeviceShellCount,
-                      previews: selectedDevicePreviewCount
-                    })
-                  }}
-                </p>
-              </div>
-            </div>
-          </CardHeader>
-
-          <CardContent class="space-y-5 pt-0">
-            <div
-              class="rounded-2xl border p-4 text-sm"
-              :class="
-                sessionLaunchState === 'ready'
-                  ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-100'
-                  : 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-100'
-              "
-            >
-              {{
-                t(`dashboard.sessions.launchState.${sessionLaunchState}`, {
-                  device: selectedDevice?.name ?? t('dashboard.shell.noDeviceSelected')
-                })
-              }}
-            </div>
-
-            <div v-if="selectedDeviceAvailableProviders.length" class="flex flex-wrap gap-2">
-              <Badge
-                v-for="provider in selectedDeviceAvailableProviders"
-                :key="provider.kind"
-                variant="outline"
-                class="border-sky-500/30 bg-sky-500/12 text-sky-700 dark:text-sky-100"
+      <Card class="border-border/70 bg-card/80 shadow-xl backdrop-blur-xl">
+        <CardHeader class="space-y-1">
+          <CardTitle class="text-base">{{ t("dashboard.chat.historyTitle") }}</CardTitle>
+          <CardDescription>{{ t("dashboard.chat.historySummary") }}</CardDescription>
+        </CardHeader>
+        <CardContent class="p-0">
+          <ScrollArea class="h-[420px]">
+            <div class="space-y-2 p-3">
+              <button
+                type="button"
+                class="w-full rounded-2xl border border-dashed border-border/70 bg-background/45 px-4 py-3 text-left transition hover:bg-accent/40"
+                :class="
+                  !selectedConversationId
+                    ? 'border-sky-500/40 bg-sky-500/10'
+                    : 'border-dashed border-border/70'
+                "
+                @click="startNewConversation"
               >
-                {{ formatProviderSummary(provider.kind, provider.executionProtocol) }}
-              </Badge>
-            </div>
+                <p class="text-sm font-medium text-foreground">
+                  {{ t("dashboard.chat.startBlank") }}
+                </p>
+                <p class="mt-1 text-xs leading-5 text-muted-foreground">
+                  {{ t("dashboard.chat.startBlankSummary") }}
+                </p>
+              </button>
 
-            <div
-              v-if="selectedDeviceUnavailableProviders.length"
-              class="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4"
-            >
-              <p class="text-sm font-medium text-amber-700 dark:text-amber-100">
-                {{ t("dashboard.sessions.providerIssuesTitle") }}
-              </p>
-              <div class="mt-3 space-y-3">
-                <div
-                  v-for="provider in selectedDeviceUnavailableProviders"
-                  :key="provider.kind"
-                  class="rounded-2xl border border-amber-500/20 bg-background/40 p-3"
-                >
-                  <p class="text-sm font-medium text-foreground">
-                    {{ formatProviderSummary(provider.kind, provider.executionProtocol) }}
-                  </p>
-                  <p class="mt-1 text-xs text-muted-foreground">
-                    {{ provider.error ?? t("dashboard.devices.providerVersionPending") }}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div class="grid gap-4 md:grid-cols-2">
-              <label class="grid gap-2">
-                <span class="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                  {{ t("dashboard.fields.provider") }}
-                </span>
-                <select v-model="draft.provider" :class="nativeSelectClass">
-                  <option disabled value="">{{ t("dashboard.placeholders.selectProvider") }}</option>
-                  <option
-                    v-for="provider in store.availableProviders"
-                    :key="provider.kind"
-                    :value="provider.kind"
+              <button
+                v-for="conversation in conversations"
+                :key="conversation.id"
+                type="button"
+                class="w-full rounded-3xl border px-4 py-3 text-left transition"
+                :class="selectedStateClass(conversation.id === selectedConversationId)"
+                @click="selectConversation(conversation.id)"
+              >
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0 space-y-2">
+                    <p class="truncate text-sm font-medium text-foreground">
+                      {{ conversation.title }}
+                    </p>
+                    <div class="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                      <span>{{ deviceName(conversation.deviceId) }}</span>
+                      <span>·</span>
+                      <span>{{ formatProviderKind(conversation.provider) }}</span>
+                    </div>
+                  </div>
+                  <Badge
+                    variant="outline"
+                    class="shrink-0"
+                    :class="taskStatusClass(latestConversationTask(conversation.id)?.status ?? 'pending')"
                   >
-                    {{ provider.label }}
-                  </option>
-                </select>
-              </label>
-
-              <label class="grid gap-2">
-                <span class="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                  {{ t("dashboard.fields.title") }}
-                </span>
-                <Input v-model="draft.title" :placeholder="t('dashboard.placeholders.sessionTitle')" />
-              </label>
-
-              <label class="grid gap-2">
-                <span class="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                  {{ t("dashboard.fields.sessionCwd") }}
-                </span>
-                <Input v-model="draft.cwd" :placeholder="t('dashboard.placeholders.sessionCwd')" />
-              </label>
-
-              <label class="grid gap-2">
-                <span class="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                  {{ t("dashboard.fields.model") }}
-                </span>
-                <Input v-model="draft.model" :placeholder="t('dashboard.placeholders.model')" />
-              </label>
-
-              <label class="grid gap-2 md:col-span-2">
-                <span class="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                  {{ t("dashboard.fields.prompt") }}
-                </span>
-                <Textarea
-                  v-model="draft.prompt"
-                  class="min-h-44"
-                  :placeholder="t('dashboard.placeholders.prompt')"
-                />
-              </label>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card
-          v-if="selectedTaskDetail"
-          class="border-border/70 bg-card/80 shadow-xl backdrop-blur-xl"
-        >
-          <CardHeader class="space-y-4">
-            <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-              <div class="space-y-1">
-                <CardTitle class="flex items-center gap-2 text-foreground">
-                  <Sparkles class="size-4 text-amber-300" />
-                  {{ t("dashboard.sessions.reviewTitle") }}
-                </CardTitle>
-                <CardDescription>{{ t("dashboard.sessions.reviewDescription") }}</CardDescription>
-              </div>
-              <Button
-                variant="outline"
-                class="border-border/70 bg-background/55 text-foreground hover:bg-accent/70"
-                :disabled="!canCancel"
-                @click="store.cancelSelectedTask"
-              >
-                {{ t("dashboard.sessions.cancelSession") }}
-              </Button>
-            </div>
-
-            <div class="grid gap-3 md:grid-cols-3">
-              <div class="rounded-2xl border border-border/70 bg-background/55 p-4">
-                <p class="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                  {{ t("common.status") }}
-                </p>
-                <div class="mt-2 flex items-center gap-2">
-                  <Badge variant="outline" :class="taskStatusClass(selectedTaskDetail.task.status)">
-                    {{ formatTaskStatus(selectedTaskDetail.task.status) }}
+                    {{
+                      formatTaskStatus(
+                        latestConversationTask(conversation.id)?.status ?? "pending"
+                      )
+                    }}
                   </Badge>
                 </div>
-                <p class="mt-2 text-xs text-muted-foreground">
-                  {{ t("common.started") }}
-                  {{ formatTimestamp(selectedTaskDetail.task.startedAtEpochMs ?? selectedTaskDetail.task.createdAtEpochMs) }}
+                <p class="mt-3 text-xs text-muted-foreground">
+                  {{ formatTimestamp(conversation.updatedAtEpochMs) }}
                 </p>
-              </div>
+              </button>
+            </div>
+          </ScrollArea>
+        </CardContent>
+      </Card>
+    </div>
 
-              <div class="rounded-2xl border border-border/70 bg-background/55 p-4">
-                <p class="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                  {{ t("dashboard.workspace.workingDirectory") }}
-                </p>
-                <p class="mt-2 font-mono text-xs text-foreground">
-                  {{ selectedTaskDetail.task.cwd ?? selectedDeviceWorkingRoot }}
-                </p>
-                <p class="mt-2 text-xs text-muted-foreground">
-                  {{ formatProviderSummary(selectedTaskDetail.task.provider, selectedTaskDetail.task.executionProtocol) }}
-                  · {{ selectedTaskDetail.task.model ?? t("common.defaultModel") }}
-                </p>
-              </div>
-
-              <div class="rounded-2xl border border-border/70 bg-background/55 p-4">
-                <p class="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                  {{ t("dashboard.workspace.sessionMetrics") }}
-                </p>
-                <p class="mt-2 text-sm font-medium text-foreground">
+    <Card class="border-border/70 bg-card/85 shadow-2xl backdrop-blur-xl">
+      <CardContent class="flex h-full min-h-[780px] flex-col p-0">
+        <header class="border-b border-border/70 px-5 py-4">
+          <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            <div class="space-y-2">
+              <Badge
+                variant="outline"
+                class="border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-100"
+              >
+                {{ selectedConversation ? t("dashboard.chat.activeThread") : t("dashboard.chat.newThread") }}
+              </Badge>
+              <div class="space-y-1">
+                <h2 class="text-2xl font-semibold tracking-tight text-foreground">
+                  {{ selectedConversation?.title ?? t("dashboard.chat.composeTitle") }}
+                </h2>
+                <p class="text-sm leading-6 text-muted-foreground">
                   {{
-                    t("dashboard.workspace.exitCode", {
-                      code: selectedTaskDetail.task.exitCode ?? t("common.pending")
-                    })
-                  }}
-                </p>
-                <p class="mt-2 text-xs text-muted-foreground">
-                  {{
-                    t("dashboard.workspace.eventsSummary", {
-                      count: selectedTaskDetail.events.length,
-                      deviceId: selectedTaskDetail.task.deviceId
-                    })
+                    selectedConversation
+                      ? t("dashboard.chat.composeSummary", {
+                          device: deviceName(selectedConversation.deviceId),
+                          provider: formatProviderKind(selectedConversation.provider)
+                        })
+                      : t("dashboard.chat.composeEmptySummary")
                   }}
                 </p>
               </div>
             </div>
-          </CardHeader>
 
-          <CardContent class="space-y-5 pt-0">
-            <div class="rounded-2xl border border-sky-500/30 bg-sky-500/10 p-4 text-sm text-sky-700 dark:text-sky-100">
-              {{ supervisionSummary }}
+            <div class="flex flex-wrap items-center gap-2">
+              <Badge variant="outline" class="border-border/70 bg-background/60 text-foreground">
+                <Server class="size-3.5" />
+                {{ selectedConversation ? deviceName(selectedConversation.deviceId) : (selectedDevice?.name ?? t("dashboard.shell.noDeviceSelected")) }}
+              </Badge>
+              <Badge variant="outline" class="border-border/70 bg-background/60 text-foreground">
+                <Sparkles class="size-3.5" />
+                {{
+                  selectedConversation
+                    ? formatProviderKind(selectedConversation.provider)
+                    : (draft.provider ? formatProviderKind(draft.provider) : t("common.provider"))
+                }}
+              </Badge>
+              <Badge
+                v-if="currentConversationTask"
+                variant="outline"
+                :class="taskStatusClass(currentConversationTask.status)"
+              >
+                {{ formatTaskStatus(currentConversationTask.status) }}
+              </Badge>
+              <Button
+                v-if="selectedConversation"
+                type="button"
+                size="sm"
+                variant="outline"
+                @click="archiveConversation"
+              >
+                <Archive class="size-4" />
+                {{ t("dashboard.chat.archive") }}
+              </Button>
             </div>
+          </div>
+        </header>
 
-            <div class="grid gap-3 md:grid-cols-4">
-              <div class="rounded-2xl border border-border/70 bg-background/55 p-4">
-                <p class="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                  {{ t("dashboard.workspace.supervision.counts.assistant") }}
-                </p>
-                <p class="mt-2 text-sm font-medium text-foreground">
-                  {{ sessionEventCounts.assistant }}
-                </p>
-              </div>
-              <div class="rounded-2xl border border-border/70 bg-background/55 p-4">
-                <p class="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                  {{ t("dashboard.workspace.supervision.counts.tool") }}
-                </p>
-                <p class="mt-2 text-sm font-medium text-foreground">
-                  {{ sessionEventCounts.tool }}
-                </p>
-              </div>
-              <div class="rounded-2xl border border-border/70 bg-background/55 p-4">
-                <p class="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                  {{ t("dashboard.workspace.supervision.counts.stderr") }}
-                </p>
-                <p class="mt-2 text-sm font-medium text-foreground">
-                  {{ sessionEventCounts.stderr }}
-                </p>
-              </div>
-              <div class="rounded-2xl border border-border/70 bg-background/55 p-4">
-                <p class="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                  {{ t("dashboard.workspace.supervision.counts.changed") }}
-                </p>
-                <p class="mt-2 text-sm font-medium text-foreground">
-                  {{ visibleChangedFileCount }}
+        <ScrollArea class="min-h-0 flex-1">
+          <div class="space-y-8 px-5 py-6">
+            <template v-if="transcriptTurns.length">
+              <article
+                v-for="turn in transcriptTurns"
+                :key="turn.detail.task.id"
+                class="space-y-4"
+              >
+                <div class="flex justify-end">
+                  <div class="max-w-[88%] rounded-[28px] bg-slate-900 px-5 py-4 text-sm leading-7 text-slate-50 shadow-lg dark:bg-slate-50 dark:text-slate-900">
+                    <div class="mb-3 flex items-center justify-between gap-3">
+                      <div class="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-slate-300 dark:text-slate-500">
+                        <UserRound class="size-3.5" />
+                        {{ t("dashboard.chat.userTurn") }}
+                      </div>
+                      <span class="text-xs text-slate-300/80 dark:text-slate-500">
+                        {{ formatTimestamp(turn.detail.task.createdAtEpochMs) }}
+                      </span>
+                    </div>
+                    <p class="whitespace-pre-wrap">{{ turn.detail.task.prompt }}</p>
+                  </div>
+                </div>
+
+                <div class="flex gap-3">
+                  <div class="mt-1 flex size-10 shrink-0 items-center justify-center rounded-2xl bg-amber-500/12 text-amber-700 dark:text-amber-100">
+                    <Bot class="size-5" />
+                  </div>
+                  <div class="min-w-0 flex-1 space-y-3">
+                    <div class="rounded-[28px] border border-border/70 bg-background/70 px-5 py-4 shadow-sm">
+                      <div class="mb-3 flex flex-wrap items-center gap-2">
+                        <Badge
+                          variant="outline"
+                          :class="taskStatusClass(turn.detail.task.status)"
+                        >
+                          {{ formatTaskStatus(turn.detail.task.status) }}
+                        </Badge>
+                        <Badge
+                          variant="outline"
+                          class="border-border/70 bg-background/70 text-foreground"
+                        >
+                          {{ formatExecutionProtocol(turn.detail.task.executionProtocol) }}
+                        </Badge>
+                      </div>
+
+                      <p
+                        v-if="turn.assistantText"
+                        class="whitespace-pre-wrap text-sm leading-7 text-foreground"
+                      >
+                        {{ turn.assistantText }}
+                      </p>
+                      <p
+                        v-else
+                        class="text-sm leading-7 text-muted-foreground"
+                      >
+                        {{
+                          turn.detail.task.status === "waiting_input"
+                            ? t("dashboard.chat.waitingInput")
+                            : t("dashboard.chat.generating")
+                        }}
+                      </p>
+                    </div>
+
+                    <div v-if="turn.toolEvents.length" class="grid gap-2">
+                      <div
+                        v-for="toolEvent in turn.toolEvents"
+                        :key="`${turn.detail.task.id}-${toolEvent.seq}`"
+                        class="rounded-2xl border border-border/70 bg-background/60 px-4 py-3"
+                      >
+                        <p class="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                          {{ formatEventKind(toolEvent.kind) }}
+                        </p>
+                        <p class="mt-2 whitespace-pre-wrap text-sm leading-6 text-foreground">
+                          {{ toolEvent.message }}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div v-if="turn.systemEvents.length" class="space-y-2">
+                      <div
+                        v-for="systemEvent in turn.systemEvents"
+                        :key="`${turn.detail.task.id}-${systemEvent.seq}`"
+                        class="rounded-2xl border border-border/60 bg-background/45 px-4 py-3 text-sm text-muted-foreground"
+                      >
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                          <span>{{ formatEventKind(systemEvent.kind) }}</span>
+                          <span class="text-xs">{{ formatTimestamp(systemEvent.timestampEpochMs) }}</span>
+                        </div>
+                        <p class="mt-2 whitespace-pre-wrap leading-6">
+                          {{ systemEvent.message }}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            </template>
+
+            <div
+              v-else
+              class="rounded-[32px] border border-dashed border-border/70 bg-gradient-to-br from-amber-500/8 via-background to-sky-500/8 px-6 py-10 text-center"
+            >
+              <div class="mx-auto max-w-xl space-y-3">
+                <Badge
+                  variant="outline"
+                  class="border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-100"
+                >
+                  {{ t("dashboard.chat.emptyBadge") }}
+                </Badge>
+                <h3 class="text-2xl font-semibold tracking-tight text-foreground">
+                  {{ t("dashboard.chat.emptyTitle") }}
+                </h3>
+                <p class="text-sm leading-7 text-muted-foreground">
+                  {{ t("dashboard.chat.emptySummary") }}
                 </p>
               </div>
             </div>
+          </div>
+        </ScrollArea>
 
-            <div class="rounded-2xl border border-border/70 bg-background/60 p-4">
-              <p class="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                {{ t("dashboard.workspace.promptTitle") }}
+        <div
+          v-if="pendingInputRequest"
+          class="border-t border-border/70 bg-amber-500/6 px-5 py-4"
+        >
+          <div class="space-y-4 rounded-[28px] border border-amber-500/25 bg-background/85 p-5 shadow-sm">
+            <div class="space-y-1">
+              <Badge
+                variant="outline"
+                class="border-amber-500/30 bg-amber-500/12 text-amber-700 dark:text-amber-100"
+              >
+                {{ t("dashboard.chat.inputRequestBadge") }}
+              </Badge>
+              <h3 class="text-lg font-semibold text-foreground">
+                {{ pendingInputRequest.prompt }}
+              </h3>
+              <p class="text-sm text-muted-foreground">
+                {{ t("dashboard.chat.inputRequestSummary") }}
               </p>
-              <pre class="mt-3 rounded-xl border border-border/70 bg-background/70 p-4 font-mono text-sm text-foreground">{{ selectedTaskDetail.task.prompt }}</pre>
+            </div>
+
+            <div v-if="pendingInputRequest.options.length" class="flex flex-wrap gap-2">
+              <button
+                v-for="option in pendingInputRequest.options"
+                :key="option.id"
+                type="button"
+                class="rounded-2xl border px-4 py-3 text-left transition"
+                :class="
+                  pendingConversationInputDraft.optionId === option.id
+                    ? 'border-sky-500/40 bg-sky-500/12 text-sky-900 dark:text-sky-100'
+                    : 'border-border/70 bg-background/60 text-foreground hover:bg-accent/40'
+                "
+                @click="choosePendingOption(option)"
+              >
+                <p class="text-sm font-medium">{{ option.label }}</p>
+                <p v-if="option.description" class="mt-1 text-xs leading-5 text-muted-foreground">
+                  {{ option.description }}
+                </p>
+              </button>
+
+              <button
+                v-if="pendingInputRequest.allowCustomInput"
+                type="button"
+                class="rounded-2xl border px-4 py-3 text-left transition"
+                :class="
+                  pendingConversationInputDraft.optionId === CUSTOM_INPUT_SENTINEL
+                    ? 'border-sky-500/40 bg-sky-500/12 text-sky-900 dark:text-sky-100'
+                    : 'border-border/70 bg-background/60 text-foreground hover:bg-accent/40'
+                "
+                @click="choosePendingCustomInput"
+              >
+                <p class="text-sm font-medium">{{ t("dashboard.chat.customOption") }}</p>
+                <p class="mt-1 text-xs leading-5 text-muted-foreground">
+                  {{ t("dashboard.chat.customOptionSummary") }}
+                </p>
+              </button>
+            </div>
+
+            <div v-if="showPendingTextInput" class="space-y-3">
+              <Textarea
+                v-model="pendingConversationInputDraft.text"
+                :placeholder="pendingInputRequest.customInputPlaceholder ?? t('dashboard.chat.customInputPlaceholder')"
+                class="min-h-[120px] border-border/70 bg-background/75"
+              />
+              <div class="flex justify-end">
+                <Button type="button" :disabled="!canSubmitPendingText" @click="submitPendingInput">
+                  <Send class="size-4" />
+                  {{ t("dashboard.chat.submitChoice") }}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <footer class="border-t border-border/70 bg-card/90 px-5 py-4">
+          <form class="space-y-3" @submit.prevent="submitPrompt">
+            <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
+              <Textarea
+                v-model="draft.prompt"
+                :placeholder="
+                  selectedConversation
+                    ? t('dashboard.chat.replyPlaceholder')
+                    : t('dashboard.chat.startPlaceholder')
+                "
+                class="min-h-[144px] border-border/70 bg-background/75 text-base leading-7"
+              />
+              <div class="space-y-3">
+                <div class="space-y-2">
+                  <label class="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                    {{ t("common.model") }}
+                  </label>
+                  <Input v-model="draft.model" :placeholder="t('common.defaultModel')" />
+                </div>
+                <div v-if="!selectedConversation" class="space-y-2">
+                  <label class="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                    {{ t("common.title") }}
+                  </label>
+                  <Input v-model="draft.title" :placeholder="t('dashboard.chat.autoTitleHint')" />
+                </div>
+                <Button type="submit" class="w-full" :disabled="!canSendPrompt">
+                  <Send class="size-4" />
+                  {{
+                    selectedConversation
+                      ? t("dashboard.chat.sendReply")
+                      : t("dashboard.chat.startConversation")
+                  }}
+                </Button>
+              </div>
+            </div>
+          </form>
+        </footer>
+      </CardContent>
+    </Card>
+
+    <div class="space-y-4">
+      <Card class="border-border/70 bg-card/80 shadow-xl backdrop-blur-xl">
+        <CardHeader class="space-y-1">
+          <CardTitle class="text-base">{{ t("dashboard.chat.inspectorTitle") }}</CardTitle>
+          <CardDescription>{{ t("dashboard.chat.inspectorSummary") }}</CardDescription>
+        </CardHeader>
+        <CardContent class="space-y-3">
+          <div class="flex flex-wrap gap-2">
+            <Badge
+              v-if="currentConversationTask"
+              variant="outline"
+              :class="taskStatusClass(currentConversationTask.status)"
+            >
+              {{ formatTaskStatus(currentConversationTask.status) }}
+            </Badge>
+            <Badge
+              v-if="currentConversationTask"
+              variant="outline"
+              class="border-border/70 bg-background/60 text-foreground"
+            >
+              {{ formatExecutionProtocol(currentConversationTask.executionProtocol) }}
+            </Badge>
+            <Badge variant="outline" class="border-border/70 bg-background/60 text-foreground">
+              {{ t("dashboard.stats.aiSessions") }} · {{ transcriptTurns.length }}
+            </Badge>
+          </div>
+
+          <div class="grid gap-3 sm:grid-cols-2 2xl:grid-cols-1">
+            <div class="rounded-2xl border border-border/70 bg-background/55 p-4">
+              <p class="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                {{ t("dashboard.chat.latestTurn") }}
+              </p>
+              <p class="mt-2 text-sm font-medium text-foreground">
+                {{
+                  currentConversationTask
+                    ? formatTimestamp(currentConversationTask.createdAtEpochMs)
+                    : t("common.pending")
+                }}
+              </p>
+            </div>
+            <div class="rounded-2xl border border-border/70 bg-background/55 p-4">
+              <p class="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                {{ t("dashboard.chat.toolEvents") }}
+              </p>
+              <p class="mt-2 text-sm font-medium text-foreground">
+                {{ sessionEventCounts.tool }}
+              </p>
+            </div>
+          </div>
+
+          <Button type="button" variant="outline" size="sm" class="w-full" @click="refreshInspector">
+            <RefreshCw class="size-4" />
+            {{ t("common.refresh") }}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card class="border-border/70 bg-card/80 shadow-xl backdrop-blur-xl">
+        <CardHeader class="space-y-1">
+          <CardTitle class="flex items-center gap-2 text-base">
+            <GitBranch class="size-4" />
+            {{ t("dashboard.workspace.git.title") }}
+          </CardTitle>
+          <CardDescription>{{ t("dashboard.chat.gitSummary") }}</CardDescription>
+        </CardHeader>
+        <CardContent class="space-y-3">
+          <div v-if="gitLoading" class="flex items-center gap-2 text-sm text-muted-foreground">
+            <LoaderCircle class="size-4 animate-spin" />
+            {{ t("common.waiting") }}
+          </div>
+          <p v-else-if="gitError" class="text-sm text-rose-600 dark:text-rose-200">
+            {{ gitError }}
+          </p>
+          <template v-else-if="gitInspect?.state === 'ready'">
+            <div class="rounded-2xl border border-border/70 bg-background/55 p-4">
+              <p class="text-sm font-medium text-foreground">
+                {{ gitInspect.branchName ?? "HEAD" }}
+              </p>
+              <p class="mt-1 text-xs text-muted-foreground">
+                {{
+                  formatGitDrift(
+                    gitInspect.aheadCount,
+                    gitInspect.behindCount
+                  )
+                }}
+              </p>
+            </div>
+
+            <div class="space-y-2">
+              <button
+                v-for="file in gitInspect.changedFiles.slice(0, 8)"
+                :key="file.path"
+                type="button"
+                class="w-full rounded-2xl border border-border/70 bg-background/55 px-4 py-3 text-left transition hover:bg-accent/35"
+                @click="previewGitChangedFile(file.path)"
+              >
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <p class="truncate text-sm font-medium text-foreground">{{ file.path }}</p>
+                    <p class="mt-1 text-xs text-muted-foreground">
+                      {{ formatGitFileStatus(file.status) }}
+                    </p>
+                  </div>
+                  <Badge
+                    variant="outline"
+                    class="shrink-0"
+                    :class="
+                      canPreviewGitChangedFile(file)
+                        ? 'border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-100'
+                        : 'border-border/70 bg-background/55 text-muted-foreground'
+                    "
+                  >
+                    {{ canPreviewGitChangedFile(file) ? t("common.refresh") : t("common.pending") }}
+                  </Badge>
+                </div>
+              </button>
+            </div>
+          </template>
+          <p v-else class="text-sm text-muted-foreground">
+            {{ t("dashboard.chat.gitEmpty") }}
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card class="border-border/70 bg-card/80 shadow-xl backdrop-blur-xl">
+        <CardHeader class="space-y-1">
+          <CardTitle class="flex items-center gap-2 text-base">
+            <FolderCode class="size-4" />
+            {{ t("dashboard.workspace.browser.title") }}
+          </CardTitle>
+          <CardDescription>{{ t("dashboard.chat.workspaceSummary") }}</CardDescription>
+        </CardHeader>
+        <CardContent class="space-y-3">
+          <div v-if="workspaceLoading" class="flex items-center gap-2 text-sm text-muted-foreground">
+            <LoaderCircle class="size-4 animate-spin" />
+            {{ t("common.waiting") }}
+          </div>
+          <p
+            v-else-if="workspaceError"
+            class="text-sm text-rose-600 dark:text-rose-200"
+          >
+            {{ workspaceError }}
+          </p>
+          <template v-else-if="workspaceListing">
+            <div class="space-y-2">
+              <button
+                v-for="entry in workspaceListing.entries.slice(0, 8)"
+                :key="entry.path"
+                type="button"
+                class="w-full rounded-2xl border border-border/70 bg-background/55 px-4 py-3 text-left transition hover:bg-accent/35"
+                @click="openWorkspaceEntry(entry)"
+              >
+                <div class="flex items-center justify-between gap-3">
+                  <div class="min-w-0">
+                    <p class="truncate text-sm font-medium text-foreground">
+                      {{ entry.name }}
+                    </p>
+                    <p class="mt-1 text-xs text-muted-foreground">
+                      {{ entry.path }}
+                    </p>
+                  </div>
+                  <Badge variant="outline" class="border-border/70 bg-background/55 text-foreground">
+                    {{ entry.kind }}
+                  </Badge>
+                </div>
+              </button>
             </div>
 
             <div
-              v-if="selectedTaskDetail.task.error"
-              class="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-700 dark:text-rose-100"
+              v-if="workspacePreview?.content"
+              class="rounded-2xl border border-border/70 bg-slate-950 px-4 py-3 text-xs leading-6 text-slate-100 dark:bg-slate-900"
             >
-              {{ selectedTaskDetail.task.error }}
+              <p class="mb-2 text-slate-400">{{ workspacePreview.path }}</p>
+              <pre class="whitespace-pre-wrap">{{ workspacePreview.content }}</pre>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card
-          v-else
-          class="border-border/70 bg-card/80 shadow-xl backdrop-blur-xl"
-        >
-          <CardContent class="flex min-h-[16rem] items-center justify-center p-6">
-            <p class="max-w-md text-center text-sm leading-6 text-muted-foreground">
-              {{
-                selectedDevice
-                  ? t("dashboard.sessions.readySelected")
-                  : t("dashboard.sessions.readyEmpty")
-              }}
-            </p>
-          </CardContent>
-        </Card>
-
-        <template v-if="selectedDevice">
-          <Card v-if="showGitInspect" class="border-border/70 bg-card/80 shadow-xl backdrop-blur-xl">
-            <CardHeader class="space-y-4">
-              <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                <div class="space-y-1">
-                  <CardTitle class="flex items-center gap-2 text-foreground">
-                    <GitBranch class="size-4 text-emerald-300" />
-                    {{ t("dashboard.sessions.resultReviewTitle") }}
-                  </CardTitle>
-                  <CardDescription>{{ t("dashboard.sessions.resultReviewDescription") }}</CardDescription>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  class="border-border/70 bg-background/55 text-foreground hover:bg-accent/70"
-                  :disabled="gitLoading"
-                  @click="refreshGitInspect"
-                >
-                  <RefreshCw class="size-4" />
-                  {{ t("common.refresh") }}
-                </Button>
-              </div>
-            </CardHeader>
-
-            <CardContent class="pt-0">
-              <div
-                v-if="!selectedDeviceSupportsGitInspect"
-                class="rounded-2xl border border-dashed border-border/70 bg-background/60 p-4 text-sm text-muted-foreground"
-              >
-                {{ t("dashboard.workspace.git.unsupported") }}
-              </div>
-
-              <div v-else class="space-y-4">
-                <div
-                  v-if="gitError"
-                  class="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-700 dark:text-rose-100"
-                >
-                  {{ gitError }}
-                </div>
-
-                <div
-                  v-if="gitLoading"
-                  class="rounded-2xl border border-dashed border-border/70 bg-background/55 p-4 text-sm text-muted-foreground"
-                >
-                  {{ t("dashboard.workspace.git.loading") }}
-                </div>
-
-                <div
-                  v-else-if="!gitInspect"
-                  class="rounded-2xl border border-dashed border-border/70 bg-background/55 p-4 text-sm text-muted-foreground"
-                >
-                  {{ t("dashboard.workspace.git.empty") }}
-                </div>
-
-                <div v-else class="space-y-4">
-                  <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                    <div class="rounded-2xl border border-border/70 bg-background/55 p-4">
-                      <p class="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                        {{ t("dashboard.workspace.git.workspaceRoot") }}
-                      </p>
-                      <p class="mt-2 font-mono text-xs text-foreground">
-                        {{ gitInspect.workspaceRoot }}
-                      </p>
-                    </div>
-                    <div class="rounded-2xl border border-border/70 bg-background/55 p-4">
-                      <p class="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                        {{ t("dashboard.workspace.git.repoRoot") }}
-                      </p>
-                      <p class="mt-2 font-mono text-xs text-foreground">
-                        {{ gitInspect.repoRoot ?? t("common.pending") }}
-                      </p>
-                      <p class="mt-2 text-xs text-muted-foreground">
-                        {{ t("dashboard.workspace.git.scopePath") }}:
-                        {{ gitInspect.scopePath ?? t("common.pending") }}
-                      </p>
-                    </div>
-                    <div class="rounded-2xl border border-border/70 bg-background/55 p-4">
-                      <p class="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                        {{ t("dashboard.workspace.git.branch") }}
-                      </p>
-                      <p class="mt-2 text-sm font-medium text-foreground">
-                        {{ gitInspect.branchName ?? t("common.pending") }}
-                      </p>
-                    </div>
-                    <div class="rounded-2xl border border-border/70 bg-background/55 p-4">
-                      <p class="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                        {{ t("dashboard.workspace.git.upstream") }}
-                      </p>
-                      <p class="mt-2 text-sm font-medium text-foreground">
-                        {{ gitInspect.upstreamBranch ?? t("dashboard.workspace.git.noUpstream") }}
-                      </p>
-                      <p class="mt-2 text-xs text-muted-foreground">
-                        {{ t("dashboard.workspace.git.drift") }}:
-                        {{ formatGitDrift(gitInspect.aheadCount, gitInspect.behindCount) }}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div
-                    v-if="gitInspect.state !== 'ready'"
-                    class="rounded-2xl border border-dashed border-border/70 bg-background/55 p-4 text-sm text-muted-foreground"
-                  >
-                    {{ t(`dashboard.workspace.git.state.${gitInspect.state}`) }}
-                  </div>
-
-                  <template v-else>
-                    <div class="flex flex-wrap gap-2">
-                      <Badge variant="outline" class="border-border/70 bg-background/55 text-foreground">
-                        {{ t("dashboard.workspace.git.stats.changedFiles", { count: gitInspect.diffStats.changedFiles }) }}
-                      </Badge>
-                      <Badge variant="outline" class="border-border/70 bg-background/55 text-foreground">
-                        {{ t("dashboard.workspace.git.stats.stagedFiles", { count: gitInspect.diffStats.stagedFiles }) }}
-                      </Badge>
-                      <Badge variant="outline" class="border-border/70 bg-background/55 text-foreground">
-                        {{ t("dashboard.workspace.git.stats.unstagedFiles", { count: gitInspect.diffStats.unstagedFiles }) }}
-                      </Badge>
-                      <Badge variant="outline" class="border-border/70 bg-background/55 text-foreground">
-                        {{ t("dashboard.workspace.git.stats.untrackedFiles", { count: gitInspect.diffStats.untrackedFiles }) }}
-                      </Badge>
-                      <Badge variant="outline" class="border-border/70 bg-background/55 text-foreground">
-                        {{ t("dashboard.workspace.git.stats.conflictedFiles", { count: gitInspect.diffStats.conflictedFiles }) }}
-                      </Badge>
-                    </div>
-
-                    <div
-                      v-if="!gitInspect.changedFiles.length"
-                      class="rounded-2xl border border-dashed border-border/70 bg-background/55 p-4 text-sm text-muted-foreground"
-                    >
-                      {{ t("dashboard.workspace.git.clean") }}
-                    </div>
-
-                    <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,0.95fr)]">
-                      <div class="rounded-2xl border border-border/70 bg-background/55 p-4">
-                        <div class="mb-4 flex items-center gap-2">
-                          <GitBranch class="size-4 text-emerald-300" />
-                          <p class="text-sm font-medium text-foreground">
-                            {{ t("dashboard.workspace.git.changedFilesTitle") }}
-                          </p>
-                        </div>
-
-                        <ScrollArea class="h-[18rem] pr-3">
-                          <div class="space-y-3">
-                            <div
-                              v-for="file in gitInspect.changedFiles"
-                              :key="file.repoPath"
-                              class="rounded-2xl border border-border/70 bg-background/70 p-4"
-                            >
-                              <div class="flex items-start justify-between gap-3">
-                                <div class="space-y-1">
-                                  <p class="text-sm font-medium text-foreground">
-                                    {{ file.repoPath }}
-                                  </p>
-                                  <p class="font-mono text-xs text-muted-foreground">
-                                    {{ file.path }}
-                                  </p>
-                                </div>
-                                <Badge variant="outline" class="border-border/70 bg-background/55 text-foreground">
-                                  {{ formatGitFileStatus(file.status) }}
-                                </Badge>
-                              </div>
-
-                              <div class="mt-3 flex items-center justify-end">
-                                <Button
-                                  v-if="canPreviewGitChangedFile(file)"
-                                  variant="outline"
-                                  size="sm"
-                                  class="border-border/70 bg-background/55 text-foreground hover:bg-accent/70"
-                                  @click="openGitChangedFile(file)"
-                                >
-                                  {{ t("dashboard.workspace.git.preview") }}
-                                </Button>
-                                <p
-                                  v-else-if="file.status === 'deleted'"
-                                  class="text-xs text-muted-foreground"
-                                >
-                                  {{ t("dashboard.workspace.git.deletedPreviewUnavailable") }}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        </ScrollArea>
-                      </div>
-
-                      <div class="rounded-2xl border border-border/70 bg-background/55 p-4">
-                        <div class="mb-4 flex items-center gap-2">
-                          <Activity class="size-4 text-sky-300" />
-                          <p class="text-sm font-medium text-foreground">
-                            {{ t("dashboard.workspace.git.recentCommitsTitle") }}
-                          </p>
-                        </div>
-
-                        <div
-                          v-if="!gitInspect.hasCommits"
-                          class="rounded-2xl border border-dashed border-border/70 bg-background/70 p-4 text-sm text-muted-foreground"
-                        >
-                          {{ t("dashboard.workspace.git.noCommits") }}
-                        </div>
-
-                        <ScrollArea v-else class="h-[18rem] pr-3">
-                          <div class="space-y-3">
-                            <div
-                              v-for="commit in gitInspect.recentCommits"
-                              :key="commit.id"
-                              class="rounded-2xl border border-border/70 bg-background/70 p-4"
-                            >
-                              <div class="flex items-start justify-between gap-3">
-                                <Badge variant="outline" class="border-border/70 bg-background/55 text-foreground">
-                                  {{ commit.shortId }}
-                                </Badge>
-                                <span class="text-xs text-muted-foreground">
-                                  {{ formatTimestamp(commit.committedAtEpochMs) }}
-                                </span>
-                              </div>
-                              <p class="mt-3 text-sm font-medium text-foreground">
-                                {{ commit.summary || commit.shortId }}
-                              </p>
-                              <p class="mt-2 text-xs text-muted-foreground">
-                                {{ commit.authorName }}
-                              </p>
-                            </div>
-                          </div>
-                        </ScrollArea>
-                      </div>
-                    </div>
-                  </template>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card class="border-border/70 bg-card/80 shadow-xl backdrop-blur-xl">
-            <CardHeader class="space-y-4">
-              <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                <div class="space-y-1">
-                  <CardTitle class="flex items-center gap-2 text-foreground">
-                    <Activity class="size-4 text-sky-300" />
-                    {{ t("dashboard.sessions.eventStreamTitle") }}
-                  </CardTitle>
-                  <CardDescription>{{ t("dashboard.sessions.eventStreamDescription") }}</CardDescription>
-                </div>
-                <Badge
-                  v-if="selectedTaskDetail"
-                  variant="outline"
-                  :class="taskStatusClass(selectedTaskDetail.task.status)"
-                >
-                  {{ formatTaskStatus(selectedTaskDetail.task.status) }}
-                </Badge>
-              </div>
-            </CardHeader>
-
-            <CardContent class="pt-0">
-              <ScrollArea class="h-[24rem] pr-3">
-                <div
-                  v-if="!selectedTaskDetail?.events.length"
-                  class="rounded-2xl border border-dashed border-border/70 bg-background/55 p-4 text-sm text-muted-foreground"
-                >
-                  {{ t("dashboard.workspace.waitingEvents") }}
-                </div>
-
-                <div v-else class="space-y-3">
-                  <div
-                    v-for="event in selectedTaskDetail.events"
-                    :key="`${event.taskId}-${event.seq}`"
-                    class="rounded-2xl border p-4"
-                    :class="eventKindClass(event.kind)"
-                  >
-                    <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                      <Badge variant="outline" class="border-current/30 bg-transparent text-current">
-                        {{ formatEventKind(event.kind) }}
-                      </Badge>
-                      <span class="text-xs text-muted-foreground">
-                        {{ formatTimestamp(event.timestampEpochMs) }}
-                      </span>
-                    </div>
-                    <pre class="font-mono text-sm text-foreground">{{ event.message }}</pre>
-                  </div>
-                </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
-
-          <Card class="border-border/70 bg-card/80 shadow-xl backdrop-blur-xl">
-            <CardHeader class="space-y-4">
-              <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                <div class="space-y-1">
-                  <CardTitle class="flex items-center gap-2 text-foreground">
-                    <FolderCode class="size-4 text-emerald-300" />
-                    {{ t("dashboard.workspace.browser.title") }}
-                  </CardTitle>
-                  <CardDescription>
-                    {{ t("dashboard.workspace.browser.description") }}
-                  </CardDescription>
-                </div>
-                <div class="flex flex-wrap gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    class="border-border/70 bg-background/55 text-foreground hover:bg-accent/70"
-                    :disabled="!workspaceListing?.parentPath || workspaceLoading"
-                    @click="navigateWorkspaceUp"
-                  >
-                    {{ t("dashboard.workspace.browser.up") }}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    class="border-border/70 bg-background/55 text-foreground hover:bg-accent/70"
-                    :disabled="workspaceLoading"
-                    @click="refreshWorkspace"
-                  >
-                    <RefreshCw class="size-4" />
-                    {{ t("common.refresh") }}
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-
-            <CardContent class="pt-0">
-              <div
-                v-if="!selectedDeviceSupportsWorkspace"
-                class="rounded-2xl border border-dashed border-border/70 bg-background/60 p-4 text-sm text-muted-foreground"
-              >
-                {{ t("dashboard.workspace.browser.unsupported") }}
-              </div>
-
-              <div v-else class="grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)]">
-                <div class="rounded-2xl border border-border/70 bg-background/60 p-4">
-                  <div class="mb-4 space-y-3">
-                    <div class="space-y-1">
-                      <p class="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                        {{ t("dashboard.workspace.browser.root") }}
-                      </p>
-                      <p class="font-mono text-xs text-foreground">
-                        {{ workspaceListing?.rootPath ?? selectedDeviceWorkingRoot }}
-                      </p>
-                    </div>
-                    <div class="space-y-1">
-                      <p class="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                        {{ t("dashboard.workspace.browser.path") }}
-                      </p>
-                      <p class="font-mono text-xs text-foreground">
-                        {{ workspaceListing?.path ?? selectedDeviceWorkingRoot }}
-                      </p>
-                    </div>
-                    <p class="text-xs text-muted-foreground">
-                      {{
-                        t("dashboard.workspace.browser.entries", {
-                          count: workspaceListing?.entries.length ?? 0
-                        })
-                      }}
-                    </p>
-                  </div>
-
-                  <div
-                    v-if="workspaceError"
-                    class="mb-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-700 dark:text-rose-100"
-                  >
-                    {{ workspaceError }}
-                  </div>
-
-                  <div
-                    v-if="workspaceLoading"
-                    class="rounded-2xl border border-dashed border-border/70 bg-background/55 p-4 text-sm text-muted-foreground"
-                  >
-                    {{ t("dashboard.workspace.browser.loading") }}
-                  </div>
-
-                  <div
-                    v-else-if="workspaceListing && !workspaceListing.entries.length"
-                    class="rounded-2xl border border-dashed border-border/70 bg-background/55 p-4 text-sm text-muted-foreground"
-                  >
-                    {{ t("dashboard.workspace.browser.empty") }}
-                  </div>
-
-                  <ScrollArea v-else class="h-[22rem] pr-3">
-                    <div class="space-y-2">
-                      <button
-                        v-for="entry in workspaceListing?.entries ?? []"
-                        :key="entry.path"
-                        type="button"
-                        class="w-full rounded-2xl border p-3 text-left transition-colors"
-                        :class="selectedStateClass(selectedWorkspacePath === entry.path)"
-                        @click="openWorkspaceEntry(entry)"
-                      >
-                        <div class="flex items-start justify-between gap-3">
-                          <div class="space-y-1">
-                            <p class="text-sm font-medium text-foreground">{{ entry.name }}</p>
-                            <p class="font-mono text-xs text-muted-foreground">
-                              {{ entry.path }}
-                            </p>
-                          </div>
-                          <Badge variant="outline" class="border-border/70 bg-background/55 text-foreground">
-                            {{ t(`dashboard.workspace.browser.kind.${entry.kind}`) }}
-                          </Badge>
-                        </div>
-                        <p
-                          v-if="entry.kind === 'file' && entry.sizeBytes !== null"
-                          class="mt-2 text-xs text-muted-foreground"
-                        >
-                          {{ t("dashboard.workspace.browser.size", { size: entry.sizeBytes }) }}
-                        </p>
-                      </button>
-                    </div>
-                  </ScrollArea>
-                </div>
-
-                <div class="rounded-2xl border border-border/70 bg-background/60 p-4">
-                  <div class="mb-4 space-y-2">
-                    <p class="text-sm font-medium text-foreground">
-                      {{ t("dashboard.workspace.browser.previewTitle") }}
-                    </p>
-                    <p class="font-mono text-xs text-muted-foreground">
-                      {{ workspacePreview?.path ?? selectedWorkspacePath ?? t("common.waiting") }}
-                    </p>
-                  </div>
-
-                  <div
-                    v-if="workspacePreviewLoading"
-                    class="rounded-2xl border border-dashed border-border/70 bg-background/55 p-4 text-sm text-muted-foreground"
-                  >
-                    {{ t("dashboard.workspace.browser.previewLoading") }}
-                  </div>
-
-                  <div
-                    v-else-if="workspacePreview?.kind === 'binary'"
-                    class="rounded-2xl border border-dashed border-border/70 bg-background/55 p-4 text-sm text-muted-foreground"
-                  >
-                    {{ t("dashboard.workspace.browser.binaryNotice") }}
-                  </div>
-
-                  <div
-                    v-else-if="workspacePreview?.kind === 'text'"
-                    class="space-y-3"
-                  >
-                    <div class="grid gap-3 md:grid-cols-3">
-                      <div class="rounded-2xl border border-border/70 bg-background/55 p-4">
-                        <p class="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                          {{ t("dashboard.workspace.browser.root") }}
-                        </p>
-                        <p class="mt-2 font-mono text-xs text-foreground">
-                          {{ workspacePreview.rootPath }}
-                        </p>
-                      </div>
-                      <div class="rounded-2xl border border-border/70 bg-background/55 p-4">
-                        <p class="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                          {{ t("dashboard.workspace.browser.sizeLabel") }}
-                        </p>
-                        <p class="mt-2 text-sm font-medium text-foreground">
-                          {{ t("dashboard.workspace.browser.size", { size: workspacePreview.sizeBytes }) }}
-                        </p>
-                      </div>
-                      <div class="rounded-2xl border border-border/70 bg-background/55 p-4">
-                        <p class="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                          {{ t("dashboard.workspace.browser.lines") }}
-                        </p>
-                        <p class="mt-2 text-sm font-medium text-foreground">
-                          {{ workspacePreview.totalLines ?? 0 }}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div
-                      v-if="workspacePreview.truncated"
-                      class="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-700 dark:text-amber-100"
-                    >
-                      {{ t("dashboard.workspace.browser.truncated") }}
-                    </div>
-
-                    <pre class="rounded-2xl border border-border/70 bg-background/70 p-4 font-mono text-sm text-foreground">
-{{ workspacePreview.content }}
-                    </pre>
-                  </div>
-
-                  <div
-                    v-else
-                    class="rounded-2xl border border-dashed border-border/70 bg-background/55 p-4 text-sm text-muted-foreground"
-                  >
-                    {{ t("dashboard.workspace.browser.previewEmpty") }}
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </template>
-      </div>
-    </section>
+          </template>
+          <p v-else class="text-sm text-muted-foreground">
+            {{ t("dashboard.chat.workspaceEmpty") }}
+          </p>
+        </CardContent>
+      </Card>
+    </div>
   </section>
 </template>

@@ -6,7 +6,7 @@
 
 [中文](./README.md) | [English](./README.en.md)
 
-Vibe Everywhere 是面向自建环境的远程 AI 控制面。系统由 `vibe-relay`、`vibe-agent` 和控制端组成，用于在远程机器上执行 AI Session，并通过统一入口完成设备注册、会话调度、工作区浏览、Git 检查、预览访问和必要的高级连接操作。
+Vibe Everywhere 是面向自建环境的远程 AI 控制面。系统由 `vibe-relay`、`vibe-agent` 和控制端组成，用于在远程机器上运行长期 AI 编程对话，并通过统一入口完成设备注册、会话线程调度、工作区浏览、Git 检查、预览访问和必要的高级连接操作。
 
 本文件面向最终用户和部署人员，提供系统概览、二进制安装方式、启动入口、关键配置语义和标准使用流程。
 
@@ -17,26 +17,27 @@ Vibe Everywhere 是面向自建环境的远程 AI 控制面。系统由 `vibe-re
 1. 在客户端和 Agent 可访问的主机上部署 `vibe-relay`。
 2. 在目标执行节点上启动 `vibe-agent`。
 3. 通过桌面端、Android 或自建 Web 客户端连接 relay。
-4. 选择设备并创建 AI Session。
-5. 在同一控制面中检查工作区、Git 状态、预览和执行结果。
+4. 选择设备并启动一个长期 AI 对话。
+5. 在同一控制面中继续追问、回答工具选项、并检查工作区、Git 状态、预览和执行结果。
 
 ## 组件说明
 
 | 组件 | 作用 | 典型部署位置 |
 | --- | --- | --- |
-| `vibe-relay` | 控制面入口；负责认证、设备注册、Session 路由、状态汇总和对外 API | 服务器、工作站、云主机 |
+| `vibe-relay` | 控制面入口；负责认证、设备注册、对话 / Task 路由、状态汇总和对外 API | 服务器、工作站、云主机 |
 | `vibe-agent` | 运行在目标机器上；负责执行 Provider CLI、工作区访问、Git 检查、预览桥接和高级连接 | 需要执行 AI 任务的目标机器 |
-| 控制端 | 连接 relay，发起和管理 AI Session，查看设备与结果 | 桌面端、Android、自建 Web 客户端 |
+| 控制端 | 连接 relay，发起和管理长期 AI 对话，查看设备与结果 | 桌面端、Android、自建 Web 客户端 |
 
 ## 功能范围
 
 当前版本支持：
 
-- AI Session 的创建、执行、取消和事件流查看
+- 长期 AI 对话的创建、继续、取消和事件流查看
 - 设备注册、在线状态上报和 Provider 可用性展示
 - 工作区目录浏览和文本文件预览
 - Git 状态、变更文件和最近提交检查
 - 预览访问、Shell 和高级连接能力
+- Provider 需要人工确认时的内联选项选择与自定义输入
 - 中文和英文界面
 - 浅色、深色和系统主题
 
@@ -77,7 +78,7 @@ bash install-relay.sh install
 bash install-relay.sh install
 bash install-relay.sh install --component relay
 bash install-relay.sh install --component agent
-bash install-relay.sh update --release-tag v0.1.9
+bash install-relay.sh update --release-tag v0.1.10
 bash install-relay.sh uninstall
 bash install-relay.sh uninstall --component agent
 ```
@@ -117,7 +118,7 @@ powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command install
 powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command install
 powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command install -Component relay
 powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command install -Component agent
-powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command update -ReleaseTag v0.1.9
+powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command update -ReleaseTag v0.1.10
 powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command uninstall
 powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command uninstall -Component agent
 ```
@@ -193,7 +194,7 @@ vibe-agent
 2. 输入 relay 地址。
 3. 输入 `VIBE_RELAY_ACCESS_TOKEN`。
 4. 确认至少一台设备在线，且该设备至少一个 Provider 处于可用状态。
-5. 创建 AI Session。
+5. 创建长期 AI 对话。
 
 ## 配置语义
 
@@ -264,8 +265,8 @@ vibe-agent
 1. 配置 relay 地址和控制面 token。
 2. 确认目标设备在线。
 3. 检查目标设备的 Provider 可用性。
-4. 创建 AI Session。
-5. 查看事件流和执行结果。
+4. 创建或继续一个长期 AI 对话。
+5. 查看对话输出、工具选择请求和执行结果。
 6. 使用工作区浏览、Git 检查和预览确认输出。
 7. 仅在需要人工干预时使用 Shell 或高级连接能力。
 
@@ -288,7 +289,7 @@ vibe-agent
                             │ HTTP / SSE / WebSocket
 ┌───────────────────────────▼──────────────────────────────┐
 │                      vibe-relay                          │
-│  device registry · AI sessions · workspace · preview    │
+│  device registry · AI conversations · workspace · preview│
 │        auth · config · transport selection               │
 └───────────────────────────┬──────────────────────────────┘
                             │ polling / stream / tunnel

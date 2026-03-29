@@ -30,23 +30,26 @@ use uuid::Uuid;
 use vibe_core::{
     ActorIdentity, AppConfig, AppendShellOutputRequest, AppendTaskEventsRequest, AuditAction,
     AuditOutcome, AuditRecord, ClaimPortForwardResponse, ClaimShellSessionResponse,
-    ClaimTaskResponse, CreatePortForwardRequest, CreatePortForwardResponse,
-    CreateShellInputRequest, CreateShellSessionRequest, CreateShellSessionResponse,
-    CreateTaskRequest, CreateTaskResponse, DEFAULT_TENANT_ID, DEFAULT_USER_ID,
-    DEVICE_OFFLINE_AFTER_MS, DeviceCapability, DeviceRecord, HeartbeatRequest, HeartbeatResponse,
-    MembershipRecord, OverlayState, PortForwardBridgeEvent, PortForwardBridgeRequest,
-    PortForwardDetailResponse, PortForwardRecord, PortForwardStatus, PortForwardTransportKind,
-    PortForwardTunnelControl, ProviderKind, RegisterDeviceRequest, RegisterDeviceResponse,
-    RelayEventEnvelope, RelayEventType, ReportPortForwardStateRequest, ServiceHealth,
-    ShellBridgeEvent, ShellBridgeRequest, ShellInputRecord, ShellOutputChunk,
-    ShellPendingInputResponse, ShellSessionDetailResponse, ShellSessionRecord, ShellSessionStatus,
-    ShellStreamKind, ShellTransportKind, TaskBridgeEvent, TaskBridgeRequest, TaskDetailResponse,
-    TaskEvent, TaskRecord, TaskStatus, TaskTransportKind, TenantRecord, UserRecord,
-    default_app_config, now_epoch_millis,
+    ClaimTaskResponse, ConversationDetailResponse, ConversationInputRequest, ConversationRecord,
+    CreateConversationInputRequest, CreateConversationRequest, CreateConversationResponse,
+    CreatePortForwardRequest, CreatePortForwardResponse, CreateShellInputRequest,
+    CreateShellSessionRequest, CreateShellSessionResponse, CreateTaskRequest, CreateTaskResponse,
+    DEFAULT_TENANT_ID, DEFAULT_USER_ID, DEVICE_OFFLINE_AFTER_MS, DeviceCapability, DeviceRecord,
+    HeartbeatRequest, HeartbeatResponse, MembershipRecord, OverlayState, PortForwardBridgeEvent,
+    PortForwardBridgeRequest, PortForwardDetailResponse, PortForwardRecord, PortForwardStatus,
+    PortForwardTransportKind, PortForwardTunnelControl, ProviderKind, RegisterDeviceRequest,
+    RegisterDeviceResponse, RelayEventEnvelope, RelayEventType, ReportPortForwardStateRequest,
+    RespondConversationInputRequest, SendConversationMessageRequest,
+    SendConversationMessageResponse, ServiceHealth, ShellBridgeEvent, ShellBridgeRequest,
+    ShellInputRecord, ShellOutputChunk, ShellPendingInputResponse, ShellSessionDetailResponse,
+    ShellSessionRecord, ShellSessionStatus, ShellStreamKind, ShellTransportKind, TaskBridgeEvent,
+    TaskBridgeRequest, TaskDetailResponse, TaskEvent, TaskRecord, TaskStatus, TaskTransportKind,
+    TenantRecord, UserRecord, default_app_config, now_epoch_millis,
 };
 
 mod auth;
 mod config;
+mod conversations;
 mod easytier;
 mod git;
 mod port_forwards;
@@ -64,6 +67,11 @@ use auth::{
 #[cfg(test)]
 use auth::{query_access_token, request_access_token};
 use config::RelayConfig;
+use conversations::{
+    archive_conversation, create_conversation, create_task_input_request, get_conversation,
+    get_task_input_request, list_conversations, respond_task_input_request,
+    send_conversation_message,
+};
 use easytier::{RelayEasyTierOptions, start_managed_relay_easytier};
 use git::{GitRequestEntry, claim_next_git_request, complete_git_request, inspect_git_workspace};
 #[cfg(test)]
@@ -507,10 +515,35 @@ fn build_app(state: AppState) -> Router {
             "/api/devices/:device_id/tasks/claim-next",
             post(claim_next_task),
         )
+        .route(
+            "/api/conversations",
+            get(list_conversations).post(create_conversation),
+        )
+        .route("/api/conversations/:conversation_id", get(get_conversation))
+        .route(
+            "/api/conversations/:conversation_id/messages",
+            post(send_conversation_message),
+        )
+        .route(
+            "/api/conversations/:conversation_id/archive",
+            post(archive_conversation),
+        )
         .route("/api/tasks", get(list_tasks).post(create_task))
         .route("/api/tasks/:task_id", get(get_task))
         .route("/api/tasks/:task_id/cancel", post(cancel_task))
         .route("/api/tasks/:task_id/events", post(append_task_events))
+        .route(
+            "/api/tasks/:task_id/input-requests",
+            post(create_task_input_request),
+        )
+        .route(
+            "/api/tasks/:task_id/input-requests/:request_id",
+            get(get_task_input_request),
+        )
+        .route(
+            "/api/tasks/:task_id/input-requests/:request_id/respond",
+            post(respond_task_input_request),
+        )
         .route(
             "/api/shell/sessions",
             get(list_shell_sessions).post(create_shell_session),
@@ -1230,12 +1263,15 @@ mod tests {
                 user_id: "local-admin".to_string(),
                 id: id.to_string(),
                 device_id: device_id.to_string(),
+                conversation_id: None,
                 title: format!("Task {id}"),
                 provider,
                 execution_protocol: vibe_core::ExecutionProtocol::Cli,
                 prompt: "prompt".to_string(),
                 cwd: None,
                 model: None,
+                provider_session_id: None,
+                pending_input_request_id: None,
                 transport: TaskTransportKind::RelayPolling,
                 status,
                 cancel_requested: false,
@@ -1657,11 +1693,13 @@ mod tests {
             test_headers(),
             Json(CreateTaskRequest {
                 device_id: "device-1".to_string(),
+                conversation_id: None,
                 provider: ProviderKind::Codex,
                 prompt: "hello".to_string(),
                 cwd: None,
                 model: None,
                 title: Some("fallback task".to_string()),
+                provider_session_id: None,
             }),
         )
         .await
@@ -2130,6 +2168,7 @@ mod tests {
                 &TaskBridgeEvent::Update {
                     status: Some(TaskStatus::Running),
                     execution_protocol: Some(vibe_core::ExecutionProtocol::Cli),
+                    provider_session_id: None,
                     events: vec![vibe_core::TaskEventInput {
                         kind: vibe_core::TaskEventKind::System,
                         message: "overlay running via sse".to_string(),
@@ -2144,6 +2183,7 @@ mod tests {
                 &TaskBridgeEvent::Update {
                     status: Some(TaskStatus::Succeeded),
                     execution_protocol: None,
+                    provider_session_id: None,
                     events: vec![vibe_core::TaskEventInput {
                         kind: vibe_core::TaskEventKind::System,
                         message: "overlay finished via sse".to_string(),
@@ -2169,11 +2209,13 @@ mod tests {
             .post(format!("{base_url}/api/tasks"))
             .json(&CreateTaskRequest {
                 device_id: "device-1".to_string(),
+                conversation_id: None,
                 provider: ProviderKind::Codex,
                 prompt: "say hi".to_string(),
                 cwd: None,
                 model: None,
                 title: Some("overlay sse task".to_string()),
+                provider_session_id: None,
             })
             .send()
             .await
@@ -2317,6 +2359,7 @@ mod tests {
                 &TaskBridgeEvent::Update {
                     status: Some(TaskStatus::Running),
                     execution_protocol: Some(vibe_core::ExecutionProtocol::Cli),
+                    provider_session_id: None,
                     events: vec![vibe_core::TaskEventInput {
                         kind: vibe_core::TaskEventKind::System,
                         message: "overlay running".to_string(),
@@ -2331,6 +2374,7 @@ mod tests {
                 &TaskBridgeEvent::Update {
                     status: Some(TaskStatus::Succeeded),
                     execution_protocol: None,
+                    provider_session_id: None,
                     events: vec![vibe_core::TaskEventInput {
                         kind: vibe_core::TaskEventKind::System,
                         message: "overlay finished".to_string(),
@@ -2347,11 +2391,13 @@ mod tests {
             test_headers(),
             Json(CreateTaskRequest {
                 device_id: "device-1".to_string(),
+                conversation_id: None,
                 provider: ProviderKind::Codex,
                 prompt: "say hi".to_string(),
                 cwd: None,
                 model: None,
                 title: Some("overlay task".to_string()),
+                provider_session_id: None,
             }),
         )
         .await
@@ -2428,6 +2474,7 @@ mod tests {
                 &TaskBridgeEvent::Update {
                     status: Some(TaskStatus::Running),
                     execution_protocol: Some(vibe_core::ExecutionProtocol::Cli),
+                    provider_session_id: None,
                     events: vec![vibe_core::TaskEventInput {
                         kind: vibe_core::TaskEventKind::System,
                         message: "running before cancel".to_string(),
@@ -2452,6 +2499,7 @@ mod tests {
                 &TaskBridgeEvent::Update {
                     status: Some(TaskStatus::Canceled),
                     execution_protocol: None,
+                    provider_session_id: None,
                     events: vec![vibe_core::TaskEventInput {
                         kind: vibe_core::TaskEventKind::System,
                         message: "task canceled by bridge".to_string(),
@@ -2709,6 +2757,7 @@ mod tests {
                 &TaskBridgeEvent::Update {
                     status: Some(TaskStatus::Running),
                     execution_protocol: Some(vibe_core::ExecutionProtocol::Cli),
+                    provider_session_id: None,
                     events: vec![vibe_core::TaskEventInput {
                         kind: vibe_core::TaskEventKind::System,
                         message: "running before disconnect".to_string(),
@@ -2806,6 +2855,7 @@ mod tests {
             State(state),
             Query(TaskListQuery {
                 device_id: Some("device-1".to_string()),
+                conversation_id: None,
                 status: Some(TaskStatus::Running),
                 provider: Some(ProviderKind::Codex),
                 limit: Some(1),

@@ -32,6 +32,7 @@ const activeSection = computed(
   () =>
     dashboardSections.find((item) => item.routeName === route.name) ?? dashboardSections[0]
 )
+const isSessionRoute = computed(() => activeSection.value.routeName === "dashboard-sessions")
 const mobileNavStyle = computed(() => ({
   gridTemplateColumns: `repeat(${dashboardSections.length}, minmax(0, 1fr))`
 }))
@@ -62,8 +63,18 @@ function isRouteActive(routeName: DashboardRouteName) {
 </script>
 
 <template>
-  <main class="mx-auto flex min-h-screen w-full max-w-[1600px] gap-4 px-3 py-4 md:px-6 xl:px-8">
-    <aside class="sticky top-4 hidden h-[calc(100vh-2rem)] w-[290px] shrink-0 flex-col gap-4 lg:flex">
+  <main
+    :class="
+      cn(
+        'mx-auto min-h-screen w-full px-3 py-4 md:px-6 xl:px-8',
+        isSessionRoute ? 'max-w-[1800px]' : 'flex max-w-[1600px] gap-4'
+      )
+    "
+  >
+    <aside
+      v-if="!isSessionRoute"
+      class="sticky top-4 hidden h-[calc(100vh-2rem)] w-[290px] shrink-0 flex-col gap-4 lg:flex"
+    >
       <Card class="border-border/70 bg-card/85 shadow-2xl backdrop-blur-xl">
         <CardContent class="space-y-5 p-5">
           <div class="space-y-3">
@@ -158,8 +169,11 @@ function isRouteActive(routeName: DashboardRouteName) {
       </Card>
     </aside>
 
-    <section class="min-w-0 flex-1 pb-24 lg:pb-6">
-      <Card class="mb-4 border-border/70 bg-card/85 shadow-xl backdrop-blur-xl lg:hidden">
+    <section :class="cn('min-w-0 pb-24 lg:pb-6', isSessionRoute ? 'w-full' : 'flex-1')">
+      <Card
+        v-if="!isSessionRoute"
+        class="mb-4 border-border/70 bg-card/85 shadow-xl backdrop-blur-xl lg:hidden"
+      >
         <CardContent class="space-y-4 p-5">
           <div class="space-y-2">
             <Badge
@@ -200,7 +214,49 @@ function isRouteActive(routeName: DashboardRouteName) {
         </CardContent>
       </Card>
 
-      <header class="mb-4 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+      <header
+        v-if="isSessionRoute"
+        class="mb-4 rounded-[28px] border border-border/70 bg-card/80 px-4 py-4 shadow-xl backdrop-blur-xl"
+      >
+        <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div class="space-y-1">
+            <p class="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+              {{ appName }}
+            </p>
+            <div class="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+              <Badge variant="outline" class="border-border/70 bg-background/60 text-foreground">
+                {{ formatConnectionState(eventState) }}
+              </Badge>
+              <Badge variant="outline" class="border-border/70 bg-background/60 text-foreground">
+                {{ selectedDeviceLabel }}
+              </Badge>
+            </div>
+          </div>
+
+          <nav class="flex flex-wrap gap-2">
+            <RouterLink
+              v-for="item in dashboardSections"
+              :key="item.routeName"
+              :to="{ name: item.routeName }"
+              :class="
+                cn(
+                  'rounded-2xl border px-4 py-2 text-sm transition-colors',
+                  isRouteActive(item.routeName)
+                    ? 'border-primary/50 bg-primary/12 text-primary'
+                    : 'border-border/70 bg-background/55 text-muted-foreground hover:bg-accent/40 hover:text-foreground'
+                )
+              "
+            >
+              {{ t(item.titleKey) }}
+            </RouterLink>
+          </nav>
+        </div>
+      </header>
+
+      <header
+        v-else
+        class="mb-4 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between"
+      >
         <div class="space-y-2">
           <Badge variant="outline" class="border-border/70 bg-background/55 text-foreground">
             {{ t(activeSection.titleKey) }}

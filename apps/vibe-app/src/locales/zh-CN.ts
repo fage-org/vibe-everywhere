@@ -50,6 +50,7 @@ const zhCN = {
     pending: "等待中",
     assigned: "已分配",
     running: "运行中",
+    waiting_input: "等待用户输入",
     cancel_requested: "已请求取消",
     succeeded: "成功",
     failed: "失败",
@@ -321,6 +322,58 @@ const zhCN = {
         "当前设备已选中。你可以直接在这里启动 Session，并在主流程里继续查看结果、事件流和工作区。",
       readyEmpty: "先选择一台在线设备，再启动新的 AI Session。"
     },
+    chat: {
+      liveBadge: "对话优先",
+      setupTitle: "只连接一次，然后留在聊天里",
+      threadControl: "长期线程控制",
+      setupSummary:
+        "Relay、设备、Provider 和线程目标先集中在一个紧凑面板里，等首个会话准备好后就退到次要位置。",
+      threadSummary:
+        "聊天界面保持为主界面。切换 Relay 和新线程目标保留为紧凑的次级控制。",
+      newConversation: "新对话",
+      autoTitleHint: "根据首条提示自动生成标题",
+      cwd: "工作目录",
+      switchRelay: "切换 Relay 或令牌",
+      reconnect: "重新连接",
+      historyTitle: "对话历史",
+      historySummary: "按更新时间倒序展示长期线程。",
+      startBlank: "开始一个全新线程",
+      startBlankSummary: "清空当前选择，把下一条提示直接发送成新的长期对话。",
+      activeThread: "当前线程",
+      newThread: "草稿线程",
+      composeTitle: "开始一个长期 AI 对话",
+      composeSummary: "当前在线程所在设备 {device} 上继续，由 {provider} 执行。",
+      composeEmptySummary:
+        "先在这里写下第一条提示。创建后，后续轮次会继续沿用 Provider 原生线程。",
+      archive: "归档",
+      userTurn: "你",
+      waitingInput: "Provider 正在等待你的选择，确认后才能继续执行。",
+      generating: "Agent 仍在生成下一段回复。",
+      emptyBadge: "聊天主界面",
+      emptyTitle: "把主页面收束到对话交互",
+      emptySummary:
+        "从这里开始或切换长期会话。工作区、Git、终端和预览仍然可用，但收缩为次要审阅面板。",
+      inputRequestBadge: "需要你的决定",
+      inputRequestSummary:
+        "有些 AI 编程工具会暂停并等待明确的人类选择。你可以直接点选，也可以在这里填写自定义输入。",
+      customOption: "其他",
+      customOptionSummary: "不用预设项，改为手动输入。",
+      customInputPlaceholder: "输入要让 agent 使用的选择、值或路径。",
+      submitChoice: "提交选择",
+      replyPlaceholder: "继续发送下一条指令、修正意见或补充上下文……",
+      startPlaceholder: "描述要让远程 AI 构建、修改或检查什么……",
+      sendReply: "发送回复",
+      startConversation: "启动对话",
+      inspectorTitle: "紧凑检查面板",
+      inspectorSummary:
+        "Git、工作区和任务遥测仍可查看，但不会再抢占主对话界面。",
+      latestTurn: "最近一轮",
+      toolEvents: "工具事件",
+      gitSummary: "在聊天旁边快速审阅仓库漂移和变更文件。",
+      gitEmpty: "当前对话还没有可展示的 Git 上下文。",
+      workspaceSummary: "不离开聊天界面，直接浏览当前工作区。",
+      workspaceEmpty: "当前对话还没有可展示的工作区快照。"
+    },
     workspace: {
       title: "Session 工作台",
       newTitle: "新的 AI Session",
@@ -439,7 +492,7 @@ const zhCN = {
       targetPort: "3000"
     },
     composerNote:
-      "Codex / OpenCode 优先走 ACP；Claude Code 当前仍走 CLI。Terminal 和 Preview 保留在下方高级工具区。",
+      "当前只有 OpenCode 走标准 ACP；Codex 和 Claude Code 当前仍走 CLI。Terminal 和 Preview 保留在下方高级工具区。",
     advanced: {
       badge: "高级工具",
       title: "Terminal 与 Preview",

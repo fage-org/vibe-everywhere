@@ -50,6 +50,7 @@ const en = {
     pending: "Pending",
     assigned: "Assigned",
     running: "Running",
+    waiting_input: "Waiting for input",
     cancel_requested: "Cancel requested",
     succeeded: "Succeeded",
     failed: "Failed",
@@ -337,6 +338,59 @@ const en = {
         "The device is selected. Launch a session here, then review the result, event stream, and workspace without leaving the main workflow.",
       readyEmpty: "Pick an online device first, then start a new AI session."
     },
+    chat: {
+      liveBadge: "Conversation First",
+      setupTitle: "Connect Once, Then Stay In Chat",
+      threadControl: "Long-Lived Thread Control",
+      setupSummary:
+        "Relay, device, provider, and thread target stay in one compact panel until the first session is ready.",
+      threadSummary:
+        "The chat stays primary. Relay switching and new-thread targeting are compact secondary controls.",
+      newConversation: "New Conversation",
+      autoTitleHint: "Auto-generate from first prompt",
+      cwd: "Working Directory",
+      switchRelay: "Switch relay or token",
+      reconnect: "Reconnect",
+      historyTitle: "Conversation History",
+      historySummary: "Durable provider-native threads, newest first.",
+      startBlank: "Start a fresh thread",
+      startBlankSummary:
+        "Clear the current selection and send the next prompt as a new long-lived conversation.",
+      activeThread: "Active Thread",
+      newThread: "Draft Thread",
+      composeTitle: "Start a durable AI conversation",
+      composeSummary: "Continuing on {device} with {provider}.",
+      composeEmptySummary:
+        "Write the first prompt here. After creation, later turns continue on the provider's native thread.",
+      archive: "Archive",
+      userTurn: "You",
+      waitingInput: "The provider is waiting for your decision before it can continue.",
+      generating: "The agent is still generating the next response.",
+      emptyBadge: "Chat Surface",
+      emptyTitle: "Keep the main page focused on dialogue",
+      emptySummary:
+        "Start or select a conversation here. Workspace, Git, terminal, and preview stay available, but reduced to secondary inspection.",
+      inputRequestBadge: "Action Required",
+      inputRequestSummary:
+        "Some provider tools pause for an explicit human choice. Choose an option or provide custom input inline.",
+      customOption: "Other",
+      customOptionSummary: "Use custom text instead of the preset options.",
+      customInputPlaceholder: "Describe the choice, value, or path the agent should use.",
+      submitChoice: "Submit Choice",
+      replyPlaceholder: "Send the next instruction, correction, or follow-up…",
+      startPlaceholder: "Describe what the remote AI should build, change, or inspect…",
+      sendReply: "Send Reply",
+      startConversation: "Start Conversation",
+      inspectorTitle: "Compact Inspector",
+      inspectorSummary:
+        "Git, workspace, and task telemetry remain available without taking over the main surface.",
+      latestTurn: "Latest Turn",
+      toolEvents: "Tool Events",
+      gitSummary: "Review repository drift and changed files next to the chat.",
+      gitEmpty: "No Git context is available for the current conversation yet.",
+      workspaceSummary: "Browse the active workspace without leaving the conversation.",
+      workspaceEmpty: "No workspace snapshot is available for the current conversation yet."
+    },
     workspace: {
       title: "Session Workspace",
       newTitle: "New AI Session",
@@ -465,7 +519,7 @@ const en = {
       targetPort: "3000"
     },
     composerNote:
-      "Codex / OpenCode prefer ACP. Claude Code still runs through CLI. Terminal and Preview remain below as advanced tools.",
+      "OpenCode currently runs through standard ACP. Codex and Claude Code currently run through CLI. Terminal and Preview remain below as advanced tools.",
     advanced: {
       badge: "Advanced Tools",
       title: "Terminal And Preview",

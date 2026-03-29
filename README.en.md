@@ -7,9 +7,9 @@
 [中文](./README.md) | [English](./README.en.md)
 
 Vibe Everywhere is a self-hosted remote AI control plane. The system consists of `vibe-relay`,
-`vibe-agent`, and control clients. It is used to execute AI sessions on remote machines and to
-manage device registration, session routing, workspace browsing, Git inspection, preview access,
-and advanced connection paths through one control surface.
+`vibe-agent`, and control clients. It is used to run long-lived AI coding conversations on remote
+machines and to manage device registration, conversation routing, workspace browsing, Git
+inspection, preview access, and advanced connection paths through one control surface.
 
 This document is written for end users and operators. It provides a system overview, binary
 installation entry points, relay startup references, key configuration semantics, and the standard
@@ -22,26 +22,28 @@ The standard workflow is:
 1. Deploy `vibe-relay` on a host reachable by clients and agents.
 2. Start `vibe-agent` on target execution nodes.
 3. Connect a desktop, Android, or self-hosted Web client to the relay.
-4. Select a device and create an AI session.
-5. Review workspace state, Git state, previews, and execution results from the same control plane.
+4. Select a device and start a long-lived AI conversation.
+5. Continue follow-up turns, answer tool choices, and review workspace state, Git state, previews,
+   and execution results from the same control plane.
 
 ## Components
 
 | Component | Purpose | Typical Location |
 | --- | --- | --- |
-| `vibe-relay` | Control-plane entry point for auth, device registration, session routing, aggregation, and public APIs | Server, workstation, cloud host |
+| `vibe-relay` | Control-plane entry point for auth, device registration, conversation / task routing, aggregation, and public APIs | Server, workstation, cloud host |
 | `vibe-agent` | Runtime on the target machine for provider execution, workspace access, Git inspection, preview bridging, and advanced connections | Machine that runs AI work |
-| Control client | Connects to the relay and manages sessions, devices, and results | Desktop, Android, self-hosted Web client |
+| Control client | Connects to the relay and manages long-lived AI conversations, devices, and results | Desktop, Android, self-hosted Web client |
 
 ## Supported Capabilities
 
 The current release supports:
 
-- creation, execution, cancellation, and streaming of AI sessions
+- creation, continuation, cancellation, and streaming of long-lived AI conversations
 - device registration, presence reporting, and provider availability display
 - workspace browsing and text-file preview
 - Git status, changed-file, and recent-commit inspection
 - preview access, shell sessions, and advanced connection capabilities
+- inline provider choice prompts with preset options plus custom text input
 - English and Simplified Chinese UI
 - light, dark, and system theme modes
 
@@ -84,7 +86,7 @@ Common commands:
 bash install-relay.sh install
 bash install-relay.sh install --component relay
 bash install-relay.sh install --component agent
-bash install-relay.sh update --release-tag v0.1.9
+bash install-relay.sh update --release-tag v0.1.10
 bash install-relay.sh uninstall
 bash install-relay.sh uninstall --component agent
 ```
@@ -125,7 +127,7 @@ Common commands:
 powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command install
 powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command install -Component relay
 powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command install -Component agent
-powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command update -ReleaseTag v0.1.9
+powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command update -ReleaseTag v0.1.10
 powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command uninstall
 powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command uninstall -Component agent
 ```
@@ -205,7 +207,7 @@ Recommended first-use sequence:
 2. Enter the relay address.
 3. Enter `VIBE_RELAY_ACCESS_TOKEN`.
 4. Confirm that at least one device is online and that at least one provider is available.
-5. Create an AI session.
+5. Create a long-lived AI conversation.
 
 ## Configuration Semantics
 
@@ -281,8 +283,8 @@ Recommended operating sequence:
 1. Configure the relay address and control-plane token.
 2. Confirm that the target device is online.
 3. Check provider availability on the target device.
-4. Create an AI session.
-5. Review the event stream and execution results.
+4. Create or continue a long-lived AI conversation.
+5. Review the transcript, tool-choice prompts, and execution results.
 6. Use workspace browsing, Git inspection, and previews to validate output.
 7. Use shell or advanced connection capabilities only when manual intervention is required.
 
@@ -305,7 +307,7 @@ Recommended operating sequence:
                             │ HTTP / SSE / WebSocket
 ┌───────────────────────────▼──────────────────────────────┐
 │                      vibe-relay                          │
-│  device registry · AI sessions · workspace · preview    │
+│  device registry · AI conversations · workspace · preview│
 │        auth · config · transport selection               │
 └───────────────────────────┬──────────────────────────────┘
                             │ polling / stream / tunnel

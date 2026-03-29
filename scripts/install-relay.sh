@@ -33,7 +33,7 @@ Commands:
 Options:
   --bin-dir DIR           Target directory for installed binaries (default: /usr/local/bin)
   --component VALUE       Which binaries to manage: all, relay, or agent (default: all)
-  --release-tag TAG       Install a specific release tag, for example v0.1.9
+  --release-tag TAG       Install a specific release tag, for example v0.1.10
   --archive-url URL       Download from a custom archive URL
   --archive-path PATH     Install from a local archive path
   --gh-proxy URL          Prefix applied to GitHub release and redirect URLs
@@ -45,7 +45,7 @@ Examples:
   ./install-relay.sh install
   ./install-relay.sh install --component relay
   ./install-relay.sh install --component agent
-  ./install-relay.sh update --component all --release-tag v0.1.9
+  ./install-relay.sh update --component all --release-tag v0.1.10
   ./install-relay.sh uninstall --component agent
   ./install-relay.sh install --archive-path /tmp/vibe-everywhere-cli.tar.gz
 

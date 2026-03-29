@@ -1,8 +1,9 @@
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, path::Path as FsPath};
 use vibe_core::{
-    AuditRecord, DeviceRecord, MembershipRecord, PortForwardRecord, ShellInputRecord,
-    ShellOutputChunk, ShellSessionRecord, TaskEvent, TaskRecord, TenantRecord, UserRecord,
+    AuditRecord, ConversationInputRequest, ConversationRecord, DeviceRecord, MembershipRecord,
+    PortForwardRecord, ShellInputRecord, ShellOutputChunk, ShellSessionRecord, TaskEvent,
+    TaskRecord, TenantRecord, UserRecord,
 };
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -14,6 +15,8 @@ pub(crate) struct RelayStore {
     pub(crate) audit_records: Vec<AuditRecord>,
     pub(crate) device_credentials: HashMap<String, DeviceCredentialRecord>,
     pub(crate) devices: HashMap<String, DeviceRecord>,
+    pub(crate) conversations: HashMap<String, ConversationEntry>,
+    pub(crate) input_requests: HashMap<String, ConversationInputRequest>,
     pub(crate) tasks: HashMap<String, TaskEntry>,
     pub(crate) shell_sessions: HashMap<String, ShellSessionEntry>,
     pub(crate) port_forwards: HashMap<String, PortForwardEntry>,
@@ -30,6 +33,12 @@ pub(crate) struct DeviceCredentialRecord {
 pub(crate) struct TaskEntry {
     pub(crate) record: TaskRecord,
     pub(crate) events: Vec<TaskEvent>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub(crate) struct ConversationEntry {
+    pub(crate) record: ConversationRecord,
+    pub(crate) task_ids: Vec<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]

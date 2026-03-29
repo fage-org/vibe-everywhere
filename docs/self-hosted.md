@@ -170,7 +170,7 @@ Common commands:
 bash install-relay.sh install
 bash install-relay.sh install --component relay
 bash install-relay.sh install --component agent
-bash install-relay.sh update --release-tag v0.1.9
+bash install-relay.sh update --release-tag v0.1.10
 bash install-relay.sh uninstall
 bash install-relay.sh uninstall --component agent
 ```
@@ -224,7 +224,7 @@ Common commands:
 powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command install
 powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command install -Component relay
 powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command install -Component agent
-powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command update -ReleaseTag v0.1.9
+powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command update -ReleaseTag v0.1.10
 powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command uninstall
 powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command uninstall -Component agent
 ```

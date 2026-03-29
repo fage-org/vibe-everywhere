@@ -232,6 +232,7 @@ where
             &TaskBridgeEvent::Update {
                 status: update.status,
                 execution_protocol: update.execution_protocol,
+                provider_session_id: update.provider_session_id,
                 events: update.events,
                 exit_code: update.exit_code,
                 error: update.error,
@@ -338,11 +339,13 @@ printf '%s\n' '{"type":"item.completed","item":{"id":"item_0","type":"agent_mess
         TaskRecord::new(
             CreateTaskRequest {
                 device_id: "device-1".to_string(),
+                conversation_id: None,
                 provider: ProviderKind::Codex,
                 prompt: "say hi".to_string(),
                 cwd: None,
                 model: None,
                 title: Some("task bridge test".to_string()),
+                provider_session_id: None,
             },
             ExecutionProtocol::Cli,
             TaskTransportKind::OverlayProxy,

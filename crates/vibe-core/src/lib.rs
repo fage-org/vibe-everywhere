@@ -268,6 +268,7 @@ pub enum TaskStatus {
     Pending,
     Assigned,
     Running,
+    WaitingInput,
     CancelRequested,
     Succeeded,
     Failed,
@@ -330,12 +331,15 @@ pub struct TaskRecord {
     pub user_id: String,
     pub id: String,
     pub device_id: String,
+    pub conversation_id: Option<String>,
     pub title: String,
     pub provider: ProviderKind,
     pub execution_protocol: ExecutionProtocol,
     pub prompt: String,
     pub cwd: Option<String>,
     pub model: Option<String>,
+    pub provider_session_id: Option<String>,
+    pub pending_input_request_id: Option<String>,
     #[serde(default)]
     pub transport: TaskTransportKind,
     pub status: TaskStatus,
@@ -360,6 +364,7 @@ impl TaskRecord {
             user_id: actor.user_id.clone(),
             id: Uuid::new_v4().to_string(),
             device_id: request.device_id,
+            conversation_id: request.conversation_id,
             title: request
                 .title
                 .filter(|title| !title.trim().is_empty())
@@ -369,6 +374,8 @@ impl TaskRecord {
             prompt: request.prompt,
             cwd: request.cwd,
             model: request.model,
+            provider_session_id: request.provider_session_id,
+            pending_input_request_id: None,
             transport,
             status: TaskStatus::Pending,
             cancel_requested: false,
@@ -386,6 +393,25 @@ impl TaskRecord {
 #[serde(rename_all = "camelCase")]
 pub struct CreateTaskRequest {
     pub device_id: String,
+    pub conversation_id: Option<String>,
+    pub provider: ProviderKind,
+    pub prompt: String,
+    pub cwd: Option<String>,
+    pub model: Option<String>,
+    pub title: Option<String>,
+    pub provider_session_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateTaskResponse {
+    pub task: TaskRecord,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateConversationRequest {
+    pub device_id: String,
     pub provider: ProviderKind,
     pub prompt: String,
     pub cwd: Option<String>,
@@ -395,8 +421,128 @@ pub struct CreateTaskRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-pub struct CreateTaskResponse {
+pub struct ConversationRecord {
+    pub tenant_id: String,
+    pub user_id: String,
+    pub id: String,
+    pub device_id: String,
+    pub title: String,
+    pub provider: ProviderKind,
+    pub execution_protocol: ExecutionProtocol,
+    pub cwd: Option<String>,
+    pub model: Option<String>,
+    pub provider_session_id: Option<String>,
+    pub latest_task_id: Option<String>,
+    pub pending_input_request_id: Option<String>,
+    pub archived: bool,
+    pub created_at_epoch_ms: u64,
+    pub updated_at_epoch_ms: u64,
+}
+
+impl ConversationRecord {
+    pub fn new(
+        request: &CreateConversationRequest,
+        execution_protocol: ExecutionProtocol,
+        actor: &ActorIdentity,
+    ) -> Self {
+        let now = now_epoch_millis();
+        Self {
+            tenant_id: actor.tenant_id.clone(),
+            user_id: actor.user_id.clone(),
+            id: Uuid::new_v4().to_string(),
+            device_id: request.device_id.clone(),
+            title: request
+                .title
+                .as_deref()
+                .map(str::trim)
+                .filter(|title| !title.is_empty())
+                .map(str::to_string)
+                .unwrap_or_else(|| default_conversation_title(&request.prompt)),
+            provider: request.provider.clone(),
+            execution_protocol,
+            cwd: request.cwd.clone(),
+            model: request.model.clone(),
+            provider_session_id: None,
+            latest_task_id: None,
+            pending_input_request_id: None,
+            archived: false,
+            created_at_epoch_ms: now,
+            updated_at_epoch_ms: now,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateConversationResponse {
+    pub conversation: ConversationRecord,
     pub task: TaskRecord,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SendConversationMessageRequest {
+    pub prompt: String,
+    pub model: Option<String>,
+    pub title: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SendConversationMessageResponse {
+    pub conversation: ConversationRecord,
+    pub task: TaskRecord,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ConversationInputOption {
+    pub id: String,
+    pub label: String,
+    pub description: Option<String>,
+    #[serde(default)]
+    pub requires_text_input: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ConversationInputRequestStatus {
+    Pending,
+    Answered,
+    Canceled,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ConversationInputRequest {
+    pub id: String,
+    pub conversation_id: String,
+    pub task_id: String,
+    pub prompt: String,
+    pub options: Vec<ConversationInputOption>,
+    pub allow_custom_input: bool,
+    pub custom_input_placeholder: Option<String>,
+    pub status: ConversationInputRequestStatus,
+    pub selected_option_id: Option<String>,
+    pub response_text: Option<String>,
+    pub created_at_epoch_ms: u64,
+    pub answered_at_epoch_ms: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateConversationInputRequest {
+    pub prompt: String,
+    pub options: Vec<ConversationInputOption>,
+    pub allow_custom_input: bool,
+    pub custom_input_placeholder: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RespondConversationInputRequest {
+    pub option_id: Option<String>,
+    pub text: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -411,6 +557,7 @@ pub struct AppendTaskEventsRequest {
     pub device_id: String,
     pub status: Option<TaskStatus>,
     pub execution_protocol: Option<ExecutionProtocol>,
+    pub provider_session_id: Option<String>,
     pub events: Vec<TaskEventInput>,
     pub exit_code: Option<i32>,
     pub error: Option<String>,
@@ -421,6 +568,15 @@ pub struct AppendTaskEventsRequest {
 pub struct TaskDetailResponse {
     pub task: TaskRecord,
     pub events: Vec<TaskEvent>,
+    pub pending_input_request: Option<ConversationInputRequest>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ConversationDetailResponse {
+    pub conversation: ConversationRecord,
+    pub tasks: Vec<TaskDetailResponse>,
+    pub pending_input_request: Option<ConversationInputRequest>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -439,6 +595,7 @@ pub enum TaskBridgeEvent {
     Update {
         status: Option<TaskStatus>,
         execution_protocol: Option<ExecutionProtocol>,
+        provider_session_id: Option<String>,
         events: Vec<TaskEventInput>,
         exit_code: Option<i32>,
         error: Option<String>,
@@ -1258,6 +1415,25 @@ pub fn default_app_config(
             "relay_tcp_forwarding_control_plane".to_string(),
         ],
     }
+}
+
+fn default_conversation_title(prompt: &str) -> String {
+    let trimmed = prompt.trim();
+    if trimmed.is_empty() {
+        return "Untitled conversation".to_string();
+    }
+
+    let mut title = trimmed
+        .lines()
+        .find(|line| !line.trim().is_empty())
+        .unwrap_or(trimmed)
+        .trim()
+        .to_string();
+    if title.chars().count() > 72 {
+        title = title.chars().take(72).collect::<String>();
+        title.push_str("...");
+    }
+    title
 }
 
 pub fn now_epoch_millis() -> u64 {

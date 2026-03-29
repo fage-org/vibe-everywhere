@@ -4,6 +4,7 @@ use super::*;
 #[serde(default, rename_all = "camelCase")]
 pub(super) struct TaskListQuery {
     pub(super) device_id: Option<String>,
+    pub(super) conversation_id: Option<String>,
     pub(super) status: Option<TaskStatus>,
     pub(super) provider: Option<ProviderKind>,
     pub(super) limit: Option<usize>,
@@ -28,6 +29,14 @@ pub(super) async fn list_tasks(
                 .device_id
                 .as_deref()
                 .is_none_or(|device_id| task.device_id == device_id)
+        })
+        .filter(|task| {
+            query
+                .conversation_id
+                .as_deref()
+                .is_none_or(|conversation_id| {
+                    task.conversation_id.as_deref() == Some(conversation_id)
+                })
         })
         .filter(|task| {
             query
@@ -169,6 +178,7 @@ pub(super) async fn get_task(
     Ok(Json(TaskDetailResponse {
         task: entry.record.clone(),
         events: entry.events.clone(),
+        pending_input_request: None,
     }))
 }
 
@@ -301,7 +311,10 @@ pub(super) async fn cancel_task(
                 entry.record.cancel_requested = false;
                 entry.record.finished_at_epoch_ms = Some(now);
             }
-            TaskStatus::Assigned | TaskStatus::Running | TaskStatus::CancelRequested => {
+            TaskStatus::Assigned
+            | TaskStatus::Running
+            | TaskStatus::WaitingInput
+            | TaskStatus::CancelRequested => {
                 entry.record.status = TaskStatus::CancelRequested;
                 entry.record.cancel_requested = true;
             }
@@ -431,7 +444,7 @@ async fn append_task_events_internal(
     let mut store = state.store.write().await;
     let now = now_epoch_millis();
 
-    let (task, task_events, device_snapshot, detail, should_schedule_next) = {
+    let (task, task_events, detail, should_schedule_next) = {
         let Some(entry) = store.tasks.get_mut(task_id) else {
             return Ok(None);
         };
@@ -456,6 +469,9 @@ async fn append_task_events_internal(
 
         if let Some(execution_protocol) = payload.execution_protocol.clone() {
             entry.record.execution_protocol = execution_protocol;
+        }
+        if let Some(provider_session_id) = payload.provider_session_id.clone() {
+            entry.record.provider_session_id = Some(provider_session_id);
         }
 
         if let Some(status) = payload.status.clone() {
@@ -482,27 +498,33 @@ async fn append_task_events_internal(
         let task = entry.record.clone();
         let detail = task_detail(entry);
         let should_schedule_next = task.status.is_terminal();
-        let device_snapshot = store.devices.get_mut(&device_id).map(|device| {
-            if task.status.is_terminal() {
-                if device.current_task_id.as_deref() == Some(task.id.as_str()) {
-                    device.current_task_id = None;
-                }
-            } else {
-                device.current_task_id = Some(task.id.clone());
-            }
-            device.last_seen_epoch_ms = now;
-            device.online = true;
-            device.clone()
-        });
-
-        (
-            task,
-            emitted_events,
-            device_snapshot,
-            detail,
-            should_schedule_next,
-        )
+        (task, emitted_events, detail, should_schedule_next)
     };
+
+    if let Some(conversation_id) = task.conversation_id.as_deref()
+        && let Some(conversation) = store.conversations.get_mut(conversation_id)
+    {
+        conversation.record.latest_task_id = Some(task.id.clone());
+        if let Some(provider_session_id) = task.provider_session_id.clone() {
+            conversation.record.provider_session_id = Some(provider_session_id);
+        }
+        if task.pending_input_request_id.is_none() {
+            conversation.record.pending_input_request_id = None;
+        }
+        conversation.record.updated_at_epoch_ms = now;
+    }
+    let device_snapshot = store.devices.get_mut(&device_id).map(|device| {
+        if task.status.is_terminal() {
+            if device.current_task_id.as_deref() == Some(task.id.as_str()) {
+                device.current_task_id = None;
+            }
+        } else {
+            device.current_task_id = Some(task.id.clone());
+        }
+        device.last_seen_epoch_ms = now;
+        device.online = true;
+        device.clone()
+    });
 
     let snapshot = store.clone();
     drop(store);
@@ -526,10 +548,11 @@ pub(super) fn task_detail(entry: &TaskEntry) -> TaskDetailResponse {
     TaskDetailResponse {
         task: entry.record.clone(),
         events: entry.events.clone(),
+        pending_input_request: None,
     }
 }
 
-fn push_task_event_entry(
+pub(super) fn push_task_event_entry(
     entry: &mut TaskEntry,
     device_id: String,
     kind: vibe_core::TaskEventKind,
@@ -705,6 +728,7 @@ async fn run_overlay_task_inner(state: &AppState, task_id: &str) -> anyhow::Resu
                     Ok(Some(TaskBridgeEvent::Update {
                         status,
                         execution_protocol,
+                        provider_session_id,
                         events,
                         exit_code,
                         error,
@@ -717,6 +741,7 @@ async fn run_overlay_task_inner(state: &AppState, task_id: &str) -> anyhow::Resu
                                 device_id: task.device_id.clone(),
                                 status,
                                 execution_protocol,
+                                provider_session_id,
                                 events,
                                 exit_code,
                                 error,
