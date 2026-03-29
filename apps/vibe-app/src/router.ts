@@ -1,14 +1,17 @@
 import { createRouter, createWebHashHistory } from "vue-router"
 import type { RouteRecordRaw } from "vue-router"
-import DashboardView from "./views/DashboardView.vue"
 import DashboardAdvancedSection from "./views/dashboard/sections/DashboardAdvancedSection.vue"
 import DashboardDevicesSection from "./views/dashboard/sections/DashboardDevicesSection.vue"
-import DashboardSessionsSection from "./views/dashboard/sections/DashboardSessionsSection.vue"
+import AppShellView from "./views/AppShellView.vue"
+import ChatHomeView from "./views/chat/ChatHomeView.vue"
+import ProjectChatView from "./views/chat/ProjectChatView.vue"
+import MenuView from "./views/menu/MenuView.vue"
+import ServerSettingsView from "./views/menu/ServerSettingsView.vue"
 
 const routes: RouteRecordRaw[] = [
   {
     path: "/",
-    component: DashboardView,
+    component: AppShellView,
     meta: {
       titleKey: "app.title"
     },
@@ -16,34 +19,52 @@ const routes: RouteRecordRaw[] = [
       {
         path: "",
         redirect: {
-          name: "dashboard-sessions"
+          name: "chat-home"
         }
       },
       {
-        path: "connections",
-        redirect: {
-          name: "dashboard-sessions"
-        }
-      },
-      {
-        path: "sessions",
-        name: "dashboard-sessions",
-        component: DashboardSessionsSection,
+        path: "chat",
+        name: "chat-home",
+        component: ChatHomeView,
         meta: {
-          titleKey: "dashboard.nav.sessions"
+          titleKey: "chatHome.title"
+        }
+      },
+      {
+        path: "chat/device/:deviceId/project/:projectKey",
+        name: "chat-project",
+        component: ProjectChatView,
+        meta: {
+          titleKey: "chatProject.title"
         }
       },
       {
         path: "devices",
-        name: "dashboard-devices",
+        name: "devices",
         component: DashboardDevicesSection,
         meta: {
-          titleKey: "dashboard.nav.devices"
+          titleKey: "appShell.nav.devices"
         }
       },
       {
-        path: "advanced",
-        name: "dashboard-advanced",
+        path: "menu",
+        name: "menu",
+        component: MenuView,
+        meta: {
+          titleKey: "appShell.nav.menu"
+        }
+      },
+      {
+        path: "menu/settings/server",
+        name: "menu-settings-server",
+        component: ServerSettingsView,
+        meta: {
+          titleKey: "settingsPage.title"
+        }
+      },
+      {
+        path: "menu/advanced",
+        name: "menu-advanced",
         component: DashboardAdvancedSection,
         meta: {
           titleKey: "dashboard.nav.advanced"

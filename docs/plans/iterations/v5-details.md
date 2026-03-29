@@ -1,6 +1,6 @@
 # Vibe Everywhere Iteration Specs v5
 
-Last updated: 2026-03-29
+Last updated: 2026-03-30
 
 Version note:
 
@@ -56,10 +56,12 @@ continuation and inline user-choice interactions.
 - Follow-up prompts continue the same native provider conversation for supported providers.
 - Git review, workspace browsing, raw trace, and preview move behind compact or collapsible
   inspectors.
-- The conversation surface stays mobile-first: thread switching is horizontal and lightweight,
-  relay/device/provider context stays inline but collapsible, and secondary inspection uses tabs
-  instead of a permanent wide desktop rail.
-- Relay/tutorial setup no longer occupies the main screen after a successful connection.
+- The default app entry now behaves like a Poe-style home: pick a device, then pick one of that
+  device's historical projects grouped by working directory.
+- Entering a project opens a Telegram-like chat page with a left-top topic-history drawer scoped
+  to the current project rather than a global dashboard sidebar.
+- Relay/tutorial setup no longer occupies the main screen after a successful connection; server
+  configuration lives under `Menu > Settings > Server`.
 - Provider-driven choice prompts can be answered inline with selectable options or custom text.
 
 ### In Scope
@@ -72,16 +74,13 @@ continuation and inline user-choice interactions.
   - Codex via `codex exec resume`
   - Claude Code via `claude --resume` / `--continue`
   - OpenCode via its persisted session identifier path
-- replace the current `Sessions` layout with a chat-first workspace:
-  - conversation list rail
-  - compact context bar
-  - main transcript/composer
-  - collapsible side inspector for Git/files/raw trace/preview
-- refine the `Sessions` surface for mobile-first use without losing remote-control requirements:
-  - keep relay URL, token, device selection, provider targeting, and working-directory setup inside
-    the same route as the active conversation
-  - use a horizontal thread switcher rather than a tall always-open history column
-  - collapse secondary inspection into explicit tabs for status, Git, files, and trace
+- replace the current default `Sessions` shell with:
+  - a device/project home route that groups historical conversations by `device + cwd`
+  - a project chat route with a Telegram-like transcript/composer layout
+  - a project-scoped topic-history drawer opened from the top-left chrome
+- move relay URL and access-token editing into `Menu > Settings > Server`
+- keep device runtime inspection under a dedicated `Devices` route instead of mixing it into the
+  primary chat surface
 - surface inline option-choice prompts with a custom-input fallback when the provider asks the
   user to choose or clarify
 - update docs, testing guidance, plan files, and user-facing product descriptions for the new
@@ -100,8 +99,10 @@ continuation and inline user-choice interactions.
 - each conversation keeps a stable provider-native resume handle where the provider supports one
 - follow-up prompts in an existing conversation continue the native provider thread instead of
   replaying prompt history
-- the `Sessions` UI centers the transcript and composer, with infrastructure and diagnostics moved
-  into compact or collapsible secondary surfaces
+- the default UI opens on a device/project home rather than a dashboard card grid
+- entering a project opens a chat-first page with the transcript and composer primary
+- the current project's topic history is reachable from the top-left drawer control
+- relay configuration is reachable from `Menu > Settings > Server` instead of the main chat page
 - the old tutorial/hero copy no longer remains visible after a successful relay connection
 - when the provider asks for a user choice, the app shows option chips inline and supports a
   free-form custom answer path when allowed
@@ -143,11 +144,11 @@ continuation and inline user-choice interactions.
 - `./scripts/dual-process-smoke.sh relay_polling`
 - `./scripts/dual-process-smoke.sh overlay`
 - targeted manual QA for:
-  - reconnecting to the same relay and reopening prior conversations
+  - reconnecting to the same relay and reopening prior device/project entries
   - continuing an existing Codex conversation
   - continuing an existing Claude conversation
   - provider-choice prompt rendering and custom-input answer flow
-  - compact desktop and narrow-width transcript layouts
+  - desktop and narrow-width device/project home plus topic-drawer layouts
 
 ### Iteration Record
 
@@ -164,11 +165,11 @@ continuation and inline user-choice interactions.
   `session/resume` for transcript-safe OpenCode continuation when the agent advertises it, with
   `session/list` validation retained as the compatibility fallback for agents without resume.
 - Implementation notes:
-  the current UI tranche further refines `Sessions` into a mobile-first remote coding workspace:
-  a horizontal thread switcher keeps durable conversations reachable without a permanent sidebar;
-  relay/device/provider/model/cwd controls remain inline but collapsible so remote setup is never
-  pushed onto a separate page; and secondary inspection now uses explicit status/Git/files/trace
-  tabs so the transcript stays primary on narrow screens.
+  the current UI tranche replaces the default `Sessions` shell with a Poe-like device/project home
+  and a Telegram-like project chat page. Historical conversations are now grouped by
+  `device + cwd`, topic history is a project-scoped drawer from the top-left chat chrome, the
+  bottom navigation is reduced to `Chat`, `Devices`, and `Menu`, and relay URL/token editing moves
+  into `Menu > Settings > Server`.
 - Implementation notes:
   transcript cleanup now follows `user-specified` Mode 1 for the chat surface: the primary message
   flow keeps only user prompts, assistant replies, and inline provider-choice prompts; raw task

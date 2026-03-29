@@ -23,9 +23,9 @@ The standard workflow is:
 2. Start `vibe-agent` on target execution nodes.
 3. Connect a desktop, Android, or self-hosted Web client to the relay.
 4. Select a device and start a long-lived AI conversation.
-5. Continue follow-up turns from the conversation-first surface, answer tool choices inline, and
-   use the sidebar for thread history, project-folder targeting, and file browsing before dropping
-   into devices or advanced tools.
+5. Use the home surface to pick a device and one of that device's historical project folders, then
+   continue the project chat; open project-scoped topic history from the top-left and use devices
+   or menu settings only when you need management tasks.
 
 ## Components
 
@@ -40,7 +40,8 @@ The standard workflow is:
 The current release supports:
 
 - creation, continuation, cancellation, and streaming of long-lived AI conversations
-- conversation-first thread management with sidebar history and default project-folder targeting
+- device/project home entry for long-lived AI chats, with project grouping by working directory and
+  a project-scoped topic-history drawer
 - device registration, presence reporting, and provider availability display
 - workspace browsing and text-file preview
 - Git status, changed-file, and recent-commit inspection
@@ -206,10 +207,11 @@ Operational notes:
 Recommended first-use sequence:
 
 1. Open the desktop or Android client.
-2. Enter the relay address.
-3. Enter `VIBE_RELAY_ACCESS_TOKEN`.
-4. Confirm that at least one device is online and that at least one provider is available.
-5. Create a long-lived AI conversation.
+2. Open server settings from the menu and enter the relay address plus `VIBE_RELAY_ACCESS_TOKEN`.
+3. Return to the chat home and confirm that at least one device is online and that at least one
+   provider is available.
+4. Pick a device and one of that device's project folders.
+5. Create or continue a long-lived AI topic inside that project.
 
 ## Configuration Semantics
 

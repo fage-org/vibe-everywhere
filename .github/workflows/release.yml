@@ -76,6 +76,9 @@ jobs:
         working-directory: apps/vibe-app
         run: npm ci
 
+      - name: Verify release version sources
+        run: ./scripts/verify-release-version.sh "${RELEASE_TAG}"
+
       - name: Check formatting
         run: cargo fmt --all --check
 

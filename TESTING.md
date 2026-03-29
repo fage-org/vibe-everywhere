@@ -145,6 +145,7 @@ Purpose:
 Execution checks:
 
 ```bash
+./scripts/verify-release-version.sh v0.0.0
 bash -n scripts/install-relay.sh
 cargo build --locked --release --target x86_64-unknown-linux-musl -p vibe-relay -p vibe-agent
 file target/x86_64-unknown-linux-musl/release/vibe-relay
@@ -158,6 +159,9 @@ pwsh -NoProfile -Command "[void][System.Management.Automation.Language.Parser]::
 
 Manual review:
 
+- confirm `./scripts/verify-release-version.sh vX.Y.Z` succeeds for the intended release tag and
+  that the resolved version matches `Cargo.toml`, `apps/vibe-app/package.json`,
+  `apps/vibe-app/package-lock.json`, and `apps/vibe-app/src-tauri/tauri.conf.json`
 - confirm release asset names in `.github/workflows/release.yml` include the tag/version
 - confirm the default Linux CLI release asset is `vibe-everywhere-cli-<tag>-x86_64-unknown-linux-musl.tar.gz`
   instead of a hosted-runner-coupled `x86_64-unknown-linux-gnu` archive
@@ -203,6 +207,7 @@ Manual review:
 
 Pass criteria:
 
+- release version sources stay synchronized and match the intended release tag
 - installer scripts parse successfully
 - the Linux CLI release target builds successfully for `x86_64-unknown-linux-musl`
 - the Linux CLI binaries report a static executable format instead of dynamic `glibc` linkage
@@ -355,25 +360,24 @@ Manual checklist:
 
 1. Launch relay and agent locally.
 2. Launch `apps/vibe-app` with `npm run dev`.
-3. Verify desktop uses sidebar navigation and mobile-width uses bottom navigation for `Sessions`, `Devices`, and `Advanced`, and that the legacy `#/connections` deep link redirects into `Sessions`.
-4. Verify relay URL and the control-plane access token can be applied from the `Sessions` sidebar, without navigating to a separate setup page.
+3. Verify the default route opens the chat home, the bottom navigation exposes `Chat`, `Devices`, and `Menu`, and the old `#/connections` or `#/sessions` deep links no longer define the primary workflow.
+4. Verify relay URL and the control-plane access token can be applied from `Menu > Settings > Server`, then return to the chat home without losing the configured connection.
 5. Verify language switching between English and Simplified Chinese updates visible section copy.
 6. Verify light, dark, and system theme switching updates all primary sections without layout regressions.
-7. Verify `Sessions` keeps the everyday workflow on one page: relay connection, device selection, project-folder targeting, conversation creation, follow-up reply, sidebar history management, and file browsing.
+7. Verify the chat home groups prior work by device and project folder, and that each device card can open its default workspace even when no history exists yet.
 8. Verify governance / audit UI stays hidden by default; if the relevant feature flag is enabled, verify it appears intentionally rather than by default leakage.
-9. Create a new conversation in `Sessions`, observe live updates in the transcript, and verify the conversation reappears after refresh or reconnect.
+9. Open an existing project, verify the chat page shows the expected project path, and use the top-left history control to switch between prior topics in the same project.
 10. Verify the main transcript keeps only user / assistant dialogue and inline input requests; raw task lifecycle, tool output, and stderr events must stay out of the primary message flow.
 11. Verify turns that only produced runtime activity render a lightweight Trace entry instead of dumping raw `Task queued` / `cwd=` / `Task finished` style events into the transcript.
-12. Send a follow-up prompt in the same conversation and verify the app continues the existing thread instead of creating a disconnected ad hoc run.
+12. Create a new topic inside a project, verify it inherits the same device and project folder, and send a follow-up prompt in the same topic to confirm provider-native continuation.
 13. Trigger or simulate a provider input request, then verify option chips render inline and that the custom-text path can also be submitted.
-14. Verify `Sessions` no longer relies on the old compact inspector card: the sidebar should expose history plus workspace browsing with working parent/root navigation, while Git, shell, and preview tools remain in secondary pages.
-15. Verify `Devices` shows inventory, runtime metadata, deployment metadata, current-client-only platform information, provider availability, and selected-device workload counts.
-16. Create a shell session in `Advanced`, send input, verify timeline ordering, and close the session.
-17. Create a preview / port forward in `Advanced`, verify status updates, relay endpoint display, and close flow.
-16. Start the agent with `VIBE_RELAY_ENROLLMENT_TOKEN`, restart it once, and verify the same device reconnects successfully without placing the control-plane token on the agent host.
-17. Confirm the agent working root now contains `.vibe-agent/identity.json` after first registration and that deleting it forces re-enrollment on the next start.
-18. Toggle task, shell, and port-forward filters to verify selected-device scoping where those secondary tools still expose filtering.
-19. Verify narrow-width layout keeps chat primary, stacks the sidebar sections cleanly, and keeps setup plus file browsing secondary instead of reverting to one long all-in-one dashboard.
+14. Verify `Devices` shows inventory, runtime metadata, deployment metadata, current-client-only platform information, provider availability, and selected-device workload counts.
+15. Open `Menu`, then `Server Settings`, and verify language/theme changes work without leaving stale visual state in the chat shell.
+16. Create a shell session in the secondary tools surface, send input, verify timeline ordering, and close the session.
+17. Create a preview / port forward in the secondary tools surface, verify status updates, relay endpoint display, and close flow.
+18. Start the agent with `VIBE_RELAY_ENROLLMENT_TOKEN`, restart it once, and verify the same device reconnects successfully without placing the control-plane token on the agent host.
+19. Confirm the agent working root now contains `.vibe-agent/identity.json` after first registration and that deleting it forces re-enrollment on the next start.
+20. Verify narrow-width layout keeps the project chat primary, the history drawer remains usable, and the bottom navigation does not regress into a long all-in-one dashboard.
 
 Recommended frequency:
 
@@ -400,7 +404,7 @@ Manual checks:
 - app shell boots with default relay config
 - `VIBE_PUBLIC_RELAY_BASE_URL` and `VIBE_RELAY_ACCESS_TOKEN` are picked up correctly
 - desktop shell can connect to a live relay and render the route-backed primary sections
-- desktop shell `Sessions` view keeps relay config, device choice, project folder, history, and file browsing in the sidebar, centers the long-lived conversation transcript, and does not dump raw task lifecycle events into the main dialogue flow
+- desktop shell opens on the device/project chat home, project chats behave like a messaging view, and server settings live under the menu path instead of the primary transcript
 - desktop shell `Devices` view shows the current client as `Desktop` without listing other platforms as in-page choices
 
 Recommended frequency:
@@ -419,9 +423,9 @@ Manual checks:
 1. Install the debug APK on a physical Android device.
 2. Configure the relay URL with `http://<server-lan-ip>:8787` or a public HTTPS URL, not `http://127.0.0.1:8787`.
 3. Verify the app does not prefill a loopback relay URL by default.
-4. Verify the `Sessions` primary workflow identifies the current client as `Android`, keeps chat as the main surface, and lets the user configure relay access from the same screen without exposing other platforms as switchable choices.
+4. Verify the chat home identifies the current client as `Android`, keeps device/project entry as the main surface, and lets the user configure relay access from the menu settings path without exposing other platforms as switchable choices.
 5. Verify bottom navigation remains usable in portrait orientation.
-6. Verify conversation creation, follow-up replies, inline choice prompts, sidebar history access, project-folder editing, workspace up/root navigation, transcript noise suppression for raw runtime events, shell session output, and preview / port-forward flows from the phone.
+6. Verify project selection, topic-history drawer access, conversation creation, follow-up replies, inline choice prompts, transcript noise suppression for raw runtime events, shell session output, and preview / port-forward flows from the phone.
 
 Recommended frequency:
 

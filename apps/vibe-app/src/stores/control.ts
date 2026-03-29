@@ -541,7 +541,18 @@ export const useControlStore = defineStore("control", {
         this.syncProjectFolder();
       });
     },
-    startNewConversationDraft() {
+    startNewConversationDraft(
+      options?: {
+        deviceId?: string | null;
+        cwd?: string | null;
+        provider?: ProviderKind | "";
+        model?: string | null;
+      },
+    ) {
+      if (typeof options?.deviceId !== "undefined") {
+        this.selectedDeviceId = options.deviceId;
+      }
+
       this.selectedConversationId = null;
       this.selectedConversationDetail = null;
       this.selectedTaskId = null;
@@ -552,6 +563,21 @@ export const useControlStore = defineStore("control", {
       };
       this.draft.title = "";
       this.draft.prompt = "";
+
+      if (typeof options?.cwd !== "undefined") {
+        this.projectFolder = options.cwd?.trim() ?? "";
+      } else {
+        this.syncProjectFolder();
+      }
+
+      if (typeof options?.model !== "undefined") {
+        this.draft.model = options.model?.trim() ?? "";
+      }
+
+      if (typeof options?.provider !== "undefined") {
+        this.draft.provider = options.provider;
+      }
+
       const availableProviders = this.availableProviders;
       if (
         !availableProviders.some(
@@ -560,7 +586,6 @@ export const useControlStore = defineStore("control", {
       ) {
         this.draft.provider = availableProviders[0]?.kind ?? "";
       }
-      this.syncProjectFolder();
     },
     async selectTask(taskId: string) {
       await runStoreAction(this, async () => {

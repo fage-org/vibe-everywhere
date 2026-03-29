@@ -1,6 +1,6 @@
 # Vibe Everywhere Product Evolution Plan
 
-Last updated: 2026-03-29
+Last updated: 2026-03-30
 
 ## Purpose
 
@@ -22,8 +22,8 @@ The active plan set is:
 - process governance: [`docs/plans/process.md`](./docs/plans/process.md)
 - active iteration summary: [`docs/plans/iterations/v5-summary.md`](./docs/plans/iterations/v5-summary.md)
 - active iteration details: [`docs/plans/iterations/v5-details.md`](./docs/plans/iterations/v5-details.md)
-- active remediation summary: [`docs/plans/remediation/v11-summary.md`](./docs/plans/remediation/v11-summary.md)
-- active remediation details: [`docs/plans/remediation/v11-details.md`](./docs/plans/remediation/v11-details.md)
+- active remediation summary: [`docs/plans/remediation/v12-summary.md`](./docs/plans/remediation/v12-summary.md)
+- active remediation details: [`docs/plans/remediation/v12-details.md`](./docs/plans/remediation/v12-details.md)
 
 Every completed iteration or remediation item must update this file and the active versioned plan
 files listed above.
@@ -171,9 +171,10 @@ Current planned implementation target:
 - Iteration 15 is in progress for durable conversations, provider-native threaded continuation,
   inline user-choice prompts, and truthful ACP capability signaling where only OpenCode is
   currently advertised as standard ACP.
-- Iteration 15 also now includes a mobile-first `Sessions` polish tranche: thread switching is
-  horizontal, relay/device/provider context stays inline but collapsible, and status/Git/files/raw
-  trace move behind explicit tabs so the transcript remains primary on phones.
+- Iteration 15 now also includes the Poe/Telegram navigation tranche: the default client entry is a
+  device/project home grouped by `device + cwd`, project chats open as Telegram-like transcript
+  pages with a top-left topic-history drawer, and relay configuration moves to
+  `Menu > Settings > Server`.
 - Iteration 15 transcript cleanup is now `user-specified` Mode 1 for the chat surface: main
   conversation flow shows only user/assistant dialogue plus inline choice prompts, while raw
   lifecycle/tool/stderr events stay in `Trace` with only a lightweight per-turn entry in transcript.
@@ -185,7 +186,7 @@ Current planned implementation target:
   `session/resume` when the agent advertises it, and avoid `session/load` on the hot conversation
   path because it replays prior messages into the current transcript model.
 - The active remediation track remains the problem-driven remediation plan in
-  `docs/plans/remediation/v11-summary.md`.
+  `docs/plans/remediation/v12-summary.md`.
 - Remediation plan `v1` is complete.
 - Remediation plan `v2` is complete after restoring blocking overlay smoke verification and auditing
   the repository for similar compromised checks.
@@ -212,11 +213,16 @@ Current planned implementation target:
   hosted-runner-coupled `gnu` build to a statically linked `musl` build, aligning installer asset
   resolution, and adding explicit Linux CLI compatibility checks to `CI`, release packaging,
   operator docs, and release notes.
+- Remediation plan `v12` is complete locally after synchronizing the next app/workspace version to
+  `0.1.13`, adding fail-fast release version-source verification to `CI` and `Release`, and
+  codifying the new tag/version alignment rule in testing and repository guardrails.
 
 Most recent completed tranche:
 
 - Remediation 11: Linux CLI ABI compatibility hardening through musl-only release packaging,
   installer alignment, and explicit static-binary verification
+- Remediation 12: release version-source synchronization and fail-fast tag/version publish
+  validation
 - Remediation 10: relay and agent auth-boundary hardening across control-plane tokens, agent
   enrollment, device credentials, installers, and smoke coverage
 - Iteration 14: session-first primary workflow productization across navigation, result review,
@@ -467,6 +473,12 @@ These items are treated as completed foundation work, not future roadmap items.
   installer resolution to statically linked `x86_64-unknown-linux-musl`, keeping Windows
   side-by-side runtime distribution unchanged, and adding explicit Linux CLI compatibility checks
   to `CI`, release packaging, testing guidance, and operator documentation.
+- 2026-03-30: Started remediation plan `v12` after the published `v0.1.12` Android asset exposed
+  release tag and app-internal version drift.
+- 2026-03-30: Completed Remediation v12 locally by synchronizing the repository version sources to
+  `0.1.13`, adding a shared release-version verification script, wiring it into `CI` and
+  `Release`, and updating guardrails, testing guidance, release notes, and active planning
+  records.
 - 2026-03-28: Marked the Iteration 0-11 baseline roadmap as complete and reset the current target to future planning.
 - 2026-03-28: Added `docs/problem-remediation-plan.md` to track the post-baseline dashboard, deployment-guidance, platform-surfacing, and loopback-default repair work item by item.
 - 2026-03-28: Introduced the versioned planning system under `docs/plans/`, with shared process governance plus `summary` and `details` files for iteration plan v1 and remediation plan v1.
@@ -633,6 +645,18 @@ These items are treated as completed foundation work, not future roadmap items.
   `v0.1.9` release-note update.
 - 2026-03-29: local PowerShell parser validation remained unavailable because `pwsh` was not
   installed in the local environment.
+- 2026-03-30: `./scripts/verify-release-version.sh` succeeded after the release version-source
+  synchronization changes and reported source version `0.1.13`.
+- 2026-03-30: `./scripts/verify-release-version.sh v0.1.13` succeeded after the release
+  version-source synchronization changes and confirmed tag/source alignment.
+- 2026-03-30: `cargo fmt --all --check` succeeded after Remediation v12 release version-source
+  verification changes.
+- 2026-03-30: `cargo check --locked -p vibe-relay -p vibe-agent -p vibe-app` succeeded after
+  updating `Cargo.lock` for the `0.1.13` workspace version bump.
+- 2026-03-30: `cd apps/vibe-app && npm run build` succeeded after Remediation v12 app/Tauri
+  version synchronization changes.
+- 2026-03-30: `./scripts/render-release-notes.sh v0.0.0 >/dev/null` succeeded after the next
+  release-note update for Remediation v12.
 - 2026-03-28: `./scripts/dual-process-smoke.sh relay_polling` succeeded after Remediation v2
   verification-integrity repair.
 - 2026-03-28: `./scripts/dual-process-smoke.sh overlay` succeeded after Remediation v2

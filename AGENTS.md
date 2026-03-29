@@ -46,6 +46,10 @@ Use `cargo fmt --all` for Rust formatting. Follow Rust defaults: `snake_case` fo
 - Release assets must stay minimal and operator-facing. Do not bundle repository README files or copied build directories into published artifacts when the real deliverable can be uploaded directly.
 - Published release asset names must include the shipped version/tag plus platform identity so operators can identify downloads without opening them.
 - GitHub Release bodies must come from repository-owned release notes, not only from GitHub auto-generated text.
+- Before cutting or publishing a release tag, sync the product version sources across `Cargo.toml`,
+  `apps/vibe-app/package.json`, `apps/vibe-app/package-lock.json`, and
+  `apps/vibe-app/src-tauri/tauri.conf.json`. Do not publish a tag whose asset filename version and
+  app-internal version would disagree.
 - Default Linux CLI release archives intended for general self-hosted use must not depend on a
   newer hosted-runner `glibc` baseline by accident. Prefer statically linked `musl` packaging or
   another explicitly verified compatibility strategy, and keep installer asset resolution aligned

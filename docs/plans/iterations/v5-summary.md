@@ -1,6 +1,6 @@
 # Iteration Plan v5 Summary
 
-Last updated: 2026-03-29
+Last updated: 2026-03-30
 
 ## Scope
 
@@ -30,9 +30,13 @@ Full implementation detail lives in [`v5-details.md`](./v5-details.md).
   for supported providers rather than a history-replay approximation.
 - Relay, agent, and app now include durable conversation records, provider-native resume handles,
   inline user-choice prompts, and a chat-first `Sessions` surface.
-- A mobile-first `Sessions` polish tranche is now part of Iteration 15: the page uses a horizontal
-  thread switcher, collapsible inline context controls for relay/device/provider setup, and a
-  tabbed secondary inspector for status, Git, files, and trace.
+- The active UI tranche now replaces the old `Sessions` shell with a Poe-like remote-chat IA:
+  the default route is a device/project home that groups prior work by `device + cwd`, and
+  entering a project opens a Telegram-like chat page instead of a control-console subview.
+- Relay configuration has moved out of the primary chat surface into `Menu > Settings > Server`,
+  while the chat home keeps only lightweight connection status plus device/project entry.
+- Project chat now uses a left-top topic-history drawer scoped to the current project, and new
+  topics inherit the same device plus working directory instead of reopening a global thread list.
 - The transcript noise-removal follow-up is now `user-specified` Mode 1: the main conversation flow
   keeps only user/assistant dialogue plus inline choice prompts, while lifecycle/tool/stderr events
   move behind the secondary `Trace` inspector with only a lightweight per-turn entry in transcript.
@@ -48,9 +52,9 @@ Full implementation detail lives in [`v5-details.md`](./v5-details.md).
   compatibility fallback for agents that do not yet support resume.
 - Automated validation is complete; targeted manual QA is still pending before the iteration can be
   closed out.
-- This UI tranche keeps remote relay connection and device selection inside the conversation-first
-  flow instead of moving them onto a separate setup page, which preserves the product's remote
-  control-plane model for mobile use.
+- This UI tranche keeps the product conversation-first without leaving relay setup as always-on
+  control chrome: server configuration is still in-app, but now lives under the menu/settings path
+  rather than occupying the main chat surface.
 
 ## Lookup Notes
 
