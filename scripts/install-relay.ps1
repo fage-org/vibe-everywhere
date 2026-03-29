@@ -1,38 +1,113 @@
 [CmdletBinding()]
 param(
+  [ValidateSet("install", "update", "uninstall", "help")]
+  [string]$Command = "help",
+  [ValidateSet("all", "relay", "agent")]
+  [string]$Component = $(if ($env:INSTALL_COMPONENT) { $env:INSTALL_COMPONENT } else { "all" }),
+  [string]$InstallDir = $(if ($env:INSTALL_DIR) { $env:INSTALL_DIR } else { "C:\Program Files\Vibe Everywhere" }),
   [string]$ReleaseTag = $env:VIBE_RELEASE_TAG,
-  [string]$ArchiveUrl = $env:RELAY_CLI_ARCHIVE_URL,
-  [string]$ArchivePath = $env:RELAY_CLI_ARCHIVE_PATH,
-  [string]$InstallDir = "C:\Program Files\Vibe Everywhere",
-  [string]$ConfigDir = "$env:ProgramData\Vibe Everywhere",
-  [string]$TaskName = "VibeRelay",
-  [string]$RelayBindHost = $(if ($env:RELAY_BIND_HOST) { $env:RELAY_BIND_HOST } else { "0.0.0.0" }),
-  [int]$RelayPort = $(if ($env:RELAY_PORT) { [int]$env:RELAY_PORT } else { 8787 }),
-  [string]$PublicRelayBaseUrl = $env:RELAY_PUBLIC_BASE_URL,
-  [string]$RelayForwardHost = $env:RELAY_FORWARD_HOST,
-  [string]$RelayAccessToken = $env:RELAY_ACCESS_TOKEN,
-  [string]$RelayEnrollmentToken = $env:RELAY_ENROLLMENT_TOKEN,
-  [string]$RelayDeploymentMode = $(if ($env:RELAY_DEPLOYMENT_MODE) { $env:RELAY_DEPLOYMENT_MODE } else { "self_hosted" }),
-  [switch]$SkipStartupTask
+  [string]$ArchiveUrl = $(if ($env:VIBE_CLI_ARCHIVE_URL) { $env:VIBE_CLI_ARCHIVE_URL } elseif ($env:RELAY_CLI_ARCHIVE_URL) { $env:RELAY_CLI_ARCHIVE_URL } else { "" }),
+  [string]$ArchivePath = $(if ($env:VIBE_CLI_ARCHIVE_PATH) { $env:VIBE_CLI_ARCHIVE_PATH } elseif ($env:RELAY_CLI_ARCHIVE_PATH) { $env:RELAY_CLI_ARCHIVE_PATH } else { "" }),
+  [string]$RepoOwner = $(if ($env:REPO_OWNER) { $env:REPO_OWNER } else { "fage-ac-org" }),
+  [string]$RepoName = $(if ($env:REPO_NAME) { $env:REPO_NAME } else { "vibe-everywhere" }),
+  [string]$GhProxy = $(if ($env:GH_PROXY) { $env:GH_PROXY } else { "https://ghfast.top/" }),
+  [switch]$NoGhProxy
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-function Test-IsAdministrator {
-  $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
-  $principal = [Security.Principal.WindowsPrincipal]::new($identity)
-  return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+function Show-Help {
+  @"
+Vibe Everywhere CLI Binary Installer
+
+Usage:
+  .\install-relay.ps1 -Command <install|update|uninstall|help> [options]
+
+Options:
+  -Component <all|relay|agent>
+                           Which binaries to manage (default: all)
+  -InstallDir <path>       Target directory for installed binaries
+  -ReleaseTag <tag>        Install a specific release tag, for example v0.1.8
+  -ArchiveUrl <url>        Download from a custom archive URL
+  -ArchivePath <path>      Install from a local archive path
+  -GhProxy <url>           Prefix applied to GitHub release and redirect URLs
+  -NoGhProxy               Disable the GitHub proxy prefix
+  -RepoOwner <owner>       Override the GitHub repository owner
+  -RepoName <name>         Override the GitHub repository name
+
+Examples:
+  .\install-relay.ps1 -Command install
+  .\install-relay.ps1 -Command install -Component relay
+  .\install-relay.ps1 -Command install -Component agent
+  .\install-relay.ps1 -Command update -Component all -ReleaseTag v0.1.8
+  .\install-relay.ps1 -Command uninstall -Component agent
+  .\install-relay.ps1 -Command install -ArchivePath C:\Temp\vibe-everywhere-cli.zip
+
+Notes:
+  This script manages the published CLI binaries from the release archive.
+  On Windows, the default install location is C:\Program Files\Vibe Everywhere, which follows the
+  normal machine-wide application directory convention.
+  It does not create services, write environment files, or start relay or agent processes.
+"@
+}
+
+function Write-Info {
+  param([string]$Message)
+  Write-Host $Message -ForegroundColor Cyan
+}
+
+function Resolve-ProxiedUrl {
+  param([Parameter(Mandatory = $true)][string]$Url)
+
+  if ($NoGhProxy) {
+    return $Url
+  }
+
+  return "$GhProxy$Url"
 }
 
 function Get-LatestReleaseTag {
-  $release = Invoke-RestMethod -Uri "https://api.github.com/repos/fage-ac-org/vibe-everywhere/releases/latest"
-  return $release.tag_name
+  $latestUrl = Resolve-ProxiedUrl -Url "https://github.com/$RepoOwner/$RepoName/releases/latest"
+  $response = Invoke-WebRequest -Uri $latestUrl -MaximumRedirection 5
+  $finalUrl = $response.BaseResponse.ResponseUri.AbsoluteUri
+  $match = [regex]::Match($finalUrl, "/releases/(?:tag|download)/([^/?#]+)")
+  if (-not $match.Success) {
+    throw "Failed to resolve the latest release tag from $finalUrl"
+  }
+
+  return $match.Groups[1].Value
 }
 
-function Escape-SingleQuotedLiteral {
-  param([string]$Value)
-  return $Value -replace "'", "''"
+function Build-ArchiveUrl {
+  param(
+    [Parameter(Mandatory = $true)][string]$Tag,
+    [Parameter(Mandatory = $true)][string]$ArchiveName
+  )
+
+  $directUrl = "https://github.com/$RepoOwner/$RepoName/releases/download/$Tag/$ArchiveName"
+  return Resolve-ProxiedUrl -Url $directUrl
+}
+
+function Get-SelectedBinaryNames {
+  switch ($Component) {
+    "all" {
+      return @("vibe-relay.exe", "vibe-agent.exe")
+    }
+    "relay" {
+      return @("vibe-relay.exe")
+    }
+    "agent" {
+      return @("vibe-agent.exe")
+    }
+    default {
+      throw "Unsupported component: $Component"
+    }
+  }
+}
+
+function Get-AllBinaryNames {
+  return @("vibe-relay.exe", "vibe-agent.exe")
 }
 
 function Copy-ArchiveFile {
@@ -58,100 +133,140 @@ function Copy-ArchiveFile {
   Copy-Item -Path $sourcePath -Destination (Join-Path $InstallDir $FileName) -Force
 }
 
-if (-not (Test-IsAdministrator)) {
-  throw "This installer writes to Program Files and scheduled tasks. Run it in an elevated PowerShell session."
+function Print-PostInstallNotes {
+  param([Parameter(Mandatory = $true)][string[]]$InstalledBinaryPaths)
+
+  $docsUrl = "https://github.com/$RepoOwner/$RepoName/blob/main/docs/relay-startup.md"
+  $readmeUrl = "https://github.com/$RepoOwner/$RepoName/blob/main/README.en.md"
+
+  Write-Host "Installed CLI binaries into $InstallDir"
+  foreach ($binaryPath in $InstalledBinaryPaths) {
+    Write-Host "Installed: $binaryPath"
+  }
+  Write-Host "Relay startup guide: $docsUrl"
+  Write-Host "General usage guide: $readmeUrl"
+  if (-not $NoGhProxy) {
+    Write-Host ("Relay startup guide (accelerated): {0}" -f (Resolve-ProxiedUrl -Url $docsUrl))
+    Write-Host ("General usage guide (accelerated): {0}" -f (Resolve-ProxiedUrl -Url $readmeUrl))
+  }
+  Write-Warning "This script only installs or updates binaries. Configure environment variables and startup separately."
 }
 
-if (-not $ReleaseTag -and -not $ArchiveUrl -and -not $ArchivePath) {
-  $ReleaseTag = Get-LatestReleaseTag
-}
+function Install-OrUpdateCli {
+  param([Parameter(Mandatory = $true)][string]$Mode)
 
-if (-not $RelayForwardHost -and $PublicRelayBaseUrl) {
-  $RelayForwardHost = ([uri]$PublicRelayBaseUrl).Host
-}
-
-$downloadPath = $ArchivePath
-if (-not $downloadPath) {
-  if (-not $ArchiveUrl) {
-    $assetName = "vibe-everywhere-cli-$ReleaseTag-x86_64-pc-windows-msvc.zip"
-    $ArchiveUrl = "https://github.com/fage-ac-org/vibe-everywhere/releases/download/$ReleaseTag/$assetName"
+  $selectedBinaryNames = @(Get-SelectedBinaryNames)
+  if ($Mode -eq "update") {
+    $existingBinaryCount = @(
+      $selectedBinaryNames | Where-Object {
+        Test-Path (Join-Path $InstallDir $_)
+      }
+    ).Count
+    if ($existingBinaryCount -eq 0) {
+      throw "No selected CLI binaries were found under $InstallDir. Run install first or choose a different -InstallDir."
+    }
   }
 
-  $downloadPath = Join-Path $env:TEMP "vibe-everywhere-cli.zip"
-  Invoke-WebRequest -Uri $ArchiveUrl -OutFile $downloadPath
+  $resolvedReleaseTag = $ReleaseTag
+  if (-not $resolvedReleaseTag -and -not $ArchiveUrl -and -not $ArchivePath) {
+    Write-Info "Resolving latest release tag..."
+    $resolvedReleaseTag = Get-LatestReleaseTag
+  }
+
+  $resolvedArchivePath = $ArchivePath
+  if (-not $resolvedArchivePath) {
+    $resolvedArchiveUrl = $ArchiveUrl
+    if (-not $resolvedArchiveUrl) {
+      $assetName = "vibe-everywhere-cli-$resolvedReleaseTag-x86_64-pc-windows-msvc.zip"
+      $resolvedArchiveUrl = Build-ArchiveUrl -Tag $resolvedReleaseTag -ArchiveName $assetName
+    }
+
+    $resolvedArchivePath = Join-Path $env:TEMP ("vibe-cli-" + [guid]::NewGuid().ToString("N") + ".zip")
+    Write-Info "Downloading CLI archive..."
+    Write-Info "Archive URL: $resolvedArchiveUrl"
+    Invoke-WebRequest -Uri $resolvedArchiveUrl -OutFile $resolvedArchivePath
+  }
+
+  $extractDir = Join-Path $env:TEMP ("vibe-cli-" + [guid]::NewGuid().ToString("N"))
+  New-Item -ItemType Directory -Force -Path $extractDir | Out-Null
+  Expand-Archive -Path $resolvedArchivePath -DestinationPath $extractDir -Force
+
+  New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
+
+  foreach ($binaryName in $selectedBinaryNames) {
+    Copy-ArchiveFile -ExtractDir $extractDir -InstallDir $InstallDir -FileName $binaryName -Required
+  }
+  foreach ($runtimeFile in @("Packet.dll", "wintun.dll", "WinDivert64.sys")) {
+    Copy-ArchiveFile -ExtractDir $extractDir -InstallDir $InstallDir -FileName $runtimeFile -Required
+  }
+  Copy-ArchiveFile -ExtractDir $extractDir -InstallDir $InstallDir -FileName "WinDivert.dll"
+
+  Remove-Item -Path $extractDir -Recurse -Force
+  if (-not $ArchivePath -and (Test-Path $resolvedArchivePath)) {
+    Remove-Item -Path $resolvedArchivePath -Force
+  }
+
+  $installedBinaryPaths = @($selectedBinaryNames | ForEach-Object {
+    Join-Path $InstallDir $_
+  })
+  Print-PostInstallNotes -InstalledBinaryPaths $installedBinaryPaths
 }
 
-$extractDir = Join-Path $env:TEMP ("vibe-everywhere-cli-" + [guid]::NewGuid().ToString("N"))
-New-Item -ItemType Directory -Force -Path $extractDir | Out-Null
-Expand-Archive -Path $downloadPath -DestinationPath $extractDir -Force
+function Uninstall-Cli {
+  $selectedBinaryNames = @(Get-SelectedBinaryNames)
+  $runtimeFiles = @("Packet.dll", "wintun.dll", "WinDivert64.sys", "WinDivert.dll")
+  $removedBinaryCount = 0
 
-New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
-New-Item -ItemType Directory -Force -Path $ConfigDir | Out-Null
+  foreach ($binaryName in $selectedBinaryNames) {
+    $binaryPath = Join-Path $InstallDir $binaryName
+    if (Test-Path $binaryPath) {
+      Remove-Item -Path $binaryPath -Force
+      Write-Host "Removed $binaryPath"
+      $removedBinaryCount += 1
+    } else {
+      Write-Warning "No binary found at $binaryPath"
+    }
+  }
 
-$relayExePath = Join-Path $InstallDir "vibe-relay.exe"
-Copy-ArchiveFile -ExtractDir $extractDir -InstallDir $InstallDir -FileName "vibe-relay.exe" -Required
-foreach ($runtimeFile in @("Packet.dll", "wintun.dll", "WinDivert64.sys")) {
-  Copy-ArchiveFile -ExtractDir $extractDir -InstallDir $InstallDir -FileName $runtimeFile -Required
-}
-Copy-ArchiveFile -ExtractDir $extractDir -InstallDir $InstallDir -FileName "WinDivert.dll"
+  $remainingBinaryNames = @(
+    Get-AllBinaryNames | Where-Object {
+      Test-Path (Join-Path $InstallDir $_)
+    }
+  )
 
-$stateDir = Join-Path $ConfigDir "state"
-New-Item -ItemType Directory -Force -Path $stateDir | Out-Null
-$stateFile = Join-Path $stateDir "relay-state.json"
+  if ($remainingBinaryNames.Count -eq 0) {
+    foreach ($runtimeFile in $runtimeFiles) {
+      $runtimePath = Join-Path $InstallDir $runtimeFile
+      if (Test-Path $runtimePath) {
+        Remove-Item -Path $runtimePath -Force
+        Write-Host "Removed $runtimePath"
+      }
+    }
+  } else {
+    Write-Host ("Kept Windows runtime files because these binaries still exist: {0}" -f ($remainingBinaryNames -join ", "))
+  }
 
-$envScriptPath = Join-Path $InstallDir "relay-env.ps1"
-$launcherScriptPath = Join-Path $InstallDir "Start-VibeRelay.ps1"
+  if ($removedBinaryCount -eq 0 -and $remainingBinaryNames.Count -eq 0) {
+    Write-Warning "No selected CLI binaries were removed."
+  }
 
-$envLines = @(
-  ('$env:VIBE_RELAY_HOST = ''{0}''' -f (Escape-SingleQuotedLiteral $RelayBindHost)),
-  ('$env:VIBE_RELAY_PORT = ''{0}''' -f $RelayPort),
-  ('$env:VIBE_RELAY_DEPLOYMENT_MODE = ''{0}''' -f (Escape-SingleQuotedLiteral $RelayDeploymentMode)),
-  ('$env:VIBE_RELAY_STATE_FILE = ''{0}''' -f (Escape-SingleQuotedLiteral $stateFile))
-)
-
-if ($PublicRelayBaseUrl) {
-  $envLines += ('$env:VIBE_PUBLIC_RELAY_BASE_URL = ''{0}''' -f (Escape-SingleQuotedLiteral $PublicRelayBaseUrl))
-}
-
-if ($RelayForwardHost) {
-  $envLines += ('$env:VIBE_RELAY_FORWARD_HOST = ''{0}''' -f (Escape-SingleQuotedLiteral $RelayForwardHost))
-}
-
-if ($RelayAccessToken) {
-  $envLines += ('$env:VIBE_RELAY_ACCESS_TOKEN = ''{0}''' -f (Escape-SingleQuotedLiteral $RelayAccessToken))
-}
-
-if ($RelayEnrollmentToken) {
-  $envLines += ('$env:VIBE_RELAY_ENROLLMENT_TOKEN = ''{0}''' -f (Escape-SingleQuotedLiteral $RelayEnrollmentToken))
+  Write-Warning "This command removes only the selected CLI binaries. Windows runtime files are removed only when no CLI binaries remain in the install directory."
 }
 
-$envLines | Set-Content -Path $envScriptPath -Encoding UTF8
-
-$launcherContent = @"
-. "`$PSScriptRoot\relay-env.ps1"
-`$relayExe = Join-Path `$PSScriptRoot "vibe-relay.exe"
-Start-Process -FilePath `$relayExe -WorkingDirectory "$stateDir" -NoNewWindow -Wait
-"@
-Set-Content -Path $launcherScriptPath -Value $launcherContent -Encoding UTF8
-
-if (-not $SkipStartupTask) {
-  $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument ('-NoProfile -ExecutionPolicy Bypass -File "{0}"' -f $launcherScriptPath)
-  $trigger = New-ScheduledTaskTrigger -AtStartup
-  $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
-
-  Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Principal $principal -Force | Out-Null
-  Start-ScheduledTask -TaskName $TaskName
-}
-
-Remove-Item -Path $extractDir -Recurse -Force
-
-Write-Host "Installed vibe-relay.exe to $relayExePath"
-Write-Host "Installed Windows runtime files beside vibe-relay.exe"
-Write-Host "Environment script: $envScriptPath"
-Write-Host "Launcher script: $launcherScriptPath"
-if (-not $SkipStartupTask) {
-  Write-Host "Startup task: $TaskName"
-}
-if (-not $PublicRelayBaseUrl) {
-  Write-Warning "No PublicRelayBaseUrl was provided. Set VIBE_PUBLIC_RELAY_BASE_URL in $envScriptPath before using remote/mobile clients."
+switch ($Command) {
+  "help" {
+    Show-Help
+  }
+  "install" {
+    Install-OrUpdateCli -Mode "install"
+  }
+  "update" {
+    Install-OrUpdateCli -Mode "update"
+  }
+  "uninstall" {
+    Uninstall-Cli
+  }
+  default {
+    throw "Unsupported command: $Command"
+  }
 }

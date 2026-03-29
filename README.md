@@ -6,296 +6,275 @@
 
 [中文](./README.md) | [English](./README.en.md)
 
-Vibe Everywhere 是一个面向自建场景的远程 AI 控制面。你把 AI 编码任务放到自己的服务器、
-工作站或开发机上执行，再通过统一控制端发起 AI Session、查看工作区、检查 Git、打开预览，
-并在确有必要时进入终端或高级连接工具。
+Vibe Everywhere 是面向自建环境的远程 AI 控制面。系统由 `vibe-relay`、`vibe-agent` 和控制端组成，用于在远程机器上执行 AI Session，并通过统一入口完成设备注册、会话调度、工作区浏览、Git 检查、预览访问和必要的高级连接操作。
 
-它不是传统远程桌面，也不是把用户锁在某个托管平台里的 SaaS。产品目标很明确：
-把“远程 AI 开发”变成一个可部署、可观察、可协作的工作流。
+本文件面向最终用户和部署人员，提供系统概览、二进制安装方式、启动入口、关键配置语义和标准使用流程。
 
-## 一眼看懂这个产品
+## 概述
 
-- `vibe-relay` 是控制面的入口，负责认证、设备注册、Session 路由和状态汇总。
-- `vibe-agent` 运行在目标机器上，负责真正执行 AI Provider CLI、工作区浏览、Git 检查和预览桥接。
-- 控制端可以是桌面端、Android，或者你自建的 Web 客户端。
-- 主流程围绕 AI Session 展开，设备管理、终端和高级连接工具属于辅助能力，而不是主入口。
+标准工作流程如下：
 
-## 适合谁
+1. 在客户端和 Agent 可访问的主机上部署 `vibe-relay`。
+2. 在目标执行节点上启动 `vibe-agent`。
+3. 通过桌面端、Android 或自建 Web 客户端连接 relay。
+4. 选择设备并创建 AI Session。
+5. 在同一控制面中检查工作区、Git 状态、预览和执行结果。
 
-- 想把 AI 编码任务放到远程机器执行，但仍希望集中查看过程与结果的人
-- 希望完全自建，而不是依赖托管服务的人或团队
-- 需要同时管理多台设备、多个工作区和多种 AI Provider CLI 的个人或小团队
-- 需要先落地一个能工作的 MVP，再逐步演进权限、审计和组织能力的团队
+## 组件说明
 
-## 当前能做什么
+| 组件 | 作用 | 典型部署位置 |
+| --- | --- | --- |
+| `vibe-relay` | 控制面入口；负责认证、设备注册、Session 路由、状态汇总和对外 API | 服务器、工作站、云主机 |
+| `vibe-agent` | 运行在目标机器上；负责执行 Provider CLI、工作区访问、Git 检查、预览桥接和高级连接 | 需要执行 AI 任务的目标机器 |
+| 控制端 | 连接 relay，发起和管理 AI Session，查看设备与结果 | 桌面端、Android、自建 Web 客户端 |
 
-- 创建、执行、取消 AI Session，并实时查看事件流
-- 在同一个主界面完成 relay 连接、设备选择、Session 发起和结果审阅
-- 查看设备在线状态、运行能力和 Provider 可用性
-- 浏览工作区、预览文本文件、检查 Git 状态和最近提交
-- 建立预览转发，并在需要时进入 Shell 或更底层的高级连接能力
-- 通过桌面端、Android 和自建 Web 客户端访问同一套控制面
-- 使用中文或英文界面，并支持浅色、深色和跟随系统主题
+## 功能范围
 
-## 简单部署手册
+当前版本支持：
 
-这一节假设你的目标是尽快跑起来一套可用环境，而不是做复杂定制。
+- AI Session 的创建、执行、取消和事件流查看
+- 设备注册、在线状态上报和 Provider 可用性展示
+- 工作区目录浏览和文本文件预览
+- Git 状态、变更文件和最近提交检查
+- 预览访问、Shell 和高级连接能力
+- 中文和英文界面
+- 浅色、深色和系统主题
 
-### 部署前先准备 3 个值
+## 快速开始
 
-- `https://relay.example.com`
-  这是用户和 Agent 实际访问的 relay 地址，必须是可达地址，不要用 `127.0.0.1`。
-- `VIBE_RELAY_ACCESS_TOKEN`
-  这是给人类控制端用的控制面 token，桌面端、Android 和自建 Web 客户端都使用它。
-- `VIBE_RELAY_ENROLLMENT_TOKEN`
-  这是给 Agent 首次注册用的 enrollment token，建议不要和控制面 token 共用。
+### 前置条件
 
-### 第 1 步：部署 Relay
+部署前请先确认以下信息：
 
-更完整的运维说明见 [docs/self-hosted.md](./docs/self-hosted.md)。如果你只是先部署一套可用环境，
-下面的脚本就够了。
+- relay 的客户端访问地址，例如 `https://relay.example.com` 或 `http://203.0.113.10:8787`
+- 人类控制端使用的控制面 token，即 `VIBE_RELAY_ACCESS_TOKEN`
+- Agent 首次注册使用的 enrollment token，即 `VIBE_RELAY_ENROLLMENT_TOKEN`
+- 目标机器上的至少一个 AI Provider CLI，例如 `codex`、`claude` 或 `opencode`
 
-- Linux `systemd`
+### 1. 下载或更新 CLI 二进制
+
+`scripts/install-relay.sh` 和 `scripts/install-relay.ps1` 用于安装、更新或卸载 CLI 二进制。默认安装 `vibe-relay` 和 `vibe-agent`，也可以通过 `--component` 或 `-Component` 仅处理其中一个组件。
+
+#### Linux
+
+直连 GitHub：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/fage-ac-org/vibe-everywhere/main/scripts/install-relay.sh -o install-relay.sh
-sudo RELAY_PUBLIC_BASE_URL=https://relay.example.com \
-  RELAY_ACCESS_TOKEN=change-control-token \
-  RELAY_ENROLLMENT_TOKEN=change-agent-enrollment-token \
-  bash install-relay.sh
+bash install-relay.sh install --no-gh-proxy
 ```
 
-- Windows 自动启动任务
+中国网络环境推荐：
+
+```bash
+curl -fsSL https://ghfast.top/https://raw.githubusercontent.com/fage-ac-org/vibe-everywhere/main/scripts/install-relay.sh -o install-relay.sh
+bash install-relay.sh install
+```
+
+常用命令：
+
+```bash
+bash install-relay.sh install
+bash install-relay.sh install --component relay
+bash install-relay.sh install --component agent
+bash install-relay.sh update --release-tag v0.1.8
+bash install-relay.sh uninstall
+bash install-relay.sh uninstall --component agent
+```
+
+默认安装路径：
+
+- `/usr/local/bin/vibe-relay`
+- `/usr/local/bin/vibe-agent`
+
+#### Windows
+
+直连 GitHub：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\install-relay.ps1 `
-  -PublicRelayBaseUrl https://relay.example.com `
-  -RelayAccessToken change-control-token `
-  -RelayEnrollmentToken change-agent-enrollment-token
+Invoke-WebRequest `
+  -Uri "https://raw.githubusercontent.com/fage-ac-org/vibe-everywhere/main/scripts/install-relay.ps1" `
+  -OutFile ".\install-relay.ps1"
+powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command install -NoGhProxy
 ```
 
-部署完成后，先确认 relay 进程健康：
+中国网络环境推荐：
+
+```powershell
+Invoke-WebRequest `
+  -Uri "https://ghfast.top/https://raw.githubusercontent.com/fage-ac-org/vibe-everywhere/main/scripts/install-relay.ps1" `
+  -OutFile ".\install-relay.ps1"
+powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command install
+```
+
+常用命令：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command install
+powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command install -Component relay
+powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command install -Component agent
+powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command update -ReleaseTag v0.1.8
+powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command uninstall
+powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command uninstall -Component agent
+```
+
+默认安装路径：
+
+- `C:\Program Files\Vibe Everywhere\vibe-relay.exe`
+- `C:\Program Files\Vibe Everywhere\vibe-agent.exe`
+- `C:\Program Files\Vibe Everywhere\Packet.dll`
+- `C:\Program Files\Vibe Everywhere\wintun.dll`
+- `C:\Program Files\Vibe Everywhere\WinDivert64.sys`
+- `C:\Program Files\Vibe Everywhere\WinDivert.dll`（如果归档中包含）
+
+说明：
+
+- Windows 下 `vibe-relay.exe` 和 `vibe-agent.exe` 需要与 side-by-side 运行时文件放在同一目录。
+
+加速说明：
+
+- 两个安装脚本默认使用 `https://ghfast.top/` 作为 GitHub URL 前缀，加速脚本内部的 release 解析和归档下载。
+- 如果当前网络环境可以直接访问 GitHub，Linux 请使用 `--no-gh-proxy`，Windows 请使用 `-NoGhProxy`。
+- 如果需要替换为其他代理前缀，Linux 使用 `--gh-proxy <url>`，Windows 使用 `-GhProxy <url>`。
+
+### 2. 配置并启动 Relay
+
+独立启动说明见：
+
+- 中文：[docs/relay-startup.zh-CN.md](./docs/relay-startup.zh-CN.md)
+- English: [docs/relay-startup.md](./docs/relay-startup.md)
+
+最小前台启动示例：
+
+```bash
+export VIBE_RELAY_HOST=0.0.0.0
+export VIBE_RELAY_PORT=8787
+export VIBE_PUBLIC_RELAY_BASE_URL=https://relay.example.com
+export VIBE_RELAY_ACCESS_TOKEN=change-control-token
+export VIBE_RELAY_ENROLLMENT_TOKEN=change-agent-enrollment-token
+vibe-relay
+```
+
+健康检查：
 
 ```bash
 curl https://relay.example.com/api/health
 ```
 
-### 不要混淆监听地址和对外地址
+### 3. 启动 Agent
 
-这是最容易误解的一组配置：
-
-- `RELAY_BIND_HOST` / `RELAY_PORT`
-  安装脚本会把它们写成 `VIBE_RELAY_HOST` / `VIBE_RELAY_PORT`，它们决定 relay 实际监听在哪个地址和端口。
-- `RELAY_PUBLIC_BASE_URL`
-  安装脚本会把它写成 `VIBE_PUBLIC_RELAY_BASE_URL`，它决定客户端、预览链接和产品展示里“应该访问哪个地址”，但不会改变 relay 实际监听端口。
-
-当前默认值是：
-
-- relay 默认监听 `0.0.0.0:8787`
-- 如果未显式设置 `VIBE_PUBLIC_RELAY_BASE_URL`，生产模式下不会自动为 `0.0.0.0` 推导一个可用公网地址
-
-请按下面的规则理解：
-
-- `0.0.0.0` 只适合作为监听地址，不适合作为给用户访问的 URL 主机名。
-- `127.0.0.1` 或 `localhost` 只适合本机开发；远程电脑、手机和 Android 客户端都不能把它当作服务器地址使用。
-- `RELAY_PUBLIC_BASE_URL=http://45.144.137.240` 表示对外地址是 80 端口，不会自动等于 relay 的实际监听端口。
-- 如果 relay 实际监听在 `8787`，对外地址也想让客户端直连 `8787`，应写成 `http://45.144.137.240:8787`。
-- `http` 可以用于本机开发、内网测试或你明确接受明文传输风险的环境。
-- 面向公网、手机、桌面端或共享部署时，强烈建议使用 `https`。
-
-常见部署形态示例：
-
-- 公网 IP 直连
-
-```bash
-sudo RELAY_BIND_HOST=0.0.0.0 \
-  RELAY_PORT=8787 \
-  RELAY_PUBLIC_BASE_URL=http://45.144.137.240:8787 \
-  RELAY_ACCESS_TOKEN=change-control-token \
-  RELAY_ENROLLMENT_TOKEN=change-agent-enrollment-token \
-  bash install-relay.sh
-```
-
-- 反向代理到本机 relay
-
-```bash
-sudo RELAY_BIND_HOST=127.0.0.1 \
-  RELAY_PORT=8787 \
-  RELAY_PUBLIC_BASE_URL=https://relay.example.com \
-  RELAY_ACCESS_TOKEN=change-control-token \
-  RELAY_ENROLLMENT_TOKEN=change-agent-enrollment-token \
-  bash install-relay.sh
-```
-
-### 第 2 步：在目标机器启动 Agent
-
-从 [GitHub Releases](https://github.com/fage-ac-org/vibe-everywhere/releases) 下载当前版本的 CLI 包，
-解压后启动 `vibe-agent`：
+如果已通过安装脚本安装 CLI，可直接使用安装后的 `vibe-agent`。如果未使用安装脚本，也可以从 Release 页面下载 CLI 包并解压后运行。
 
 ```bash
 VIBE_RELAY_URL=https://relay.example.com \
 VIBE_RELAY_ENROLLMENT_TOKEN=change-agent-enrollment-token \
 VIBE_DEVICE_NAME=build-node-01 \
-./vibe-agent
+vibe-agent
 ```
 
-你需要知道这几个关键点：
+操作说明：
 
-- Windows 下请保留解压后的 side-by-side 运行时文件与 `vibe-agent.exe` 同目录，不要只单独拷出可执行文件。
-- 目标机器若要执行 AI Session，至少需要安装一个 Provider CLI，例如 `codex`、`claude` 或 `opencode`。
-- Agent 首次注册成功后，会在工作目录下写入 `.vibe-agent/identity.json`，后续重启优先复用该设备凭证。
+- Linux 默认路径是 `/usr/local/bin/vibe-agent`
+- Windows 默认路径是 `C:\Program Files\Vibe Everywhere\vibe-agent.exe`
+- Windows 下必须保留归档中的 side-by-side 运行时文件，不要只复制 `vibe-agent.exe`
+- `VIBE_RELAY_URL` 必须指向 Agent 实际可访问的 relay 地址
+- Agent 首次注册成功后，会在工作目录下写入 `.vibe-agent/identity.json`
+- 后续重启优先复用该设备凭证，而不是重复使用控制面 token
 
-### Agent、Overlay 和 EasyTier 端口说明
+### 4. 连接控制端
 
-默认情况下，agent 不会像 relay 一样占用一个固定的控制面监听端口：
-
-- 如果没有启用 EasyTier，也就是没有设置 `VIBE_EASYTIER_NETWORK_NAME`，agent 主要是主动连接 relay，不会为业务流量额外打开固定监听端口。
-- 如果启用了 EasyTier overlay，agent 会额外启动 3 个 bridge 监听端口：
-  - `19090`：shell bridge
-  - `19091`：port-forward bridge
-  - `19092`：task bridge
-- 这 3 个端口可以分别通过 `VIBE_AGENT_SHELL_BRIDGE_PORT`、`VIBE_AGENT_PORT_FORWARD_BRIDGE_PORT` 和 `VIBE_AGENT_TASK_BRIDGE_PORT` 覆盖。
-- 这些 bridge 端口用于 relay 和 agent 的 overlay 内部链路，不应该误认为是给浏览器或手机客户端直接访问的公网入口。
-
-EasyTier 自身的 listener 规则也要单独理解：
-
-- agent 侧默认 `VIBE_EASYTIER_NO_LISTENER=true`，所以即便启用了 overlay，嵌入式 EasyTier 节点默认也不会主动对外监听 EasyTier peer 入口。
-- 如果你显式设置 `VIBE_EASYTIER_NO_LISTENER=false` 且没有设置 `VIBE_EASYTIER_LISTENERS`，当前仓库会按 EasyTier 常见 listener 简写规则，默认使用 TCP/UDP `11010`。
-- relay 侧如果启用了嵌入式 EasyTier 且没有设置 `VIBE_EASYTIER_LISTENERS`，当前仓库同样默认使用 TCP/UDP `11010`。
-
-### 第 3 步：打开控制端并连接
-
-当前公开发布物提供：
-
-- CLI
-- 桌面端
-- Android
-
-Web 控制端是现有产品形态之一，但公开 Release 目前不单独分发 Web 静态包；如果你只是想尽快开始使用，
-建议优先下载桌面端。
-
-首次连接时，按这个顺序操作：
+首次连接建议按以下顺序执行：
 
 1. 打开桌面端或 Android 客户端。
-2. 输入 relay 地址，例如 `https://relay.example.com`。
-3. 输入控制面 token，也就是 `VIBE_RELAY_ACCESS_TOKEN`。
-4. 进入 Session 主流程，确认设备已经在线，且目标设备上至少一个 Provider 已显示可用。
+2. 输入 relay 地址。
+3. 输入 `VIBE_RELAY_ACCESS_TOKEN`。
+4. 确认至少一台设备在线，且该设备至少一个 Provider 处于可用状态。
+5. 创建 AI Session。
 
-## 认证方式怎么理解
+## 配置语义
 
-推荐把人和设备的认证拆开，这样既更安全，也更容易运维：
+### Relay 监听地址与对外地址
 
-- `VIBE_RELAY_ACCESS_TOKEN`
-  给人类控制端使用，用来登录桌面端、Android 和自建 Web 客户端。
-- `VIBE_RELAY_ENROLLMENT_TOKEN`
-  只给 Agent 首次注册使用，用来把新设备纳入控制面。
-- `.vibe-agent/identity.json`
-  Agent 首次注册成功后获得并持久化的设备身份，后续心跳、任务领取、工作区和预览桥接都复用它。
+`bind` 配置和 `public origin` 配置不是同一个概念。
 
-如果你删除了目标机器上的 `.vibe-agent/identity.json`，下次启动 Agent 时会重新走注册流程。
+| 配置 | 作用 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `VIBE_RELAY_HOST` | relay 本地监听地址 | `0.0.0.0` | 控制服务绑定到哪个网卡地址 |
+| `VIBE_RELAY_PORT` | relay 本地监听端口 | `8787` | 控制服务监听的 TCP 端口 |
+| `VIBE_PUBLIC_RELAY_BASE_URL` | 客户端访问 relay 时使用的对外地址 | 无公网默认值 | 用于控制端连接信息、预览和对外链接生成 |
+| `VIBE_RELAY_FORWARD_HOST` | 预览和转发对外主机名 | 尽可能从 `VIBE_PUBLIC_RELAY_BASE_URL` 推导 | 用于客户端可访问的预览地址 |
 
-## 详细使用说明
+关键规则：
 
-### 1. 先确认控制面连通
+- `VIBE_PUBLIC_RELAY_BASE_URL` 不会改变 relay 实际监听端口。
+- 如果 relay 监听在 `8787`，且客户端直接访问该端口，则 `VIBE_PUBLIC_RELAY_BASE_URL` 必须写成包含端口的形式，例如 `http://203.0.113.10:8787`。
+- `0.0.0.0` 只适合作为监听地址，不适合作为客户端访问地址。
+- `127.0.0.1` 和 `localhost` 只适用于同机开发。
 
-第一次进入客户端时，优先看三件事：
+## 认证模型
 
-- relay 地址是否正确
-- 控制面 token 是否正确
-- 至少一台目标设备是否已经在线
+推荐采用人类控制端和 Agent 分离的认证模型。
 
-如果这一步没有通过，不要急着创建 Session，先回到部署链路排查 relay 与 agent 的连接状态。
+| 配置或文件 | 用途 | 使用方 |
+| --- | --- | --- |
+| `VIBE_RELAY_ACCESS_TOKEN` | 控制面认证 | 桌面端、Android、自建 Web 客户端 |
+| `VIBE_RELAY_ENROLLMENT_TOKEN` | 首次设备注册 | `vibe-agent` |
+| `.vibe-agent/identity.json` | 已发放设备凭证持久化文件 | `vibe-agent` 重启后的身份复用 |
 
-### 2. 选择设备并确认能力
+行为说明：
 
-进入主流程后，先选择你要执行任务的设备。理想状态下，你能看到：
+- Agent 首次注册成功后，会使用发放的设备凭证执行心跳、任务领取、工作区请求和预览桥接。
+- 删除 `.vibe-agent/identity.json` 会触发下一次启动时重新注册。
+- 如果未设置 `VIBE_RELAY_ENROLLMENT_TOKEN`，relay 仍可接受控制面 token 作为兼容注册路径，但不建议在常规部署中使用该模式。
 
-- 设备在线
-- Provider 可用，例如 `codex` 或 `claude`
-- 该设备具备工作区浏览、Git 检查、Shell 或预览等能力
+## Agent、Overlay 与 EasyTier 端口
 
-如果设备在线但 Provider 不可用，通常意味着目标机器还没有安装对应 CLI，或者 Agent 当前无法探测到它。
+### 默认模式
 
-### 3. 发起 AI Session
+在默认 relay-polling 模式下，agent 不提供固定的公网控制面监听端口。它主要通过出站请求与 relay 交互。
 
-Session 是产品的主入口。典型用法是：
+### Overlay 模式
 
-1. 选择设备。
-2. 输入任务目标或 prompt。
-3. 选择要使用的 Provider。
-4. 启动 Session 并观察事件流。
+当设置 `VIBE_EASYTIER_NETWORK_NAME` 启用 EasyTier overlay 后，agent 会启动以下 bridge 监听端口：
 
-在这个阶段，你会实时看到任务执行进度、结构化事件和结果状态。相比传统 SSH 工作流，Vibe Everywhere
-更强调“任务过程可见”和“结果可回看”。
+| 端口 | 功能 | 可覆盖变量 |
+| --- | --- | --- |
+| `19090` | Shell bridge | `VIBE_AGENT_SHELL_BRIDGE_PORT` |
+| `19091` | Port-forward bridge | `VIBE_AGENT_PORT_FORWARD_BRIDGE_PORT` |
+| `19092` | Task bridge | `VIBE_AGENT_TASK_BRIDGE_PORT` |
 
-### 4. 审阅工作区、Git 和预览结果
+这些端口用于 relay 与 agent 之间的 overlay 内部链路，不是浏览器或手机客户端的直接入口。
 
-Session 执行后，常见动作是继续在同一个控制面完成结果检查：
+### EasyTier listener 默认行为
 
-- 浏览工作区目录和文件
-- 预览文本文件内容
-- 查看 Git 分支、变更文件和最近提交
-- 打开预览地址检查本地 Web 服务或端口转发结果
+| 侧别 | 条件 | 默认行为 |
+| --- | --- | --- |
+| relay | 启用嵌入式 EasyTier，且未设置 `VIBE_EASYTIER_LISTENERS` | 默认监听 TCP/UDP `11010` |
+| agent | 启用嵌入式 EasyTier | 默认 `VIBE_EASYTIER_NO_LISTENER=true`，不接受入站 EasyTier peer |
+| agent | 设置 `VIBE_EASYTIER_NO_LISTENER=false`，且未设置 `VIBE_EASYTIER_LISTENERS` | 默认监听 TCP/UDP `11010` |
 
-这一步的目标不是替代 IDE，而是让你在远程执行之后，快速判断“结果是否可接受、是否需要继续追问、是否需要转入手工处理”。
+## 标准使用流程
 
-### 5. 只有在需要时再使用高级工具
+推荐按以下流程使用系统：
 
-终端、端口转发和高级连接能力仍然重要，但它们应该是第二层工具，而不是默认入口。
+1. 配置 relay 地址和控制面 token。
+2. 确认目标设备在线。
+3. 检查目标设备的 Provider 可用性。
+4. 创建 AI Session。
+5. 查看事件流和执行结果。
+6. 使用工作区浏览、Git 检查和预览确认输出。
+7. 仅在需要人工干预时使用 Shell 或高级连接能力。
 
-推荐原则：
+## 故障排查
 
-- 能在 Session 主流程里完成的事，先不要跳到 Shell
-- 能通过工作区和 Git 审阅确认的问题，先不要建立更重的连接
-- 只有在需要手工调试、临时排障或手动执行命令时，再进入高级工具
+| 现象 | 优先检查项 |
+| --- | --- |
+| Agent 已启动，但控制端看不到设备 | `VIBE_RELAY_URL` 是否可达；`VIBE_RELAY_ENROLLMENT_TOKEN` 是否正确；relay `/api/health` 是否正常 |
+| 设备在线，但 Provider 不可用 | 目标机器是否安装 Provider CLI；该 CLI 是否在 Agent 进程的 `PATH` 中 |
+| 需要重新注册设备 | 删除 `.vibe-agent/identity.json` 后重启 Agent |
+| 预览链接不可访问 | `VIBE_PUBLIC_RELAY_BASE_URL` 和 `VIBE_RELAY_FORWARD_HOST` 是否正确；客户端是否能访问该地址 |
 
-### 6. 多设备场景怎么用
-
-如果你有多台机器，建议按角色命名并分工，例如：
-
-- `build-node-01` 用于重构和构建
-- `gpu-node-01` 用于模型或 GPU 任务
-- `demo-node-01` 用于演示和预览
-
-这样在控制端里更容易快速选择正确设备，也便于团队协作时表达“任务应该落在哪台机器上”。
-
-## 常见问题
-
-### Agent 启动了，但设备没有出现在控制端
-
-优先检查：
-
-- `VIBE_RELAY_URL` 是否指向 Agent 真正可访问的 relay 地址
-- `VIBE_RELAY_ENROLLMENT_TOKEN` 是否正确
-- relay 的 `/api/health` 是否正常
-- 目标机器到 relay 的网络是否可达
-
-### 设备在线了，但看不到 Provider 可用
-
-通常是目标机器上没有安装对应 Provider CLI，或者该 CLI 不在 Agent 进程的 `PATH` 中。
-
-### 想让设备重新注册
-
-删除工作目录下的 `.vibe-agent/identity.json`，然后重新启动 `vibe-agent`。下一次启动会重新走 enrollment 流程。
-
-### 预览链接打不开
-
-重点检查 relay 的公网地址和转发主机配置。预览能力依赖 relay 生成对用户可达的链接，
-因此 `RELAY_PUBLIC_BASE_URL`、`VIBE_PUBLIC_RELAY_BASE_URL` 和相关 forward host 配置必须正确。
-
-### 我可以把 `RELAY_PUBLIC_BASE_URL` 设成 `http://127.0.0.1` 或 `http://0.0.0.0` 吗
-
-- `http://127.0.0.1` 只适合同一台机器本机访问，不适合远程电脑、手机或 Android 客户端。
-- `http://0.0.0.0` 不应该作为客户端访问地址使用。`0.0.0.0` 是监听地址，不是可路由的公网主机名。
-- 如果你要让其他设备访问 relay，请使用真实 IP 或域名，例如 `http://45.144.137.240:8787` 或 `https://relay.example.com`。
-
-## 下载
-
-- [GitHub Releases](https://github.com/fage-ac-org/vibe-everywhere/releases)
-
-当前公开发布物包含 CLI、桌面端和 Android 包。选择与你的平台匹配的文件即可。
-
-## 产品结构
+## 系统结构
 
 ```text
 ┌──────────────────────────────────────────────────────────┐
@@ -322,5 +301,7 @@ Session 执行后，常见动作是继续在同一个控制面完成结果检查
 
 ## 相关文档
 
-- 自建部署与安装：[docs/self-hosted.md](./docs/self-hosted.md)
+- 自建部署文档：[docs/self-hosted.md](./docs/self-hosted.md)
+- Relay 启动说明（中文）：[docs/relay-startup.zh-CN.md](./docs/relay-startup.zh-CN.md)
+- Relay Startup Guide (English): [docs/relay-startup.md](./docs/relay-startup.md)
 - 发布下载：[GitHub Releases](https://github.com/fage-ac-org/vibe-everywhere/releases)

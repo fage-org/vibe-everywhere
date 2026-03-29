@@ -160,17 +160,32 @@ Manual review:
 - confirm Windows CLI packaging keeps `vibe-relay(.exe)` / `vibe-agent(.exe)` and the EasyTier
   runtime files (`Packet.dll`, `wintun.dll`, `WinDivert64.sys`, optional `WinDivert.dll`)
   side-by-side in the staged archive layout
+- confirm `scripts/install-relay.sh` and `scripts/install-relay.ps1` expose `install`, `update`,
+  `uninstall`, and `help`, and remain limited to binary lifecycle operations rather than startup
+  automation
+- confirm both install scripts can manage `vibe-relay` and `vibe-agent`, and document the
+  component-selection flags consistently
+- confirm both install scripts still document and implement GitHub acceleration controls, including
+  the default proxy prefix and the direct-access override flags
 - confirm `scripts/install-relay.ps1` installs the Windows runtime files beside `vibe-relay.exe`
-  instead of extracting only the executable
+  and `vibe-agent.exe` instead of extracting only one executable
+- confirm `uninstall` on Windows removes `vibe-relay.exe` and the packaged side-by-side runtime
+  files together when no CLI binaries remain in the install directory
 - confirm `docs/releases/unreleased.md` or the target `docs/releases/vX.Y.Z.md` exists and matches
   the shipped work
 - confirm `README.md` and `README.en.md` stay user/operator-facing and do not absorb developer or
   governance-only content
 - confirm both top-level README files still include a simple deployment path, a clear auth-token
   explanation, and a detailed usage flow that matches the shipped product behavior
+- confirm user-facing runtime configuration tables and examples use the actual supported `VIBE_*`
+  environment-variable names instead of obsolete relay-script aliases
 - confirm the README deployment sections clearly distinguish relay bind host/port from
-  `VIBE_PUBLIC_RELAY_BASE_URL`, explain when `http` versus `https` is appropriate, and document
-  the overlay-related fixed listener ports that appear only when EasyTier mode is enabled
+  `VIBE_PUBLIC_RELAY_BASE_URL` and document the overlay-related fixed listener ports that appear
+  only when EasyTier mode is enabled
+- confirm deployment docs describe CLI binary installation separately from relay startup and
+  point to the dedicated startup guides
+- confirm the top-level README files use a technical-document style suitable for end users and
+  operators, avoiding promotional or overly conversational copy in deployment and usage sections
 - confirm the top-level README files do not present `DEVELOPMENT.md`, `TESTING.md`, `AGENTS.md`,
   `PLAN.md`, or versioned planning docs as primary documentation entry points
 - confirm the README download sections distinguish published artifacts from any source-built-only

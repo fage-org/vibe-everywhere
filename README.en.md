@@ -6,293 +6,291 @@
 
 [中文](./README.md) | [English](./README.en.md)
 
-Vibe Everywhere is a self-hosted remote AI control plane. You run AI coding work on your own
-servers, workstations, or development machines, then use one control surface to launch sessions,
-inspect workspaces, review Git state, open previews, and only drop into terminal or advanced
-connection tools when you actually need them.
+Vibe Everywhere is a self-hosted remote AI control plane. The system consists of `vibe-relay`,
+`vibe-agent`, and control clients. It is used to execute AI sessions on remote machines and to
+manage device registration, session routing, workspace browsing, Git inspection, preview access,
+and advanced connection paths through one control surface.
 
-It is not a traditional remote desktop product, and it is not a managed SaaS that owns your
-runtime. The product goal is straightforward: make remote AI development feel like a deployable,
-observable workflow instead of a pile of ad hoc SSH commands.
+This document is written for end users and operators. It provides a system overview, binary
+installation entry points, relay startup references, key configuration semantics, and the standard
+usage flow.
 
-## What This Product Is In One Minute
+## Overview
 
-- `vibe-relay` is the control-plane entry point for auth, device registration, session routing, and shared state.
-- `vibe-agent` runs on each target machine and executes provider CLIs, workspace actions, Git inspection, and preview bridging.
-- control clients connect to the same relay through desktop, Android, or a self-hosted Web client.
-- the primary product flow is session-first; device management, terminal access, and advanced tools are secondary surfaces.
+The standard workflow is:
 
-## Who It Is For
+1. Deploy `vibe-relay` on a host reachable by clients and agents.
+2. Start `vibe-agent` on target execution nodes.
+3. Connect a desktop, Android, or self-hosted Web client to the relay.
+4. Select a device and create an AI session.
+5. Review workspace state, Git state, previews, and execution results from the same control plane.
 
-- people who want AI coding tasks to run on remote machines while keeping one clear control surface
-- teams that prefer self-hosting over managed infrastructure
-- operators managing multiple devices, workspaces, and provider CLIs
-- teams that want a practical MVP now and a path toward stronger team features later
+## Components
 
-## What It Can Do Today
+| Component | Purpose | Typical Location |
+| --- | --- | --- |
+| `vibe-relay` | Control-plane entry point for auth, device registration, session routing, aggregation, and public APIs | Server, workstation, cloud host |
+| `vibe-agent` | Runtime on the target machine for provider execution, workspace access, Git inspection, preview bridging, and advanced connections | Machine that runs AI work |
+| Control client | Connects to the relay and manages sessions, devices, and results | Desktop, Android, self-hosted Web client |
 
-- create, stream, and cancel AI sessions
-- keep the main workflow on one surface: relay connection, device choice, session launch, and result review
-- register devices, track presence, and show provider availability
-- browse workspaces, preview text files, and inspect Git state
-- expose preview flows plus terminal and advanced connection tools when needed
-- connect through desktop, Android, and a self-hosted Web client
-- support both English and Simplified Chinese plus light, dark, and system themes
+## Supported Capabilities
 
-## Simple Deployment Manual
+The current release supports:
 
-This section is for getting a usable deployment running quickly, without diving into every advanced option.
+- creation, execution, cancellation, and streaming of AI sessions
+- device registration, presence reporting, and provider availability display
+- workspace browsing and text-file preview
+- Git status, changed-file, and recent-commit inspection
+- preview access, shell sessions, and advanced connection capabilities
+- English and Simplified Chinese UI
+- light, dark, and system theme modes
 
-### Prepare These 3 Values First
+## Quick Start
 
-- `https://relay.example.com`
-  This must be the real relay address your users and agents can reach. Do not use `127.0.0.1` for shared deployments.
-- `VIBE_RELAY_ACCESS_TOKEN`
-  This is the human control-plane token used by desktop, Android, and self-hosted Web clients.
-- `VIBE_RELAY_ENROLLMENT_TOKEN`
-  This is the bootstrap token used by agents during first registration. It should be separate from the human control token.
+### Prerequisites
 
-### Step 1: Deploy the Relay
+Prepare the following values before deployment:
 
-For the full operator guide, see [docs/self-hosted.md](./docs/self-hosted.md). If your goal is to get a working relay online first, the install scripts are the shortest path.
+- the client-facing relay address, for example `https://relay.example.com` or `http://203.0.113.10:8787`
+- the control-plane token used by human users: `VIBE_RELAY_ACCESS_TOKEN`
+- the enrollment token used by agents during first registration: `VIBE_RELAY_ENROLLMENT_TOKEN`
+- at least one provider CLI on each target machine, such as `codex`, `claude`, or `opencode`
 
-- Linux with `systemd`
+### 1. Download or Update the CLI Binaries
+
+`scripts/install-relay.sh` and `scripts/install-relay.ps1` install, update, or uninstall the CLI
+binaries. By default they install both `vibe-relay` and `vibe-agent`, and they can manage a single
+component through `--component` or `-Component`.
+
+#### Linux
+
+Direct GitHub access:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/fage-ac-org/vibe-everywhere/main/scripts/install-relay.sh -o install-relay.sh
-sudo RELAY_PUBLIC_BASE_URL=https://relay.example.com \
-  RELAY_ACCESS_TOKEN=change-control-token \
-  RELAY_ENROLLMENT_TOKEN=change-agent-enrollment-token \
-  bash install-relay.sh
+bash install-relay.sh install --no-gh-proxy
 ```
 
-- Windows with a startup task
+Recommended for mainland China network paths:
+
+```bash
+curl -fsSL https://ghfast.top/https://raw.githubusercontent.com/fage-ac-org/vibe-everywhere/main/scripts/install-relay.sh -o install-relay.sh
+bash install-relay.sh install
+```
+
+Common commands:
+
+```bash
+bash install-relay.sh install
+bash install-relay.sh install --component relay
+bash install-relay.sh install --component agent
+bash install-relay.sh update --release-tag v0.1.8
+bash install-relay.sh uninstall
+bash install-relay.sh uninstall --component agent
+```
+
+Default installed paths:
+
+- `/usr/local/bin/vibe-relay`
+- `/usr/local/bin/vibe-agent`
+
+#### Windows
+
+Direct GitHub access:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\install-relay.ps1 `
-  -PublicRelayBaseUrl https://relay.example.com `
-  -RelayAccessToken change-control-token `
-  -RelayEnrollmentToken change-agent-enrollment-token
+Invoke-WebRequest `
+  -Uri "https://raw.githubusercontent.com/fage-ac-org/vibe-everywhere/main/scripts/install-relay.ps1" `
+  -OutFile ".\install-relay.ps1"
+powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command install -NoGhProxy
 ```
 
-After installation, confirm that the relay is healthy:
+Recommended for mainland China network paths:
+
+```powershell
+Invoke-WebRequest `
+  -Uri "https://ghfast.top/https://raw.githubusercontent.com/fage-ac-org/vibe-everywhere/main/scripts/install-relay.ps1" `
+  -OutFile ".\install-relay.ps1"
+powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command install
+```
+
+Common commands:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command install
+powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command install -Component relay
+powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command install -Component agent
+powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command update -ReleaseTag v0.1.8
+powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command uninstall
+powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command uninstall -Component agent
+```
+
+Default installed paths:
+
+- `C:\Program Files\Vibe Everywhere\vibe-relay.exe`
+- `C:\Program Files\Vibe Everywhere\vibe-agent.exe`
+- `C:\Program Files\Vibe Everywhere\Packet.dll`
+- `C:\Program Files\Vibe Everywhere\wintun.dll`
+- `C:\Program Files\Vibe Everywhere\WinDivert64.sys`
+- `C:\Program Files\Vibe Everywhere\WinDivert.dll` when present in the archive
+
+Notes:
+
+- On Windows, `vibe-relay.exe` and `vibe-agent.exe` must stay beside the side-by-side runtime files.
+
+Acceleration notes:
+
+- both install scripts default to `https://ghfast.top/` as the GitHub URL prefix, so the internal
+  release resolution and archive download paths are accelerated as well
+- if direct GitHub access is preferable in your environment, use `--no-gh-proxy` on Linux or
+  `-NoGhProxy` on Windows
+- to use a different accelerator, pass `--gh-proxy <url>` on Linux or `-GhProxy <url>` on Windows
+
+### 2. Configure and Start the Relay
+
+Dedicated startup guides:
+
+- Chinese: [docs/relay-startup.zh-CN.md](./docs/relay-startup.zh-CN.md)
+- English: [docs/relay-startup.md](./docs/relay-startup.md)
+
+Minimum foreground startup example:
+
+```bash
+export VIBE_RELAY_HOST=0.0.0.0
+export VIBE_RELAY_PORT=8787
+export VIBE_PUBLIC_RELAY_BASE_URL=https://relay.example.com
+export VIBE_RELAY_ACCESS_TOKEN=change-control-token
+export VIBE_RELAY_ENROLLMENT_TOKEN=change-agent-enrollment-token
+vibe-relay
+```
+
+Health check:
 
 ```bash
 curl https://relay.example.com/api/health
 ```
 
-### Do Not Confuse Bind Address With Public Address
+### 3. Start an Agent
 
-This is the most common source of deployment confusion:
-
-- `RELAY_BIND_HOST` / `RELAY_PORT`
-  The install scripts write these into `VIBE_RELAY_HOST` / `VIBE_RELAY_PORT`, and they control where the relay actually listens.
-- `RELAY_PUBLIC_BASE_URL`
-  The install scripts write this into `VIBE_PUBLIC_RELAY_BASE_URL`, and it controls which address the product shows to clients and uses for preview links. It does not change the actual relay listener port.
-
-Current defaults:
-
-- the relay listens on `0.0.0.0:8787` by default
-- if `VIBE_PUBLIC_RELAY_BASE_URL` is not set, production mode does not try to invent a public URL from `0.0.0.0`
-
-Use these rules:
-
-- `0.0.0.0` is valid as a bind host, but not as a client-facing public URL host.
-- `127.0.0.1` or `localhost` are only suitable for same-machine local development.
-- `RELAY_PUBLIC_BASE_URL=http://45.144.137.240` means port 80 from the client point of view; it does not magically inherit the relay listener port.
-- if the relay actually listens on `8787` and clients should connect directly to that port, use `http://45.144.137.240:8787`.
-- `http` is acceptable for local development, private LAN testing, or environments where you explicitly accept the plaintext transport tradeoff.
-- for internet-facing, mobile, desktop, or shared deployments, `https` is strongly recommended.
-
-Common deployment shapes:
-
-- direct public IP access
-
-```bash
-sudo RELAY_BIND_HOST=0.0.0.0 \
-  RELAY_PORT=8787 \
-  RELAY_PUBLIC_BASE_URL=http://45.144.137.240:8787 \
-  RELAY_ACCESS_TOKEN=change-control-token \
-  RELAY_ENROLLMENT_TOKEN=change-agent-enrollment-token \
-  bash install-relay.sh
-```
-
-- reverse proxy in front of a local relay
-
-```bash
-sudo RELAY_BIND_HOST=127.0.0.1 \
-  RELAY_PORT=8787 \
-  RELAY_PUBLIC_BASE_URL=https://relay.example.com \
-  RELAY_ACCESS_TOKEN=change-control-token \
-  RELAY_ENROLLMENT_TOKEN=change-agent-enrollment-token \
-  bash install-relay.sh
-```
-
-### Step 2: Start an Agent on the Target Machine
-
-Download the current CLI package from [GitHub Releases](https://github.com/fage-ac-org/vibe-everywhere/releases), extract it, and start `vibe-agent`:
+If the CLI was installed with the installer script, start the installed `vibe-agent` directly. If
+you do not use the installer script, you can still download the CLI package from Releases and run
+the extracted binary.
 
 ```bash
 VIBE_RELAY_URL=https://relay.example.com \
 VIBE_RELAY_ENROLLMENT_TOKEN=change-agent-enrollment-token \
 VIBE_DEVICE_NAME=build-node-01 \
-./vibe-agent
+vibe-agent
 ```
 
-Important notes:
+Operational notes:
 
-- On Windows, keep the extracted side-by-side runtime files next to `vibe-agent.exe`; do not copy the executable out by itself.
-- To execute AI sessions, the target machine still needs at least one provider CLI such as `codex`, `claude`, or `opencode`.
-- After the first successful registration, the agent writes `.vibe-agent/identity.json` under its working root and reuses that issued device identity on restart.
+- The default Linux path is `/usr/local/bin/vibe-agent`
+- The default Windows path is `C:\Program Files\Vibe Everywhere\vibe-agent.exe`
+- On Windows, keep the side-by-side runtime files from the archive; do not copy only `vibe-agent.exe`
+- `VIBE_RELAY_URL` must be reachable from the agent host
+- After first registration, the agent writes `.vibe-agent/identity.json` in its working directory
+- Later restarts reuse the issued device credential instead of reusing the human control token
 
-### Agent, Overlay, And EasyTier Port Notes
+### 4. Connect a Control Client
 
-By default, the agent does not expose one fixed control-plane port the way the relay does:
+Recommended first-use sequence:
 
-- if EasyTier is not enabled, meaning `VIBE_EASYTIER_NETWORK_NAME` is not set, the agent mainly opens outbound connections to the relay and does not add fixed listener ports for its normal workflow
-- if EasyTier overlay is enabled, the agent starts 3 bridge listeners:
-  - `19090`: shell bridge
-  - `19091`: port-forward bridge
-  - `19092`: task bridge
-- those ports can be overridden with `VIBE_AGENT_SHELL_BRIDGE_PORT`, `VIBE_AGENT_PORT_FORWARD_BRIDGE_PORT`, and `VIBE_AGENT_TASK_BRIDGE_PORT`
-- these bridge ports are part of the relay-to-agent overlay path and should not be treated as public browser or mobile entry points
+1. Open the desktop or Android client.
+2. Enter the relay address.
+3. Enter `VIBE_RELAY_ACCESS_TOKEN`.
+4. Confirm that at least one device is online and that at least one provider is available.
+5. Create an AI session.
 
-EasyTier listener behavior should be understood separately:
+## Configuration Semantics
 
-- on the agent side, `VIBE_EASYTIER_NO_LISTENER=true` by default, so the embedded EasyTier node does not accept inbound EasyTier peers unless you explicitly change that
-- if you set `VIBE_EASYTIER_NO_LISTENER=false` and do not set `VIBE_EASYTIER_LISTENERS`, this repository follows the common EasyTier listener shorthand and defaults to TCP/UDP `11010`
-- on the relay side, if embedded EasyTier is enabled and `VIBE_EASYTIER_LISTENERS` is unset, this repository also defaults to TCP/UDP `11010`
+### Relay Bind Address vs Public Address
 
-### Step 3: Open a Control Client and Connect
+`bind` settings and `public origin` settings serve different purposes.
 
-The public release artifacts currently include:
+| Setting | Purpose | Default | Notes |
+| --- | --- | --- | --- |
+| `VIBE_RELAY_HOST` | Local relay bind address | `0.0.0.0` | Selects the interface address used by the relay process |
+| `VIBE_RELAY_PORT` | Local relay listener port | `8787` | Selects the TCP port used by the relay process |
+| `VIBE_PUBLIC_RELAY_BASE_URL` | Client-facing relay origin | No production default | Used for client connection information, previews, and generated public links |
+| `VIBE_RELAY_FORWARD_HOST` | Preview and forwarding public host | Derived from `VIBE_PUBLIC_RELAY_BASE_URL` when possible | Used for preview URLs exposed to clients |
 
-- CLI
-- desktop
-- Android
+Key rules:
 
-The Web client is part of the product model, but public Releases do not currently ship a standalone Web bundle. If you want the fastest path to first use, start with the desktop client.
+- `VIBE_PUBLIC_RELAY_BASE_URL` does not change the actual relay listener port.
+- If the relay listens on `8787` and clients connect directly to that port, `VIBE_PUBLIC_RELAY_BASE_URL` must include `:8787`.
+- `0.0.0.0` is valid as a bind host but not as a client-facing URL host.
+- `127.0.0.1` and `localhost` are valid only for same-machine local development.
 
-For the first connection:
+## Authentication Model
 
-1. open the desktop or Android client
-2. enter the relay URL, for example `https://relay.example.com`
-3. enter the control-plane token, which is `VIBE_RELAY_ACCESS_TOKEN`
-4. confirm that at least one device is online and that a provider is available on that device
+The recommended deployment separates human access from machine enrollment.
 
-## How Authentication Works
+| Setting or File | Purpose | Used By |
+| --- | --- | --- |
+| `VIBE_RELAY_ACCESS_TOKEN` | Control-plane authentication | Desktop, Android, self-hosted Web clients |
+| `VIBE_RELAY_ENROLLMENT_TOKEN` | Initial device registration | `vibe-agent` |
+| `.vibe-agent/identity.json` | Persisted issued device credential | `vibe-agent` restarts |
 
-The recommended production shape is to separate human access from machine enrollment:
+Behavior notes:
 
-- `VIBE_RELAY_ACCESS_TOKEN`
-  Used by people in desktop, Android, and self-hosted Web clients.
-- `VIBE_RELAY_ENROLLMENT_TOKEN`
-  Used by agents only for initial enrollment.
-- `.vibe-agent/identity.json`
-  The device credential issued after successful enrollment and reused for later heartbeats, task polling, workspace requests, and preview bridge traffic.
+- After successful registration, the agent uses the issued device credential for heartbeats, task
+  claiming, workspace requests, and preview bridging.
+- Deleting `.vibe-agent/identity.json` forces the next start to perform registration again.
+- If `VIBE_RELAY_ENROLLMENT_TOKEN` is omitted, the relay can still accept the control-plane token
+  as a compatibility registration path, but that mode is not recommended for normal deployments.
 
-If you delete `.vibe-agent/identity.json` on the target machine, the next agent start will go through enrollment again.
+## Agent, Overlay, and EasyTier Ports
 
-## Detailed Usage Guide
+### Default Mode
 
-### 1. Confirm the Control Plane Is Reachable
+In the default relay-polling mode, the agent does not expose one fixed public control-plane port.
+Its normal workflow is driven primarily by outbound requests to the relay.
 
-On the first login, check these three things before creating a session:
+### Overlay Mode
 
-- the relay URL is correct
-- the control-plane token is correct
-- at least one target device is online
+When `VIBE_EASYTIER_NETWORK_NAME` is set and EasyTier overlay is enabled, the agent starts the
+following bridge listeners:
 
-If that baseline is not healthy, fix deployment or networking first instead of debugging the session surface.
+| Port | Function | Override Variable |
+| --- | --- | --- |
+| `19090` | shell bridge | `VIBE_AGENT_SHELL_BRIDGE_PORT` |
+| `19091` | port-forward bridge | `VIBE_AGENT_PORT_FORWARD_BRIDGE_PORT` |
+| `19092` | task bridge | `VIBE_AGENT_TASK_BRIDGE_PORT` |
 
-### 2. Pick a Device and Verify Readiness
+These ports are part of the internal relay-to-agent overlay path. They are not intended to be used
+as public browser or mobile entry points.
 
-After connecting, choose the machine that should run the work. A healthy device usually shows:
+### EasyTier Listener Defaults
 
-- online presence
-- at least one available provider such as `codex` or `claude`
-- runtime capabilities such as workspace browse, Git inspection, shell, or preview support
+| Side | Condition | Default Behavior |
+| --- | --- | --- |
+| relay | Embedded EasyTier enabled and `VIBE_EASYTIER_LISTENERS` unset | Listens on TCP/UDP `11010` |
+| agent | Embedded EasyTier enabled | Defaults to `VIBE_EASYTIER_NO_LISTENER=true`; no inbound EasyTier peer listener |
+| agent | `VIBE_EASYTIER_NO_LISTENER=false` and `VIBE_EASYTIER_LISTENERS` unset | Listens on TCP/UDP `11010` |
 
-If the device is online but no provider is available, the most common cause is that the provider CLI is not installed or not visible in the agent process `PATH`.
+## Standard Usage Flow
 
-### 3. Launch an AI Session
+Recommended operating sequence:
 
-The main product flow starts here:
+1. Configure the relay address and control-plane token.
+2. Confirm that the target device is online.
+3. Check provider availability on the target device.
+4. Create an AI session.
+5. Review the event stream and execution results.
+6. Use workspace browsing, Git inspection, and previews to validate output.
+7. Use shell or advanced connection capabilities only when manual intervention is required.
 
-1. choose a device
-2. enter the task goal or prompt
-3. choose a provider
-4. launch the session and watch the event stream
+## Troubleshooting
 
-This is where Vibe Everywhere differs from a raw SSH workflow: the execution process is visible, reviewable, and tied back to the same control surface.
+| Condition | First Checks |
+| --- | --- |
+| Agent is running but no device appears | Verify `VIBE_RELAY_URL`, `VIBE_RELAY_ENROLLMENT_TOKEN`, relay `/api/health`, and network reachability |
+| Device is online but no provider is available | Verify that the provider CLI is installed and visible in the agent process `PATH` |
+| Device must be enrolled again | Delete `.vibe-agent/identity.json` and restart the agent |
+| Preview links are unreachable | Verify `VIBE_PUBLIC_RELAY_BASE_URL`, `VIBE_RELAY_FORWARD_HOST`, and client reachability to that address |
 
-### 4. Review Workspace, Git, and Preview Results
-
-After a session runs, you usually stay in the same control flow to inspect the outcome:
-
-- browse directories and files in the workspace
-- preview text files
-- inspect the current Git branch, changed files, and recent commits
-- open preview links to validate local Web services or forwarded ports
-
-The goal is not to replace your IDE. The goal is to let you answer, quickly and remotely, whether the result is acceptable, needs another AI iteration, or requires manual intervention.
-
-### 5. Use Advanced Tools Only When Needed
-
-Shell, port forwarding, and advanced connection tools still matter, but they should not be your default entry point.
-
-Recommended rule of thumb:
-
-- stay in the session flow when that is enough
-- use workspace and Git review before reaching for shell access
-- move into advanced tools only for debugging, manual repair, or low-level runtime work
-
-### 6. Organize Multi-Device Setups Deliberately
-
-If you operate more than one machine, name them by role so the control plane stays readable:
-
-- `build-node-01` for builds and refactors
-- `gpu-node-01` for model or GPU-heavy work
-- `demo-node-01` for previews and demos
-
-This makes device selection faster and makes team handoffs clearer.
-
-## Common Questions
-
-### The agent starts, but no device appears in the control client
-
-Check these first:
-
-- whether `VIBE_RELAY_URL` points to the relay origin the agent can actually reach
-- whether `VIBE_RELAY_ENROLLMENT_TOKEN` is correct
-- whether `/api/health` on the relay is healthy
-- whether the target machine can reach the relay over the network
-
-### The device is online, but no provider is available
-
-Usually the provider CLI is missing on the target machine or not visible in the agent process environment.
-
-### I want the device to enroll again
-
-Delete `.vibe-agent/identity.json` in the working directory and restart `vibe-agent`. The next start will perform enrollment again.
-
-### Preview links do not open
-
-Check the public relay origin and preview-forward host settings. Preview links depend on the relay generating user-reachable URLs, so `RELAY_PUBLIC_BASE_URL`, `VIBE_PUBLIC_RELAY_BASE_URL`, and related forward-host configuration need to be correct.
-
-### Can I Set `RELAY_PUBLIC_BASE_URL` To `http://127.0.0.1` Or `http://0.0.0.0`
-
-- `http://127.0.0.1` is only suitable for same-machine local access and should not be used for remote desktop, mobile, or Android clients.
-- `http://0.0.0.0` should not be used as a client-facing URL. `0.0.0.0` is a bind address, not a routable public hostname.
-- if other devices need to reach the relay, use a real IP or domain such as `http://45.144.137.240:8787` or `https://relay.example.com`.
-
-## Downloads
-
-- [GitHub Releases](https://github.com/fage-ac-org/vibe-everywhere/releases)
-
-The public release page currently ships CLI, desktop, and Android artifacts. Download the package that matches your platform.
-
-## Product Layout
+## System Layout
 
 ```text
 ┌──────────────────────────────────────────────────────────┐
@@ -317,7 +315,9 @@ The public release page currently ships CLI, desktop, and Android artifacts. Dow
                     └────────────────┘
 ```
 
-## Related Docs
+## Related Documents
 
-- self-hosted deployment and install: [docs/self-hosted.md](./docs/self-hosted.md)
+- self-hosted deployment guide: [docs/self-hosted.md](./docs/self-hosted.md)
+- relay startup guide (Chinese): [docs/relay-startup.zh-CN.md](./docs/relay-startup.zh-CN.md)
+- relay startup guide (English): [docs/relay-startup.md](./docs/relay-startup.md)
 - published downloads: [GitHub Releases](https://github.com/fage-ac-org/vibe-everywhere/releases)

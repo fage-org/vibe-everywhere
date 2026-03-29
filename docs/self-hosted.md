@@ -2,248 +2,309 @@
 
 Last updated: 2026-03-29
 
-This guide is for operators who want to deploy the relay, keep it running after reboot, and let
-Web, desktop, or Android clients connect to the same control plane.
+This guide describes the self-hosted deployment flow for `vibe-relay` and `vibe-agent`. It focuses
+on binary installation, runtime addressing, authentication, startup boundaries, and operator
+checks. The relay install scripts now manage binaries only. Service creation, environment-file
+layout, and auto-start configuration are documented separately.
 
-## Before You Start
+## Deployment Model
 
-Decide these runtime values first:
+A standard self-hosted deployment contains:
 
-- the relay address your users and agents will actually access
-- the control-plane token used by Web, desktop, and Android clients
+- one `vibe-relay` instance reachable by control clients and agents
+- one or more `vibe-agent` instances on target execution machines
+- one or more control clients such as desktop, Android, or a self-hosted Web client
+
+Recommended order:
+
+1. Install or update the `vibe-relay` binary.
+2. Configure relay runtime environment variables.
+3. Start the relay by foreground process, `systemd`, or Windows Scheduled Task.
+4. Start one or more agents against the relay.
+5. Connect control clients with the control-plane token.
+
+## Required Runtime Decisions
+
+Prepare these values before deployment:
+
+- the client-facing relay origin, for example `https://relay.example.com` or `http://203.0.113.10:8787`
+- the relay listener address and listener port
+- the control-plane token for desktop, Android, Web, and operator API access
 - the enrollment token used by agents during first registration
-- which host should be used for preview links
-- where relay state should be stored on disk
+- the host used for preview or forwarded links
+- the relay state-file location
 
-If the control plane will be accessed from phones or other machines, use a reachable domain or IP
-address for the relay origin.
+## Listener Address vs Client-Facing Origin
 
-## Bind Address vs Public Address
-
-These settings solve different problems and should not be treated as aliases:
+These settings are related, but they are not interchangeable:
 
 - `VIBE_RELAY_HOST`
-  - the address the relay process binds to locally
+  - local bind address used by the relay process
 - `VIBE_RELAY_PORT`
-  - the TCP port the relay process listens on locally
+  - local TCP listener port used by the relay process
 - `VIBE_PUBLIC_RELAY_BASE_URL`
-  - the client-facing relay origin shown in app config and used when the relay builds preview or
-    forwarding links
+  - client-facing relay origin exposed to clients and used when the relay builds public links
+- `VIBE_RELAY_FORWARD_HOST`
+  - public host used for preview and forwarding links when it cannot be derived from the public relay origin
 
-The install scripts expose the same concepts as:
-
-- `RELAY_BIND_HOST` -> `VIBE_RELAY_HOST`
-- `RELAY_PORT` -> `VIBE_RELAY_PORT`
-- `RELAY_PUBLIC_BASE_URL` -> `VIBE_PUBLIC_RELAY_BASE_URL`
-
-Important behavior:
+Operational rules:
 
 - the relay listens on `0.0.0.0:8787` by default
-- setting `RELAY_PUBLIC_BASE_URL=http://45.144.137.240` does not change the relay listener to port
-  80; it only tells clients to use `http://45.144.137.240`
-- if the relay really listens on `8787` and clients should connect directly to that port, set
-  `RELAY_PUBLIC_BASE_URL=http://45.144.137.240:8787`
-- `0.0.0.0` is valid as a bind host but not as a public URL host
-- `127.0.0.1` or `localhost` are only correct for same-machine local development
+- setting `VIBE_PUBLIC_RELAY_BASE_URL=http://203.0.113.10` does not change the listener to port `80`
+- if the relay really listens on `8787` and clients connect directly to that port, use `http://203.0.113.10:8787`
+- `0.0.0.0` is valid as a bind address but not as a client-facing URL host
+- `127.0.0.1` and `localhost` are appropriate only for same-machine local development
 
-Recommended shapes:
+Recommended patterns:
 
 - direct public-IP access
-  - bind `0.0.0.0`
-  - keep the real port in `RELAY_PUBLIC_BASE_URL`
-- reverse proxy or load balancer in front
-  - bind `127.0.0.1` or a private interface
-  - set `RELAY_PUBLIC_BASE_URL` to the external HTTPS origin
+  - `VIBE_RELAY_HOST=0.0.0.0`
+  - keep the real port in `VIBE_PUBLIC_RELAY_BASE_URL`
+- reverse proxy or load balancer
+  - bind to `127.0.0.1` or a private interface
+  - set `VIBE_PUBLIC_RELAY_BASE_URL` to the external origin presented to users
 
 Examples:
 
 ```bash
 # Direct public IP access on port 8787
-RELAY_BIND_HOST=0.0.0.0
-RELAY_PORT=8787
-RELAY_PUBLIC_BASE_URL=http://45.144.137.240:8787
+export VIBE_RELAY_HOST=0.0.0.0
+export VIBE_RELAY_PORT=8787
+export VIBE_PUBLIC_RELAY_BASE_URL=http://203.0.113.10:8787
 ```
 
 ```bash
-# Reverse proxy terminates TLS and forwards to local relay
-RELAY_BIND_HOST=127.0.0.1
-RELAY_PORT=8787
-RELAY_PUBLIC_BASE_URL=https://relay.example.com
+# Reverse proxy terminates TLS and forwards to the local relay
+export VIBE_RELAY_HOST=127.0.0.1
+export VIBE_RELAY_PORT=8787
+export VIBE_PUBLIC_RELAY_BASE_URL=https://relay.example.com
 ```
 
 ## HTTP vs HTTPS
 
-The relay does not require HTTPS at the process layer. It can run behind plain HTTP or behind a
-TLS terminator. Choose the scheme based on your deployment boundary:
+The relay process itself does not require HTTPS. The scheme choice depends on the trust boundary:
 
-- local development on one machine
+- same-machine local development
   - `http` is acceptable
-- private LAN test deployments
-  - `http` can be acceptable if you control the network and understand the plaintext tradeoff
-- internet-facing, mobile, desktop, or shared-team deployments
+- controlled private-LAN testing
+  - `http` can be acceptable when plaintext transport is understood and accepted
+- internet-facing or shared-user deployments
   - use `https`
 
-Practical rule:
-
-- if a browser, desktop client, Android client, or another user's device reaches the relay across
-  an untrusted network, treat HTTPS as the expected production shape
-
-Avoid these client-facing values outside local development:
+Do not expose the following as client-facing origins outside local development:
 
 - `http://127.0.0.1:8787`
 - `http://localhost:8787`
 - `http://0.0.0.0:8787`
 
-## Supported Install Automation
+## CLI Binary Installation
 
-The repository currently ships automation for:
+The repository provides the following binary installers:
 
 - Linux: [`scripts/install-relay.sh`](../scripts/install-relay.sh)
-  - downloads the published Linux CLI archive unless you point it to a local archive
-  - installs `vibe-relay`
-  - writes `/etc/vibe-relay/relay.env`
-  - creates and optionally starts a `systemd` service
 - Windows: [`scripts/install-relay.ps1`](../scripts/install-relay.ps1)
-  - downloads the published Windows CLI archive unless you point it to a local archive
-  - installs `vibe-relay.exe`
-  - writes `relay-env.ps1` plus a launcher script
-  - creates and optionally starts a Windows Scheduled Task for auto-start
 
-Current boundary:
+Supported commands:
 
+- `install`
+  - download and install selected CLI binaries
+- `update`
+  - download and replace selected CLI binaries
+- `uninstall`
+  - remove selected CLI binaries
+
+Default component scope:
+
+- `vibe-relay`
+- `vibe-agent`
+
+Optional component scope:
+
+- `relay`
+  - manage `vibe-relay` only
+- `agent`
+  - manage `vibe-agent` only
+
+Current boundaries:
+
+- the scripts do not create `systemd` services
+- the scripts do not create Windows Scheduled Tasks
+- the scripts do not write relay environment files
+- the scripts do not start relay or agent processes
 - there is no repository-provided one-click relay installer for macOS at this time
 
-## Recommended Auth Split
+### GitHub Access And Mainland-China Acceleration
 
-Use two different relay secrets in self-hosted deployments:
+Both install scripts default to `https://ghfast.top/` as a GitHub URL prefix. This affects:
 
-- `VIBE_RELAY_ACCESS_TOKEN`
-  - the human control-plane token for Web, desktop, Android, and operator API use
-- `VIBE_RELAY_ENROLLMENT_TOKEN`
-  - the bootstrap token used by `vibe-agent` during initial device registration
+- the initial `releases/latest` resolution path
+- release archive download URLs
+- the startup-guide link printed after installation
 
-After a successful registration, the agent stores its issued device credential in
-`<working-root>/.vibe-agent/identity.json` and uses that device identity for heartbeats, task
-claiming, shell polling, workspace/Git requests, and preview bridge traffic on later restarts.
+Operators can override this behavior:
 
-Compatibility note:
+- Linux direct GitHub access: `--no-gh-proxy`
+- Windows direct GitHub access: `-NoGhProxy`
+- Linux custom proxy prefix: `--gh-proxy <url>`
+- Windows custom proxy prefix: `-GhProxy <url>`
 
-- if you omit `VIBE_RELAY_ENROLLMENT_TOKEN`, the relay still accepts the control-plane token for
-  agent registration as an admin/compatibility path
-- the recommended deployment shape is still to keep the control-plane token off the device and use
-  a dedicated enrollment token instead
-- relay identity is derived from configured tokens and issued device credentials; external
-  `x-vibe-*` actor headers are not a supported auth mechanism
+### Linux Install, Update, And Uninstall
 
-## Linux Quick Install
+Direct GitHub access:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/fage-ac-org/vibe-everywhere/main/scripts/install-relay.sh -o install-relay.sh
-sudo RELAY_PUBLIC_BASE_URL=https://relay.example.com \
-  RELAY_ACCESS_TOKEN=change-control-token \
-  RELAY_ENROLLMENT_TOKEN=change-agent-enrollment-token \
-  bash install-relay.sh
+bash install-relay.sh install --no-gh-proxy
 ```
 
-Optional inputs:
-
-- `VIBE_RELEASE_TAG`
-- `RELAY_CLI_ARCHIVE_URL`
-- `RELAY_CLI_ARCHIVE_PATH`
-- `RELAY_BIND_HOST`
-- `RELAY_PORT`
-- `RELAY_FORWARD_HOST`
-- `RELAY_ACCESS_TOKEN`
-- `RELAY_ENROLLMENT_TOKEN`
-- `CREATE_SYSTEMD_SERVICE`
-- `ENABLE_AND_START_SERVICE`
-
-Installed paths:
-
-- binary: `/usr/local/bin/vibe-relay`
-- env file: `/etc/vibe-relay/relay.env`
-- state file default: `/var/lib/vibe-relay/relay-state.json`
-- service file: `/etc/systemd/system/vibe-relay.service`
-
-Useful commands:
+Recommended for mainland China network paths:
 
 ```bash
-sudo systemctl status vibe-relay
-sudo journalctl -u vibe-relay -f
-sudo systemctl restart vibe-relay
+curl -fsSL https://ghfast.top/https://raw.githubusercontent.com/fage-ac-org/vibe-everywhere/main/scripts/install-relay.sh -o install-relay.sh
+bash install-relay.sh install
 ```
 
-Direct public-IP example:
+Common commands:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/fage-ac-org/vibe-everywhere/main/scripts/install-relay.sh -o install-relay.sh
-sudo RELAY_BIND_HOST=0.0.0.0 \
-  RELAY_PORT=8787 \
-  RELAY_PUBLIC_BASE_URL=http://45.144.137.240:8787 \
-  RELAY_ACCESS_TOKEN=change-control-token \
-  RELAY_ENROLLMENT_TOKEN=change-agent-enrollment-token \
-  bash install-relay.sh
+bash install-relay.sh install
+bash install-relay.sh install --component relay
+bash install-relay.sh install --component agent
+bash install-relay.sh update --release-tag v0.1.8
+bash install-relay.sh uninstall
+bash install-relay.sh uninstall --component agent
 ```
 
-Reverse-proxy example:
+Optional installer inputs:
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/fage-ac-org/vibe-everywhere/main/scripts/install-relay.sh -o install-relay.sh
-sudo RELAY_BIND_HOST=127.0.0.1 \
-  RELAY_PORT=8787 \
-  RELAY_PUBLIC_BASE_URL=https://relay.example.com \
-  RELAY_ACCESS_TOKEN=change-control-token \
-  RELAY_ENROLLMENT_TOKEN=change-agent-enrollment-token \
-  bash install-relay.sh
-```
+- `--bin-dir`
+- `--component`
+- `--release-tag`
+- `--archive-url`
+- `--archive-path`
+- `--gh-proxy`
+- `--no-gh-proxy`
+- `--repo-owner`
+- `--repo-name`
 
-## Windows Quick Install
+Default installed paths:
+
+- `/usr/local/bin/vibe-relay`
+- `/usr/local/bin/vibe-agent`
+
+Path note:
+
+- `/usr/local/bin` follows the common Linux/Unix convention for administrator-installed local executables.
+
+### Windows Install, Update, And Uninstall
+
+Direct GitHub access:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\install-relay.ps1 `
-  -PublicRelayBaseUrl https://relay.example.com `
-  -RelayAccessToken change-control-token `
-  -RelayEnrollmentToken change-agent-enrollment-token
+Invoke-WebRequest `
+  -Uri "https://raw.githubusercontent.com/fage-ac-org/vibe-everywhere/main/scripts/install-relay.ps1" `
+  -OutFile ".\install-relay.ps1"
+powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command install -NoGhProxy
 ```
 
-Optional inputs:
+Recommended for mainland China network paths:
 
+```powershell
+Invoke-WebRequest `
+  -Uri "https://ghfast.top/https://raw.githubusercontent.com/fage-ac-org/vibe-everywhere/main/scripts/install-relay.ps1" `
+  -OutFile ".\install-relay.ps1"
+powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command install
+```
+
+Common commands:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command install
+powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command install -Component relay
+powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command install -Component agent
+powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command update -ReleaseTag v0.1.8
+powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command uninstall
+powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command uninstall -Component agent
+```
+
+Optional installer inputs:
+
+- `-InstallDir`
+- `-Component`
 - `-ReleaseTag`
 - `-ArchiveUrl`
 - `-ArchivePath`
-- `-RelayBindHost`
-- `-RelayPort`
-- `-RelayForwardHost`
-- `-RelayAccessToken`
-- `-RelayEnrollmentToken`
-- `-SkipStartupTask`
+- `-GhProxy`
+- `-NoGhProxy`
+- `-RepoOwner`
+- `-RepoName`
 
-Installed paths:
+Default installed paths:
 
-- binary: `C:\Program Files\Vibe Everywhere\vibe-relay.exe`
-- side-by-side runtime files: `Packet.dll`, `wintun.dll`, `WinDivert64.sys` and `WinDivert.dll`
-  when present
-- env script: `C:\Program Files\Vibe Everywhere\relay-env.ps1`
-- launcher: `C:\Program Files\Vibe Everywhere\Start-VibeRelay.ps1`
-- state file default: `%ProgramData%\Vibe Everywhere\state\relay-state.json`
+- `C:\Program Files\Vibe Everywhere\vibe-relay.exe`
+- `C:\Program Files\Vibe Everywhere\vibe-agent.exe`
+- `C:\Program Files\Vibe Everywhere\Packet.dll`
+- `C:\Program Files\Vibe Everywhere\wintun.dll`
+- `C:\Program Files\Vibe Everywhere\WinDivert64.sys`
+- `C:\Program Files\Vibe Everywhere\WinDivert.dll` when present in the archive
 
-Useful commands:
+Windows packaging note:
 
-```powershell
-Get-ScheduledTask -TaskName VibeRelay
-Start-ScheduledTask -TaskName VibeRelay
-Stop-Process -Name vibe-relay
+- keep the side-by-side runtime files from the release archive beside both `vibe-relay.exe` and `vibe-agent.exe`
+- runtime files are removed during `uninstall` only when no CLI binaries remain in the install directory
+
+## Relay Startup
+
+Relay startup instructions are maintained separately:
+
+- English: [relay-startup.md](./relay-startup.md)
+- Chinese: [relay-startup.zh-CN.md](./relay-startup.zh-CN.md)
+
+Supported startup shapes in the startup guide:
+
+- foreground process
+- Linux `systemd`
+- Windows PowerShell launcher and Scheduled Task
+
+Minimum foreground example:
+
+```bash
+export VIBE_RELAY_HOST=0.0.0.0
+export VIBE_RELAY_PORT=8787
+export VIBE_PUBLIC_RELAY_BASE_URL=https://relay.example.com
+export VIBE_RELAY_ACCESS_TOKEN=change-control-token
+export VIBE_RELAY_ENROLLMENT_TOKEN=change-agent-enrollment-token
+vibe-relay
 ```
 
-Health check examples:
+Health-check examples:
 
 ```bash
 curl http://127.0.0.1:8787/api/health
-curl http://45.144.137.240:8787/api/health
+curl http://203.0.113.10:8787/api/health
 curl https://relay.example.com/api/health
 ```
 
-## Start an Agent
+## Recommended Authentication Split
+
+Use separate relay secrets for humans and device enrollment:
+
+- `VIBE_RELAY_ACCESS_TOKEN`
+  - control-plane token for desktop, Android, Web, and operator API access
+- `VIBE_RELAY_ENROLLMENT_TOKEN`
+  - bootstrap token used by `vibe-agent` during initial registration
+
+After successful registration, the agent stores the issued device credential in
+`<working-root>/.vibe-agent/identity.json` and reuses that credential for later heartbeats,
+task claiming, shell polling, workspace requests, Git requests, and preview-bridge traffic.
+
+Compatibility note:
+
+- if `VIBE_RELAY_ENROLLMENT_TOKEN` is omitted, the relay can still accept the control-plane token
+  for registration as a compatibility path
+- the recommended deployment shape is still to keep the control-plane token off agent hosts
+
+## Start An Agent
 
 Once the relay is reachable, start an agent on the target machine:
 
@@ -251,77 +312,32 @@ Once the relay is reachable, start an agent on the target machine:
 VIBE_RELAY_URL=https://relay.example.com \
 VIBE_RELAY_ENROLLMENT_TOKEN=change-agent-enrollment-token \
 VIBE_DEVICE_NAME=build-node-01 \
-./vibe-agent
+vibe-agent
 ```
 
-Notes:
+Operational notes:
 
-- install at least one provider CLI such as `codex`, `claude`, or `opencode` if you want AI
-  session execution
-- on Windows, keep the extracted CLI runtime files beside `vibe-agent.exe`; do not copy only the
-  executable out of the archive
-- `VIBE_RELAY_URL` should point to the relay origin the agent can actually reach
-- the first successful registration writes `<working-root>/.vibe-agent/identity.json`; later
-  restarts reuse that issued device credential instead of needing the control-plane token on the
-  agent host
-- deleting the identity file forces a fresh enrollment on the next agent start
-- `VIBE_PUBLIC_RELAY_BASE_URL` and `VIBE_RELAY_FORWARD_HOST` affect client-facing links generated
-  by the relay
+- install at least one provider CLI such as `codex`, `claude`, or `opencode` on the target machine
+- if the installer script was used with default settings, the Linux agent path is `/usr/local/bin/vibe-agent`
+- if the installer script was used with default settings, the Windows agent path is `C:\Program Files\Vibe Everywhere\vibe-agent.exe`
+- `VIBE_RELAY_URL` must point to the relay origin reachable from that machine
+- the agent does not require a fixed public listener port in default relay-polling mode
 
-## Agent Ports And Overlay Behavior
+## Overlay And EasyTier Notes
 
-In the default relay-polling deployment, the agent does not expose one fixed public control-plane
-port the way the relay does. It mainly opens outbound requests to the relay.
+When EasyTier overlay mode is enabled, the agent opens internal bridge listeners. Default ports are:
 
-When EasyTier overlay is enabled on the agent by setting `VIBE_EASYTIER_NETWORK_NAME`, the agent
-also starts local bridge listeners for overlay traffic:
+- `19090` for shell bridge
+- `19091` for port-forward bridge
+- `19092` for task bridge
 
-- `19090`
-  - shell bridge
-- `19091`
-  - port-forward bridge
-- `19092`
-  - task bridge
+These ports are overlay-internal transport endpoints. They are not the normal browser or mobile
+client entry point.
 
-These ports can be changed with:
+## Operator Checklist
 
-- `VIBE_AGENT_SHELL_BRIDGE_PORT`
-- `VIBE_AGENT_PORT_FORWARD_BRIDGE_PORT`
-- `VIBE_AGENT_TASK_BRIDGE_PORT`
-
-Operational meaning:
-
-- these are relay-to-agent overlay bridge ports, not browser-facing or mobile-facing public ports
-- if another service already uses one of them on the target host, change the corresponding env var
-  before starting the agent
-
-## EasyTier Defaults In This Repository
-
-Relay side:
-
-- embedded EasyTier starts when `VIBE_EASYTIER_NETWORK_NAME` is set or
-  `VIBE_EASYTIER_RELAY_ENABLED=true`
-- if `VIBE_EASYTIER_LISTENERS` is not set, the relay defaults to TCP and UDP listener port `11010`
-
-Agent side:
-
-- embedded EasyTier starts when `VIBE_EASYTIER_NETWORK_NAME` is set
-- `VIBE_EASYTIER_NO_LISTENER=true` by default on the agent, so the agent does not accept inbound
-  EasyTier peers unless you explicitly disable that setting
-- if you set `VIBE_EASYTIER_NO_LISTENER=false` and leave `VIBE_EASYTIER_LISTENERS` empty, this
-  repository defaults the agent listener to TCP and UDP `11010`
-
-What this means in practice:
-
-- the relay commonly acts as a reachable EasyTier entry point
-- the agent commonly dials out to relay peers instead of listening for arbitrary inbound overlay
-  peers
-- enabling overlay does not change the relay HTTP listener port; it adds separate overlay-related
-  listeners
-
-## Related Documents
-
-- [README.md](../README.md)
-- [README.en.md](../README.en.md)
-- [DEVELOPMENT.md](../DEVELOPMENT.md)
-- [TESTING.md](../TESTING.md)
+- verify `/api/health` before connecting clients
+- verify `VIBE_PUBLIC_RELAY_BASE_URL` matches the address users actually reach
+- verify the control-plane token stays on user devices only
+- verify agent hosts use the enrollment token or a previously issued device credential
+- verify reverse-proxy or firewall rules expose the correct client-facing port
