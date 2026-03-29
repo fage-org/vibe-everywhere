@@ -171,6 +171,12 @@ Current planned implementation target:
 - Iteration 15 is in progress for durable conversations, provider-native threaded continuation,
   inline user-choice prompts, and truthful ACP capability signaling where only OpenCode is
   currently advertised as standard ACP.
+- Iteration 15 also now includes a mobile-first `Sessions` polish tranche: thread switching is
+  horizontal, relay/device/provider context stays inline but collapsible, and status/Git/files/raw
+  trace move behind explicit tabs so the transcript remains primary on phones.
+- Iteration 15 transcript cleanup is now `user-specified` Mode 1 for the chat surface: main
+  conversation flow shows only user/assistant dialogue plus inline choice prompts, while raw
+  lifecycle/tool/stderr events stay in `Trace` with only a lightweight per-turn entry in transcript.
 - Iteration 15 also now tracks ACP completion follow-up explicitly: stable OpenCode session-update
   coverage and stored-session validation are implemented, while authenticated startup, richer
   transcript-safe session lifecycle support, and extension methods remain queued in the active v5
@@ -721,6 +727,8 @@ These items are treated as completed foundation work, not future roadmap items.
   15 conversation/thread persistence and provider-native resume changes.
 - 2026-03-29: `cd apps/vibe-app && npm run build` succeeded after the Iteration 15
   conversation-first `Sessions` UI rewrite.
+- 2026-03-29: `cd apps/vibe-app && npm run build` succeeded after the Iteration 15
+  transcript noise-removal follow-up that moves raw lifecycle/tool/stderr events behind `Trace`.
 - 2026-03-29: `./scripts/dual-process-smoke.sh relay_polling` succeeded after the Iteration 15
   conversation/thread persistence and provider-native resume changes.
 - 2026-03-29: `./scripts/dual-process-smoke.sh overlay` succeeded after the Iteration 15

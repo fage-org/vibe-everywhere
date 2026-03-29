@@ -356,22 +356,24 @@ Manual checklist:
 1. Launch relay and agent locally.
 2. Launch `apps/vibe-app` with `npm run dev`.
 3. Verify desktop uses sidebar navigation and mobile-width uses bottom navigation for `Sessions`, `Devices`, and `Advanced`, and that the legacy `#/connections` deep link redirects into `Sessions`.
-4. Verify relay URL and the control-plane access token can be applied from the compact connect/setup panel in `Sessions`.
+4. Verify relay URL and the control-plane access token can be applied from the compact inline context panel in `Sessions`, without navigating to a separate setup page.
 5. Verify language switching between English and Simplified Chinese updates visible section copy.
 6. Verify light, dark, and system theme switching updates all primary sections without layout regressions.
-7. Verify `Sessions` keeps the everyday workflow on one page: relay connection, device selection, conversation creation, follow-up reply, and compact result inspection.
+7. Verify `Sessions` keeps the everyday workflow on one page: thread switching, relay connection, device selection, conversation creation, follow-up reply, and compact result inspection.
 8. Verify governance / audit UI stays hidden by default; if the relevant feature flag is enabled, verify it appears intentionally rather than by default leakage.
 9. Create a new conversation in `Sessions`, observe live updates in the transcript, and verify the conversation reappears after refresh or reconnect.
-10. Send a follow-up prompt in the same conversation and verify the app continues the existing thread instead of creating a disconnected ad hoc run.
-11. Trigger or simulate a provider input request, then verify option chips render inline and that the custom-text path can also be submitted.
-12. Verify the compact inspector loads Git metadata, changed files, recent commits, and workspace previews without displacing the transcript as the primary surface.
-13. Verify `Devices` shows inventory, runtime metadata, deployment metadata, current-client-only platform information, provider availability, and selected-device workload counts.
-14. Create a shell session in `Advanced`, send input, verify timeline ordering, and close the session.
-15. Create a preview / port forward in `Advanced`, verify status updates, relay endpoint display, and close flow.
+10. Verify the main transcript keeps only user / assistant dialogue and inline input requests; raw task lifecycle, tool output, and stderr events must stay out of the primary message flow.
+11. Verify turns that only produced runtime activity render a lightweight Trace entry instead of dumping raw `Task queued` / `cwd=` / `Task finished` style events into the transcript.
+12. Send a follow-up prompt in the same conversation and verify the app continues the existing thread instead of creating a disconnected ad hoc run.
+13. Trigger or simulate a provider input request, then verify option chips render inline and that the custom-text path can also be submitted.
+14. Verify the compact inspector exposes explicit `Status`, `Git`, `Files`, and `Trace` tabs, and that Git metadata, changed files, workspace previews, and raw trace events remain reachable without displacing the transcript as the primary surface.
+15. Verify `Devices` shows inventory, runtime metadata, deployment metadata, current-client-only platform information, provider availability, and selected-device workload counts.
+16. Create a shell session in `Advanced`, send input, verify timeline ordering, and close the session.
+17. Create a preview / port forward in `Advanced`, verify status updates, relay endpoint display, and close flow.
 16. Start the agent with `VIBE_RELAY_ENROLLMENT_TOKEN`, restart it once, and verify the same device reconnects successfully without placing the control-plane token on the agent host.
 17. Confirm the agent working root now contains `.vibe-agent/identity.json` after first registration and that deleting it forces re-enrollment on the next start.
 18. Toggle task, shell, and port-forward filters to verify selected-device scoping where those secondary tools still expose filtering.
-19. Verify narrow-width layout keeps chat primary and pushes other tools into secondary areas instead of reverting to one long all-in-one dashboard.
+19. Verify narrow-width layout keeps chat primary, uses the horizontal thread switcher cleanly, and pushes setup plus inspection into secondary areas instead of reverting to one long all-in-one dashboard.
 
 Recommended frequency:
 
@@ -398,7 +400,7 @@ Manual checks:
 - app shell boots with default relay config
 - `VIBE_PUBLIC_RELAY_BASE_URL` and `VIBE_RELAY_ACCESS_TOKEN` are picked up correctly
 - desktop shell can connect to a live relay and render the route-backed primary sections
-- desktop shell `Sessions` view keeps relay config in a compact gate, centers the long-lived conversation transcript, and leaves Git/workspace inspection secondary
+- desktop shell `Sessions` view keeps relay config in a compact inline context panel, centers the long-lived conversation transcript, leaves status/Git/files/trace inspection secondary, and does not dump raw task lifecycle events into the main dialogue flow
 - desktop shell `Devices` view shows the current client as `Desktop` without listing other platforms as in-page choices
 
 Recommended frequency:
@@ -417,9 +419,9 @@ Manual checks:
 1. Install the debug APK on a physical Android device.
 2. Configure the relay URL with `http://<server-lan-ip>:8787` or a public HTTPS URL, not `http://127.0.0.1:8787`.
 3. Verify the app does not prefill a loopback relay URL by default.
-4. Verify the `Sessions` primary workflow identifies the current client as `Android`, keeps chat as the main surface, and lets the user configure relay access without exposing other platforms as switchable choices.
+4. Verify the `Sessions` primary workflow identifies the current client as `Android`, keeps chat as the main surface, and lets the user configure relay access from the same screen without exposing other platforms as switchable choices.
 5. Verify bottom navigation remains usable in portrait orientation.
-6. Verify conversation creation, follow-up replies, inline choice prompts, compact inspection, shell session output, and preview / port-forward flows from the phone.
+6. Verify conversation creation, follow-up replies, inline choice prompts, horizontal thread switching, tabbed inspection, transcript noise suppression for raw runtime events, shell session output, and preview / port-forward flows from the phone.
 
 Recommended frequency:
 

@@ -56,6 +56,9 @@ continuation and inline user-choice interactions.
 - Follow-up prompts continue the same native provider conversation for supported providers.
 - Git review, workspace browsing, raw trace, and preview move behind compact or collapsible
   inspectors.
+- The conversation surface stays mobile-first: thread switching is horizontal and lightweight,
+  relay/device/provider context stays inline but collapsible, and secondary inspection uses tabs
+  instead of a permanent wide desktop rail.
 - Relay/tutorial setup no longer occupies the main screen after a successful connection.
 - Provider-driven choice prompts can be answered inline with selectable options or custom text.
 
@@ -74,6 +77,11 @@ continuation and inline user-choice interactions.
   - compact context bar
   - main transcript/composer
   - collapsible side inspector for Git/files/raw trace/preview
+- refine the `Sessions` surface for mobile-first use without losing remote-control requirements:
+  - keep relay URL, token, device selection, provider targeting, and working-directory setup inside
+    the same route as the active conversation
+  - use a horizontal thread switcher rather than a tall always-open history column
+  - collapse secondary inspection into explicit tabs for status, Git, files, and trace
 - surface inline option-choice prompts with a custom-input fallback when the provider asks the
   user to choose or clarify
 - update docs, testing guidance, plan files, and user-facing product descriptions for the new
@@ -155,6 +163,18 @@ continuation and inline user-choice interactions.
   `usage_update` events; surfaced optional ACP turn-usage summaries; and now prefer standard
   `session/resume` for transcript-safe OpenCode continuation when the agent advertises it, with
   `session/list` validation retained as the compatibility fallback for agents without resume.
+- Implementation notes:
+  the current UI tranche further refines `Sessions` into a mobile-first remote coding workspace:
+  a horizontal thread switcher keeps durable conversations reachable without a permanent sidebar;
+  relay/device/provider/model/cwd controls remain inline but collapsible so remote setup is never
+  pushed onto a separate page; and secondary inspection now uses explicit status/Git/files/trace
+  tabs so the transcript stays primary on narrow screens.
+- Implementation notes:
+  transcript cleanup now follows `user-specified` Mode 1 for the chat surface: the primary message
+  flow keeps only user prompts, assistant replies, and inline provider-choice prompts; raw task
+  lifecycle notices such as queue/start/finish, tool activity, and provider stderr are removed from
+  the main transcript and reviewed through the secondary `Trace` inspector, with only a lightweight
+  per-turn entry preserved in the conversation for discoverability.
 - Validation results:
   `cargo check -p vibe-relay -p vibe-agent` passed; `cargo test --workspace --all-targets -- --nocapture`
   passed; `cd apps/vibe-app && npm run build` passed; `./scripts/dual-process-smoke.sh relay_polling`

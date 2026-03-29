@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue"
+import { computed, ref } from "vue"
 import { storeToRefs } from "pinia"
 import { useI18n } from "vue-i18n"
 import {
@@ -36,13 +36,18 @@ type TranscriptTurn = {
   assistantText: string
   toolEvents: TaskEvent[]
   systemEvents: TaskEvent[]
+  traceEvents: TaskEvent[]
 }
+
+type InspectorTab = "status" | "git" | "workspace" | "trace"
 
 const CUSTOM_INPUT_SENTINEL = "__custom_input__"
 
 const { t } = useI18n()
 const dashboard = useDashboardController()
 const store = dashboard.store
+const inspectorTab = ref<InspectorTab>("status")
+const contextExpanded = ref(false)
 const {
   canPreviewGitChangedFile,
   formatConnectionState,
@@ -57,11 +62,13 @@ const {
   gitInspect,
   gitLoading,
   nativeSelectClass,
+  navigateWorkspaceUp,
   openGitChangedFile,
   openWorkspaceEntry,
   refreshGitInspect,
   refreshWorkspace,
   relayPlaceholder,
+  selectedDeviceWorkingRoot,
   selectedStateClass,
   sessionEventCounts,
   sessionLaunchState,
@@ -69,7 +76,8 @@ const {
   workspaceError,
   workspaceListing,
   workspaceLoading,
-  workspacePreview
+  workspacePreview,
+  workspacePreviewLoading
 } = dashboard
 
 const {
@@ -81,7 +89,6 @@ const {
   relayAccessTokenInput,
   relayBaseUrl,
   relayInput,
-  selectedConversationDetail,
   selectedConversationId,
   selectedDevice
 } = storeToRefs(store)
@@ -90,8 +97,11 @@ const availableProviders = computed(() => store.availableProviders)
 const selectedConversation = computed(() => store.selectedConversation)
 const pendingInputRequest = computed(() => store.conversationPendingInput)
 const currentConversationTask = computed(() => store.conversationCurrentTask)
+const selectedDraftProvider = computed(() =>
+  availableProviders.value.find((provider) => provider.kind === draft.value.provider) ?? null
+)
 const setupReady = computed(() => sessionLaunchState.value === "ready")
-const showSetupPanel = computed(() => {
+const setupRequired = computed(() => {
   if (!relayBaseUrl.value) {
     return true
   }
@@ -104,6 +114,7 @@ const showSetupPanel = computed(() => {
 
   return !setupReady.value
 })
+const showContextPanel = computed(() => setupRequired.value || contextExpanded.value)
 const canSendPrompt = computed(() => {
   if (!draft.value.prompt.trim() || !relayBaseUrl.value) {
     return false
@@ -117,19 +128,49 @@ const canSendPrompt = computed(() => {
   return setupReady.value && Boolean(draft.value.provider)
 })
 const transcriptTurns = computed<TranscriptTurn[]>(() =>
-  (selectedConversationDetail.value?.tasks ?? []).map((detail) => ({
-    detail,
-    assistantText: buildAssistantText(detail),
-    toolEvents: detail.events.filter(
+  (selectedConversation.value ? store.selectedConversationDetail?.tasks ?? [] : []).map((detail) => {
+    const toolEvents = detail.events.filter(
       (event) => event.kind === "tool_call" || event.kind === "tool_output"
-    ),
-    systemEvents: detail.events.filter(
+    )
+    const systemEvents = detail.events.filter(
       (event) =>
         event.kind === "system" ||
         event.kind === "status" ||
         event.kind === "provider_stderr"
     )
-  }))
+    const traceEvents = [...toolEvents, ...systemEvents].sort((left, right) => {
+      if (left.timestampEpochMs === right.timestampEpochMs) {
+        return left.seq - right.seq
+      }
+
+      return left.timestampEpochMs - right.timestampEpochMs
+    })
+
+    return {
+      detail,
+      assistantText: buildAssistantText(detail),
+      toolEvents,
+      systemEvents,
+      traceEvents
+    }
+  })
+)
+const traceTurns = computed<TranscriptTurn[]>(() =>
+  transcriptTurns.value
+    .filter((turn) => turn.traceEvents.length)
+    .sort((left, right) => {
+      const leftTimestamp =
+        left.traceEvents[left.traceEvents.length - 1]?.timestampEpochMs ??
+        left.detail.task.createdAtEpochMs
+      const rightTimestamp =
+        right.traceEvents[right.traceEvents.length - 1]?.timestampEpochMs ??
+        right.detail.task.createdAtEpochMs
+
+      return rightTimestamp - leftTimestamp
+    })
+)
+const activeTraceEventCount = computed(() =>
+  traceTurns.value.reduce((total, turn) => total + turn.traceEvents.length, 0)
 )
 const selectedPendingOption = computed(() =>
   pendingInputRequest.value?.options.find(
@@ -152,6 +193,151 @@ const showPendingTextInput = computed(() => {
 const canSubmitPendingText = computed(
   () => showPendingTextInput.value && Boolean(pendingConversationInputDraft.value.text.trim())
 )
+const currentProviderLabel = computed(() => {
+  if (selectedConversation.value) {
+    return formatProviderKind(selectedConversation.value.provider)
+  }
+  if (draft.value.provider) {
+    return formatProviderKind(draft.value.provider)
+  }
+
+  return t("common.pending")
+})
+const currentProtocolLabel = computed(() => {
+  if (selectedConversation.value) {
+    return formatExecutionProtocol(selectedConversation.value.executionProtocol)
+  }
+  if (selectedDraftProvider.value) {
+    return formatExecutionProtocol(selectedDraftProvider.value.executionProtocol)
+  }
+
+  return t("common.pending")
+})
+const currentWorkingDirectory = computed(() => {
+  if (selectedConversation.value?.cwd) {
+    return selectedConversation.value.cwd
+  }
+  if (draft.value.cwd.trim()) {
+    return draft.value.cwd.trim()
+  }
+
+  return selectedDeviceWorkingRoot.value
+})
+const currentModelLabel = computed(() => {
+  if (selectedConversation.value?.model) {
+    return selectedConversation.value.model
+  }
+  if (draft.value.model.trim()) {
+    return draft.value.model.trim()
+  }
+
+  return t("common.defaultModel")
+})
+const currentThreadStatus = computed(() => {
+  if (currentConversationTask.value) {
+    return formatTaskStatus(currentConversationTask.value.status)
+  }
+
+  return t(`dashboard.sessions.launchState.${sessionLaunchState.value}`)
+})
+const sessionSummaryCards = computed(() => [
+  {
+    key: "relay",
+    label: t("dashboard.shell.connectionState"),
+    value: formatConnectionState(eventState.value),
+    meta: relayBaseUrl.value || relayPlaceholder.value
+  },
+  {
+    key: "device",
+    label: t("dashboard.shell.selectedDevice"),
+    value:
+      selectedConversation.value?.deviceId
+        ? deviceName(selectedConversation.value.deviceId)
+        : (selectedDevice.value?.name ?? t("dashboard.shell.noDeviceSelected")),
+    meta: currentWorkingDirectory.value
+  },
+  {
+    key: "provider",
+    label: t("common.provider"),
+    value: currentProviderLabel.value,
+    meta: currentProtocolLabel.value
+  },
+  {
+    key: "threads",
+    label: t("dashboard.stats.aiSessions"),
+    value: String(conversations.value.length),
+    meta: selectedConversation.value
+      ? formatTimestamp(selectedConversation.value.updatedAtEpochMs)
+      : t("dashboard.chat.historySummary")
+  }
+])
+const contextTitle = computed(() =>
+  setupRequired.value ? t("dashboard.chat.setupTitle") : t("dashboard.chat.threadControl")
+)
+const contextSummary = computed(() =>
+  setupRequired.value ? t("dashboard.chat.setupSummary") : t("dashboard.chat.threadSummary")
+)
+const activeThreadTitle = computed(
+  () => selectedConversation.value?.title ?? t("dashboard.chat.composeTitle")
+)
+const activeThreadSummary = computed(() => {
+  if (selectedConversation.value) {
+    return t("dashboard.chat.composeSummary", {
+      device: deviceName(selectedConversation.value.deviceId),
+      provider: formatProviderKind(selectedConversation.value.provider)
+    })
+  }
+
+  return t("dashboard.chat.composeEmptySummary")
+})
+const inspectorMeta = computed(() => {
+  switch (inspectorTab.value) {
+    case "git":
+      return {
+        title: t("dashboard.workspace.git.title"),
+        description: t("dashboard.chat.gitSummary")
+      }
+    case "workspace":
+      return {
+        title: t("dashboard.workspace.browser.title"),
+        description: t("dashboard.chat.workspaceSummary")
+      }
+    case "trace":
+      return {
+        title: t("dashboard.chat.panels.trace"),
+        description: t("dashboard.chat.traceSummary")
+      }
+    default:
+      return {
+        title: t("dashboard.chat.inspectorTitle"),
+        description: t("dashboard.chat.inspectorSummary")
+      }
+  }
+})
+const overviewCards = computed(() => [
+  {
+    key: "status",
+    label: t("common.status"),
+    value: currentThreadStatus.value
+  },
+  {
+    key: "latest",
+    label: t("dashboard.chat.latestTurn"),
+    value: currentConversationTask.value
+      ? formatTimestamp(currentConversationTask.value.createdAtEpochMs)
+      : t("common.pending")
+  },
+  {
+    key: "turns",
+    label: t("dashboard.stats.aiSessions"),
+    value: String(transcriptTurns.value.length)
+  },
+  {
+    key: "trace",
+    label: t("dashboard.chat.toolEvents"),
+    value: String(activeTraceEventCount.value)
+  }
+])
 
 function buildAssistantText(detail: TaskDetailResponse) {
   const assistant = detail.events
@@ -191,6 +377,7 @@ function handleDeviceChange(event: Event) {
 }
 
 function selectConversation(conversationId: string) {
+  inspectorTab.value = "status"
   void store.selectConversation(conversationId)
 }
 
@@ -199,6 +386,7 @@ function submitPrompt() {
 }
 
 function startNewConversation() {
+  inspectorTab.value = "status"
   store.startNewConversationDraft()
 }
 
@@ -234,21 +422,70 @@ function previewGitChangedFile(path: string) {
   if (!file) {
     return
   }
+  inspectorTab.value = "workspace"
   void openGitChangedFile(file)
 }
 
-function refreshInspector() {
-  void Promise.all([refreshGitInspect(), refreshWorkspace()])
+function refreshSessionSurface() {
+  void Promise.all([store.reloadAll(), refreshGitInspect(), refreshWorkspace()])
+}
+
+function toggleContextPanel() {
+  contextExpanded.value = !contextExpanded.value
+}
+
+function setInspectorPanel(tab: InspectorTab) {
+  inspectorTab.value = tab
+}
+
+function assistantFallbackText(turn: TranscriptTurn) {
+  switch (turn.detail.task.status) {
+    case "waiting_input":
+      return t("dashboard.chat.waitingInput")
+    case "failed":
+      return t("dashboard.chat.traceOnlyFailed")
+    case "succeeded":
+      return t("dashboard.chat.traceOnlyCompleted")
+    case "canceled":
+      return t("dashboard.chat.traceOnlyCanceled")
+    default:
+      return t("dashboard.chat.generating")
+  }
+}
+
+function traceBadgeLabel(turn: TranscriptTurn) {
+  const parts: string[] = []
+
+  if (turn.toolEvents.length) {
+    parts.push(`${t("dashboard.chat.toolEvents")} ${turn.toolEvents.length}`)
+  }
+  if (turn.systemEvents.length) {
+    parts.push(`${t("dashboard.chat.systemEvents")} ${turn.systemEvents.length}`)
+  }
+
+  return parts.join(" · ")
+}
+
+function traceCalloutClass(turn: TranscriptTurn) {
+  if (
+    turn.detail.task.status === "failed" ||
+    turn.detail.task.status === "waiting_input" ||
+    turn.systemEvents.some((event) => event.kind === "provider_stderr")
+  ) {
+    return "border-amber-500/30 bg-amber-500/8 text-foreground"
+  }
+
+  return "border-border/70 bg-background/45 text-muted-foreground"
 }
 </script>
 
 <template>
-  <section class="grid gap-4 2xl:grid-cols-[260px_minmax(0,1fr)_320px]">
+  <section class="space-y-4">
     <div class="space-y-4">
       <Card class="border-border/70 bg-card/85 shadow-xl backdrop-blur-xl">
-        <CardContent class="space-y-4 p-4">
-          <div class="flex items-start justify-between gap-3">
-            <div class="space-y-1">
+        <CardContent class="space-y-5 p-4 md:p-5">
+          <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            <div class="space-y-3">
               <Badge
                 variant="outline"
                 class="border-amber-500/30 bg-amber-500/12 text-amber-700 dark:text-amber-100"
@@ -256,68 +493,165 @@ function refreshInspector() {
                 <WandSparkles class="size-3.5" />
                 {{ t("dashboard.chat.liveBadge") }}
               </Badge>
-              <h2 class="text-lg font-semibold tracking-tight text-foreground">
-                {{
-                  showSetupPanel
-                    ? t("dashboard.chat.setupTitle")
-                    : t("dashboard.chat.threadControl")
-                }}
-              </h2>
-              <p class="text-sm leading-6 text-muted-foreground">
-                {{
-                  showSetupPanel
-                    ? t("dashboard.chat.setupSummary")
-                    : t("dashboard.chat.threadSummary")
-                }}
-              </p>
-            </div>
 
-            <Button type="button" variant="outline" size="sm" @click="startNewConversation">
-              <MessageSquarePlus class="size-4" />
-              {{ t("dashboard.chat.newConversation") }}
-            </Button>
-          </div>
-
-          <div class="grid gap-3 sm:grid-cols-3 2xl:grid-cols-1">
-            <div class="rounded-2xl border border-border/70 bg-background/55 p-3">
-              <p class="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-                {{ t("dashboard.shell.connectionState") }}
-              </p>
-              <div class="mt-2 flex items-center gap-2 text-sm font-medium text-foreground">
-                <Sparkles class="size-4 text-amber-500" />
-                {{ formatConnectionState(eventState) }}
+              <div class="space-y-2">
+                <h2 class="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">
+                  {{ contextTitle }}
+                </h2>
+                <p class="max-w-3xl text-sm leading-6 text-muted-foreground md:text-base">
+                  {{ contextSummary }}
+                </p>
+                <p
+                  v-if="relayBaseUrl"
+                  class="font-mono text-xs leading-5 text-muted-foreground break-all"
+                >
+                  {{ t("dashboard.chat.relayHintLabel") }} · {{ relayBaseUrl }}
+                </p>
               </div>
             </div>
-            <div class="rounded-2xl border border-border/70 bg-background/55 p-3">
-              <p class="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-                {{ t("dashboard.shell.selectedDevice") }}
-              </p>
-              <p class="mt-2 text-sm font-medium text-foreground">
-                {{ selectedDevice?.name ?? t("dashboard.shell.noDeviceSelected") }}
-              </p>
+
+            <div class="flex flex-wrap gap-2">
+              <Button type="button" variant="outline" size="sm" @click="toggleContextPanel">
+                <Server class="size-4" />
+                {{
+                  showContextPanel
+                    ? t("dashboard.chat.hideContextControls")
+                    : t("dashboard.chat.contextControls")
+                }}
+              </Button>
+              <Button type="button" variant="outline" size="sm" @click="refreshSessionSurface">
+                <RefreshCw class="size-4" />
+                {{ t("common.refresh") }}
+              </Button>
+              <Button type="button" variant="outline" size="sm" @click="startNewConversation">
+                <MessageSquarePlus class="size-4" />
+                {{ t("dashboard.chat.newConversation") }}
+              </Button>
+              <Button
+                v-if="selectedConversation"
+                type="button"
+                variant="outline"
+                size="sm"
+                @click="archiveConversation"
+              >
+                <Archive class="size-4" />
+                {{ t("dashboard.chat.archive") }}
+              </Button>
             </div>
-            <div class="rounded-2xl border border-border/70 bg-background/55 p-3">
+          </div>
+
+          <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div
+              v-for="card in sessionSummaryCards"
+              :key="card.key"
+              class="rounded-3xl border border-border/70 bg-background/55 p-4"
+            >
               <p class="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-                {{ t("dashboard.stats.aiSessions") }}
+                {{ card.label }}
               </p>
-              <p class="mt-2 text-sm font-medium text-foreground">
-                {{ conversations.length }}
+              <p class="mt-2 text-sm font-semibold text-foreground md:text-base">
+                {{ card.value }}
+              </p>
+              <p class="mt-2 truncate text-xs text-muted-foreground" :title="card.meta">
+                {{ card.meta }}
               </p>
             </div>
           </div>
 
-          <div v-if="showSetupPanel" class="space-y-3 rounded-3xl border border-amber-500/20 bg-amber-500/8 p-4">
+          <div class="space-y-3">
+            <div class="flex items-center justify-between gap-3">
+              <div class="space-y-1">
+                <p class="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                  {{ t("dashboard.chat.threadSwitcherTitle") }}
+                </p>
+                <p class="text-sm text-muted-foreground">
+                  {{ t("dashboard.chat.historySummary") }}
+                </p>
+              </div>
+              <Badge variant="outline" class="border-border/70 bg-background/60 text-foreground">
+                {{ conversations.length }}
+              </Badge>
+            </div>
+
+            <ScrollArea class="w-full">
+              <div class="flex gap-2 pb-1">
+                <button
+                  type="button"
+                  class="min-w-[220px] rounded-3xl border border-dashed border-border/70 bg-background/50 px-4 py-3 text-left transition hover:bg-accent/40"
+                  :class="!selectedConversationId ? 'border-primary/50 bg-primary/10' : ''"
+                  @click="startNewConversation"
+                >
+                  <p class="text-sm font-medium text-foreground">
+                    {{ t("dashboard.chat.startBlank") }}
+                  </p>
+                  <p class="mt-1 text-xs leading-5 text-muted-foreground">
+                    {{ t("dashboard.chat.startBlankSummary") }}
+                  </p>
+                </button>
+
+                <button
+                  v-for="conversation in conversations"
+                  :key="conversation.id"
+                  type="button"
+                  class="min-w-[220px] max-w-[260px] rounded-3xl border px-4 py-3 text-left transition"
+                  :class="selectedStateClass(conversation.id === selectedConversationId)"
+                  @click="selectConversation(conversation.id)"
+                >
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                      <p class="truncate text-sm font-medium text-foreground">
+                        {{ conversation.title }}
+                      </p>
+                      <p class="mt-1 truncate text-xs text-muted-foreground">
+                        {{ deviceName(conversation.deviceId) }} ·
+                        {{ formatProviderKind(conversation.provider) }}
+                      </p>
+                    </div>
+                    <Badge
+                      variant="outline"
+                      class="shrink-0"
+                      :class="taskStatusClass(latestConversationTask(conversation.id)?.status ?? 'pending')"
+                    >
+                      {{
+                        formatTaskStatus(
+                          latestConversationTask(conversation.id)?.status ?? "pending"
+                        )
+                      }}
+                    </Badge>
+                  </div>
+                  <p class="mt-3 text-xs text-muted-foreground">
+                    {{ formatTimestamp(conversation.updatedAtEpochMs) }}
+                  </p>
+                </button>
+              </div>
+            </ScrollArea>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card
+        v-if="showContextPanel"
+        class="border-amber-500/20 bg-card/85 shadow-xl backdrop-blur-xl"
+      >
+        <CardHeader class="space-y-2">
+          <CardTitle class="text-base text-foreground">
+            {{ t("dashboard.chat.contextControls") }}
+          </CardTitle>
+          <CardDescription>{{ contextSummary }}</CardDescription>
+        </CardHeader>
+        <CardContent class="grid gap-4 pt-0 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+          <div class="grid gap-4">
             <div class="space-y-2">
               <label class="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
                 {{ t("dashboard.relayBaseUrl") }}
               </label>
-              <div class="flex flex-col gap-2">
+              <div class="flex flex-col gap-2 md:flex-row">
                 <Input
                   v-model="relayInput"
                   :placeholder="relayPlaceholder"
                   class="border-border/70 bg-background/75"
                 />
-                <Button type="button" @click="store.applyRelayBaseUrl">
+                <Button type="button" class="md:min-w-28" @click="store.applyRelayBaseUrl">
                   {{ t("common.connect") }}
                 </Button>
               </div>
@@ -335,22 +669,35 @@ function refreshInspector() {
               />
             </div>
 
-            <div class="space-y-2">
-              <label class="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                {{ t("dashboard.shell.selectedDevice") }}
-              </label>
-              <select
-                :value="selectedDevice?.id ?? ''"
-                :class="nativeSelectClass"
-                @change="handleDeviceChange"
-              >
-                <option value="" disabled>
-                  {{ t("dashboard.shell.noDeviceSelected") }}
-                </option>
-                <option v-for="device in devices" :key="device.id" :value="device.id">
-                  {{ device.name }}
-                </option>
-              </select>
+            <div class="grid gap-4 md:grid-cols-2">
+              <div class="space-y-2">
+                <label class="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                  {{ t("dashboard.shell.selectedDevice") }}
+                </label>
+                <select
+                  :value="selectedDevice?.id ?? ''"
+                  :class="nativeSelectClass"
+                  @change="handleDeviceChange"
+                >
+                  <option value="" disabled>
+                    {{ t("dashboard.shell.noDeviceSelected") }}
+                  </option>
+                  <option v-for="device in devices" :key="device.id" :value="device.id">
+                    {{ device.name }}
+                  </option>
+                </select>
+              </div>
+
+              <div class="space-y-2">
+                <label class="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                  {{ t("common.model") }}
+                </label>
+                <Input
+                  v-model="draft.model"
+                  :placeholder="t('common.defaultModel')"
+                  class="border-border/70 bg-background/75"
+                />
+              </div>
             </div>
 
             <div class="space-y-2">
@@ -375,60 +722,50 @@ function refreshInspector() {
                 </Button>
               </div>
             </div>
+          </div>
 
-            <div class="grid gap-3 sm:grid-cols-2">
-              <div class="space-y-2">
-                <label class="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                  {{ t("common.title") }}
-                </label>
-                <Input v-model="draft.title" :placeholder="t('dashboard.chat.autoTitleHint')" />
-              </div>
-              <div class="space-y-2">
-                <label class="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                  {{ t("common.model") }}
-                </label>
-                <Input v-model="draft.model" :placeholder="t('common.defaultModel')" />
-              </div>
+          <div class="grid gap-4">
+            <div class="space-y-2">
+              <label class="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                {{ t("common.title") }}
+              </label>
+              <Input
+                v-model="draft.title"
+                :placeholder="t('dashboard.chat.autoTitleHint')"
+                class="border-border/70 bg-background/75"
+              />
             </div>
 
             <div class="space-y-2">
               <label class="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
                 {{ t("dashboard.chat.cwd") }}
               </label>
-              <Input v-model="draft.cwd" :placeholder="t('common.useAgentWorkingRoot')" />
+              <Input
+                v-model="draft.cwd"
+                :placeholder="t('common.useAgentWorkingRoot')"
+                class="border-border/70 bg-background/75"
+              />
+            </div>
+
+            <div class="rounded-3xl border border-border/70 bg-background/55 p-4">
+              <p class="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                {{ t("common.status") }}
+              </p>
+              <p class="mt-2 text-sm font-medium text-foreground">
+                {{ t(`dashboard.sessions.launchState.${sessionLaunchState}`) }}
+              </p>
+            </div>
+
+            <div class="rounded-3xl border border-border/70 bg-background/55 p-4">
+              <p class="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                {{ t("dashboard.chat.relayHintLabel") }}
+              </p>
+              <p class="mt-2 font-mono text-xs leading-5 text-foreground break-all">
+                {{ relayBaseUrl || relayPlaceholder }}
+              </p>
             </div>
           </div>
 
-          <details v-else class="rounded-2xl border border-border/70 bg-background/55 p-4">
-            <summary class="cursor-pointer text-sm font-medium text-foreground">
-              {{ t("dashboard.chat.switchRelay") }}
-            </summary>
-            <div class="mt-3 space-y-3">
-              <Input
-                v-model="relayInput"
-                :placeholder="relayPlaceholder"
-                class="border-border/70 bg-background/75"
-              />
-              <Input
-                v-model="relayAccessTokenInput"
-                type="password"
-                :placeholder="t('common.optionalAccessToken')"
-                class="border-border/70 bg-background/75"
-              />
-              <Button type="button" size="sm" @click="store.applyRelayBaseUrl">
-                {{ t("dashboard.chat.reconnect") }}
-              </Button>
-            </div>
-          </details>
-        </CardContent>
-      </Card>
-
-      <Card class="border-border/70 bg-card/80 shadow-xl backdrop-blur-xl">
-        <CardHeader class="space-y-1">
-          <CardTitle class="text-base">{{ t("dashboard.chat.historyTitle") }}</CardTitle>
-          <CardDescription>{{ t("dashboard.chat.historySummary") }}</CardDescription>
-        </CardHeader>
-        <CardContent class="p-0">
           <ScrollArea class="h-[420px]">
             <div class="space-y-2 p-3">
               <button
@@ -606,44 +943,34 @@ function refreshInspector() {
                         v-else
                         class="text-sm leading-7 text-muted-foreground"
                       >
-                        {{
-                          turn.detail.task.status === "waiting_input"
-                            ? t("dashboard.chat.waitingInput")
-                            : t("dashboard.chat.generating")
-                        }}
+                        {{ assistantFallbackText(turn) }}
                       </p>
                     </div>
 
-                    <div v-if="turn.toolEvents.length" class="grid gap-2">
-                      <div
-                        v-for="toolEvent in turn.toolEvents"
-                        :key="`${turn.detail.task.id}-${toolEvent.seq}`"
-                        class="rounded-2xl border border-border/70 bg-background/60 px-4 py-3"
-                      >
-                        <p class="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-                          {{ formatEventKind(toolEvent.kind) }}
-                        </p>
-                        <p class="mt-2 whitespace-pre-wrap text-sm leading-6 text-foreground">
-                          {{ toolEvent.message }}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div v-if="turn.systemEvents.length" class="space-y-2">
-                      <div
-                        v-for="systemEvent in turn.systemEvents"
-                        :key="`${turn.detail.task.id}-${systemEvent.seq}`"
-                        class="rounded-2xl border border-border/60 bg-background/45 px-4 py-3 text-sm text-muted-foreground"
-                      >
-                        <div class="flex flex-wrap items-center justify-between gap-2">
-                          <span>{{ formatEventKind(systemEvent.kind) }}</span>
-                          <span class="text-xs">{{ formatTimestamp(systemEvent.timestampEpochMs) }}</span>
+                    <button
+                      v-if="turn.traceEvents.length"
+                      type="button"
+                      class="w-full rounded-2xl border px-4 py-3 text-left transition hover:bg-accent/35"
+                      :class="traceCalloutClass(turn)"
+                      @click="setInspectorPanel('trace')"
+                    >
+                      <div class="flex items-start justify-between gap-3">
+                        <div class="min-w-0 space-y-1">
+                          <p class="text-sm font-medium text-foreground">
+                            {{ t("dashboard.chat.traceEntryTitle") }}
+                          </p>
+                          <p class="text-xs leading-5 text-muted-foreground">
+                            {{ traceBadgeLabel(turn) }}
+                          </p>
                         </div>
-                        <p class="mt-2 whitespace-pre-wrap leading-6">
-                          {{ systemEvent.message }}
-                        </p>
+                        <Badge
+                          variant="outline"
+                          class="shrink-0 border-border/70 bg-background/60 text-foreground"
+                        >
+                          {{ t("dashboard.chat.panels.trace") }}
+                        </Badge>
                       </div>
-                    </div>
+                    </button>
                   </div>
                 </div>
               </article>
@@ -786,11 +1113,70 @@ function refreshInspector() {
 
     <div class="space-y-4">
       <Card class="border-border/70 bg-card/80 shadow-xl backdrop-blur-xl">
-        <CardHeader class="space-y-1">
-          <CardTitle class="text-base">{{ t("dashboard.chat.inspectorTitle") }}</CardTitle>
-          <CardDescription>{{ t("dashboard.chat.inspectorSummary") }}</CardDescription>
+        <CardHeader class="space-y-2">
+          <div class="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              :class="
+                inspectorTab === 'status'
+                  ? 'border-sky-500/40 bg-sky-500/12 text-sky-900 dark:text-sky-100'
+                  : 'border-border/70 bg-background/55 text-foreground'
+              "
+              @click="setInspectorPanel('status')"
+            >
+              {{ t("dashboard.chat.panels.status") }}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              :class="
+                inspectorTab === 'git'
+                  ? 'border-sky-500/40 bg-sky-500/12 text-sky-900 dark:text-sky-100'
+                  : 'border-border/70 bg-background/55 text-foreground'
+              "
+              @click="setInspectorPanel('git')"
+            >
+              {{ t("dashboard.chat.panels.git") }}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              :class="
+                inspectorTab === 'workspace'
+                  ? 'border-sky-500/40 bg-sky-500/12 text-sky-900 dark:text-sky-100'
+                  : 'border-border/70 bg-background/55 text-foreground'
+              "
+              @click="setInspectorPanel('workspace')"
+            >
+              {{ t("dashboard.chat.panels.files") }}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              :class="
+                inspectorTab === 'trace'
+                  ? 'border-sky-500/40 bg-sky-500/12 text-sky-900 dark:text-sky-100'
+                  : 'border-border/70 bg-background/55 text-foreground'
+              "
+              @click="setInspectorPanel('trace')"
+            >
+              {{ t("dashboard.chat.panels.trace") }}
+              <Badge variant="outline" class="ml-2 border-border/70 bg-background/60 text-foreground">
+                {{ activeTraceEventCount }}
+              </Badge>
+            </Button>
+          </div>
+          <div class="space-y-1">
+            <CardTitle class="text-base">{{ inspectorMeta.title }}</CardTitle>
+            <CardDescription>{{ inspectorMeta.description }}</CardDescription>
+          </div>
         </CardHeader>
-        <CardContent class="space-y-3">
+        <CardContent v-if="inspectorTab === 'status'" class="space-y-3">
           <div class="flex flex-wrap gap-2">
             <Badge
               v-if="currentConversationTask"
@@ -834,14 +1220,23 @@ function refreshInspector() {
             </div>
           </div>
 
-          <Button type="button" variant="outline" size="sm" class="w-full" @click="refreshInspector">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            class="w-full"
+            @click="refreshSessionSurface"
+          >
             <RefreshCw class="size-4" />
             {{ t("common.refresh") }}
           </Button>
         </CardContent>
       </Card>
 
-      <Card class="border-border/70 bg-card/80 shadow-xl backdrop-blur-xl">
+      <Card
+        v-if="inspectorTab === 'git'"
+        class="border-border/70 bg-card/80 shadow-xl backdrop-blur-xl"
+      >
         <CardHeader class="space-y-1">
           <CardTitle class="flex items-center gap-2 text-base">
             <GitBranch class="size-4" />
@@ -908,7 +1303,10 @@ function refreshInspector() {
         </CardContent>
       </Card>
 
-      <Card class="border-border/70 bg-card/80 shadow-xl backdrop-blur-xl">
+      <Card
+        v-if="inspectorTab === 'workspace'"
+        class="border-border/70 bg-card/80 shadow-xl backdrop-blur-xl"
+      >
         <CardHeader class="space-y-1">
           <CardTitle class="flex items-center gap-2 text-base">
             <FolderCode class="size-4" />
@@ -962,6 +1360,67 @@ function refreshInspector() {
           </template>
           <p v-else class="text-sm text-muted-foreground">
             {{ t("dashboard.chat.workspaceEmpty") }}
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card
+        v-if="inspectorTab === 'trace'"
+        class="border-border/70 bg-card/80 shadow-xl backdrop-blur-xl"
+      >
+        <CardHeader class="space-y-1">
+          <CardTitle class="text-base">{{ t("dashboard.chat.panels.trace") }}</CardTitle>
+          <CardDescription>{{ t("dashboard.chat.traceSummary") }}</CardDescription>
+        </CardHeader>
+        <CardContent class="space-y-3">
+          <Button type="button" variant="outline" size="sm" class="w-full" @click="refreshSessionSurface">
+            <RefreshCw class="size-4" />
+            {{ t("common.refresh") }}
+          </Button>
+
+          <div v-if="traceTurns.length" class="space-y-3">
+            <div
+              v-for="turn in traceTurns"
+              :key="`${turn.detail.task.id}-trace`"
+              class="rounded-2xl border border-border/70 bg-background/55 p-4"
+            >
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <div class="space-y-1">
+                  <p class="text-sm font-medium text-foreground">
+                    {{ formatTimestamp(turn.detail.task.createdAtEpochMs) }}
+                  </p>
+                  <p class="text-xs leading-5 text-muted-foreground whitespace-pre-wrap">
+                    {{ turn.detail.task.prompt }}
+                  </p>
+                </div>
+                <Badge variant="outline" :class="taskStatusClass(turn.detail.task.status)">
+                  {{ formatTaskStatus(turn.detail.task.status) }}
+                </Badge>
+              </div>
+
+              <div class="mt-4 space-y-2">
+                <div
+                  v-for="event in turn.traceEvents"
+                  :key="`${turn.detail.task.id}-${event.seq}`"
+                  class="rounded-2xl border border-border/60 bg-background/70 px-4 py-3"
+                >
+                  <div class="flex flex-wrap items-center justify-between gap-2">
+                    <span class="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                      {{ formatEventKind(event.kind) }}
+                    </span>
+                    <span class="text-xs text-muted-foreground">
+                      {{ formatTimestamp(event.timestampEpochMs) }}
+                    </span>
+                  </div>
+                  <p class="mt-2 whitespace-pre-wrap text-sm leading-6 text-foreground">
+                    {{ event.message }}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p v-else class="text-sm text-muted-foreground">
+            {{ t("dashboard.chat.traceEmpty") }}
           </p>
         </CardContent>
       </Card>

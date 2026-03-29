@@ -326,13 +326,17 @@ const zhCN = {
       liveBadge: "对话优先",
       setupTitle: "只连接一次，然后留在聊天里",
       threadControl: "长期线程控制",
-      setupSummary:
-        "Relay、设备、Provider 和线程目标先集中在一个紧凑面板里，等首个会话准备好后就退到次要位置。",
-      threadSummary:
-        "聊天界面保持为主界面。切换 Relay 和新线程目标保留为紧凑的次级控制。",
-      newConversation: "新对话",
-      autoTitleHint: "根据首条提示自动生成标题",
-      cwd: "工作目录",
+        setupSummary:
+          "Relay、设备、Provider 和线程目标先集中在一个紧凑面板里，等首个会话准备好后就退到次要位置。",
+        threadSummary:
+          "聊天界面保持为主界面。切换 Relay 和新线程目标保留为紧凑的次级控制。",
+        contextControls: "会话上下文",
+        hideContextControls: "收起上下文",
+        relayHintLabel: "Relay 地址",
+        threadSwitcherTitle: "线程切换",
+        newConversation: "新对话",
+        autoTitleHint: "根据首条提示自动生成标题",
+        cwd: "工作目录",
       switchRelay: "切换 Relay 或令牌",
       reconnect: "重新连接",
       historyTitle: "对话历史",
@@ -349,6 +353,10 @@ const zhCN = {
       userTurn: "你",
       waitingInput: "Provider 正在等待你的选择，确认后才能继续执行。",
       generating: "Agent 仍在生成下一段回复。",
+      traceOnlyCompleted: "这一轮没有可展示的常规助手回复，请到运行轨迹里查看执行详情。",
+      traceOnlyFailed: "这一轮在生成常规助手回复前就失败了，请到运行轨迹里查看详情。",
+      traceOnlyCanceled: "这一轮在生成常规助手回复前已被取消。",
+      traceEntryTitle: "运行详情已移到轨迹面板",
       emptyBadge: "聊天主界面",
       emptyTitle: "把主页面收束到对话交互",
       emptySummary:
@@ -365,15 +373,24 @@ const zhCN = {
       sendReply: "发送回复",
       startConversation: "启动对话",
       inspectorTitle: "紧凑检查面板",
-      inspectorSummary:
-        "Git、工作区和任务遥测仍可查看，但不会再抢占主对话界面。",
-      latestTurn: "最近一轮",
-      toolEvents: "工具事件",
-      gitSummary: "在聊天旁边快速审阅仓库漂移和变更文件。",
-      gitEmpty: "当前对话还没有可展示的 Git 上下文。",
-      workspaceSummary: "不离开聊天界面，直接浏览当前工作区。",
-      workspaceEmpty: "当前对话还没有可展示的工作区快照。"
-    },
+        inspectorSummary:
+          "Git、工作区和任务遥测仍可查看，但不会再抢占主对话界面。",
+        latestTurn: "最近一轮",
+        toolEvents: "工具事件",
+        systemEvents: "系统事件",
+        traceSummary: "把工具输出、系统提示和 provider stderr 放到次级面板里查看，避免打断主对话。",
+        traceEmpty: "当前对话还没有可展示的 Trace 事件。",
+        gitSummary: "在聊天旁边快速审阅仓库漂移和变更文件。",
+        gitEmpty: "当前对话还没有可展示的 Git 上下文。",
+        workspaceSummary: "不离开聊天界面，直接浏览当前工作区。",
+        workspaceEmpty: "当前对话还没有可展示的工作区快照。",
+        panels: {
+          status: "状态",
+          git: "Git",
+          files: "文件",
+          trace: "Trace"
+        }
+      },
     workspace: {
       title: "Session 工作台",
       newTitle: "新的 AI Session",

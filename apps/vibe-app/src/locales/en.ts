@@ -342,13 +342,17 @@ const en = {
       liveBadge: "Conversation First",
       setupTitle: "Connect Once, Then Stay In Chat",
       threadControl: "Long-Lived Thread Control",
-      setupSummary:
-        "Relay, device, provider, and thread target stay in one compact panel until the first session is ready.",
-      threadSummary:
-        "The chat stays primary. Relay switching and new-thread targeting are compact secondary controls.",
-      newConversation: "New Conversation",
-      autoTitleHint: "Auto-generate from first prompt",
-      cwd: "Working Directory",
+        setupSummary:
+          "Relay, device, provider, and thread target stay in one compact panel until the first session is ready.",
+        threadSummary:
+          "The chat stays primary. Relay switching and new-thread targeting are compact secondary controls.",
+        contextControls: "Thread Context",
+        hideContextControls: "Hide Context",
+        relayHintLabel: "Relay",
+        threadSwitcherTitle: "Thread Switcher",
+        newConversation: "New Conversation",
+        autoTitleHint: "Auto-generate from first prompt",
+        cwd: "Working Directory",
       switchRelay: "Switch relay or token",
       reconnect: "Reconnect",
       historyTitle: "Conversation History",
@@ -366,6 +370,10 @@ const en = {
       userTurn: "You",
       waitingInput: "The provider is waiting for your decision before it can continue.",
       generating: "The agent is still generating the next response.",
+      traceOnlyCompleted: "This turn completed without a normal assistant message. Open Trace for runtime details.",
+      traceOnlyFailed: "This turn failed before a normal assistant reply was produced. Open Trace for details.",
+      traceOnlyCanceled: "This turn was canceled before a normal assistant reply was produced.",
+      traceEntryTitle: "Runtime details moved to Trace",
       emptyBadge: "Chat Surface",
       emptyTitle: "Keep the main page focused on dialogue",
       emptySummary:
@@ -382,15 +390,25 @@ const en = {
       sendReply: "Send Reply",
       startConversation: "Start Conversation",
       inspectorTitle: "Compact Inspector",
-      inspectorSummary:
-        "Git, workspace, and task telemetry remain available without taking over the main surface.",
-      latestTurn: "Latest Turn",
-      toolEvents: "Tool Events",
-      gitSummary: "Review repository drift and changed files next to the chat.",
-      gitEmpty: "No Git context is available for the current conversation yet.",
-      workspaceSummary: "Browse the active workspace without leaving the conversation.",
-      workspaceEmpty: "No workspace snapshot is available for the current conversation yet."
-    },
+        inspectorSummary:
+          "Git, workspace, and task telemetry remain available without taking over the main surface.",
+        latestTurn: "Latest Turn",
+        toolEvents: "Tool Events",
+        systemEvents: "System Events",
+        traceSummary:
+          "Review tool output, system notices, and provider stderr without crowding the transcript.",
+        traceEmpty: "No trace events are available for this conversation yet.",
+        gitSummary: "Review repository drift and changed files next to the chat.",
+        gitEmpty: "No Git context is available for the current conversation yet.",
+        workspaceSummary: "Browse the active workspace without leaving the conversation.",
+        workspaceEmpty: "No workspace snapshot is available for the current conversation yet.",
+        panels: {
+          status: "Status",
+          git: "Git",
+          files: "Files",
+          trace: "Trace"
+        }
+      },
     workspace: {
       title: "Session Workspace",
       newTitle: "New AI Session",

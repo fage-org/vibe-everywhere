@@ -30,6 +30,12 @@ Full implementation detail lives in [`v5-details.md`](./v5-details.md).
   for supported providers rather than a history-replay approximation.
 - Relay, agent, and app now include durable conversation records, provider-native resume handles,
   inline user-choice prompts, and a chat-first `Sessions` surface.
+- A mobile-first `Sessions` polish tranche is now part of Iteration 15: the page uses a horizontal
+  thread switcher, collapsible inline context controls for relay/device/provider setup, and a
+  tabbed secondary inspector for status, Git, files, and trace.
+- The transcript noise-removal follow-up is now `user-specified` Mode 1: the main conversation flow
+  keeps only user/assistant dialogue plus inline choice prompts, while lifecycle/tool/stderr events
+  move behind the secondary `Trace` inspector with only a lightweight per-turn entry in transcript.
 - ACP capability reporting is now aligned with the real implementation surface: only OpenCode is
   advertised as standard ACP, and the OpenCode ACP event mapping now covers the stable
   `agent_thought_chunk` and `available_commands_update` variants.
@@ -42,6 +48,9 @@ Full implementation detail lives in [`v5-details.md`](./v5-details.md).
   compatibility fallback for agents that do not yet support resume.
 - Automated validation is complete; targeted manual QA is still pending before the iteration can be
   closed out.
+- This UI tranche keeps remote relay connection and device selection inside the conversation-first
+  flow instead of moving them onto a separate setup page, which preserves the product's remote
+  control-plane model for mobile use.
 
 ## Lookup Notes
 
