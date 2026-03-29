@@ -77,7 +77,7 @@ bash install-relay.sh install
 bash install-relay.sh install
 bash install-relay.sh install --component relay
 bash install-relay.sh install --component agent
-bash install-relay.sh update --release-tag v0.1.8
+bash install-relay.sh update --release-tag v0.1.9
 bash install-relay.sh uninstall
 bash install-relay.sh uninstall --component agent
 ```
@@ -86,6 +86,10 @@ bash install-relay.sh uninstall --component agent
 
 - `/usr/local/bin/vibe-relay`
 - `/usr/local/bin/vibe-agent`
+
+说明：
+
+- 已发布的 Linux x86_64 CLI 归档使用静态链接的 `x86_64-unknown-linux-musl` 二进制，不要求目标机器提供与构建机匹配的 `glibc` 版本。
 
 #### Windows
 
@@ -113,7 +117,7 @@ powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command install
 powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command install
 powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command install -Component relay
 powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command install -Component agent
-powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command update -ReleaseTag v0.1.8
+powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command update -ReleaseTag v0.1.9
 powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command uninstall
 powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command uninstall -Component agent
 ```

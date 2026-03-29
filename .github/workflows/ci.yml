@@ -137,6 +137,55 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  linux-cli-compat:
+    name: Linux CLI Compatibility
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Linux musl build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            binutils \
+            build-essential \
+            file \
+            musl-tools
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+
+      - name: Setup protoc
+        uses: ./.github/actions/setup-protoc
+        with:
+          version: ${{ env.PROTOC_VERSION }}
+
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build Linux CLI release binaries
+        run: cargo build --locked --release --target x86_64-unknown-linux-musl -p vibe-relay -p vibe-agent
+
+      - name: Verify static Linux CLI binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          for binary in \
+            target/x86_64-unknown-linux-musl/release/vibe-relay \
+            target/x86_64-unknown-linux-musl/release/vibe-agent; do
+            file "$binary" | grep -E "statically linked|static-pie linked"
+            if readelf -d "$binary" 2>/dev/null | grep -q '(NEEDED)'; then
+              echo "Unexpected dynamic dependency in $binary" >&2
+              exit 1
+            fi
+          done
+
   android-mobile:
     name: Android Mobile
     needs: verify

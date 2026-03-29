@@ -33,7 +33,7 @@ Commands:
 Options:
   --bin-dir DIR           Target directory for installed binaries (default: /usr/local/bin)
   --component VALUE       Which binaries to manage: all, relay, or agent (default: all)
-  --release-tag TAG       Install a specific release tag, for example v0.1.8
+  --release-tag TAG       Install a specific release tag, for example v0.1.9
   --archive-url URL       Download from a custom archive URL
   --archive-path PATH     Install from a local archive path
   --gh-proxy URL          Prefix applied to GitHub release and redirect URLs
@@ -45,12 +45,14 @@ Examples:
   ./install-relay.sh install
   ./install-relay.sh install --component relay
   ./install-relay.sh install --component agent
-  ./install-relay.sh update --component all --release-tag v0.1.8
+  ./install-relay.sh update --component all --release-tag v0.1.9
   ./install-relay.sh uninstall --component agent
   ./install-relay.sh install --archive-path /tmp/vibe-everywhere-cli.tar.gz
 
 Notes:
   This script manages the published CLI binaries from the release archive.
+  Published Linux x86_64 archives use statically linked x86_64-unknown-linux-musl binaries, so
+  they do not require a matching host glibc version.
   On Linux, the default install location is /usr/local/bin, which follows the common convention
   for administrator-installed local executables.
   It does not create services, write environment files, or start relay or agent processes.
@@ -99,7 +101,7 @@ detect_linux_target() {
 
   case "$platform" in
     amd64|x86_64)
-      printf '%s' "x86_64-unknown-linux-gnu"
+      printf '%s' "x86_64-unknown-linux-musl"
       ;;
     *)
       die "Unsupported Linux architecture: ${platform}. Use --archive-path or --archive-url for a custom build."

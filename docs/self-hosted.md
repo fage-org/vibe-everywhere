@@ -170,7 +170,7 @@ Common commands:
 bash install-relay.sh install
 bash install-relay.sh install --component relay
 bash install-relay.sh install --component agent
-bash install-relay.sh update --release-tag v0.1.8
+bash install-relay.sh update --release-tag v0.1.9
 bash install-relay.sh uninstall
 bash install-relay.sh uninstall --component agent
 ```
@@ -195,6 +195,8 @@ Default installed paths:
 Path note:
 
 - `/usr/local/bin` follows the common Linux/Unix convention for administrator-installed local executables.
+- the published Linux x86_64 CLI archive uses statically linked `x86_64-unknown-linux-musl`
+  binaries, so operators do not need a matching host `glibc` version
 
 ### Windows Install, Update, And Uninstall
 
@@ -222,7 +224,7 @@ Common commands:
 powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command install
 powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command install -Component relay
 powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command install -Component agent
-powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command update -ReleaseTag v0.1.8
+powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command update -ReleaseTag v0.1.9
 powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command uninstall
 powershell -ExecutionPolicy Bypass -File .\install-relay.ps1 -Command uninstall -Component agent
 ```

@@ -1,7 +1,7 @@
 {
   "name": "vibe-app",
   "private": true,
-  "version": "0.1.8",
+  "version": "0.1.9",
   "packageManager": "npm@11.12.0",
   "type": "module",
   "engines": {

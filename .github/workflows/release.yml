@@ -147,15 +147,17 @@ jobs:
         include:
           - label: Linux
             os: ubuntu-24.04
-            artifact_name: vibe-everywhere-cli-x86_64-unknown-linux-gnu
-            archive_basename: vibe-everywhere-cli-x86_64-unknown-linux-gnu
-            platform_suffix: x86_64-unknown-linux-gnu
+            artifact_name: vibe-everywhere-cli-x86_64-unknown-linux-musl
+            archive_basename: vibe-everywhere-cli-x86_64-unknown-linux-musl
+            platform_suffix: x86_64-unknown-linux-musl
+            rust_target: x86_64-unknown-linux-musl
             bin_ext: ""
           - label: Windows
             os: windows-2022
             artifact_name: vibe-everywhere-cli-x86_64-pc-windows-msvc
             archive_basename: vibe-everywhere-cli-x86_64-pc-windows-msvc
             platform_suffix: x86_64-pc-windows-msvc
+            rust_target: x86_64-pc-windows-msvc
             bin_ext: ".exe"
 
     steps:
@@ -166,7 +168,11 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential libdbus-1-dev
+          sudo apt-get install -y \
+            binutils \
+            build-essential \
+            file \
+            musl-tools
 
       - name: Setup Npcap SDK import libraries
         if: runner.os == 'Windows'
@@ -185,7 +191,14 @@ jobs:
           $libDir = $packetLib.Directory.FullName
           "LIB=$libDir;$env:LIB" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-      - name: Setup Rust
+      - name: Setup Rust (Linux)
+        if: runner.os == 'Linux'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+
+      - name: Setup Rust (Windows)
+        if: runner.os == 'Windows'
         uses: dtolnay/rust-toolchain@stable
 
       - name: Setup protoc
@@ -198,13 +211,28 @@ jobs:
 
       - name: Build release binaries
         if: runner.os != 'Windows'
-        run: cargo build --locked --release -p vibe-relay -p vibe-agent
+        run: cargo build --locked --release --target x86_64-unknown-linux-musl -p vibe-relay -p vibe-agent
 
       - name: Build release binaries (Windows)
         if: runner.os == 'Windows'
         env:
           WINDIVERT_DLL_OUTPUT: ${{ github.workspace }}\target\release
         run: cargo build --locked --release -p vibe-relay -p vibe-agent
+
+      - name: Verify static Linux CLI binaries
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for binary in \
+            target/x86_64-unknown-linux-musl/release/vibe-relay \
+            target/x86_64-unknown-linux-musl/release/vibe-agent; do
+            file "$binary" | grep -E "statically linked|static-pie linked"
+            if readelf -d "$binary" 2>/dev/null | grep -q '(NEEDED)'; then
+              echo "Unexpected dynamic dependency in $binary" >&2
+              exit 1
+            fi
+          done
 
       - name: Stage Windows runtime dependencies
         if: runner.os == 'Windows'
@@ -226,8 +254,8 @@ jobs:
           staging_dir="$RUNNER_TEMP/$archive_basename"
           mkdir -p "$staging_dir"
 
-          cp "target/release/vibe-relay$BIN_EXT" "$staging_dir/"
-          cp "target/release/vibe-agent$BIN_EXT" "$staging_dir/"
+          cp "target/x86_64-unknown-linux-musl/release/vibe-relay$BIN_EXT" "$staging_dir/"
+          cp "target/x86_64-unknown-linux-musl/release/vibe-agent$BIN_EXT" "$staging_dir/"
 
           export STAGING_DIR="$staging_dir"
           export ARCHIVE_BASE_PATH="$GITHUB_WORKSPACE/$archive_basename"

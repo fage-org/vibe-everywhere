@@ -22,8 +22,8 @@ The active plan set is:
 - process governance: [`docs/plans/process.md`](./docs/plans/process.md)
 - active iteration summary: [`docs/plans/iterations/v4-summary.md`](./docs/plans/iterations/v4-summary.md)
 - active iteration details: [`docs/plans/iterations/v4-details.md`](./docs/plans/iterations/v4-details.md)
-- active remediation summary: [`docs/plans/remediation/v10-summary.md`](./docs/plans/remediation/v10-summary.md)
-- active remediation details: [`docs/plans/remediation/v10-details.md`](./docs/plans/remediation/v10-details.md)
+- active remediation summary: [`docs/plans/remediation/v11-summary.md`](./docs/plans/remediation/v11-summary.md)
+- active remediation details: [`docs/plans/remediation/v11-details.md`](./docs/plans/remediation/v11-details.md)
 
 Every completed iteration or remediation item must update this file and the active versioned plan
 files listed above.
@@ -168,7 +168,7 @@ Current planned implementation target:
   and workspace browsing into the `Sessions` route, redirects the legacy `Connections` route into
   that primary workflow, and moves deployment/current-client/governance context into `Devices`.
 - The active remediation track remains the problem-driven remediation plan in
-  `docs/plans/remediation/v10-summary.md`.
+  `docs/plans/remediation/v11-summary.md`.
 - Remediation plan `v1` is complete.
 - Remediation plan `v2` is complete after restoring blocking overlay smoke verification and auditing
   the repository for similar compromised checks.
@@ -191,9 +191,15 @@ Current planned implementation target:
 - Remediation plan `v10` is complete locally after splitting agent enrollment from the control
   token, issuing device credentials, retiring external actor-header trust, and aligning
   installers/docs/smoke coverage with the delivered auth model.
+- Remediation plan `v11` is complete locally after switching the default Linux CLI release from a
+  hosted-runner-coupled `gnu` build to a statically linked `musl` build, aligning installer asset
+  resolution, and adding explicit Linux CLI compatibility checks to `CI`, release packaging,
+  operator docs, and release notes.
 
 Most recent completed tranche:
 
+- Remediation 11: Linux CLI ABI compatibility hardening through musl-only release packaging,
+  installer alignment, and explicit static-binary verification
 - Remediation 10: relay and agent auth-boundary hardening across control-plane tokens, agent
   enrollment, device credentials, installers, and smoke coverage
 - Iteration 14: session-first primary workflow productization across navigation, result review,
@@ -413,6 +419,13 @@ These items are treated as completed foundation work, not future roadmap items.
 - 2026-03-29: Completed Remediation v10 locally by splitting agent enrollment from the human
   control token, issuing and persisting device credentials, tightening device-only route auth,
   retiring external `x-vibe-*` actor-header trust, and aligning installers/docs/smoke harnesses.
+- 2026-03-29: Started remediation plan `v11` to remove hosted-runner `glibc` drift from the
+  default Linux CLI release path after a Debian 12 operator hit `GLIBC_2.39 not found` when
+  starting `vibe-agent`.
+- 2026-03-29: Completed Remediation v11 locally by switching Linux CLI release packaging and
+  installer resolution to statically linked `x86_64-unknown-linux-musl`, keeping Windows
+  side-by-side runtime distribution unchanged, and adding explicit Linux CLI compatibility checks
+  to `CI`, release packaging, testing guidance, and operator documentation.
 - 2026-03-28: Marked the Iteration 0-11 baseline roadmap as complete and reset the current target to future planning.
 - 2026-03-28: Added `docs/problem-remediation-plan.md` to track the post-baseline dashboard, deployment-guidance, platform-surfacing, and loopback-default repair work item by item.
 - 2026-03-28: Introduced the versioned planning system under `docs/plans/`, with shared process governance plus `summary` and `details` files for iteration plan v1 and remediation plan v1.
@@ -507,6 +520,8 @@ These items are treated as completed foundation work, not future roadmap items.
 - 2026-03-29: Updated `README.md`, `README.en.md`, `TESTING.md`, `docs/releases/unreleased.md`,
   the active versioned iteration plan, and `AGENTS.md` so the repository now describes the
   session-first primary workflow model consistently.
+- 2026-03-29: Updated Linux CLI packaging docs, installer defaults, and release workflow metadata
+  to describe the new musl-based release target instead of the old hosted-runner `gnu` target.
 - 2026-03-26: Completed relay and agent runtime modularization, frontend port-forward MVP wiring, and capability-boundary alignment as foundational architecture work.
 
 ## Verification Log
@@ -557,6 +572,26 @@ These items are treated as completed foundation work, not future roadmap items.
 - 2026-03-28: `cd apps/vibe-app && npm run build` succeeded after Remediation R7 docs/tests/process realignment.
 - 2026-03-28: `cargo fmt --all --check` succeeded after Remediation v2 verification-integrity
   repair.
+- 2026-03-29: static analysis and dependency-chain review confirmed that EasyTier ships Linux CLI
+  artifacts as static `musl` binaries while Windows still distributes side-by-side runtime files
+  such as `Packet.dll` and `wintun.dll`.
+- 2026-03-29: `cargo fmt --all --check` succeeded after Remediation v11 Linux musl packaging
+  changes.
+- 2026-03-29: `cargo check --locked -p vibe-relay -p vibe-agent -p vibe-app` succeeded after
+  Remediation v11 Linux musl packaging changes.
+- 2026-03-29: `cd apps/vibe-app && npm run build` succeeded after Remediation v11 Linux musl
+  packaging changes.
+- 2026-03-29: `cargo build --locked --release --target x86_64-unknown-linux-musl -p vibe-relay -p vibe-agent`
+  succeeded after Remediation v11; `file` reported `vibe-relay` and `vibe-agent` as
+  `static-pie linked`, and `readelf -d` showed no `NEEDED` dynamic-library entries.
+- 2026-03-29: `cargo test --locked --workspace --all-targets -- --nocapture` succeeded after
+  Remediation v11 Linux musl packaging changes.
+- 2026-03-29: `bash -n scripts/install-relay.sh` succeeded after the Linux installer target
+  switch.
+- 2026-03-29: `./scripts/render-release-notes.sh v0.1.9 >/dev/null` succeeded after the
+  `v0.1.9` release-note update.
+- 2026-03-29: local PowerShell parser validation remained unavailable because `pwsh` was not
+  installed in the local environment.
 - 2026-03-28: `./scripts/dual-process-smoke.sh relay_polling` succeeded after Remediation v2
   verification-integrity repair.
 - 2026-03-28: `./scripts/dual-process-smoke.sh overlay` succeeded after Remediation v2

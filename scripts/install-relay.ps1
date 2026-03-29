@@ -28,7 +28,7 @@ Options:
   -Component <all|relay|agent>
                            Which binaries to manage (default: all)
   -InstallDir <path>       Target directory for installed binaries
-  -ReleaseTag <tag>        Install a specific release tag, for example v0.1.8
+  -ReleaseTag <tag>        Install a specific release tag, for example v0.1.9
   -ArchiveUrl <url>        Download from a custom archive URL
   -ArchivePath <path>      Install from a local archive path
   -GhProxy <url>           Prefix applied to GitHub release and redirect URLs
@@ -40,7 +40,7 @@ Examples:
   .\install-relay.ps1 -Command install
   .\install-relay.ps1 -Command install -Component relay
   .\install-relay.ps1 -Command install -Component agent
-  .\install-relay.ps1 -Command update -Component all -ReleaseTag v0.1.8
+  .\install-relay.ps1 -Command update -Component all -ReleaseTag v0.1.9
   .\install-relay.ps1 -Command uninstall -Component agent
   .\install-relay.ps1 -Command install -ArchivePath C:\Temp\vibe-everywhere-cli.zip
 

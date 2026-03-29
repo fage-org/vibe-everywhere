@@ -146,6 +146,9 @@ Execution checks:
 
 ```bash
 bash -n scripts/install-relay.sh
+cargo build --locked --release --target x86_64-unknown-linux-musl -p vibe-relay -p vibe-agent
+file target/x86_64-unknown-linux-musl/release/vibe-relay
+file target/x86_64-unknown-linux-musl/release/vibe-agent
 ./scripts/render-release-notes.sh v0.0.0 >/dev/null
 ```
 
@@ -156,6 +159,11 @@ pwsh -NoProfile -Command "[void][System.Management.Automation.Language.Parser]::
 Manual review:
 
 - confirm release asset names in `.github/workflows/release.yml` include the tag/version
+- confirm the default Linux CLI release asset is `vibe-everywhere-cli-<tag>-x86_64-unknown-linux-musl.tar.gz`
+  instead of a hosted-runner-coupled `x86_64-unknown-linux-gnu` archive
+- confirm Linux CLI packaging copies binaries from `target/x86_64-unknown-linux-musl/release/`
+  and that `file` reports the published Linux CLI binaries as `static-pie linked` or otherwise
+  static without `NEEDED` dynamic-library entries
 - confirm release packaging no longer copies repository README files into published artifacts
 - confirm Windows CLI packaging keeps `vibe-relay(.exe)` / `vibe-agent(.exe)` and the EasyTier
   runtime files (`Packet.dll`, `wintun.dll`, `WinDivert64.sys`, optional `WinDivert.dll`)
@@ -196,6 +204,8 @@ Manual review:
 Pass criteria:
 
 - installer scripts parse successfully
+- the Linux CLI release target builds successfully for `x86_64-unknown-linux-musl`
+- the Linux CLI binaries report a static executable format instead of dynamic `glibc` linkage
 - the release notes renderer succeeds against the repository note source
 - release asset naming and note-source rules remain aligned with the workflow
 
