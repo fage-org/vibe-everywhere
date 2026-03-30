@@ -2,7 +2,7 @@ use super::*;
 
 enum ClaimNextPortForwardOutcome {
     Forward(Option<PortForwardRecord>),
-    DeviceMissing,
+    Unsupported,
 }
 
 enum PortForwardTunnelSessionOutcome {
@@ -31,7 +31,7 @@ pub(crate) async fn port_forward_loop(
     relay_url: String,
     profile: AgentProfile,
     auth: AgentAuthState,
-    shared: SharedState,
+    _shared: SharedState,
     poll_interval_ms: u64,
 ) -> Result<()> {
     let active_forwards = Arc::new(Mutex::new(HashSet::new()));
@@ -67,16 +67,11 @@ pub(crate) async fn port_forward_loop(
                 .await;
             }
             Ok(ClaimNextPortForwardOutcome::Forward(None)) => {}
-            Ok(ClaimNextPortForwardOutcome::DeviceMissing) => {
-                eprintln!(
-                    "device {} missing on relay during port-forward claim, re-registering",
-                    profile.device_id
+            Ok(ClaimNextPortForwardOutcome::Unsupported) => {
+                println!(
+                    "[agent] relay does not expose port-forward control APIs; disabling port-forward loop"
                 );
-                if let Err(error) =
-                    register_current_device(&client, &relay_url, &profile, &shared, &auth).await
-                {
-                    eprintln!("device re-registration failed: {error:#}");
-                }
+                return Ok(());
             }
             Err(error) => {
                 eprintln!("failed to claim port forward: {error:#}");
@@ -181,7 +176,7 @@ async fn claim_next_port_forward(
         .context("failed to claim port forward")?;
 
     if response.status() == reqwest::StatusCode::NOT_FOUND {
-        return Ok(ClaimNextPortForwardOutcome::DeviceMissing);
+        return Ok(ClaimNextPortForwardOutcome::Unsupported);
     }
 
     let response = response
@@ -214,7 +209,13 @@ async fn list_port_forwards_by_status(
         ])
         .send()
         .await
-        .context("failed to list port forwards")?
+        .context("failed to list port forwards")?;
+
+    if response.status() == reqwest::StatusCode::NOT_FOUND {
+        return Ok(Vec::new());
+    }
+
+    let response = response
         .error_for_status()
         .context("relay rejected port-forward list")?
         .json::<Vec<PortForwardRecord>>()

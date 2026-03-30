@@ -2,12 +2,17 @@ use anyhow::Context;
 use async_stream::stream;
 use axum::{
     Json, Router,
-    extract::{Path, Query, State},
+    extract::{
+        Path, Query, State,
+        ws::{Message, WebSocket, WebSocketUpgrade},
+    },
     http::{HeaderMap, StatusCode, Uri},
     response::sse::{Event, KeepAlive, Sse},
     response::{IntoResponse, Response},
     routing::{get, post},
 };
+use futures_util::StreamExt;
+use serde::Deserialize;
 use std::{
     collections::HashMap,
     convert::Infallible,
@@ -15,22 +20,30 @@ use std::{
     time::Duration,
 };
 use tokio::{
-    io::AsyncBufReadExt,
+    io::{AsyncBufReadExt, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader},
     net::{TcpListener, TcpStream},
-    sync::{RwLock, broadcast},
+    sync::{RwLock, broadcast, mpsc},
+    task::JoinHandle,
 };
 use tower_http::cors::CorsLayer;
 use uuid::Uuid;
 use vibe_core::{
-    ActorIdentity, AppConfig, AppendTaskEventsRequest, AuditAction, AuditOutcome, AuditRecord,
+    ActorIdentity, AppConfig, AppendShellOutputRequest, AppendTaskEventsRequest, AuditAction,
+    AuditOutcome, AuditRecord, ClaimPortForwardResponse, ClaimShellSessionResponse,
     ClaimTaskResponse, ConversationDetailResponse, ConversationInputRequest, ConversationRecord,
     CreateConversationInputRequest, CreateConversationRequest, CreateConversationResponse,
-    CreateTaskRequest, CreateTaskResponse, DEVICE_OFFLINE_AFTER_MS, DeviceRecord, HeartbeatRequest,
-    HeartbeatResponse, OverlayState, ProviderKind, RegisterDeviceRequest, RegisterDeviceResponse,
-    RelayEventEnvelope, RelayEventType, RespondConversationInputRequest,
+    CreatePortForwardRequest, CreatePortForwardResponse, CreateShellInputRequest,
+    CreateShellSessionRequest, CreateShellSessionResponse, CreateTaskRequest, CreateTaskResponse,
+    DEVICE_OFFLINE_AFTER_MS, DeviceCapability, DeviceRecord, HeartbeatRequest, HeartbeatResponse,
+    OverlayState, PortForwardBridgeEvent, PortForwardBridgeRequest, PortForwardDetailResponse,
+    PortForwardRecord, PortForwardStatus, PortForwardTransportKind, PortForwardTunnelControl,
+    ProviderKind, RegisterDeviceRequest, RegisterDeviceResponse, RelayEventEnvelope,
+    RelayEventType, ReportPortForwardStateRequest, RespondConversationInputRequest,
     SendConversationMessageRequest, SendConversationMessageResponse, ServiceHealth,
-    TaskBridgeEvent, TaskBridgeRequest, TaskDetailResponse, TaskEvent, TaskRecord, TaskStatus,
-    TaskTransportKind, default_app_config, now_epoch_millis,
+    ShellBridgeEvent, ShellBridgeRequest, ShellInputRecord, ShellOutputChunk,
+    ShellPendingInputResponse, ShellSessionDetailResponse, ShellSessionRecord, ShellSessionStatus,
+    ShellStreamKind, ShellTransportKind, TaskBridgeEvent, TaskBridgeRequest, TaskDetailResponse,
+    TaskEvent, TaskRecord, TaskStatus, TaskTransportKind, default_app_config, now_epoch_millis,
 };
 
 mod auth;
@@ -38,6 +51,8 @@ mod config;
 mod conversations;
 mod easytier;
 mod git;
+mod port_forwards;
+mod shell;
 mod storage;
 mod store;
 mod tasks;
@@ -61,8 +76,17 @@ use git::{
     GitRequestEntry, claim_next_git_request, complete_git_request, diff_git_file,
     inspect_git_workspace,
 };
+use port_forwards::{
+    claim_next_port_forward, close_port_forward, create_port_forward, get_port_forward,
+    list_port_forwards, port_forward_tunnel_websocket, report_port_forward_state,
+};
+use shell::{
+    append_shell_input, append_shell_output, claim_next_shell_session, close_shell_session,
+    create_shell_session, get_shell_pending_input, get_shell_session, list_shell_sessions,
+    shell_session_websocket,
+};
 use storage::{RelayStorage, build_relay_storage};
-use store::{DeviceCredentialRecord, RelayStore, TaskEntry};
+use store::{DeviceCredentialRecord, PortForwardEntry, RelayStore, ShellSessionEntry, TaskEntry};
 #[cfg(test)]
 use store::{load_relay_store, persist_relay_store};
 #[cfg(test)]
@@ -78,6 +102,7 @@ struct AppState {
     store: Arc<RwLock<RelayStore>>,
     storage: Arc<dyn RelayStorage>,
     events_tx: broadcast::Sender<RelayEventEnvelope>,
+    shell_session_updates: Arc<RwLock<HashMap<String, broadcast::Sender<String>>>>,
     workspace_requests: Arc<RwLock<HashMap<String, WorkspaceRequestEntry>>>,
     git_requests: Arc<RwLock<HashMap<String, GitRequestEntry>>>,
     overlay_bridge_health: Arc<StdRwLock<HashMap<OverlayBridgeKey, OverlayBridgeHealth>>>,
@@ -87,18 +112,24 @@ struct AppState {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 enum OverlayBridgeKind {
     Task,
+    Shell,
+    PortForward,
 }
 
 impl OverlayBridgeKind {
     fn label(self) -> &'static str {
         match self {
             Self::Task => "task",
+            Self::Shell => "shell",
+            Self::PortForward => "port-forward",
         }
     }
 
     fn port(self, config: &RelayConfig) -> u16 {
         match self {
             Self::Task => config.task_bridge_port,
+            Self::Shell => config.shell_bridge_port,
+            Self::PortForward => config.port_forward_bridge_port,
         }
     }
 }
@@ -430,6 +461,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         store: Arc::new(RwLock::new(store)),
         storage,
         events_tx,
+        shell_session_updates: Arc::new(RwLock::new(HashMap::new())),
         workspace_requests: Arc::new(RwLock::new(HashMap::new())),
         git_requests: Arc::new(RwLock::new(HashMap::new())),
         overlay_bridge_health: Arc::new(StdRwLock::new(HashMap::new())),
@@ -500,12 +532,58 @@ fn build_app(state: AppState) -> Router {
             post(respond_task_input_request),
         )
         .route(
+            "/api/shell/sessions",
+            get(list_shell_sessions).post(create_shell_session),
+        )
+        .route("/api/shell/sessions/:session_id", get(get_shell_session))
+        .route(
+            "/api/shell/sessions/:session_id/ws",
+            get(shell_session_websocket),
+        )
+        .route(
+            "/api/shell/sessions/:session_id/input",
+            get(get_shell_pending_input).post(append_shell_input),
+        )
+        .route(
+            "/api/shell/sessions/:session_id/output",
+            post(append_shell_output),
+        )
+        .route(
+            "/api/shell/sessions/:session_id/close",
+            post(close_shell_session),
+        )
+        .route(
+            "/api/devices/:device_id/shell/claim-next",
+            post(claim_next_shell_session),
+        )
+        .route(
+            "/api/devices/:device_id/port-forwards/claim-next",
+            post(claim_next_port_forward),
+        )
+        .route(
             "/api/devices/:device_id/workspace/claim-next",
             post(claim_next_workspace_request),
         )
         .route(
             "/api/devices/:device_id/git/claim-next",
             post(claim_next_git_request),
+        )
+        .route(
+            "/api/port-forwards",
+            get(list_port_forwards).post(create_port_forward),
+        )
+        .route("/api/port-forwards/:forward_id", get(get_port_forward))
+        .route(
+            "/api/port-forwards/:forward_id/report",
+            post(report_port_forward_state),
+        )
+        .route(
+            "/api/port-forwards/:forward_id/tunnel/ws",
+            get(port_forward_tunnel_websocket),
+        )
+        .route(
+            "/api/port-forwards/:forward_id/close",
+            post(close_port_forward),
         )
         .route("/api/workspace/browse", post(browse_workspace))
         .route("/api/workspace/preview", post(preview_workspace_file))
@@ -853,15 +931,69 @@ fn persist_snapshot(state: &AppState, snapshot: &RelayStore) -> Result<(), ApiEr
     })
 }
 
+async fn shell_session_sender(state: &AppState, session_id: &str) -> broadcast::Sender<String> {
+    let mut updates = state.shell_session_updates.write().await;
+    if let Some(sender) = updates.get(session_id) {
+        return sender.clone();
+    }
+
+    let (sender, _) = broadcast::channel(64);
+    updates.insert(session_id.to_string(), sender.clone());
+    sender
+}
+
+async fn publish_shell_session_detail(state: &AppState, detail: &ShellSessionDetailResponse) {
+    let Ok(payload) = serde_json::to_string(detail) else {
+        return;
+    };
+    let sender = shell_session_sender(state, &detail.session.id).await;
+    let _ = sender.send(payload);
+}
+
+fn shell_session_detail(entry: &ShellSessionEntry) -> ShellSessionDetailResponse {
+    ShellSessionDetailResponse {
+        session: entry.record.clone(),
+        inputs: entry.inputs.clone(),
+        outputs: entry.outputs.clone(),
+    }
+}
+
+fn push_shell_output(
+    entry: &mut ShellSessionEntry,
+    stream: vibe_core::ShellStreamKind,
+    data: String,
+    timestamp_epoch_ms: u64,
+) {
+    entry.record.last_output_seq += 1;
+    entry.outputs.push(ShellOutputChunk {
+        seq: entry.record.last_output_seq,
+        session_id: entry.record.id.clone(),
+        stream,
+        data,
+        timestamp_epoch_ms,
+    });
+    if entry.outputs.len() > SHELL_OUTPUT_LIMIT_MAX {
+        let excess = entry.outputs.len() - SHELL_OUTPUT_LIMIT_MAX;
+        entry.outputs.drain(0..excess);
+    }
+}
+
 async fn shutdown_signal() {
     let _ = tokio::signal::ctrl_c().await;
 }
 
 const HEARTBEAT_SWEEP_MS: u64 = 5_000;
 const TASK_LIST_LIMIT_MAX: usize = 500;
+const SHELL_SESSION_LIST_LIMIT_MAX: usize = 100;
+const SHELL_OUTPUT_LIMIT_MAX: usize = 1_024;
+const PORT_FORWARD_LIST_LIMIT_MAX: usize = 100;
 const AUDIT_RECORD_LIMIT_MAX: usize = 500;
+const DEFAULT_SHELL_BRIDGE_PORT: u16 = 19_090;
+const DEFAULT_PORT_FORWARD_BRIDGE_PORT: u16 = 19_091;
 const DEFAULT_TASK_BRIDGE_PORT: u16 = 19_092;
+const SHELL_BRIDGE_POLL_MS: u64 = 100;
 const TASK_BRIDGE_POLL_MS: u64 = 100;
+const MAX_BRIDGE_FRAME_BYTES: usize = 8 * 1024;
 
 #[cfg(test)]
 mod tests {
@@ -923,6 +1055,12 @@ mod tests {
             state_file: std::env::temp_dir()
                 .join(format!("vibe-relay-test-{}", Uuid::new_v4()))
                 .join("relay-state.json"),
+            forward_host: "127.0.0.1".to_string(),
+            forward_bind_host: "127.0.0.1".to_string(),
+            forward_port_start: 39_000,
+            forward_port_end: 39_999,
+            shell_bridge_port: DEFAULT_SHELL_BRIDGE_PORT,
+            port_forward_bridge_port: DEFAULT_PORT_FORWARD_BRIDGE_PORT,
             task_bridge_port: DEFAULT_TASK_BRIDGE_PORT,
             overlay_bridge_connect_timeout_ms: 100,
             overlay_bridge_start_timeout_ms: 200,
@@ -936,6 +1074,7 @@ mod tests {
             store: Arc::new(RwLock::new(store)),
             storage: build_relay_storage(config.storage_kind.clone(), config.state_file.clone()),
             events_tx,
+            shell_session_updates: Arc::new(RwLock::new(HashMap::new())),
             workspace_requests: Arc::new(RwLock::new(HashMap::new())),
             git_requests: Arc::new(RwLock::new(HashMap::new())),
             overlay_bridge_health: Arc::new(StdRwLock::new(HashMap::new())),

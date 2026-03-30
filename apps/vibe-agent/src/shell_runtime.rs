@@ -2,7 +2,7 @@ use super::*;
 
 enum ClaimNextShellSessionOutcome {
     Session(Option<ShellSessionRecord>),
-    DeviceMissing,
+    Unsupported,
 }
 
 struct ShellOutputMessage {
@@ -15,7 +15,7 @@ pub(crate) async fn shell_session_loop(
     relay_url: String,
     profile: AgentProfile,
     auth: AgentAuthState,
-    shared: SharedState,
+    _shared: SharedState,
     working_root: PathBuf,
     poll_interval_ms: u64,
 ) -> Result<()> {
@@ -48,16 +48,9 @@ pub(crate) async fn shell_session_loop(
                 });
             }
             Ok(ClaimNextShellSessionOutcome::Session(None)) => {}
-            Ok(ClaimNextShellSessionOutcome::DeviceMissing) => {
-                eprintln!(
-                    "device {} missing on relay during shell claim, re-registering",
-                    profile.device_id
-                );
-                if let Err(error) =
-                    register_current_device(&client, &relay_url, &profile, &shared, &auth).await
-                {
-                    eprintln!("device re-registration failed: {error:#}");
-                }
+            Ok(ClaimNextShellSessionOutcome::Unsupported) => {
+                println!("[agent] relay does not expose shell control APIs; disabling shell loop");
+                return Ok(());
             }
             Err(error) => {
                 eprintln!("failed to claim shell session: {error:#}");
@@ -80,7 +73,7 @@ async fn claim_next_shell_session(
         .context("failed to claim shell session")?;
 
     if response.status() == reqwest::StatusCode::NOT_FOUND {
-        return Ok(ClaimNextShellSessionOutcome::DeviceMissing);
+        return Ok(ClaimNextShellSessionOutcome::Unsupported);
     }
 
     let response = response
