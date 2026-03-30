@@ -21,7 +21,10 @@ Use `cargo fmt --all` for Rust formatting. Follow Rust defaults: `snake_case` fo
 ## Product And UX Guardrails
 - Do not keep growing the control app as one long, all-in-one dashboard. When multiple top-level workflows coexist, they must be separated by explicit navigation such as tabs or route-backed sections.
 - When long-lived AI conversation is the primary workflow, do not isolate relay connection or device-selection prerequisites on a separate top-level page; keep required setup inside the conversation-first flow and reserve secondary views for management or advanced tools.
+- For the current AI worktree product baseline, the primary mobile navigation must remain `首页 / 项目 / 通知 / 我的` or their equivalent localized labels. Do not collapse host, project, notification, and settings workflows back into one mixed landing page.
+- For the current AI worktree product baseline, project detail must keep `会话 / 变更 / 文件 / 日志` or their equivalent localized labels as explicit secondary sections, with conversation as the default entry.
 - Do not regress the primary surface from durable conversation threads back into disposable task cards. The transcript/composer must remain primary, while Git, files, raw trace, shell, and preview stay secondary or explicitly invoked.
+- Keep the user-facing object model explicit and stable: `服务器 -> 主机 -> 项目 -> 会话/任务执行`. Do not rename or flatten these layers in a way that hides the current host/project context from the active workspace.
 - When provider runtime asks the user to choose, approve, or clarify, surface that interaction inline in the active conversation. If the protocol supports free-form text, the UI must offer a custom-input path in addition to fixed options.
 - Do not present incomplete enterprise, governance, or admin surfaces in the default end-user flow. Hide them behind explicit feature flags or dedicated management areas until they are truly ready.
 - Do not render operator or deployment guidance as always-on primary dashboard prose. Detailed self-hosted guidance belongs in docs, drawers, tooltips, or contextual validation, not as the main description for everyday users.

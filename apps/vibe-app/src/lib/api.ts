@@ -10,8 +10,14 @@ import type {
   CreateShellSessionPayload,
   CreateTaskPayload,
   DeviceRecord,
+  GitCreateWorktreeRequest,
+  GitCreateWorktreeResponse,
+  GitDiffFileRequest,
+  GitDiffFileResponse,
   GitInspectRequest,
   GitInspectResponse,
+  GitRemoveWorktreeRequest,
+  GitRemoveWorktreeResponse,
   PortForwardDetailResponse,
   PortForwardRecord,
   PortForwardStatus,
@@ -429,6 +435,48 @@ export function inspectGitWorkspace(
   accessToken: string
 ) {
   return requestJson<GitInspectResponse>(baseUrl, "/api/git/inspect", {
+    accessToken,
+    init: {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }
+  });
+}
+
+export function fetchGitDiffFile(
+  baseUrl: string,
+  payload: GitDiffFileRequest,
+  accessToken: string
+) {
+  return requestJson<GitDiffFileResponse>(baseUrl, "/api/git/diff-file", {
+    accessToken,
+    init: {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }
+  });
+}
+
+export function createGitWorktree(
+  baseUrl: string,
+  payload: GitCreateWorktreeRequest,
+  accessToken: string
+) {
+  return requestJson<GitCreateWorktreeResponse>(baseUrl, "/api/git/worktrees", {
+    accessToken,
+    init: {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }
+  });
+}
+
+export function removeGitWorktree(
+  baseUrl: string,
+  payload: GitRemoveWorktreeRequest,
+  accessToken: string
+) {
+  return requestJson<GitRemoveWorktreeResponse>(baseUrl, "/api/git/worktrees/remove", {
     accessToken,
     init: {
       method: "POST",

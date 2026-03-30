@@ -6,10 +6,11 @@
 
 [中文](./README.md) | [English](./README.en.md)
 
-Vibe Everywhere is a self-hosted remote AI control plane. The system consists of `vibe-relay`,
-`vibe-agent`, and control clients. It is used to run long-lived AI coding conversations on remote
-machines and to manage device registration, conversation routing, workspace browsing, Git
-inspection, preview access, and advanced connection paths through one control surface.
+Vibe Everywhere is a self-hosted remote AI worktree development workspace. The system consists of
+`vibe-relay`, `vibe-agent`, and control clients. It is used to run long-lived AI coding
+conversations on remote hosts and to manage server connection, host/project entry, Git inspection,
+file viewing, runtime logs, preview access, and advanced connection paths through one control
+surface.
 
 This document is written for end users and operators. It provides a system overview, binary
 installation entry points, relay startup references, key configuration semantics, and the standard
@@ -22,33 +23,67 @@ The standard workflow is:
 1. Deploy `vibe-relay` on a host reachable by clients and agents.
 2. Start `vibe-agent` on target execution nodes.
 3. Connect a desktop, Android, or self-hosted Web client to the relay.
-4. Select a device and start a long-lived AI conversation.
-5. Use the home surface to pick a device and one of that device's historical project folders, then
-   continue the project chat; open project-scoped topic history from the top-left and use devices
-   or menu settings only when you need management tasks.
+4. Select an online host and open one of its projects.
+5. Continue an existing conversation or start a new AI task inside that project.
+6. Review conversation output, changes, files, and logs from the same project workspace across
+   mobile and desktop.
 
 ## Components
 
 | Component | Purpose | Typical Location |
 | --- | --- | --- |
 | `vibe-relay` | Control-plane entry point for auth, device registration, conversation / task routing, aggregation, and public APIs | Server, workstation, cloud host |
-| `vibe-agent` | Runtime on the target machine for provider execution, workspace access, Git inspection, preview bridging, and advanced connections | Machine that runs AI work |
-| Control client | Connects to the relay and manages long-lived AI conversations, devices, and results | Desktop, Android, self-hosted Web client |
+| `vibe-agent` | Runtime on the target host for provider execution, workspace access, Git inspection, log streaming, preview bridging, and advanced connections | Machine that runs AI work |
+| Control client | Connects to the relay, browses hosts and projects, manages long-lived AI conversations, and reviews results | Desktop, Android, self-hosted Web client |
 
 ## Supported Capabilities
 
 The current release supports:
 
-- creation, continuation, cancellation, and streaming of long-lived AI conversations
-- device/project home entry for long-lived AI chats, with project grouping by working directory and
-  a project-scoped topic-history drawer
+- the new mobile-first IA skeleton: `Home / Projects / Notifications / My`
+- a project workspace skeleton: `Conversation / Changes / Files / Logs`
+- host project discovery from the agent working root and first-level Git repositories
+- creation, continuation, and basic event viewing for long-lived AI conversations
 - device registration, presence reporting, and provider availability display
+- branch and changed-file summaries in project cards and project headers
 - workspace browsing and text-file preview
-- Git status, changed-file, and recent-commit inspection
-- preview access, shell sessions, and advanced connection capabilities
+- Git status, changed-file listing, and recent-commit inspection
+- file-level Git diff review with heuristic review summaries
+- per-task conversation summaries with recent execution events and expandable raw output
+- direct stop action for pending or running tasks inside the conversation surface
+- quick follow-up actions on task cards for retry, result explanation, and direct jumps into
+  changes or logs
+- per-task execution mode selection: read-only / workspace write / write + test
+- ACP runtime enforcement for execution mode: read-only blocks writes and terminal commands, while
+  workspace write blocks test-style terminal commands by default
+- current CLI-provider enforcement on shipped providers: Codex uses explicit sandbox/approval flags
+  across execution modes, and Claude read-only sessions use native `plan` mode
+- Claude read-only mode now also ships with a default write/shell tool blacklist instead of
+  relying on `plan` mode alone
+- Claude workspace-write mode now also ships with a default blacklist for common test-style Bash
+  commands
+- visible "effective enforcement" summaries on the composer and task cards so users can see the
+  current provider/runtime policy in the main conversation flow
+- editable policy defaults in My for execution mode, notification preference, and high-risk
+  confirmation, plus a global audit trail view
+- extra send confirmation for obviously risky prompts in writable modes
+- log-page error summaries and event filtering
+- conversation-scoped audit trail visibility inside project logs
+- a notification policy and recall center with a default preference, per-project overrides,
+  unread/recent grouping, status filters, and direct actions into conversation, changes, or logs
 - inline provider choice prompts with preset options plus custom text input
+- the desktop three-pane workbench, including sibling Git worktree creation and rediscovery from a
+  project workspace
+- sibling worktree removal from the desktop worktree list plus richer lifecycle states such as
+  current, detached, inventory-missing, and remove-failed
 - English and Simplified Chinese UI
 - light, dark, and system theme modes
+
+Capabilities still being aligned to the baseline document:
+
+- deeper and more complete host project inventory beyond the current working-root scan
+- richer async recall and a fuller notification-policy center
+- stronger execution-policy enforcement and audit-policy surfaces
 
 ## Quick Start
 
@@ -208,10 +243,10 @@ Recommended first-use sequence:
 
 1. Open the desktop or Android client.
 2. Open server settings from the menu and enter the relay address plus `VIBE_RELAY_ACCESS_TOKEN`.
-3. Return to the chat home and confirm that at least one device is online and that at least one
+3. Return to the app home and confirm that at least one host is online and that at least one
    provider is available.
-4. Pick a device and one of that device's project folders.
-5. Create or continue a long-lived AI topic inside that project.
+4. Open the target project under that host.
+5. Create or continue a long-lived AI conversation inside the project workspace.
 
 ## Configuration Semantics
 

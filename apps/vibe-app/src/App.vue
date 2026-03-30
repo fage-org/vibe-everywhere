@@ -1,14 +1,12 @@
 <script setup lang="ts">
 import { watch } from "vue"
-import { storeToRefs } from "pinia"
 import { syncThemeWithAppConfig } from "@/lib/theme"
-import { useControlStore } from "@/stores/control"
+import { useAppStore } from "@/stores/app"
 
-const store = useControlStore()
-const { appConfig } = storeToRefs(store)
+const store = useAppStore()
 
 watch(
-  appConfig,
+  () => store.appConfig,
   (value) => {
     syncThemeWithAppConfig(value)
   },

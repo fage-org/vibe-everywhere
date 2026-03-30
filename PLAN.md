@@ -20,8 +20,8 @@ The active plan set is:
 
 - planning index: [`docs/plans/README.md`](./docs/plans/README.md)
 - process governance: [`docs/plans/process.md`](./docs/plans/process.md)
-- active iteration summary: [`docs/plans/iterations/v5-summary.md`](./docs/plans/iterations/v5-summary.md)
-- active iteration details: [`docs/plans/iterations/v5-details.md`](./docs/plans/iterations/v5-details.md)
+- active iteration summary: [`docs/plans/iterations/v6-summary.md`](./docs/plans/iterations/v6-summary.md)
+- active iteration details: [`docs/plans/iterations/v6-details.md`](./docs/plans/iterations/v6-details.md)
 - active remediation summary: [`docs/plans/remediation/v12-summary.md`](./docs/plans/remediation/v12-summary.md)
 - active remediation details: [`docs/plans/remediation/v12-details.md`](./docs/plans/remediation/v12-details.md)
 
@@ -32,40 +32,41 @@ files listed above.
 
 The target product is:
 
-- an AI-session-first remote development control plane
+- a mobile-first remote AI worktree development workspace
 - available on Web, Tauri Desktop, and Android in the near term
 - self-hosted by default, with hosted-compatible deployment metadata later
-- suitable for personal and small-team use first
-- structurally ready to evolve into a multi-tenant enterprise product later
+- focused on personal-user closed-loop remote development first
+- structurally ready to evolve into richer multi-worktree and later team workflows
 
-This means the public product model must be reorganized around:
+This means the public product model must be organized around:
 
-- devices
-- AI sessions
-- workspace supervision
-- preview access
-- notifications
-- optional advanced tools such as terminal and raw tunnel access
+- server
+- host
+- project
+- conversation / task execution
+- code, Git, file, and log inspection
+- notification-driven recall and safe follow-up actions
 
-The product must not continue to present `task`, `shell`, and `port-forward` as equal top-level
-user-facing concepts.
+The product must not continue to present the old dashboard console or low-level runtime concepts as
+the primary user-facing model.
 
 ## Current MVP Baseline
 
 Delivered today:
 
 - device register, heartbeat, presence, and provider discovery
-- relay-backed task create, claim, run, cancel, and event streaming
-- relay-backed shell session create, input, output, websocket updates, and close
-- relay-first and overlay-assisted port-forward backend flows
+- relay-backed conversation and task orchestration
+- workspace browse / preview and Git inspection backends
+- relay-backed shell session and preview transport backends
 - Rust relay, Rust agent, Vue control app, Tauri desktop shell, and Android packaging
 - provider integration for Codex, Claude Code, and OpenCode
 - self-hosted relay as the default operating model
 
 Not yet productized:
 
-- full diff review, patch approval, and merge supervision
-- notifications and async workflow UX
+- full mobile-first product UI aligned to the AI worktree design baseline
+- notification-first recall flow and project review ergonomics
+- multi-worktree project management
 - enterprise-grade auth, audit, role model, and storage abstraction
 
 ## Engineering Guardrails
@@ -105,12 +106,16 @@ This precedence must be documented and preserved for:
 
 The product layer must converge on:
 
-- `AI Session` over raw `Task`
-- `Preview` over raw `Port Forward`
-- `Terminal` or `Advanced Console` over raw `Shell Session`
+- `Server` for the active relay entry
+- `Host` for a managed execution device
+- `Project` for a repository or stable working directory
+- `Conversation` for the long-lived AI thread
+- `Task execution` for a single run within that conversation
+- `Changes`, `Files`, and `Logs` for secondary inspectors
 
-Low-level transport terms such as `overlay`, `bridge`, and `tunnel` must remain advanced or debug
-concepts unless the user explicitly enters that layer.
+Low-level transport terms such as `overlay`, `bridge`, `tunnel`, `shell session`, and raw
+`port-forward` must remain secondary or advanced concepts unless the user explicitly enters that
+layer.
 
 ### UI Quality Rules
 
@@ -151,40 +156,99 @@ When an iteration is completed and verified:
 | 12 | Delivery Verification Hardening | completed |
 | 13 | Workflow And Release Verification Normalization | completed |
 | 14 | Session-First Primary Workflow Productization | completed |
-| 15 | Conversation-First Threaded AI Sessions | in_progress |
+| 15 | Conversation-First Threaded AI Sessions | completed |
+| 16 | Product Reset And Information Architecture Rewrite | in_progress |
+| 17 | Mobile-First Host And Project Entry | planned |
+| 18 | Project Workspace And ACP Conversation Experience | planned |
+| 19 | Review, Logs, Notifications, And Safety Controls | planned |
+| 20 | Desktop Workbench And Multi-Worktree Expansion | planned |
 
 ## Current Iteration
 
 Current planned implementation target:
 
-- Iteration 0 through Iteration 11 are completed for the current roadmap baseline.
-- Iteration roadmap `v5` is active for the conversation-first remote coding workspace epoch after
-  the session-first primary workflow consolidation.
-- Iteration 12 completed the first delivery-verification hardening phase, including Windows smoke
-  coverage and the initial hosted Linux overlay diagnostic split.
-- Iteration 13 restores GitHub-hosted Linux `overlay` smoke as a blocking gate in both `CI` and
-  `Release`, keeps the hosted runner on the harness-only `no_tun` path, aligns release publish
-  dependencies with that gate, and audits workflow/testing/release/plan docs for stale claims.
-- Iteration 14 consolidates relay connection, device selection, session launch, Git/result review,
-  and workspace browsing into the `Sessions` route, redirects the legacy `Connections` route into
-  that primary workflow, and moves deployment/current-client/governance context into `Devices`.
-- Iteration 15 is in progress for durable conversations, provider-native threaded continuation,
-  inline user-choice prompts, and truthful ACP capability signaling where only OpenCode is
-  currently advertised as standard ACP.
-- Iteration 15 now also includes the Poe/Telegram navigation tranche: the default client entry is a
-  device/project home grouped by `device + cwd`, project chats open as Telegram-like transcript
-  pages with a top-left topic-history drawer, and relay configuration moves to
-  `Menu > Settings > Server`.
-- Iteration 15 transcript cleanup is now `user-specified` Mode 1 for the chat surface: main
-  conversation flow shows only user/assistant dialogue plus inline choice prompts, while raw
-  lifecycle/tool/stderr events stay in `Trace` with only a lightweight per-turn entry in transcript.
-- Iteration 15 also now tracks ACP completion follow-up explicitly: stable OpenCode session-update
-  coverage and stored-session validation are implemented, while authenticated startup, richer
-  transcript-safe session lifecycle support, and extension methods remain queued in the active v5
-  detail plan.
-- Iteration 15 now uses `user-specified` Mode 3 for ACP continuation: prefer standard
-  `session/resume` when the agent advertises it, and avoid `session/load` on the hot conversation
-  path because it replays prior messages into the current transcript model.
+- Iteration 0 through Iteration 15 are completed for the prior roadmap baseline.
+- Iteration roadmap `v6` is active for the AI worktree reset epoch driven by the repository-owned
+  design document added on 2026-03-30.
+- Iteration 16 is in progress for the product reset:
+  rewrite product docs and plans, remove obsolete pointer docs, replace the old frontend routing
+  shell, and align the app to `首页 / 项目 / 通知 / 我的` plus
+  `会话 / 变更 / 文件 / 日志`.
+- Iteration 16A is complete for planning and documentation truthfulness:
+  the repository now records the gap between the shipped frontend skeleton and the remaining
+  baseline-product work instead of treating the whole baseline document as already implemented.
+- Iteration 16B is partially delivered:
+  notification recall can reopen the exact conversation, project inventory now persists as a
+  bounded host snapshot built from the working root plus known-project/worktree expansion, and
+  project summaries now surface branch, dirty-file counts, discovery source, and availability
+  state even before a project has prior conversation history.
+- Iteration 17 will stabilize mobile-first host and project entry, including home continuation,
+  project search/filtering, and current-server context.
+- Iteration 18 will deepen the project workspace around ACP conversation flow, inline provider
+  prompts, Git summaries, file browse, and runtime logs inside one project route.
+- Iteration 18 has started with review-first `变更` inspection:
+  the project workspace can now load per-file Git diffs through relay and agent, and the change
+  tab leads with summary cards instead of only listing changed files.
+- Iteration 19 has started with lightweight task-safety controls:
+  the composer now records execution mode on each task, sends agent-side execution guidance, and
+  asks for confirmation before sending clearly risky writable prompts.
+- Iteration 19 now also includes a fuller notification-policy and recall center:
+  the notification view supports global defaults, per-project overrides, unread/recent grouping,
+  status filters, and direct actions back into conversation, changes, or logs.
+- Iteration 19 project workspaces now also pull audit records for the active conversation tasks and
+  surface them ahead of raw runtime logs.
+- Iteration 19 execution mode now also enforces initial ACP-side runtime boundaries:
+  read-only blocks file writes and terminal commands, while workspace-write blocks test-like
+  terminal commands unless the task opts into write-and-test.
+- Iteration 19 CLI provider enforcement is now aligned for the currently shipped CLI providers:
+  Codex uses explicit sandbox/approval flags across all modes, and Claude read-only sessions map
+  to native `plan` mode.
+- Claude read-only sessions now also apply a default write/shell tool blacklist, reducing the gap
+  between requested and effective read-only behavior on that CLI path.
+- Claude workspace-write sessions now also apply a default blacklist for common test-style Bash
+  commands, reducing the remaining CLI hard-constraint gap.
+- Iteration 19 conversation UI now also shows an explicit effective-enforcement summary for the
+  selected composer mode and each task card, exposing provider/runtime policy differences directly
+  in the main workflow.
+- Iteration 19 我的 now also includes editable policy defaults for execution mode, notification
+  preference, and high-risk confirmation, plus a global audit trail view.
+- Iteration 19 通知页 now also includes a fuller notification-policy center with a global default,
+  per-project overrides, unread/recent grouping, status filters, and seen-state recall.
+- Iteration 18 conversation turns now also render as structured task cards with summaries, recent
+  execution events, and expandable raw event output.
+- Iteration 18 task cards can now also stop pending or running work directly from the conversation
+  surface.
+- Iteration 18 task cards now also expose quick follow-up actions for retrying failed work or
+  asking the AI to explain the previous result.
+- Iteration 18 task cards now also expose direct jumps into changes and logs for result review.
+- Iteration 20 has started with desktop shell and workspace layout:
+  wide screens now use a side app rail plus a three-pane project workspace instead of only the
+  mobile bottom-nav and stacked project panels.
+- The desktop project workspace tree now groups projects by host and path hierarchy, reducing the
+  remaining Iteration 20 gap primarily to explicit multi-worktree identity and deeper desktop
+  tooling polish.
+- Shared-repository identity now flows from Git inspect into project summaries via `repoCommonDir`,
+  so the remaining Iteration 20 gap is primarily explicit worktree lifecycle behavior rather than
+  raw identity modeling.
+- Structured worktree inventory now also flows through Git inspect into the project workspace,
+  further narrowing Iteration 20 to explicit lifecycle actions and deeper desktop ergonomics.
+- Iteration 20 now includes the first explicit worktree lifecycle action:
+  desktop project workspaces can create a sibling worktree on a new branch and refresh the
+  shared-repository project tree after creation.
+- Desktop workspaces can now also list the current repository worktrees and reopen discovered
+  worktrees directly from the sidebar.
+- Project inventory discovery now expands through Git-reported worktree paths, so sibling
+  worktrees can enter project inventory without a deeper filesystem crawl.
+- Desktop worktree lists now also surface richer lifecycle states and keep remove-failure context
+  visible, reducing the remaining v6 gap to deeper project discovery rather than worktree basics.
+  worktrees created from the desktop flow can re-enter the project tree without relying only on the
+  original top-level directory scan.
+- Desktop worktree lists can now also remove non-current sibling worktrees and refresh the project
+  tree afterward.
+- Iteration 19 will complete the personal-user review loop with notifications, review-first change
+  inspection, and safety confirmations.
+- Iteration 20 will expand the same object model into a desktop workbench and prepare for future
+  multi-worktree support.
 - The active remediation track remains the problem-driven remediation plan in
   `docs/plans/remediation/v12-summary.md`.
 - Remediation plan `v1` is complete.
@@ -219,6 +283,8 @@ Current planned implementation target:
 
 Most recent completed tranche:
 
+- Iteration 15: conversation-first threaded AI sessions, provider-native continuation, inline
+  provider prompts, and truthful ACP capability signaling under the previous roadmap epoch
 - Remediation 11: Linux CLI ABI compatibility hardening through musl-only release packaging,
   installer alignment, and explicit static-binary verification
 - Remediation 12: release version-source synchronization and fail-fast tag/version publish

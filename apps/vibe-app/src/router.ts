@@ -1,12 +1,11 @@
 import { createRouter, createWebHashHistory } from "vue-router"
 import type { RouteRecordRaw } from "vue-router"
-import DashboardAdvancedSection from "./views/dashboard/sections/DashboardAdvancedSection.vue"
-import DashboardDevicesSection from "./views/dashboard/sections/DashboardDevicesSection.vue"
 import AppShellView from "./views/AppShellView.vue"
-import ChatHomeView from "./views/chat/ChatHomeView.vue"
-import ProjectChatView from "./views/chat/ProjectChatView.vue"
-import MenuView from "./views/menu/MenuView.vue"
-import ServerSettingsView from "./views/menu/ServerSettingsView.vue"
+import HomeView from "./views/HomeView.vue"
+import NotificationsView from "./views/NotificationsView.vue"
+import ProjectWorkspaceView from "./views/ProjectWorkspaceView.vue"
+import ProjectsView from "./views/ProjectsView.vue"
+import SettingsView from "./views/SettingsView.vue"
 
 const routes: RouteRecordRaw[] = [
   {
@@ -19,55 +18,47 @@ const routes: RouteRecordRaw[] = [
       {
         path: "",
         redirect: {
-          name: "chat-home"
+          name: "home"
         }
       },
       {
-        path: "chat",
-        name: "chat-home",
-        component: ChatHomeView,
+        path: "home",
+        name: "home",
+        component: HomeView,
         meta: {
-          titleKey: "chatHome.title"
+          titleKey: "app.title"
         }
       },
       {
-        path: "chat/device/:deviceId/project/:projectKey",
-        name: "chat-project",
-        component: ProjectChatView,
+        path: "projects",
+        name: "projects",
+        component: ProjectsView,
         meta: {
-          titleKey: "chatProject.title"
+          titleKey: "app.title"
         }
       },
       {
-        path: "devices",
-        name: "devices",
-        component: DashboardDevicesSection,
+        path: "projects/:deviceId/:projectPath(.*)",
+        name: "project-workspace",
+        component: ProjectWorkspaceView,
         meta: {
-          titleKey: "appShell.nav.devices"
+          titleKey: "app.title"
         }
       },
       {
-        path: "menu",
-        name: "menu",
-        component: MenuView,
+        path: "notifications",
+        name: "notifications",
+        component: NotificationsView,
         meta: {
-          titleKey: "appShell.nav.menu"
+          titleKey: "app.title"
         }
       },
       {
-        path: "menu/settings/server",
-        name: "menu-settings-server",
-        component: ServerSettingsView,
+        path: "settings",
+        name: "settings",
+        component: SettingsView,
         meta: {
-          titleKey: "settingsPage.title"
-        }
-      },
-      {
-        path: "menu/advanced",
-        name: "menu-advanced",
-        component: DashboardAdvancedSection,
-        meta: {
-          titleKey: "dashboard.nav.advanced"
+          titleKey: "app.title"
         }
       }
     ]

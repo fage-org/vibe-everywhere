@@ -156,6 +156,24 @@ impl ExecutionProtocol {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
+pub enum TaskExecutionMode {
+    ReadOnly,
+    WorkspaceWrite,
+    WorkspaceWriteAndTest,
+}
+
+impl TaskExecutionMode {
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::ReadOnly => "Read only",
+            Self::WorkspaceWrite => "Workspace write",
+            Self::WorkspaceWriteAndTest => "Workspace write + test",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
 pub enum OverlayMode {
     EasyTierEmbedded,
     EasyTierSidecar,
@@ -335,6 +353,7 @@ pub struct TaskRecord {
     pub title: String,
     pub provider: ProviderKind,
     pub execution_protocol: ExecutionProtocol,
+    pub execution_mode: TaskExecutionMode,
     pub prompt: String,
     pub cwd: Option<String>,
     pub model: Option<String>,
@@ -371,6 +390,9 @@ impl TaskRecord {
                 .unwrap_or_else(|| "Ad hoc AI task".to_string()),
             provider: request.provider,
             execution_protocol,
+            execution_mode: request
+                .execution_mode
+                .unwrap_or(TaskExecutionMode::WorkspaceWrite),
             prompt: request.prompt,
             cwd: request.cwd,
             model: request.model,
@@ -395,6 +417,7 @@ pub struct CreateTaskRequest {
     pub device_id: String,
     pub conversation_id: Option<String>,
     pub provider: ProviderKind,
+    pub execution_mode: Option<TaskExecutionMode>,
     pub prompt: String,
     pub cwd: Option<String>,
     pub model: Option<String>,
@@ -413,6 +436,7 @@ pub struct CreateTaskResponse {
 pub struct CreateConversationRequest {
     pub device_id: String,
     pub provider: ProviderKind,
+    pub execution_mode: Option<TaskExecutionMode>,
     pub prompt: String,
     pub cwd: Option<String>,
     pub model: Option<String>,
@@ -429,6 +453,7 @@ pub struct ConversationRecord {
     pub title: String,
     pub provider: ProviderKind,
     pub execution_protocol: ExecutionProtocol,
+    pub execution_mode: TaskExecutionMode,
     pub cwd: Option<String>,
     pub model: Option<String>,
     pub provider_session_id: Option<String>,
@@ -460,6 +485,10 @@ impl ConversationRecord {
                 .unwrap_or_else(|| default_conversation_title(&request.prompt)),
             provider: request.provider.clone(),
             execution_protocol,
+            execution_mode: request
+                .execution_mode
+                .clone()
+                .unwrap_or(TaskExecutionMode::WorkspaceWrite),
             cwd: request.cwd.clone(),
             model: request.model.clone(),
             provider_session_id: None,
@@ -483,6 +512,7 @@ pub struct CreateConversationResponse {
 #[serde(rename_all = "camelCase")]
 pub struct SendConversationMessageRequest {
     pub prompt: String,
+    pub execution_mode: Option<TaskExecutionMode>,
     pub model: Option<String>,
     pub title: Option<String>,
 }
@@ -1047,6 +1077,31 @@ pub struct GitInspectRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+pub struct GitDiffFileRequest {
+    pub device_id: String,
+    pub session_cwd: Option<String>,
+    pub repo_path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct GitCreateWorktreeRequest {
+    pub device_id: String,
+    pub session_cwd: Option<String>,
+    pub branch_name: String,
+    pub destination_path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct GitRemoveWorktreeRequest {
+    pub device_id: String,
+    pub session_cwd: Option<String>,
+    pub worktree_path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct GitChangedFile {
     pub path: String,
     pub repo_path: String,
@@ -1081,10 +1136,21 @@ pub struct GitDiffStats {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+pub struct GitWorktreeSummary {
+    pub path: String,
+    pub branch_name: Option<String>,
+    pub head_id: Option<String>,
+    pub is_current: bool,
+    pub is_detached: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct GitInspectResponse {
     pub device_id: String,
     pub workspace_root: String,
     pub repo_root: Option<String>,
+    pub repo_common_dir: Option<String>,
     pub scope_path: Option<String>,
     pub state: GitInspectState,
     pub branch_name: Option<String>,
@@ -1094,7 +1160,48 @@ pub struct GitInspectResponse {
     pub has_commits: bool,
     pub changed_files: Vec<GitChangedFile>,
     pub recent_commits: Vec<GitCommitSummary>,
+    pub worktrees: Vec<GitWorktreeSummary>,
     pub diff_stats: GitDiffStats,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct GitDiffFileResponse {
+    pub device_id: String,
+    pub workspace_root: String,
+    pub repo_root: Option<String>,
+    pub repo_common_dir: Option<String>,
+    pub repo_path: String,
+    pub path: String,
+    pub state: GitInspectState,
+    pub status: Option<GitFileStatus>,
+    pub staged: bool,
+    pub unstaged: bool,
+    pub is_binary: bool,
+    pub truncated: bool,
+    pub staged_patch: Option<String>,
+    pub unstaged_patch: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct GitCreateWorktreeResponse {
+    pub device_id: String,
+    pub workspace_root: String,
+    pub repo_root: Option<String>,
+    pub repo_common_dir: Option<String>,
+    pub branch_name: String,
+    pub destination_path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct GitRemoveWorktreeResponse {
+    pub device_id: String,
+    pub workspace_root: String,
+    pub repo_root: Option<String>,
+    pub repo_common_dir: Option<String>,
+    pub removed_path: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -1165,18 +1272,43 @@ pub enum GitOperationRequest {
         device_id: String,
         session_cwd: Option<String>,
     },
+    DiffFile {
+        id: String,
+        device_id: String,
+        session_cwd: Option<String>,
+        repo_path: String,
+    },
+    CreateWorktree {
+        id: String,
+        device_id: String,
+        session_cwd: Option<String>,
+        branch_name: String,
+        destination_path: String,
+    },
+    RemoveWorktree {
+        id: String,
+        device_id: String,
+        session_cwd: Option<String>,
+        worktree_path: String,
+    },
 }
 
 impl GitOperationRequest {
     pub fn id(&self) -> &str {
         match self {
-            Self::Inspect { id, .. } => id,
+            Self::Inspect { id, .. }
+            | Self::DiffFile { id, .. }
+            | Self::CreateWorktree { id, .. }
+            | Self::RemoveWorktree { id, .. } => id,
         }
     }
 
     pub fn device_id(&self) -> &str {
         match self {
-            Self::Inspect { device_id, .. } => device_id,
+            Self::Inspect { device_id, .. }
+            | Self::DiffFile { device_id, .. }
+            | Self::CreateWorktree { device_id, .. }
+            | Self::RemoveWorktree { device_id, .. } => device_id,
         }
     }
 }
@@ -1191,6 +1323,9 @@ pub struct ClaimGitOperationResponse {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum GitOperationResult {
     Inspect { response: GitInspectResponse },
+    DiffFile { response: GitDiffFileResponse },
+    CreateWorktree { response: GitCreateWorktreeResponse },
+    RemoveWorktree { response: GitRemoveWorktreeResponse },
     Error { message: String },
 }
 

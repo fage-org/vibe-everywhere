@@ -12,10 +12,12 @@ This repository has four independently changing surfaces:
 The test plan must catch:
 
 - protocol drift between relay, agent, and app
-- task/shell/port-forward state regression
+- conversation/task/shell/port-forward state regression
 - provider event mapping regression
 - relay-first and overlay transport regression
 - frontend contract drift against relay APIs
+- navigation or visibility regression against the shipped
+  `首页 / 项目 / 通知 / 我的` and `会话 / 变更 / 文件 / 日志` model
 - Android mobile packaging and runtime wiring regression
 - environment/configuration regression before release
 - release packaging drift, missing release notes, or broken operator bootstrap scripts
@@ -218,6 +220,103 @@ Recommended frequency:
 
 - before cutting any release tag
 - whenever release workflow, README onboarding, `DEVELOPMENT.md`, or deployment scripts change
+
+## Manual Product Regression Checklist
+
+Run this checklist whenever UI semantics, navigation, visibility gating, relay configuration
+behavior, or project-workspace layout changes.
+
+### Home / Host / Project Entry
+
+- configure relay URL and access token from the in-app settings page
+- confirm the default mobile navigation shows `首页 / 项目 / 通知 / 我的`
+- confirm 首页 shows current host and project attention items instead of a legacy dashboard hero
+- confirm 项目页 lists hosts and projects and can open a project workspace
+- confirm a host can surface projects even when they have no prior conversation history, as long as
+  the project is discoverable from the configured agent working root
+- confirm previously discovered projects remain visible with a degraded state when the host goes
+  offline or project refresh fails
+- confirm project cards and the desktop tree show inventory availability state instead of silently
+  dropping stale entries
+- confirm offline and empty-state messaging is clear when no host or project is available
+
+### Project Workspace
+
+- open a project and confirm the header keeps host, project, branch, and AI state visible
+- confirm the default secondary tab is `会话`
+- confirm the project also exposes `变更 / 文件 / 日志`
+- open an inventory-only project with no prior history and confirm the empty conversation state
+  still allows sending the first prompt
+- create a new conversation and continue an existing conversation in the same project
+- switch execution mode between `只读 / 可改文件 / 可改并测试` and confirm the selected mode is
+  visible in the conversation transcript metadata
+- verify the composer shows an `有效约束 / Effective enforcement` summary that changes with the
+  selected execution mode
+- send a clearly risky writable prompt and confirm the extra confirmation step appears before send
+- verify provider pending-input prompts can be answered inline with option chips and custom text
+- verify latest task status changes appear in the project workspace after refresh or live updates
+- verify conversation turns show a per-task summary, recent execution events, and expandable raw
+  event output instead of only flat chat bubbles
+- verify pending or running task cards can request stop directly from the conversation surface
+- verify completed or failed task cards expose quick follow-up actions for retry and explanation
+- verify completed tasks can jump directly to `变更`, and failed or completed tasks can jump
+  directly to `日志`
+
+### Review And Inspection
+
+- verify `变更` shows Git summary information before raw detail
+- verify `变更` shows review summary cards before the raw file diff panel
+- verify selecting a changed file loads its staged and/or unstaged diff output
+- verify `文件` can browse the project tree and preview a text file
+- verify `日志` surfaces error summaries first and supports `全部 / 错误 / 工具 / Provider` filtering
+- verify `日志` also shows audit records related to the active conversation tasks before the raw
+  event stream
+- when an ACP-backed task runs in `只读`, verify write attempts or terminal command attempts are
+  rejected; when it runs in `可改文件`, verify test-style terminal commands are rejected until
+  `可改并测试` is selected
+- verify CLI-backed Codex tasks derive sandbox/approval flags from execution mode, and CLI-backed
+  Claude read-only tasks enter native `plan` permission mode plus the default write/shell
+  disallowed-tools set
+- verify CLI-backed Claude workspace-write tasks include the default disallowed-tools blacklist for
+  common test-style Bash commands
+- verify CLI-backed Codex write-and-test tasks use the workspace-write sandbox plus `never`
+  approval, and Claude write-and-test tasks do not inherit the write-mode test blacklist by
+  default
+- verify task cards show an `有效约束 / Effective enforcement` summary that matches ACP, Codex,
+  Claude, or generic provider behavior for that task
+- verify a failed task can be reopened from the relevant project context
+- on desktop width, create a sibling worktree from the project workspace and confirm the new branch
+  and path appear in the refreshed host/project tree, even when the worktree came from Git
+  inventory expansion instead of only the original top-level scan; then reopen that worktree from
+  the sidebar
+- verify non-current worktrees can be removed from the desktop sidebar, the current worktree cannot
+  be removed, and the refreshed tree drops the removed entry
+- verify desktop worktree items surface lifecycle states such as current, detached, inventory
+  missing, offline/unreachable, and remove-failed when those conditions occur
+
+### Notifications And Settings
+
+- confirm 通知页 lists failures, waiting-input items, or recent completions when present
+- switch the default notification preference between `全部活动` and `仅失败与等待输入`, then confirm
+  projects without overrides inherit that default
+- switch a project between `全部活动` and `仅失败与等待输入`, then confirm completed-task
+  notifications are hidden or shown accordingly
+- reset a project override and confirm it falls back to the current default preference
+- confirm 通知页 separates unread and recent items, and opening an unread item moves it out of the
+  unread section on the next render
+- confirm notification status filters (`全部 / 未读 / 失败 / 等待 / 已完成`) narrow the list correctly
+- confirm notification entries navigate back to the intended project workspace and, when a
+  conversation id is provided, restore that exact conversation instead of only opening the project
+- confirm notification quick actions can directly open `会话 / 变更 / 日志`, and the target
+  workspace tab matches the chosen action
+- confirm 我的 contains relay settings, locale, theme, and other secondary preferences instead of
+  primary project workflow content
+- confirm 我的 lets the user change default execution mode, default notification preference, and the
+  high-risk confirmation toggle
+- confirm a newly opened conversation composer inherits the configured default execution mode
+- confirm 我的 also includes a global audit trail with `全部 / 任务 / Shell 与预览` filtering
+- confirm desktop-width layouts remain usable and do not degrade into one long mobile column when a
+  workbench layout is intended
 
 ### Layer 1: Rust Unit and Contract Tests
 
@@ -524,9 +623,10 @@ These areas should be added next if the goal is a more complete automated test s
 5. `apps/vibe-relay/src/workspace.rs` and `apps/vibe-relay/src/git.rs`
    - add dual-process smoke coverage for request timeout, agent completion, and API wiring through real relay / agent binaries
 6. `apps/vibe-app`
-  - introduce `vitest` and cover `src/lib/api.ts`, `src/lib/runtime.ts`, `src/lib/i18n.ts`, `src/lib/theme.ts`, and `src/stores/control.ts`
+  - expand the initial `vitest` coverage beyond `src/lib/policy.ts` and `src/lib/projectInventory.ts`
+  - add coverage for `src/lib/api.ts`, `src/lib/runtime.ts`, `src/lib/i18n.ts`, and `src/lib/theme.ts`
   - mock `fetch`, `EventSource`, and `WebSocket` to test reconnect behavior, locale / theme persistence, and workspace / Git loading states
-   - add focused coverage for `src/lib/platform.ts`, feature-flag visibility rules, relay placeholder behavior, and current-client detection semantics across Web, Tauri Desktop, and Android
+  - add focused coverage for platform/current-client detection semantics and project-workspace visibility rules across Web, Tauri Desktop, and Android
 7. cross-platform runtime validation
    - Linux remains the most complete smoke-test baseline, while GitHub-hosted Linux gating uses the
      harness-only `no_tun` path instead of claiming direct overlay bridge or preview byte-path

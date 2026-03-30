@@ -3,7 +3,8 @@ use serde_json::Value;
 use std::path::Path;
 use tokio::process::Command;
 use vibe_core::{
-    ExecutionProtocol, ProviderKind, ProviderStatus, TaskEventInput, TaskEventKind, TaskRecord,
+    ExecutionProtocol, ProviderKind, ProviderStatus, TaskEventInput, TaskEventKind,
+    TaskExecutionMode, TaskRecord,
 };
 
 pub(crate) fn build_provider_command(
@@ -12,6 +13,7 @@ pub(crate) fn build_provider_command(
     cwd: &Path,
 ) -> Result<Command> {
     let mut command = Command::new(&provider.command);
+    let prompt = render_task_prompt(task);
 
     match task.provider {
         ProviderKind::Codex => {
@@ -22,13 +24,16 @@ pub(crate) fn build_provider_command(
             command
                 .arg("--json")
                 .arg("--skip-git-repo-check")
-                .arg("--full-auto")
+                .arg("--sandbox")
+                .arg(codex_sandbox_mode(task.execution_mode.clone()))
+                .arg("--ask-for-approval")
+                .arg(codex_approval_policy(task.execution_mode.clone()))
                 .arg("-C")
                 .arg(cwd);
             if let Some(model) = &task.model {
                 command.arg("-m").arg(model);
             }
-            command.arg(&task.prompt);
+            command.arg(&prompt);
         }
         ProviderKind::ClaudeCode => {
             command.arg("-p");
@@ -41,12 +46,7 @@ pub(crate) fn build_provider_command(
                 .arg("--verbose")
                 .arg("--include-partial-messages")
                 .arg("--permission-mode")
-                .arg(
-                    std::env::var("VIBE_CLAUDE_PERMISSION_MODE")
-                        .ok()
-                        .filter(|value| !value.trim().is_empty())
-                        .unwrap_or_else(|| "acceptEdits".to_string()),
-                )
+                .arg(claude_permission_mode(task.execution_mode.clone()))
                 .arg("--add-dir")
                 .arg(cwd);
             if let Some(allowed_tools) = std::env::var("VIBE_CLAUDE_ALLOWED_TOOLS")
@@ -56,10 +56,13 @@ pub(crate) fn build_provider_command(
             {
                 command.arg("--allowedTools").arg(allowed_tools);
             }
+            if let Some(disallowed_tools) = claude_disallowed_tools(task.execution_mode.clone()) {
+                command.arg("--disallowedTools").arg(disallowed_tools);
+            }
             if let Some(model) = &task.model {
                 command.arg("--model").arg(model);
             }
-            command.arg(&task.prompt);
+            command.arg(&prompt);
         }
         ProviderKind::OpenCode => {
             command.arg("run");
@@ -71,11 +74,109 @@ pub(crate) fn build_provider_command(
             if let Some(model) = &task.model {
                 command.arg("--model").arg(model);
             }
-            command.arg(&task.prompt);
+            command.arg(&prompt);
         }
     }
 
     Ok(command)
+}
+
+fn codex_sandbox_mode(execution_mode: TaskExecutionMode) -> &'static str {
+    match execution_mode {
+        TaskExecutionMode::ReadOnly => "read-only",
+        TaskExecutionMode::WorkspaceWrite | TaskExecutionMode::WorkspaceWriteAndTest => {
+            "workspace-write"
+        }
+    }
+}
+
+fn codex_approval_policy(execution_mode: TaskExecutionMode) -> &'static str {
+    match execution_mode {
+        TaskExecutionMode::WorkspaceWrite => "untrusted",
+        TaskExecutionMode::ReadOnly | TaskExecutionMode::WorkspaceWriteAndTest => "never",
+    }
+}
+
+fn claude_permission_mode(execution_mode: TaskExecutionMode) -> String {
+    let default_mode = std::env::var("VIBE_CLAUDE_PERMISSION_MODE")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| "acceptEdits".to_string());
+
+    match execution_mode {
+        TaskExecutionMode::ReadOnly => std::env::var("VIBE_CLAUDE_PERMISSION_MODE_READ_ONLY")
+            .ok()
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or_else(|| "plan".to_string()),
+        TaskExecutionMode::WorkspaceWrite => std::env::var("VIBE_CLAUDE_PERMISSION_MODE_WRITE")
+            .ok()
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or_else(|| default_mode.clone()),
+        TaskExecutionMode::WorkspaceWriteAndTest => {
+            std::env::var("VIBE_CLAUDE_PERMISSION_MODE_WRITE_AND_TEST")
+                .ok()
+                .filter(|value| !value.trim().is_empty())
+                .unwrap_or(default_mode)
+        }
+    }
+}
+
+fn claude_disallowed_tools(execution_mode: TaskExecutionMode) -> Option<String> {
+    match execution_mode {
+        TaskExecutionMode::ReadOnly => std::env::var("VIBE_CLAUDE_DISALLOWED_TOOLS_READ_ONLY")
+            .ok()
+            .filter(|value| !value.trim().is_empty())
+            .or_else(|| Some(default_claude_read_only_disallowed_tools())),
+        TaskExecutionMode::WorkspaceWrite => std::env::var("VIBE_CLAUDE_DISALLOWED_TOOLS_WRITE")
+            .ok()
+            .filter(|value| !value.trim().is_empty())
+            .or_else(|| Some(default_claude_test_disallowed_tools())),
+        TaskExecutionMode::WorkspaceWriteAndTest => {
+            std::env::var("VIBE_CLAUDE_DISALLOWED_TOOLS_WRITE_AND_TEST")
+                .ok()
+                .filter(|value| !value.trim().is_empty())
+        }
+    }
+}
+
+fn default_claude_read_only_disallowed_tools() -> String {
+    ["Edit", "MultiEdit", "Write", "NotebookEdit", "Bash(*)"].join(",")
+}
+
+fn default_claude_test_disallowed_tools() -> String {
+    [
+        "Bash(cargo test:*)",
+        "Bash(cargo nextest:*)",
+        "Bash(npm test:*)",
+        "Bash(pnpm test:*)",
+        "Bash(yarn test:*)",
+        "Bash(bun test:*)",
+        "Bash(pytest:*)",
+        "Bash(go test:*)",
+        "Bash(gradle test:*)",
+        "Bash(./gradlew test:*)",
+        "Bash(mvn test:*)",
+        "Bash(vitest:*)",
+        "Bash(jest:*)",
+        "Bash(playwright test:*)",
+    ]
+    .join(",")
+}
+
+fn render_task_prompt(task: &TaskRecord) -> String {
+    let policy = match task.execution_mode {
+        TaskExecutionMode::ReadOnly => {
+            "Execution mode: read-only. Inspect, explain, and propose edits, but do not modify files, run destructive commands, or apply writes."
+        }
+        TaskExecutionMode::WorkspaceWrite => {
+            "Execution mode: workspace write. You may edit files inside the current workspace, but avoid running test suites or broad verification commands unless the user explicitly asks."
+        }
+        TaskExecutionMode::WorkspaceWriteAndTest => {
+            "Execution mode: workspace write and test. You may edit files inside the current workspace and run focused verification or test commands needed to validate the change."
+        }
+    };
+
+    format!("{policy}\n\nUser request:\n{}", task.prompt)
 }
 
 pub(crate) fn detect_providers() -> Vec<ProviderStatus> {
@@ -918,6 +1019,56 @@ fn compact_json(value: &Value) -> String {
 mod tests {
     use super::*;
     use serde_json::json;
+    use std::path::PathBuf;
+    use vibe_core::TaskTransportKind;
+
+    fn test_task(provider: ProviderKind, execution_mode: TaskExecutionMode) -> TaskRecord {
+        TaskRecord {
+            tenant_id: "personal".to_string(),
+            user_id: "local-admin".to_string(),
+            id: "task-1".to_string(),
+            device_id: "device-1".to_string(),
+            conversation_id: Some("conversation-1".to_string()),
+            title: "Test task".to_string(),
+            provider,
+            execution_protocol: ExecutionProtocol::Cli,
+            execution_mode,
+            prompt: "hello".to_string(),
+            cwd: Some("/tmp/project".to_string()),
+            model: None,
+            provider_session_id: None,
+            pending_input_request_id: None,
+            status: vibe_core::TaskStatus::Pending,
+            cancel_requested: false,
+            created_at_epoch_ms: 0,
+            started_at_epoch_ms: None,
+            finished_at_epoch_ms: None,
+            exit_code: None,
+            error: None,
+            last_event_seq: 0,
+            transport: TaskTransportKind::RelayPolling,
+        }
+    }
+
+    fn test_provider(kind: ProviderKind) -> ProviderStatus {
+        ProviderStatus {
+            kind: kind.clone(),
+            command: match kind {
+                ProviderKind::Codex => "codex".to_string(),
+                ProviderKind::ClaudeCode => "claude".to_string(),
+                ProviderKind::OpenCode => "opencode".to_string(),
+            },
+            available: true,
+            version: None,
+            execution_protocol: if kind == ProviderKind::OpenCode {
+                ExecutionProtocol::Acp
+            } else {
+                ExecutionProtocol::Cli
+            },
+            supports_acp: kind == ProviderKind::OpenCode,
+            error: None,
+        }
+    }
 
     #[test]
     fn codex_is_no_longer_advertised_as_acp() {
@@ -1019,5 +1170,153 @@ mod tests {
         assert_eq!(events[0].kind, TaskEventKind::Status);
         assert!(events[0].message.contains("4096/128000"));
         assert!(events[0].message.contains("USD"));
+    }
+
+    #[test]
+    fn codex_cli_uses_read_only_sandbox_for_read_only_mode() {
+        let provider = test_provider(ProviderKind::Codex);
+        let task = test_task(ProviderKind::Codex, TaskExecutionMode::ReadOnly);
+        let command = build_provider_command(&provider, &task, &PathBuf::from("/tmp/project"))
+            .expect("codex command");
+        let args = command
+            .as_std()
+            .get_args()
+            .map(|value| value.to_string_lossy().to_string())
+            .collect::<Vec<_>>();
+
+        assert!(
+            args.windows(2)
+                .any(|pair| pair == ["--sandbox", "read-only"])
+        );
+        assert!(
+            args.windows(2)
+                .any(|pair| pair == ["--ask-for-approval", "never"])
+        );
+    }
+
+    #[test]
+    fn codex_cli_uses_untrusted_approval_for_workspace_write_mode() {
+        let provider = test_provider(ProviderKind::Codex);
+        let task = test_task(ProviderKind::Codex, TaskExecutionMode::WorkspaceWrite);
+        let command = build_provider_command(&provider, &task, &PathBuf::from("/tmp/project"))
+            .expect("codex command");
+        let args = command
+            .as_std()
+            .get_args()
+            .map(|value| value.to_string_lossy().to_string())
+            .collect::<Vec<_>>();
+
+        assert!(
+            args.windows(2)
+                .any(|pair| pair == ["--ask-for-approval", "untrusted"])
+        );
+    }
+
+    #[test]
+    fn codex_cli_uses_workspace_write_sandbox_and_never_approval_for_write_and_test() {
+        let provider = test_provider(ProviderKind::Codex);
+        let task = test_task(
+            ProviderKind::Codex,
+            TaskExecutionMode::WorkspaceWriteAndTest,
+        );
+        let command = build_provider_command(&provider, &task, &PathBuf::from("/tmp/project"))
+            .expect("codex command");
+        let args = command
+            .as_std()
+            .get_args()
+            .map(|value| value.to_string_lossy().to_string())
+            .collect::<Vec<_>>();
+
+        assert!(
+            args.windows(2)
+                .any(|pair| pair == ["--sandbox", "workspace-write"])
+        );
+        assert!(
+            args.windows(2)
+                .any(|pair| pair == ["--ask-for-approval", "never"])
+        );
+    }
+
+    #[test]
+    fn claude_cli_uses_plan_mode_for_read_only() {
+        let provider = test_provider(ProviderKind::ClaudeCode);
+        let task = test_task(ProviderKind::ClaudeCode, TaskExecutionMode::ReadOnly);
+        let command = build_provider_command(&provider, &task, &PathBuf::from("/tmp/project"))
+            .expect("claude command");
+        let args = command
+            .as_std()
+            .get_args()
+            .map(|value| value.to_string_lossy().to_string())
+            .collect::<Vec<_>>();
+
+        assert!(
+            args.windows(2)
+                .any(|pair| pair == ["--permission-mode", "plan"])
+        );
+    }
+
+    #[test]
+    fn claude_read_only_disallows_edit_and_bash_tools() {
+        let provider = test_provider(ProviderKind::ClaudeCode);
+        let task = test_task(ProviderKind::ClaudeCode, TaskExecutionMode::ReadOnly);
+        let command = build_provider_command(&provider, &task, &PathBuf::from("/tmp/project"))
+            .expect("claude command");
+        let args = command
+            .as_std()
+            .get_args()
+            .map(|value| value.to_string_lossy().to_string())
+            .collect::<Vec<_>>();
+
+        let disallowed = args
+            .windows(2)
+            .find(|pair| pair[0] == "--disallowedTools")
+            .map(|pair| pair[1].clone())
+            .expect("disallowed tools flag");
+
+        assert!(disallowed.contains("Edit"));
+        assert!(disallowed.contains("MultiEdit"));
+        assert!(disallowed.contains("Write"));
+        assert!(disallowed.contains("Bash(*)"));
+    }
+
+    #[test]
+    fn claude_workspace_write_disallows_test_bash_commands() {
+        let provider = test_provider(ProviderKind::ClaudeCode);
+        let task = test_task(ProviderKind::ClaudeCode, TaskExecutionMode::WorkspaceWrite);
+        let command = build_provider_command(&provider, &task, &PathBuf::from("/tmp/project"))
+            .expect("claude command");
+        let args = command
+            .as_std()
+            .get_args()
+            .map(|value| value.to_string_lossy().to_string())
+            .collect::<Vec<_>>();
+
+        let disallowed = args
+            .windows(2)
+            .find(|pair| pair[0] == "--disallowedTools")
+            .map(|pair| pair[1].clone())
+            .expect("disallowed tools flag");
+
+        assert!(disallowed.contains("Bash(cargo test:*)"));
+        assert!(disallowed.contains("Bash(pytest:*)"));
+        assert!(disallowed.contains("Bash(playwright test:*)"));
+    }
+
+    #[test]
+    fn claude_write_and_test_has_no_default_disallowed_tools() {
+        let provider = test_provider(ProviderKind::ClaudeCode);
+        let task = test_task(
+            ProviderKind::ClaudeCode,
+            TaskExecutionMode::WorkspaceWriteAndTest,
+        );
+        let command = build_provider_command(&provider, &task, &PathBuf::from("/tmp/project"))
+            .expect("claude command");
+        let args = command
+            .as_std()
+            .get_args()
+            .map(|value| value.to_string_lossy().to_string())
+            .collect::<Vec<_>>();
+
+        assert!(!args.windows(2).any(|pair| pair[0] == "--disallowedTools"));
     }
 }

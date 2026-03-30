@@ -1,4 +1,5 @@
 use super::*;
+use vibe_core::TaskExecutionMode;
 
 enum ClaimNextTaskOutcome {
     Task(Option<TaskRecord>),
@@ -160,6 +161,7 @@ struct AcpProcess {
     stderr_lines: Option<tokio::io::Lines<BufReader<ChildStderr>>>,
     next_request_id: u64,
     session_root: PathBuf,
+    execution_mode: TaskExecutionMode,
     terminals: HashMap<String, ManagedTerminal>,
 }
 
@@ -385,6 +387,10 @@ where
         TaskEventInput {
             kind: TaskEventKind::System,
             message: format!("cwd={}", cwd.display()),
+        },
+        TaskEventInput {
+            kind: TaskEventKind::System,
+            message: format!("execution_mode={}", task.execution_mode.label()),
         },
     ];
 
@@ -644,7 +650,7 @@ where
         bail!("ACP transport is only implemented for OpenCode in this MVP");
     }
 
-    let mut acp = spawn_acp_process(provider, cwd)?;
+    let mut acp = spawn_acp_process(provider, task, cwd)?;
     let execution = async {
         let initialize_id = acp.next_request_id();
         send_rpc_request(
@@ -990,7 +996,11 @@ fn format_prompt_usage(usage: Option<&Value>) -> Option<String> {
     Some(format!("ACP turn usage: {}", parts.join(" ")))
 }
 
-fn spawn_acp_process(provider: &ProviderStatus, cwd: &Path) -> Result<AcpProcess> {
+fn spawn_acp_process(
+    provider: &ProviderStatus,
+    task: &TaskRecord,
+    cwd: &Path,
+) -> Result<AcpProcess> {
     let mut command = Command::new(&provider.command);
     command
         .arg("acp")
@@ -1014,6 +1024,7 @@ fn spawn_acp_process(provider: &ProviderStatus, cwd: &Path) -> Result<AcpProcess
         stderr_lines: Some(BufReader::new(stderr).lines()),
         next_request_id: 1,
         session_root: cwd.to_path_buf(),
+        execution_mode: task.execution_mode.clone(),
         terminals: HashMap::new(),
     })
 }
@@ -1248,10 +1259,12 @@ where
             Ok(result) => send_rpc_response(acp, id, result).await?,
             Err(error) => send_rpc_error(acp, id, -32000, error.to_string()).await?,
         },
-        "fs/write_text_file" => match handle_write_text_file(&acp.session_root, &params) {
-            Ok(result) => send_rpc_response(acp, id, result).await?,
-            Err(error) => send_rpc_error(acp, id, -32000, error.to_string()).await?,
-        },
+        "fs/write_text_file" => {
+            match handle_write_text_file(&acp.session_root, &acp.execution_mode, &params) {
+                Ok(result) => send_rpc_response(acp, id, result).await?,
+                Err(error) => send_rpc_error(acp, id, -32000, error.to_string()).await?,
+            }
+        }
         "terminal/create" => match handle_terminal_create(acp, &params) {
             Ok(result) => send_rpc_response(acp, id, result).await?,
             Err(error) => send_rpc_error(acp, id, -32000, error.to_string()).await?,
@@ -1445,7 +1458,12 @@ fn handle_read_text_file(session_root: &Path, params: &Value) -> Result<Value> {
     Ok(json!({ "content": content }))
 }
 
-fn handle_write_text_file(session_root: &Path, params: &Value) -> Result<Value> {
+fn handle_write_text_file(
+    session_root: &Path,
+    execution_mode: &TaskExecutionMode,
+    params: &Value,
+) -> Result<Value> {
+    ensure_write_allowed(execution_mode)?;
     let path = params
         .get("path")
         .and_then(Value::as_str)
@@ -1480,6 +1498,7 @@ fn handle_terminal_create(acp: &mut AcpProcess, params: &Value) -> Result<Value>
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();
+    ensure_terminal_command_allowed(&acp.execution_mode, command_name, &args)?;
     let cwd = params
         .get("cwd")
         .and_then(Value::as_str)
@@ -1529,6 +1548,65 @@ fn handle_terminal_create(acp: &mut AcpProcess, params: &Value) -> Result<Value>
     );
 
     Ok(json!({ "terminalId": terminal_id }))
+}
+
+fn ensure_write_allowed(execution_mode: &TaskExecutionMode) -> Result<()> {
+    if matches!(execution_mode, TaskExecutionMode::ReadOnly) {
+        bail!("execution mode read_only blocks file writes");
+    }
+
+    Ok(())
+}
+
+fn ensure_terminal_command_allowed(
+    execution_mode: &TaskExecutionMode,
+    command_name: &str,
+    args: &[String],
+) -> Result<()> {
+    if matches!(execution_mode, TaskExecutionMode::ReadOnly) {
+        bail!("execution mode read_only blocks terminal commands");
+    }
+
+    if matches!(execution_mode, TaskExecutionMode::WorkspaceWrite)
+        && terminal_command_looks_like_test(command_name, args)
+    {
+        bail!("execution mode workspace_write blocks test and verification commands");
+    }
+
+    Ok(())
+}
+
+fn terminal_command_looks_like_test(command_name: &str, args: &[String]) -> bool {
+    let command = command_name.trim().to_lowercase();
+    let joined_args = args.join(" ").to_lowercase();
+    let combined = if joined_args.is_empty() {
+        command.clone()
+    } else {
+        format!("{command} {joined_args}")
+    };
+
+    combined.contains(" cargo test")
+        || combined.starts_with("cargo test")
+        || combined.contains(" npm test")
+        || combined.starts_with("npm test")
+        || combined.contains(" pnpm test")
+        || combined.starts_with("pnpm test")
+        || combined.contains(" yarn test")
+        || combined.starts_with("yarn test")
+        || combined.contains(" bun test")
+        || combined.starts_with("bun test")
+        || combined.contains(" pytest")
+        || combined.starts_with("pytest")
+        || combined.contains(" go test")
+        || combined.starts_with("go test")
+        || combined.contains(" cargo nextest")
+        || combined.starts_with("cargo nextest")
+        || combined.contains(" gradle test")
+        || combined.contains(" ./gradlew test")
+        || combined.contains(" mvn test")
+        || combined.contains(" vitest")
+        || combined.contains(" jest")
+        || combined.contains(" playwright test")
 }
 
 async fn handle_terminal_output(acp: &mut AcpProcess, params: &Value) -> Result<Value> {
@@ -2150,5 +2228,40 @@ mod tests {
         assert!(message.contains("thought=1500"));
         assert!(message.contains("cache_read=400"));
         assert!(message.contains("cache_write=100"));
+    }
+
+    #[test]
+    fn read_only_mode_blocks_file_writes() {
+        let error = ensure_write_allowed(&TaskExecutionMode::ReadOnly).unwrap_err();
+        assert!(error.to_string().contains("read_only"));
+    }
+
+    #[test]
+    fn workspace_write_mode_blocks_test_commands() {
+        let error = ensure_terminal_command_allowed(
+            &TaskExecutionMode::WorkspaceWrite,
+            "cargo",
+            &[
+                String::from("test"),
+                String::from("-p"),
+                String::from("vibe-agent"),
+            ],
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("workspace_write"));
+    }
+
+    #[test]
+    fn workspace_write_and_test_mode_allows_test_commands() {
+        ensure_terminal_command_allowed(
+            &TaskExecutionMode::WorkspaceWriteAndTest,
+            "cargo",
+            &[
+                String::from("test"),
+                String::from("-p"),
+                String::from("vibe-agent"),
+            ],
+        )
+        .unwrap();
     }
 }

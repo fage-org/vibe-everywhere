@@ -73,7 +73,10 @@ use conversations::{
     send_conversation_message,
 };
 use easytier::{RelayEasyTierOptions, start_managed_relay_easytier};
-use git::{GitRequestEntry, claim_next_git_request, complete_git_request, inspect_git_workspace};
+use git::{
+    GitRequestEntry, claim_next_git_request, complete_git_request, create_git_worktree,
+    diff_git_file, inspect_git_workspace, remove_git_worktree,
+};
 #[cfg(test)]
 use port_forwards::{
     PortForwardListQuery, preferred_port_forward_transport, read_bridge_frame_line,
@@ -601,6 +604,9 @@ fn build_app(state: AppState) -> Router {
         .route("/api/workspace/browse", post(browse_workspace))
         .route("/api/workspace/preview", post(preview_workspace_file))
         .route("/api/git/inspect", post(inspect_git_workspace))
+        .route("/api/git/diff-file", post(diff_git_file))
+        .route("/api/git/worktrees", post(create_git_worktree))
+        .route("/api/git/worktrees/remove", post(remove_git_worktree))
         .route(
             "/api/workspace/requests/:request_id/complete",
             post(complete_workspace_request),
@@ -1267,6 +1273,7 @@ mod tests {
                 title: format!("Task {id}"),
                 provider,
                 execution_protocol: vibe_core::ExecutionProtocol::Cli,
+                execution_mode: vibe_core::TaskExecutionMode::WorkspaceWrite,
                 prompt: "prompt".to_string(),
                 cwd: None,
                 model: None,
@@ -1695,6 +1702,7 @@ mod tests {
                 device_id: "device-1".to_string(),
                 conversation_id: None,
                 provider: ProviderKind::Codex,
+                execution_mode: Some(vibe_core::TaskExecutionMode::WorkspaceWrite),
                 prompt: "hello".to_string(),
                 cwd: None,
                 model: None,
@@ -1998,6 +2006,7 @@ mod tests {
                 assert_eq!(device_id, "device-1");
                 assert_eq!(session_cwd.as_deref(), Some("src"));
             }
+            other => panic!("expected inspect request, got {other:?}"),
         }
 
         complete_git_request(
@@ -2011,6 +2020,7 @@ mod tests {
                         device_id: "device-1".to_string(),
                         workspace_root: "/repo".to_string(),
                         repo_root: Some("/repo".to_string()),
+                        repo_common_dir: Some("/repo/.git".to_string()),
                         scope_path: Some("src".to_string()),
                         state: vibe_core::GitInspectState::Ready,
                         branch_name: Some("main".to_string()),
@@ -2031,6 +2041,13 @@ mod tests {
                             summary: "initial".to_string(),
                             author_name: "Vibe Test".to_string(),
                             committed_at_epoch_ms: 10,
+                        }],
+                        worktrees: vec![vibe_core::GitWorktreeSummary {
+                            path: "/repo".to_string(),
+                            branch_name: Some("main".to_string()),
+                            head_id: Some("0123456789abcdef".to_string()),
+                            is_current: true,
+                            is_detached: false,
                         }],
                         diff_stats: vibe_core::GitDiffStats {
                             changed_files: 1,
@@ -2057,6 +2074,214 @@ mod tests {
 
         let requests = state.git_requests.read().await;
         assert!(requests.is_empty());
+    }
+
+    #[tokio::test]
+    async fn diff_git_file_round_trip_claims_and_completes_request() {
+        let state = test_state_with_store(RelayStore {
+            devices: HashMap::from([(
+                "device-1".to_string(),
+                test_device("device-1", vec![DeviceCapability::GitInspect]),
+            )]),
+            ..RelayStore::default()
+        });
+
+        let diff_state = state.clone();
+        let diff_task = tokio::spawn(async move {
+            diff_git_file(
+                State(diff_state),
+                test_headers(),
+                Json(vibe_core::GitDiffFileRequest {
+                    device_id: "device-1".to_string(),
+                    session_cwd: Some("src".to_string()),
+                    repo_path: "src/main.rs".to_string(),
+                }),
+            )
+            .await
+        });
+
+        let request = wait_for_git_claim(&state, "device-1").await;
+        let request_id = request.id().to_string();
+        match &request {
+            vibe_core::GitOperationRequest::DiffFile {
+                device_id,
+                session_cwd,
+                repo_path,
+                ..
+            } => {
+                assert_eq!(device_id, "device-1");
+                assert_eq!(session_cwd.as_deref(), Some("src"));
+                assert_eq!(repo_path, "src/main.rs");
+            }
+            other => panic!("expected diff-file request, got {other:?}"),
+        }
+
+        complete_git_request(
+            Path(request_id),
+            State(state.clone()),
+            test_device_headers(&state, "device-1"),
+            Json(vibe_core::CompleteGitOperationRequest {
+                device_id: "device-1".to_string(),
+                result: vibe_core::GitOperationResult::DiffFile {
+                    response: vibe_core::GitDiffFileResponse {
+                        device_id: "device-1".to_string(),
+                        workspace_root: "/repo/src".to_string(),
+                        repo_root: Some("/repo".to_string()),
+                        repo_common_dir: Some("/repo/.git".to_string()),
+                        repo_path: "src/main.rs".to_string(),
+                        path: "/repo/src/main.rs".to_string(),
+                        state: vibe_core::GitInspectState::Ready,
+                        status: Some(vibe_core::GitFileStatus::Modified),
+                        staged: false,
+                        unstaged: true,
+                        is_binary: false,
+                        truncated: false,
+                        staged_patch: None,
+                        unstaged_patch: Some("diff --git a/src/main.rs b/src/main.rs".to_string()),
+                    },
+                },
+            }),
+        )
+        .await
+        .unwrap();
+
+        let Json(response) = diff_task.await.unwrap().unwrap();
+        assert_eq!(response.repo_path, "src/main.rs");
+        assert_eq!(response.status, Some(vibe_core::GitFileStatus::Modified));
+        assert!(response.unstaged);
+    }
+
+    #[tokio::test]
+    async fn create_git_worktree_round_trip_claims_and_completes_request() {
+        let state = test_state_with_store(RelayStore {
+            devices: HashMap::from([(
+                "device-1".to_string(),
+                test_device("device-1", vec![DeviceCapability::GitInspect]),
+            )]),
+            ..RelayStore::default()
+        });
+
+        let create_state = state.clone();
+        let create_task = tokio::spawn(async move {
+            create_git_worktree(
+                State(create_state),
+                test_headers(),
+                Json(vibe_core::GitCreateWorktreeRequest {
+                    device_id: "device-1".to_string(),
+                    session_cwd: Some("repo".to_string()),
+                    branch_name: "feature/worktree".to_string(),
+                    destination_path: "../repo-feature-worktree".to_string(),
+                }),
+            )
+            .await
+        });
+
+        let request = wait_for_git_claim(&state, "device-1").await;
+        let request_id = request.id().to_string();
+        match &request {
+            vibe_core::GitOperationRequest::CreateWorktree {
+                device_id,
+                session_cwd,
+                branch_name,
+                destination_path,
+                ..
+            } => {
+                assert_eq!(device_id, "device-1");
+                assert_eq!(session_cwd.as_deref(), Some("repo"));
+                assert_eq!(branch_name, "feature/worktree");
+                assert_eq!(destination_path, "../repo-feature-worktree");
+            }
+            other => panic!("expected create-worktree request, got {other:?}"),
+        }
+
+        complete_git_request(
+            Path(request_id),
+            State(state.clone()),
+            test_device_headers(&state, "device-1"),
+            Json(vibe_core::CompleteGitOperationRequest {
+                device_id: "device-1".to_string(),
+                result: vibe_core::GitOperationResult::CreateWorktree {
+                    response: vibe_core::GitCreateWorktreeResponse {
+                        device_id: "device-1".to_string(),
+                        workspace_root: "/repo".to_string(),
+                        repo_root: Some("/repo".to_string()),
+                        repo_common_dir: Some("/repo/.git".to_string()),
+                        branch_name: "feature/worktree".to_string(),
+                        destination_path: "/repo-feature-worktree".to_string(),
+                    },
+                },
+            }),
+        )
+        .await
+        .unwrap();
+
+        let Json(response) = create_task.await.unwrap().unwrap();
+        assert_eq!(response.branch_name, "feature/worktree");
+        assert_eq!(response.destination_path, "/repo-feature-worktree");
+    }
+
+    #[tokio::test]
+    async fn remove_git_worktree_round_trip_claims_and_completes_request() {
+        let state = test_state_with_store(RelayStore {
+            devices: HashMap::from([(
+                "device-1".to_string(),
+                test_device("device-1", vec![DeviceCapability::GitInspect]),
+            )]),
+            ..RelayStore::default()
+        });
+
+        let remove_state = state.clone();
+        let remove_task = tokio::spawn(async move {
+            remove_git_worktree(
+                State(remove_state),
+                test_headers(),
+                Json(vibe_core::GitRemoveWorktreeRequest {
+                    device_id: "device-1".to_string(),
+                    session_cwd: Some("repo".to_string()),
+                    worktree_path: "/repo-feature-worktree".to_string(),
+                }),
+            )
+            .await
+        });
+
+        let request = wait_for_git_claim(&state, "device-1").await;
+        let request_id = request.id().to_string();
+        match &request {
+            vibe_core::GitOperationRequest::RemoveWorktree {
+                device_id,
+                session_cwd,
+                worktree_path,
+                ..
+            } => {
+                assert_eq!(device_id, "device-1");
+                assert_eq!(session_cwd.as_deref(), Some("repo"));
+                assert_eq!(worktree_path, "/repo-feature-worktree");
+            }
+            other => panic!("expected remove-worktree request, got {other:?}"),
+        }
+
+        complete_git_request(
+            Path(request_id),
+            State(state.clone()),
+            test_device_headers(&state, "device-1"),
+            Json(vibe_core::CompleteGitOperationRequest {
+                device_id: "device-1".to_string(),
+                result: vibe_core::GitOperationResult::RemoveWorktree {
+                    response: vibe_core::GitRemoveWorktreeResponse {
+                        device_id: "device-1".to_string(),
+                        workspace_root: "/repo".to_string(),
+                        repo_root: Some("/repo".to_string()),
+                        repo_common_dir: Some("/repo/.git".to_string()),
+                        removed_path: "/repo-feature-worktree".to_string(),
+                    },
+                },
+            }),
+        )
+        .await
+        .unwrap();
+
+        let Json(response) = remove_task.await.unwrap().unwrap();
+        assert_eq!(response.removed_path, "/repo-feature-worktree");
     }
 
     #[tokio::test]
@@ -2211,6 +2436,7 @@ mod tests {
                 device_id: "device-1".to_string(),
                 conversation_id: None,
                 provider: ProviderKind::Codex,
+                execution_mode: Some(vibe_core::TaskExecutionMode::WorkspaceWrite),
                 prompt: "say hi".to_string(),
                 cwd: None,
                 model: None,
@@ -2393,6 +2619,7 @@ mod tests {
                 device_id: "device-1".to_string(),
                 conversation_id: None,
                 provider: ProviderKind::Codex,
+                execution_mode: Some(vibe_core::TaskExecutionMode::WorkspaceWrite),
                 prompt: "say hi".to_string(),
                 cwd: None,
                 model: None,

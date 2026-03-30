@@ -341,6 +341,7 @@ printf '%s\n' '{"type":"item.completed","item":{"id":"item_0","type":"agent_mess
                 device_id: "device-1".to_string(),
                 conversation_id: None,
                 provider: ProviderKind::Codex,
+                execution_mode: Some(vibe_core::TaskExecutionMode::WorkspaceWrite),
                 prompt: "say hi".to_string(),
                 cwd: None,
                 model: None,

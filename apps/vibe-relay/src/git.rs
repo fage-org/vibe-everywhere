@@ -1,8 +1,10 @@
 use super::*;
 use tokio::time::{Duration, Instant, sleep};
 use vibe_core::{
-    ClaimGitOperationResponse, CompleteGitOperationRequest, DeviceCapability, GitInspectRequest,
-    GitInspectResponse, GitOperationRequest, GitOperationResult, now_epoch_millis,
+    ClaimGitOperationResponse, CompleteGitOperationRequest, DeviceCapability,
+    GitCreateWorktreeRequest, GitCreateWorktreeResponse, GitDiffFileRequest, GitDiffFileResponse,
+    GitInspectRequest, GitInspectResponse, GitOperationRequest, GitOperationResult,
+    GitRemoveWorktreeRequest, GitRemoveWorktreeResponse, now_epoch_millis,
 };
 
 const GIT_REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
@@ -49,6 +51,115 @@ pub(super) async fn inspect_git_workspace(
         GitOperationResult::Error { message } => {
             Err(ApiError::bad_request("git_inspect_failed", message))
         }
+        GitOperationResult::DiffFile { .. }
+        | GitOperationResult::CreateWorktree { .. }
+        | GitOperationResult::RemoveWorktree { .. } => Err(ApiError::bad_request(
+            "git_inspect_invalid_response",
+            "Relay received the wrong response type for a Git inspect request",
+        )),
+    }
+}
+
+pub(super) async fn diff_git_file(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<GitDiffFileRequest>,
+) -> Result<Json<GitDiffFileResponse>, ApiError> {
+    let actor = require_control_actor(&state, &headers, None).await?;
+    ensure_actor_can_read(&actor)?;
+    ensure_git_capability(&state, &actor, &payload.device_id).await?;
+
+    let result = submit_git_request(
+        &state,
+        GitOperationRequest::DiffFile {
+            id: Uuid::new_v4().to_string(),
+            device_id: payload.device_id,
+            session_cwd: payload.session_cwd,
+            repo_path: payload.repo_path,
+        },
+    )
+    .await?;
+
+    match result {
+        GitOperationResult::DiffFile { response } => Ok(Json(response)),
+        GitOperationResult::Error { message } => {
+            Err(ApiError::bad_request("git_diff_failed", message))
+        }
+        GitOperationResult::Inspect { .. }
+        | GitOperationResult::CreateWorktree { .. }
+        | GitOperationResult::RemoveWorktree { .. } => Err(ApiError::bad_request(
+            "git_diff_invalid_response",
+            "Relay received the wrong response type for a Git file-diff request",
+        )),
+    }
+}
+
+pub(super) async fn create_git_worktree(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<GitCreateWorktreeRequest>,
+) -> Result<Json<GitCreateWorktreeResponse>, ApiError> {
+    let actor = require_control_actor(&state, &headers, None).await?;
+    ensure_actor_can_write(&actor)?;
+    ensure_git_capability(&state, &actor, &payload.device_id).await?;
+
+    let result = submit_git_request(
+        &state,
+        GitOperationRequest::CreateWorktree {
+            id: Uuid::new_v4().to_string(),
+            device_id: payload.device_id,
+            session_cwd: payload.session_cwd,
+            branch_name: payload.branch_name,
+            destination_path: payload.destination_path,
+        },
+    )
+    .await?;
+
+    match result {
+        GitOperationResult::CreateWorktree { response } => Ok(Json(response)),
+        GitOperationResult::Error { message } => {
+            Err(ApiError::bad_request("git_create_worktree_failed", message))
+        }
+        GitOperationResult::Inspect { .. }
+        | GitOperationResult::DiffFile { .. }
+        | GitOperationResult::RemoveWorktree { .. } => Err(ApiError::bad_request(
+            "git_create_worktree_invalid_response",
+            "Relay received the wrong response type for a worktree-create request",
+        )),
+    }
+}
+
+pub(super) async fn remove_git_worktree(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<GitRemoveWorktreeRequest>,
+) -> Result<Json<GitRemoveWorktreeResponse>, ApiError> {
+    let actor = require_control_actor(&state, &headers, None).await?;
+    ensure_actor_can_write(&actor)?;
+    ensure_git_capability(&state, &actor, &payload.device_id).await?;
+
+    let result = submit_git_request(
+        &state,
+        GitOperationRequest::RemoveWorktree {
+            id: Uuid::new_v4().to_string(),
+            device_id: payload.device_id,
+            session_cwd: payload.session_cwd,
+            worktree_path: payload.worktree_path,
+        },
+    )
+    .await?;
+
+    match result {
+        GitOperationResult::RemoveWorktree { response } => Ok(Json(response)),
+        GitOperationResult::Error { message } => {
+            Err(ApiError::bad_request("git_remove_worktree_failed", message))
+        }
+        GitOperationResult::Inspect { .. }
+        | GitOperationResult::DiffFile { .. }
+        | GitOperationResult::CreateWorktree { .. } => Err(ApiError::bad_request(
+            "git_remove_worktree_invalid_response",
+            "Relay received the wrong response type for a worktree-remove request",
+        )),
     }
 }
 

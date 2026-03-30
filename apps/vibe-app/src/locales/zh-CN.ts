@@ -1,684 +1,384 @@
 const zhCN = {
   app: {
-    name: "Vibe Everywhere",
-    title: "Vibe Everywhere",
+    title: "Vibe Everywhere"
   },
-  locale: {
-    label: "语言",
-    zhCN: "中文",
-    en: "English",
-  },
-  theme: {
-    label: "主题",
-    system: "跟随系统",
-    light: "浅色",
-    dark: "深色",
+  nav: {
+    home: "首页",
+    projects: "项目",
+    notifications: "通知",
+    settings: "我的"
   },
   common: {
-    connect: "连接",
     refresh: "刷新",
-    cancel: "取消",
-    close: "关闭",
+    openProject: "打开项目",
+    viewDetails: "查看详情",
+    all: "全部",
     online: "在线",
     offline: "离线",
-    status: "状态",
-    scope: "范围",
-    provider: "Provider",
-    title: "标题",
-    model: "模型",
-    prompt: "提示词",
-    protocol: "协议",
-    created: "创建时间",
-    started: "开始时间",
-    finished: "结束时间",
-    pending: "等待中",
-    allDevices: "所有设备",
-    selectedDevice: "当前设备",
-    allStatus: "全部状态",
-    sendCommand: "发送命令",
-    optionalAccessToken: "可选访问令牌",
-    useAgentWorkingRoot: "使用 agent 工作根目录",
-    defaultModel: "默认模型",
+    itemsCount: "{count} 项",
+    projectsCount: "{count} 个项目",
+    refreshedAt: "更新于 {value}"
+  },
+  shell: {
+    badge: "AI Worktree",
+    title: "跨主机与项目的远程 AI 开发工作台",
+    serverError: "服务器错误",
+    hostsOnline: "{count} 台主机在线",
+    noHostOnline: "当前没有在线主机",
+    emptyServer: "请先在“我的”中配置 relay，然后开始浏览主机与项目会话。",
+    runningTasks: "运行中任务：{count}",
+    attention: "待处理事项：{count}"
+  },
+  projectCard: {
+    failed: "失败",
     waiting: "等待中",
-  },
-  connectionState: {
-    disconnected: "未连接",
-    connecting: "连接中",
-    connected: "已连接",
-  },
-  taskStatus: {
-    pending: "等待中",
-    assigned: "已分配",
     running: "运行中",
-    waiting_input: "等待用户输入",
-    cancel_requested: "已请求取消",
-    succeeded: "成功",
-    failed: "失败",
-    canceled: "已取消",
-  },
-  shellStatus: {
-    pending: "等待中",
-    active: "活动中",
-    close_requested: "已请求关闭",
-    succeeded: "成功",
-    failed: "失败",
-    closed: "已关闭",
-  },
-  portForwardStatus: {
-    pending: "等待中",
-    active: "活动中",
-    close_requested: "已请求关闭",
-    closed: "已关闭",
-    failed: "失败",
-  },
-  eventKind: {
-    system: "系统",
-    status: "状态",
-    provider_stdout: "Provider 标准输出",
-    provider_stderr: "Provider 错误输出",
-    assistant_delta: "助手增量输出",
-    tool_call: "工具调用",
-    tool_output: "工具输出",
-  },
-  stream: {
-    stdin: "标准输入",
-    stdout: "标准输出",
-    stderr: "错误输出",
-    system: "系统",
-  },
-  transport: {
-    relay_tunnel: "Relay 隧道",
-    overlay_proxy: "Overlay 代理",
-  },
-  gitFileStatus: {
-    modified: "已修改",
-    added: "已新增",
-    deleted: "已删除",
-    renamed: "已重命名",
-    copied: "已复制",
-    updated_but_unmerged: "有冲突",
-    untracked: "未跟踪",
-    type_changed: "类型变更",
-    unknown: "未知",
-  },
-  auth: {
-    required: "需要认证",
-    optional: "认证可选",
-  },
-  role: {
-    owner: "所有者",
-    admin: "管理员",
-    member: "成员",
-    viewer: "只读",
-    agent: "Agent",
-  },
-  authMode: {
-    disabled: "关闭认证",
-    access_token: "访问令牌",
-  },
-  storageKind: {
-    file: "文件存储",
-    memory: "内存存储",
-    external: "外部存储",
-  },
-  deploymentMode: {
-    self_hosted: "自建部署",
-    hosted_compatible: "托管兼容",
-  },
-  notificationChannel: {
-    in_app: "应用内",
-    system: "系统通知",
-  },
-  auditAction: {
-    device_registered: "设备注册",
-    task_created: "任务创建",
-    task_canceled: "任务取消",
-    shell_session_created: "Shell 会话创建",
-    shell_session_closed: "Shell 会话关闭",
-    preview_created: "Preview 创建",
-    preview_closed: "Preview 关闭",
-  },
-  auditOutcome: {
-    succeeded: "成功",
-    rejected: "拒绝",
-    failed: "失败",
-  },
-  platform: {
-    client: {
-      web: "Web",
-      tauri_desktop: "桌面端",
-      android: "Android",
+    ready: "就绪",
+    changedFiles: "变更 {count} 个文件",
+    inventoryOnly: "新发现",
+    availability: {
+      available: "可用",
+      offline: "主机离线",
+      unreachable: "待重新确认",
+      history_only: "仅历史记录"
     },
+    discovery: {
+      working_root: "主机库存",
+      git_worktree: "Git 工作树",
+      known_project: "已知项目"
+    },
+    topics: "话题",
+    updated: "更新时间"
   },
-  error: {
-    targetPortInvalid: "目标端口必须是 1 到 65535 之间的整数。",
-  },
-  appShell: {
-    nav: {
-      chat: "聊天",
-      devices: "设备",
-      menu: "菜单",
-    },
-  },
-  chatHome: {
-    badge: "远程项目",
-    title: "先选设备，再回到这个设备上已有的 AI 项目。",
-    summary:
-      "首页按设备展示历史项目，项目按工作目录聚合。进入项目后直接回到聊天，不再回到老式控制台面板。",
-    connectionState: "Relay",
-    onlineDevices: "在线设备",
-    totalProjects: "项目数",
-    serverSettings: "服务器设置",
-    deviceProjectCount: "{count} 个项目",
-    defaultWorkspaceEntry: "默认目录",
-    defaultWorkspacePath: "默认工作目录",
-    topicCount: "{count} 个话题",
-    emptyProjects: "这台设备还没有项目历史，可以先从默认工作目录开始。",
-  },
-  chatProject: {
-    badge: "项目对话",
-    title: "项目对话",
-    defaultWorkspaceTitle: "默认工作目录",
-    defaultWorkspacePath: "默认工作目录",
-    newTopic: "新话题",
-    archive: "归档",
-    topicCount: "{count} 个话题",
-    traceCount: "{count} 条追踪事件",
-    waitingInput: "等待你的回复。",
-    traceOnlyFailed: "本次运行失败，如需细节请到次级诊断面查看。",
-    traceOnlyCompleted: "本次运行已完成，但没有助手文本输出。",
-    traceOnlyCanceled: "本次运行已取消。",
-    generating: "生成中...",
-    emptyBadge: "准备就绪",
-    emptyTitle: "从这个项目开始第一个话题。",
-    emptySummary:
-      "项目保持工作目录稳定，话题彼此独立。直接在下方发送提示词即可创建第一条对话。",
-    inputRequestBadge: "需要你的输入",
-    customReply: "自定义回复",
-    customReplyPlaceholder: "输入给 Provider 的自由文本回复。",
-    submitReply: "提交回复",
-    modelPlaceholder: "可选模型覆盖",
-    promptPlaceholder: "告诉 AI 在这个项目里做什么...",
-    followupSummary: "继续追问会沿用当前话题的 Provider 原生线程。",
-    newTopicSummary: "新话题会继承当前设备和项目目录。",
-    send: "发送",
-    historyTitle: "话题历史",
-    historySummary: "这里只显示当前设备和当前项目下的话题。",
-    emptyHistory: "这个项目下还没有话题。",
-    userTurn: "你",
-  },
-  menuPage: {
-    badge: "菜单",
-    title: "菜单",
-    summary:
-      "设置和次级能力放在这里，主流程保持聚焦在设备与项目聊天。",
-    serverSettingsTitle: "设置",
-    serverSettingsSummary: "配置 Relay 地址、访问令牌、语言和主题。",
-    secondaryToolsTitle: "次级工具",
-    secondaryToolsSummary:
-      "Terminal、Preview 和底层诊断保留为次级入口，不再占用一级导航。",
-    secondaryToolsBadge: "次级入口",
-  },
-  settingsPage: {
-    badge: "设置",
-    title: "服务器设置",
-    summary:
-      "统一配置当前客户端如何连接 relay，并在同一页维护外观偏好。",
-    serverTitle: "Relay 连接",
-    serverSummary: "Relay 地址和访问令牌沿用当前客户端持久化配置。",
-    saveAndConnect: "保存并连接",
-    localeTitle: "语言",
-    themeTitle: "主题",
-    currentServer: "当前 Relay",
-    notConnected: "未连接",
-  },
-  dashboard: {
-    nav: {
-      sessions: "AI Sessions",
-      devices: "设备",
-      advanced: "高级",
-    },
-    navDescriptions: {
-      sessions:
-        "在一条主流程里完成连接 Relay、选择设备、启动 AI 工作和审阅结果。",
-      devices: "查看设备清单、运行态、部署元信息以及 provider 就绪情况。",
-      advanced: "仅在需要更深层诊断时再进入 Terminal 和 Preview。",
-    },
-    shell: {
-      badge: "控制台",
-      description:
-        "一级分区改为路由承载后，核心工作流彼此独立，且同一套信息架构可以同时适配桌面与移动端。",
-      connectionState: "Relay 流状态",
-      selectedDevice: "当前设备",
-      noDeviceSelected: "尚未选择设备",
-    },
-    heroBadge: "Vue + Tauri 2 + Rust Relay",
-    heroDescription:
-      "以 AI Sessions 为中心的远程开发控制台。选择设备、发起 AI 会话、监督输出，再按需进入 terminal 或 preview tunnel 处理高级诊断。",
-    relayTitle: "Relay",
-    relayBaseUrl: "Relay 地址",
-    mobileLoopbackWarning:
-      "移动端不能连接 localhost / 127.0.0.1，请改成 relay 所在机器的局域网 IP 或 HTTPS 公网地址。",
-    mobileRemoteHint:
-      "移动端请填写 relay 所在机器的局域网 IP 或 HTTPS 公网地址。",
-    activity: {
-      title: "活动中心",
-      summary: "未读 {unread} 条 / 共 {total} 条",
-      markAllRead: "全部标记已读",
-      empty: "任务完成、失败和 Preview 就绪等活动会显示在这里。",
-      unread: "未读",
-      categories: {
-        taskSucceeded: "任务成功",
-        taskFailed: "任务失败",
-        taskCanceled: "任务取消",
-        previewReady: "Preview 就绪",
-        previewFailed: "Preview 失败",
-      },
-      messages: {
-        taskSucceeded: "“{title}” 已在设备 {deviceId} 上完成。",
-        taskFailed: "“{title}” 已在设备 {deviceId} 上失败。",
-        taskCanceled: "“{title}” 已在设备 {deviceId} 上取消。",
-        previewReady: "设备 {deviceId} 上的 Preview {host}:{port} 已就绪。",
-        previewFailed: "设备 {deviceId} 上的 Preview {host}:{port} 创建失败。",
-      },
-    },
-    deployment: {
-      title: "部署与连接面",
-      summary:
-        "这里用于查看当前部署元信息与连接端点。更详细的自建部署说明放在文档中。",
-      mode: "部署模式",
-      authMode: "认证模式",
-      storageKind: "存储",
-      currentClient: "当前客户端",
-      relayOrigin: "Relay 对外地址",
-      documentation: "自建部署文档",
-      guidance: {
-        selfHosted:
-          "当前控制面以自建模式运行。relay 地址、访问令牌和转发 host 都应按环境配置，不能假设单机 localhost。",
-        hostedCompatible:
-          "当前 relay 暴露的是托管兼容表面。客户端不要依赖 loopback 或单机网络假设。",
-        explicitRemote:
-          "当前客户端应使用显式远程 relay 地址，不要使用 localhost，应优先填写 relay 机器的局域网或公网地址。",
-      },
-    },
-    platform: {
-      title: "当前客户端",
-      summary:
-        "平台能力按当前运行时识别结果展示。主界面不再列出其它平台，避免形成可切换的误解。",
-      currentClientLabel: "当前使用中",
-      currentlyUsing: "当前使用",
-      mobileOptimized: "移动端优化",
-      desktopOptimized: "桌面端优化",
-      systemNotifications: "系统通知",
-      inAppOnly: "仅应用内通知",
-      persistedConfig: "运行时配置持久化",
-      sessionOnlyConfig: "仅当前会话配置",
-      explicitRelay: "显式远程 Relay",
-      loopbackFriendly: "支持本地 Loopback",
-    },
-    governance: {
-      title: "治理与审计",
-      description:
-        "在控制台内直接展示当前 actor、tenant 边界、通知通道与最近审计事件。",
-      tenant: "租户",
-      user: "用户",
-      role: "角色",
-      notificationChannels: "通知通道",
-      auditTitle: "审计事件",
-      auditEmpty: "当前租户暂时还没有审计事件。",
-    },
+  home: {
     stats: {
-      onlineDevices: "在线设备",
-      devices: "设备总数",
-      aiSessions: "AI Sessions",
-      advancedTools: "高级工具",
-      unreadActivity: "未读活动",
+      onlineHosts: "在线主机",
+      runningTasks: "运行中任务",
+      needsAttention: "待处理"
     },
-    devices: {
-      title: "设备",
-      registered: "已注册设备 {count} 台",
-      sessions: "Sessions {count}",
-      terminals: "Terminal {count}",
-      previews: "Preview {count}",
-      availableProviders: "可用 Providers",
-      inventoryTitle: "设备清单",
-      inventoryDescription:
-        "先选中一台设备，再检查它的运行态，再决定是否发起 AI 工作或高级工具。",
-      runtimeTitle: "运行态画像",
-      runtimeDescription:
-        "查看当前设备的平台、工作根目录、最近心跳和 overlay 连接信息。",
-      platform: "平台",
-      workingRoot: "工作根目录",
-      lastSeen: "最近在线",
-      currentTask: "当前任务",
-      overlayMode: "Overlay 模式",
-      overlayState: "Overlay 状态",
-      overlayRelay: "Overlay Relay",
-      capabilitiesTitle: "能力与 Providers",
-      capabilitiesDescription:
-        "直接展示 agent 上报的原始能力标签，避免 UI 和真实运行态语义不一致。",
-      capabilitiesLabel: "已上报能力",
-      capabilitiesEmpty: "当前设备还没有上报任何能力标签。",
-      providersTitle: "Provider 可用性",
-      providerAvailable: "可用",
-      providerUnavailable: "不可用",
-      providerVersion: "版本",
-      providerVersionPending: "版本待确认",
-      workloadTitle: "当前负载",
-      workloadDescription:
-        "查看这台设备当前关联的 AI Sessions、Terminals 和 Previews 数量。",
-      managementDescription:
-        "这个次级视图用于运行态检查、部署元信息查看以及治理上下文查看。",
-      emptySelection:
-        "从左侧设备清单选择一台设备后，这里会展示它的运行态、负载和 provider 可用性。",
-    },
-    sessions: {
-      title: "AI Sessions",
-      primaryBadge: "主流程",
-      primaryDescription:
-        "把日常使用压成一页：连接 Relay、选择设备、启动 AI Session，然后直接审阅工作区和 Git 结果，再决定是否进入高级工具。",
-      steps: {
-        connect: "连接 Relay",
-        chooseDevice: "选择设备",
-        start: "启动会话",
-        review: "审阅结果",
-      },
-      devicePickerTitle: "选择设备",
-      devicePickerDescription:
-        "先选出本次要执行 AI Session 的机器，这里同时保留运行态能力和 provider 就绪信息。",
-      recentTitle: "最近 Sessions",
-      launchTitle: "启动新的 Session",
-      launchDescription:
-        "直接基于当前设备上下文启动下一次 AI 运行，不再离开主流程。",
-      launchState: {
-        needs_relay: "请先连接 Relay，设备和会话信息才能加载出来。",
-        needs_device: "请先选择一台在线设备，才能启用 Session 创建表单。",
-        device_offline: "当前设备离线。请选择其他设备，或等待它重新连上。",
-        needs_provider:
-          "当前设备没有可用 Provider。请先恢复 Provider 就绪状态，再启动 Session。",
-        ready:
-          "已准备好在 {device} 上启动新的 Session。填写提示词后即可开始运行。",
-      },
-      providerIssuesTitle: "Provider 就绪问题",
-      visibleSummary: "当前显示 {visible} / 总计 {total}",
-      empty: "当前筛选条件下还没有 AI Session。先选择设备并发起一个新的会话。",
-      start: "启动 AI Session",
-      cancelSession: "取消会话",
-      newOnDevice: "{name} 上的新 AI Session",
-      reviewTitle: "当前 Session 审阅",
-      reviewDescription:
-        "把运行状态、执行位置、提示词和结果摘要放在同一个上下文里查看。",
-      resultReviewTitle: "审阅变更文件与 Git 上下文",
-      resultReviewDescription:
-        "先判断 AI 到底改了什么，再决定是否进入 Terminal 或继续交接。",
-      eventStreamTitle: "Session 事件流",
-      eventStreamDescription:
-        "事件流负责讲述执行过程，结果审阅区域则聚焦最终产物。",
-      readySelected:
-        "当前设备已选中。你可以直接在这里启动 Session，并在主流程里继续查看结果、事件流和工作区。",
-      readyEmpty: "先选择一台在线设备，再启动新的 AI Session。",
-    },
-    chat: {
-      liveBadge: "对话优先",
-      setupTitle: "只连接一次，然后留在聊天里",
-      threadControl: "长期线程控制",
-      sidebarTitle: "项目与对话",
-      setupSummary:
-        "Relay、设备、Provider 和线程目标先集中在一个紧凑面板里，等首个会话准备好后就退到次要位置。",
-      sidebarSummary:
-        "把连接、设备、项目目录、历史对话和文件浏览放到侧栏，主区域只保留聊天。",
-      threadSummary:
-        "聊天界面保持为主界面。切换 Relay 和新线程目标保留为紧凑的次级控制。",
-      contextControls: "会话上下文",
-      hideContextControls: "收起上下文",
-      relayHintLabel: "Relay 地址",
-      threadSwitcherTitle: "线程切换",
-      newConversation: "新对话",
-      autoTitleHint: "根据首条提示自动生成标题",
-      cwd: "工作目录",
-      projectFolder: "项目目录",
-      projectFolderSummary: "设置后，新建对话默认在这个目录下运行。",
-      devicesEntry: "设备与设置",
-      switchRelay: "切换 Relay 或令牌",
-      reconnect: "重新连接",
-      historyTitle: "对话历史",
-      historySummary: "按更新时间倒序展示长期线程。",
-      startBlank: "开始一个全新线程",
-      startBlankSummary: "清空当前选择，把下一条提示直接发送成新的长期对话。",
-      activeThread: "当前线程",
-      newThread: "草稿线程",
-      composeTitle: "开始一个长期 AI 对话",
-      composeSummary:
-        "当前在线程所在设备 {device} 上继续，由 {provider} 执行。",
-      composeEmptySummary:
-        "先在这里写下第一条提示。创建后，后续轮次会继续沿用 Provider 原生线程。",
-      archive: "归档",
-      userTurn: "你",
-      waitingInput: "Provider 正在等待你的选择，确认后才能继续执行。",
-      generating: "Agent 仍在生成下一段回复。",
-      traceOnlyCompleted:
-        "这一轮没有可展示的常规助手回复，请到运行轨迹里查看执行详情。",
-      traceOnlyFailed:
-        "这一轮在生成常规助手回复前就失败了，请到运行轨迹里查看详情。",
-      traceOnlyCanceled: "这一轮在生成常规助手回复前已被取消。",
-      traceEntryTitle: "运行详情已移到轨迹面板",
-      emptyBadge: "聊天主界面",
-      emptyTitle: "把主页面收束到对话交互",
-      emptySummary:
-        "从这里开始或切换长期会话。工作区、Git、终端和预览仍然可用，但收缩为次要审阅面板。",
-      inputRequestBadge: "需要你的决定",
-      inputRequestSummary:
-        "有些 AI 编程工具会暂停并等待明确的人类选择。你可以直接点选，也可以在这里填写自定义输入。",
-      customOption: "其他",
-      customOptionSummary: "不用预设项，改为手动输入。",
-      customInputPlaceholder: "输入要让 agent 使用的选择、值或路径。",
-      submitChoice: "提交选择",
-      replyPlaceholder: "继续发送下一条指令、修正意见或补充上下文……",
-      startPlaceholder: "描述要让远程 AI 构建、修改或检查什么……",
-      sendReply: "发送回复",
-      startConversation: "启动对话",
-      inspectorTitle: "紧凑检查面板",
-      inspectorSummary:
-        "Git、工作区和任务遥测仍可查看，但不会再抢占主对话界面。",
-      latestTurn: "最近一轮",
-      toolEvents: "工具事件",
-      systemEvents: "系统事件",
-      traceSummary:
-        "把工具输出、系统提示和 provider stderr 放到次级面板里查看，避免打断主对话。",
-      traceEmpty: "当前对话还没有可展示的 Trace 事件。",
-      gitSummary: "在聊天旁边快速审阅仓库漂移和变更文件。",
-      gitEmpty: "当前对话还没有可展示的 Git 上下文。",
-      workspaceBrowserSummary:
-        "侧边栏直接查看完整项目目录，并支持返回上级或根目录。",
-      workspaceSummary: "不离开聊天界面，直接浏览当前工作区。",
-      workspaceEmpty: "当前对话还没有可展示的工作区快照。",
-      panels: {
-        status: "状态",
-        git: "Git",
-        files: "文件",
-        trace: "Trace",
-      },
-    },
-    workspace: {
-      title: "Session 工作台",
-      newTitle: "新的 AI Session",
-      newDescription: "为当前设备描述目标、工作目录和可选的模型覆盖。",
-      currentTitle: "当前会话",
-      promptTitle: "提示词",
-      waitingEvents: "Session 已创建，等待 provider 输出事件流。",
-      workingDirectory: "工作目录",
-      sessionMetrics: "会话指标",
-      device: "设备",
-      workingRoot: "工作根目录",
-      deviceCapacity: "设备能力",
-      providers: "{count} 个 providers",
-      capacitySummary:
-        "{sessions} 个 sessions · {terminals} 个 terminals · {previews} 个 previews",
-      relativePathHint:
-        "推荐在 Session CWD 中使用相对路径，保持在当前工作区内。",
-      exitCode: "退出码 {code}",
-      eventsSummary: "{count} 条事件 · 设备 {deviceId}",
-      supervision: {
-        title: "会话监督",
-        description:
-          "将 provider 输出信号与 Git 上下文结合起来，再决定是否进入 Terminal 或 Preview。",
-        summary: {
-          running:
-            "AI Session 仍在运行中。当前工作区范围内已检测到 {changed} 个变更文件。",
-          succeededWithChanges:
-            "AI Session 已完成，当前分支 {branch} 上留下了 {changed} 个待审查变更文件。",
-          succeededClean:
-            "AI Session 已完成，但在当前工作区范围内没有看到 Git 变更。",
-          failedWithChanges:
-            "AI Session 已失败，但当前工作区范围内仍保留 {changed} 个变更文件。",
-          failedClean:
-            "AI Session 已失败，且当前工作区范围内没有可见 Git 变更。",
-          noGit:
-            "当前工作区暂时无法提供 Git 监督，请结合事件流和工作区预览继续判断结果。",
-        },
-        counts: {
-          assistant: "助手消息",
-          tool: "工具活动",
-          stderr: "Provider 错误",
-          changed: "变更文件",
-        },
-      },
-      browser: {
-        title: "工作区浏览器",
-        description: "直接浏览当前 Session 工作区，不必先进入 Terminal。",
-        unsupported: "当前设备还没有声明工作区浏览能力。",
-        loading: "正在加载工作区...",
-        empty: "当前目录为空。",
-        up: "返回上级",
-        root: "工作区根目录",
-        path: "当前路径",
-        entries: "{count} 个条目",
-        kind: {
-          directory: "目录",
-          file: "文件",
-        },
-        sizeLabel: "文件大小",
-        size: "{size} 字节",
-        lines: "行数",
-        previewTitle: "文件预览",
-        previewLoading: "正在加载文件预览...",
-        previewEmpty: "选择一个文件后，可在这里查看内容。",
-        binaryNotice: "该文件是二进制或非文本文件，无法直接内联预览。",
-        truncated: "为保持控制台响应速度，预览内容已截断。",
-      },
-      git: {
-        title: "Git 检查",
-        description:
-          "直接查看分支状态、变更文件和最近提交，不必先进入 Terminal。",
-        unsupported: "当前设备还没有声明 Git 检查能力。",
-        loading: "正在加载 Git 上下文...",
-        empty: "选择一台设备后即可查看仓库状态。",
-        workspaceRoot: "工作区范围",
-        repoRoot: "仓库根目录",
-        scopePath: "范围路径",
-        branch: "分支",
-        upstream: "上游",
-        drift: "上游差异",
-        noUpstream: "没有上游分支",
-        driftSummary: "ahead {ahead} · behind {behind}",
-        state: {
-          not_repository: "当前工作区不在 Git 仓库中。",
-          git_unavailable: "当前设备上不可用 Git。",
-        },
-        clean: "当前工作区范围内没有可见的变更文件。",
-        noCommits: "当前仓库还没有任何提交。",
-        changedFilesTitle: "变更文件",
-        recentCommitsTitle: "最近提交",
-        preview: "预览",
-        deletedPreviewUnavailable: "已删除文件无法预览。",
-        stats: {
-          changedFiles: "{count} 个变更文件",
-          stagedFiles: "{count} 个 staged",
-          unstagedFiles: "{count} 个 unstaged",
-          untrackedFiles: "{count} 个 untracked",
-          conflictedFiles: "{count} 个冲突文件",
-          stagedLines: "staged +{additions} / -{deletions}",
-          unstagedLines: "unstaged +{additions} / -{deletions}",
-        },
-      },
-    },
-    fields: {
-      accessToken: "访问令牌",
-      provider: "Provider",
-      title: "标题",
-      sessionCwd: "Session CWD",
-      model: "模型",
-      prompt: "提示词",
-      terminalCwd: "Terminal CWD",
-      targetHost: "服务主机",
-      targetPort: "服务端口",
-    },
-    placeholders: {
-      selectProvider: "选择 provider",
-      sessionTitle: "临时 AI 会话",
-      sessionCwd: "repo/path 或 /absolute/path",
-      model: "可选模型覆盖",
-      prompt: "告诉 Codex / Claude Code / OpenCode 在当前设备上做什么。",
-      terminalCwd: "可选工作目录",
-      terminalInput: "pwd",
-      targetHost: "127.0.0.1",
-      targetPort: "3000",
-    },
-    composerNote:
-      "当前只有 OpenCode 走标准 ACP；Codex 和 Claude Code 当前仍走 CLI。Terminal 和 Preview 保留在下方高级工具区。",
-    advanced: {
-      badge: "高级工具",
-      title: "Terminal 与 Preview",
-      description:
-        "这些能力保留给环境检查、人工兜底和预览访问，不再作为首页主工作流。",
-      empty:
-        "当前部署没有开启可用的高级能力。对应的 Terminal / Preview 功能启用后会显示在这里。",
-    },
-    terminal: {
-      title: "Terminal",
-      visibleSummary: "当前显示 {visible} / 总计 {total} · WS {state}",
-      open: "打开 Terminal",
-      empty: "当前筛选条件下还没有 terminal sessions。",
-      waiting: "会话已创建，等待 agent 启动 terminal 并回传输出。",
-      select: "选择一个 terminal session，或先为当前设备创建新的 terminal。",
-      noCapability:
-        "当前选中的设备没有声明 shell capability，无法创建 terminal session。",
-      note: "用于环境检查、人工兜底和高级诊断，不作为默认主路径。",
-      detailTitle: "Terminal {id}",
-      detailSummary: "{status} · 开始于 {time}",
-    },
-    preview: {
-      title: "Preview",
-      description:
-        "把当前设备上的本地 Web 应用或 HTTP 服务暴露出来，而不是先面对原始隧道细节。",
-      visibleSummary: "当前显示 {visible} / 总计 {total}",
-      open: "创建 Preview",
-      launchTitle: "从当前工作台发起 Preview",
-      launchDescription:
-        "直接复用当前设备和 Session 上下文暴露本地 HTTP 服务。更完整的历史记录和原始连接细节保留在下方高级面板。",
-      empty:
-        "当前还没有匹配的 Preview。选择设备并填写本地服务主机与端口后即可创建。",
-      select: "选择一个 Preview 在这里查看，或先创建新的 Preview。",
-      note: "Preview 是面向常见本地 Web 服务的产品路径。原始 relay / target 端点细节仍保留在下方，用于高级排障。",
-      serviceHint:
-        "优先使用常见场景：当前设备上的本地 HTTP 服务。Host 仍然可以编辑，以支持非 localhost 服务。",
-      serviceTarget: "服务 {host}:{port}",
-      previewUrl: "预览地址",
-      openLink: "浏览器打开",
-      ready:
-        "Preview relay 已激活。可以直接在浏览器中打开，或查看下方高级连接细节。",
-      waiting: "Preview 仍在准备中，请等待其进入激活状态后再打开。",
-      mobileWarning:
-        "当前 Preview 指向 loopback 地址，移动端无法访问。请改为正确配置 relay 的 forward host。",
-      advancedTitle: "高级连接细节",
-      advancedDescription:
-        "原始 relay / target 端点保留在这里，用于自建网络排查和低层诊断。",
-      transportLabel: "传输方式",
-      relayEndpoint: "Relay 入口",
-      targetEndpoint: "目标地址",
-      detailTitle: "Preview {id}",
-    },
+    continueWorkBadge: "继续工作",
+    continueWorkEmptyTitle: "先连接服务器并打开一个项目。",
+    continueWorkEmptySummary: "一旦项目会话开始，最近项目会出现在这里，方便在手机上快速续接。",
+    runningNow: "当前运行",
+    noRunningTasks: "当前没有活跃任务，但最近项目和待审查工作仍会显示在下方。",
+    needsReview: "待审查",
+    noReviewProjects: "当前没有失败任务或待确认事项。",
+    recentProjects: "最近项目"
   },
-} as const;
+  projects: {
+    title: "按主机与项目浏览",
+    summary: "从主机状态直接进入具体项目上下文，不丢失当前路径。",
+    searchPlaceholder: "搜索主机、项目或路径",
+    recentFilter: "最近",
+    hostEmptyOffline: "这台主机当前离线，暂时无法读取它的项目库存。",
+    hostEmptyNoWorkspace: "这台主机还没有配置工作目录根路径，暂时无法开始项目发现。",
+    hostEmptyNoProjects: "这台主机下暂时没有发现 Git 项目，请检查工作目录根路径和仓库布局。",
+    empty: "当前筛选条件下没有匹配项目。"
+  },
+  notifications: {
+    badge: "通知",
+    title: "快速回到需要决策的工作",
+    summary: "失败任务、Provider 提问和已完成任务都会在这里出现，方便手机端快速回到正确项目。",
+    unreadCount: "未读 {count}",
+    visibleCount: "当前显示 {count}",
+    preferencesTitle: "项目通知偏好",
+    preferencesSummary: "为每个项目选择接收全部完成通知，还是仅接收失败与等待输入事件。",
+    defaultPreferenceTitle: "默认偏好",
+    defaultPreferenceSummary: "没有单独覆盖的项目会继承这里的通知策略。",
+    preferenceInherited: "当前继承默认值：{value}",
+    preferenceOverride: "当前项目覆盖值：{value}",
+    preferenceReset: "恢复默认",
+    preferencesEmpty: "先打开一些项目，这里才会显示它们的通知偏好。",
+    preferenceImportant: "仅失败与等待",
+    preferenceAll: "全部活动",
+    unread: "未读",
+    unreadSummary: "优先处理这些仍然需要你决策的工作。",
+    recent: "最近",
+    recentSummary: "已经看过的事项仍保留在这里，方便快速重新进入。",
+    newBadge: "新",
+    actions: {
+      conversation: "打开会话",
+      changes: "打开变更",
+      logs: "打开日志"
+    },
+    empty: "暂时没有新通知。运行中、失败或等待输入的工作会显示在这里。",
+    completed: "已完成"
+  },
+  settings: {
+    badge: "我的",
+    title: "服务器、外观与客户端偏好",
+    summary: "主流程留在项目里，relay 设置、语言和主题等次级控制放在这里。",
+    serverTitle: "服务器设置",
+    serverSummary: "配置当前客户端连接 relay 所需的地址和控制令牌。",
+    relayUrl: "Relay 地址",
+    accessToken: "访问令牌",
+    accessTokenPlaceholder: "可选 Bearer Token",
+    save: "保存并刷新",
+    currentServer: "当前服务器：{value}",
+    notConfigured: "未配置",
+    language: "语言",
+    theme: "主题",
+    policy: {
+      badge: "策略",
+      title: "执行策略中心",
+      summary: "在发起任务前，先统一查看当前有哪些 Provider 可用，以及每种执行模式已经真实生效了哪些限制。",
+      providerAvailability: "{online}/{available} 在线",
+      empty: "当前主机上还没有检测到可汇总的 Provider 能力。",
+      manageBadge: "默认值",
+      manageTitle: "策略默认值",
+      manageSummary: "这些默认值由当前客户端先应用，之后才会被项目级或任务级覆盖。",
+      defaultExecutionMode: "默认执行模式",
+      defaultNotifications: "默认通知偏好",
+      sensitiveConfirm: "高风险确认",
+      confirmEnabled: "开启",
+      confirmDisabled: "关闭"
+    },
+    audit: {
+      badge: "审计",
+      title: "审计覆盖",
+      summary: "在更完整的管理面完成前，这里先提供当前策略与审计覆盖范围的只读汇总。",
+      coverageTitle: "当前覆盖范围",
+      manageBadge: "记录",
+      manageTitle: "全局审计轨迹",
+      manageSummary: "在一个全局次级入口里查看最近的任务、Shell 和预览审计记录。",
+      empty: "当前筛选条件下没有匹配的审计记录。",
+      filters: {
+        task: "任务",
+        shellPreview: "Shell 与预览"
+      },
+      facts: {
+        projectLogs: "项目日志会先展示当前会话相关的审计记录，再展示原始运行输出。",
+        taskLifecycle: "任务创建和取消动作已经进入审计轨迹。",
+        shellPreview: "使用 Shell 和预览等次级工具时，其生命周期动作也会进入审计轨迹。",
+        secondarySurface: "这里目前只提供可见性汇总；真正的策略编辑仍主要依赖运行时默认值和次级视图。"
+      }
+    }
+  },
+  workspace: {
+    badge: "项目",
+    title: "项目工作台",
+    loadingPath: "正在加载项目路径...",
+    currentState: "当前状态",
+    tabs: {
+      conversation: "会话",
+      changes: "变更",
+      files: "文件",
+      logs: "日志"
+    },
+    desktop: {
+      projects: "主机项目",
+      hostTree: "主机与项目树",
+      hostEmpty: "这台主机当前没有可见项目。",
+      worktreeTitle: "新建工作树",
+      worktreeSummary: "在当前项目旁边创建一个新的工作树和分支，不打断现有会话。",
+      worktreeBranch: "分支名",
+      worktreeBranchPlaceholder: "feature/mobile-review",
+      worktreeDirectory: "目录名",
+      worktreeDestinationHint: "会在当前仓库旁边创建 ../{value}。",
+      worktreeSubmit: "创建工作树",
+      worktreeCreating: "正在创建工作树...",
+      worktreeCreated: "工作树 ../{value} 已创建。",
+      worktreeRemove: "移除",
+      worktreeRemoving: "正在移除...",
+      worktreeRemoved: "工作树 {value} 已移除。",
+      worktreeRemoveConfirm: "确定移除工作树 {value} 吗？这会删除对应的 sibling 工作树目录。",
+      worktreeBranchRequired: "创建工作树前请先填写分支名。",
+      worktreeDirectoryRequired: "请填写目标目录名。",
+      worktreeList: "工作树列表",
+      worktreeCurrent: "当前",
+      worktreeDetached: "游离",
+      worktreeStates: {
+        current: "当前",
+        detached: "游离",
+        inventory_missing: "未进入项目库存",
+        offline: "主机离线",
+        unreachable: "待重新确认",
+        available: "可用",
+        remove_failed: "移除失败"
+      }
+    },
+    metrics: {
+      topics: "话题 {count}",
+      running: "运行中 {count}",
+      waiting: "等待中 {count}",
+      branch: "分支 {value}",
+      worktrees: "工作树 {count}",
+      changedFiles: "变更文件 {count}",
+      updated: "更新于 {value}"
+    },
+    state: {
+      failed: "有失败结果待审查",
+      waiting: "正在等待你的输入",
+      running: "AI 正在执行",
+      ready: "可以开始新一轮任务"
+    }
+  },
+  conversation: {
+    topics: "话题",
+    emptyTitle: "还没有会话",
+    emptySummary: "这个项目已经可以开始工作。发送第一条请求后，就会在 {project} 下创建持续会话。",
+    firstTurnTitle: "开始第一轮任务",
+    firstTurnSummary: "使用下方输入框为 {project} 创建第一条 AI 任务，随后会话记录会持续挂在这个项目下。",
+    executionMode: {
+      title: "执行模式",
+      readOnly: "只读",
+      readOnlySummary: "仅查看、解释和提出建议，不改动文件。",
+      workspaceWrite: "可改文件",
+      workspaceWriteSummary: "允许修改当前工作区文件，但默认避免直接跑测试。",
+      workspaceWriteAndTest: "可改并测试",
+      workspaceWriteAndTestSummary: "允许修改当前工作区文件，并运行聚焦的验证或测试命令。"
+    },
+    executionModeMeta: {
+      read_only: "只读",
+      workspace_write: "可改文件",
+      workspace_write_and_test: "可改并测试"
+    },
+    policyTitle: "有效约束",
+    policySummary: {
+      acp: {
+        readOnly: "ACP 运行时会直接拦截写文件和终端会话。",
+        workspaceWrite: "ACP 运行时允许修改工作区文件，但会拦截终端测试命令。",
+        workspaceWriteAndTest: "ACP 运行时允许修改工作区文件，并允许聚焦的终端验证。"
+      },
+      codex: {
+        readOnly: "Codex 会使用原生只读沙箱运行，并且不再请求额外审批。",
+        workspaceWrite: "Codex 会使用 workspace-write 沙箱运行，遇到不受信动作时仍会要求审批。",
+        workspaceWriteAndTest: "Codex 会使用 workspace-write 沙箱运行，并默认放开聚焦验证。"
+      },
+      claude: {
+        readOnly: "Claude 会使用原生 plan 模式运行，并默认禁用写入和终端工具。",
+        workspaceWrite: "Claude 可以修改工作区，但默认会拦截常见测试命令。",
+        workspaceWriteAndTest: "Claude 可以修改工作区，并放开当前任务的测试命令限制。"
+      },
+      generic: {
+        readOnly: "当前模式要求只读，但最终约束强度仍取决于实际 Provider。",
+        workspaceWrite: "当前模式允许修改工作区，是否存在更强限制取决于实际 Provider。",
+        workspaceWriteAndTest: "当前模式允许修改和验证，是否存在更强限制取决于实际 Provider。"
+      }
+    },
+    statusLabel: {
+      pending: "排队中",
+      assigned: "已分配",
+      running: "执行中",
+      waiting_input: "等待输入",
+      cancel_requested: "已请求取消",
+      succeeded: "已完成",
+      failed: "失败",
+      canceled: "已取消"
+    },
+    statusSummary: {
+      pending: "任务已进入队列，但还没有开始执行。",
+      assigned: "任务已分配，正在等待启动。",
+      running: "任务正在执行中。",
+      waiting_input: "任务正在等待你的回复后继续。",
+      cancel_requested: "已经发出取消请求，运行时正在收尾。",
+      succeeded: "任务已成功完成。",
+      failed: "任务在返回 AI 文本前失败了。",
+      canceled: "任务在完成前被取消。"
+    },
+    eventSummary: {
+      idle: "这一轮还没有记录到机器事件。",
+      status: "{count} 条状态更新",
+      toolCalls: "{count} 次工具调用",
+      toolOutputs: "{count} 条工具结果",
+      errors: "{count} 条 stderr 事件"
+    },
+    eventStreamTitle: "最近执行事件",
+    rawEventsTitle: "详细事件输出",
+    waitingInput: "等待输入",
+    stopTask: "停止任务",
+    retryTask: "重试",
+    explainResult: "解释结果",
+    viewChanges: "查看变更",
+    viewLogs: "查看日志",
+    replyPlaceholder: "输入回复内容",
+    sendCustomReply: "发送自定义回复",
+    optionalModel: "可选模型",
+    promptPlaceholder: "告诉 AI 在这个项目里做什么...",
+    send: "发送",
+    sensitiveConfirmTitle: "敏感操作",
+    sensitiveConfirmSummary: "这条提示词看起来可能触发破坏性或高风险命令。",
+    sensitiveConfirmDetail: "请再次确认提示词和执行模式，仍要继续时再发送。",
+    confirmSend: "确认并发送",
+    cancelConfirm: "取消"
+  },
+  changes: {
+    branch: "分支",
+    changedFiles: "变更文件",
+    aheadBehind: "领先 / 落后",
+    untracked: "未跟踪",
+    staged: "已暂存",
+    unstaged: "未暂存",
+    reviewTitle: "审查摘要",
+    reviewSummary: "先确认范围和风险，再进入原始 diff。",
+    reviewNeedsAttention: "需要审查",
+    reviewClean: "干净",
+    reviewUnavailableTitle: "Git 上下文不可用",
+    reviewUnavailableSummary: "当前工作区还没有返回可审查的 Git 状态。",
+    reviewCleanTitle: "当前没有本地变更",
+    reviewCleanSummary: "这个工作区当前是干净的，暂时没有可审查内容。",
+    reviewScopeTitle: "变更范围",
+    reviewScopeSummary: "当前分支 {branch} 上共有 {count} 个变更文件。",
+    reviewConflictTitle: "存在冲突",
+    reviewConflictSummary: "有 {count} 个冲突文件需要在通过前明确处理。",
+    reviewDeleteTitle: "删除风险",
+    reviewDeleteSummary: "当前包含删除文件，请先确认删除意图再继续。",
+    reviewNewFilesTitle: "新增文件检查",
+    reviewNewFilesSummary: "有 {count} 个新增或未跟踪文件，需要先检查结构和位置。",
+    reviewMixedTitle: "暂存与未暂存混合",
+    reviewMixedSummary: "当前项目同时存在已暂存和未暂存修改，审查时需要同时确认两个区域。",
+    riskConflict: "冲突",
+    riskDelete: "删除",
+    riskNewFile: "新文件",
+    riskTypeChange: "类型变更",
+    riskStandard: "常规",
+    diffTitle: "文件 diff",
+    diffEmpty: "选择一个文件后即可查看它的补丁。",
+    diffUnavailable: "当前选中文件还没有可展示的 diff 输出。",
+    diffStaged: "已暂存 diff",
+    diffUnstaged: "未暂存 diff",
+    diffTruncated: "为了保证手机端审查流畅度，diff 输出已被截断。",
+    binary: "二进制补丁",
+    noChanges: "当前没有本地 Git 变更。",
+    recentCommits: "最近提交",
+    noCommits: "当前没有可用的最近提交记录。"
+  },
+  files: {
+    title: "文件",
+    truncated: "预览已截断",
+    empty: "选择一个文件后会在这里预览。"
+  },
+  logs: {
+    empty: "当前还没有运行日志。",
+    errorSummaryTitle: "错误摘要",
+    errorSummaryBody: "最近失败或 stderr 较多的运行会优先汇总在这里。",
+    errorFallback: "这个任务失败了，但没有结构化错误消息。",
+    noFilteredEvents: "当前筛选条件下，这个任务没有匹配的日志事件。",
+    audit: {
+      title: "审计轨迹",
+      summary: "当前会话及其任务相关的控制动作会优先展示在这里。",
+      outcomes: {
+        succeeded: "成功",
+        rejected: "已拒绝",
+        failed: "失败"
+      },
+      actions: {
+        device_registered: "设备注册",
+        task_created: "创建任务",
+        task_canceled: "取消任务",
+        shell_session_created: "创建 Shell 会话",
+        shell_session_closed: "关闭 Shell 会话",
+        preview_created: "创建预览",
+        preview_closed: "关闭预览"
+      }
+    },
+    filters: {
+      all: "全部",
+      errors: "错误",
+      tools: "工具",
+      provider: "Provider"
+    }
+  }
+};
 
 export default zhCN;

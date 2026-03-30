@@ -1,709 +1,384 @@
 const en = {
   app: {
-    name: "Vibe Everywhere",
-    title: "Vibe Everywhere",
+    title: "Vibe Everywhere"
   },
-  locale: {
-    label: "Language",
-    zhCN: "中文",
-    en: "English",
-  },
-  theme: {
-    label: "Theme",
-    system: "System",
-    light: "Light",
-    dark: "Dark",
+  nav: {
+    home: "Home",
+    projects: "Projects",
+    notifications: "Notifications",
+    settings: "My"
   },
   common: {
-    connect: "Connect",
     refresh: "Refresh",
-    cancel: "Cancel",
-    close: "Close",
-    online: "online",
-    offline: "offline",
-    status: "Status",
-    scope: "Scope",
-    provider: "Provider",
-    title: "Title",
-    model: "Model",
-    prompt: "Prompt",
-    protocol: "Protocol",
-    created: "Created",
-    started: "Started",
-    finished: "Finished",
-    pending: "Pending",
-    allDevices: "All devices",
-    selectedDevice: "Selected device",
-    allStatus: "All status",
-    sendCommand: "Send Command",
-    optionalAccessToken: "optional access token",
-    useAgentWorkingRoot: "Use agent working root",
-    defaultModel: "Default model",
+    openProject: "Open project",
+    viewDetails: "View details",
+    all: "All",
+    online: "Online",
+    offline: "Offline",
+    itemsCount: "{count} items",
+    projectsCount: "{count} projects",
+    refreshedAt: "Refreshed {value}"
+  },
+  shell: {
+    badge: "AI Worktree",
+    title: "Remote AI development across hosts and projects",
+    serverError: "Server error",
+    hostsOnline: "{count} hosts online",
+    noHostOnline: "No host online",
+    emptyServer: "Configure a relay in My to start browsing hosts and project conversations.",
+    runningTasks: "Tasks running: {count}",
+    attention: "Attention: {count}"
+  },
+  projectCard: {
+    failed: "Failed",
     waiting: "Waiting",
-  },
-  connectionState: {
-    disconnected: "disconnected",
-    connecting: "connecting",
-    connected: "connected",
-  },
-  taskStatus: {
-    pending: "Pending",
-    assigned: "Assigned",
     running: "Running",
-    waiting_input: "Waiting for input",
-    cancel_requested: "Cancel requested",
-    succeeded: "Succeeded",
-    failed: "Failed",
-    canceled: "Canceled",
-  },
-  shellStatus: {
-    pending: "Pending",
-    active: "Active",
-    close_requested: "Close requested",
-    succeeded: "Succeeded",
-    failed: "Failed",
-    closed: "Closed",
-  },
-  portForwardStatus: {
-    pending: "Pending",
-    active: "Active",
-    close_requested: "Close requested",
-    closed: "Closed",
-    failed: "Failed",
-  },
-  eventKind: {
-    system: "System",
-    status: "Status",
-    provider_stdout: "Provider stdout",
-    provider_stderr: "Provider stderr",
-    assistant_delta: "Assistant delta",
-    tool_call: "Tool call",
-    tool_output: "Tool output",
-  },
-  stream: {
-    stdin: "stdin",
-    stdout: "stdout",
-    stderr: "stderr",
-    system: "system",
-  },
-  transport: {
-    relay_tunnel: "relay tunnel",
-    overlay_proxy: "overlay proxy",
-  },
-  gitFileStatus: {
-    modified: "Modified",
-    added: "Added",
-    deleted: "Deleted",
-    renamed: "Renamed",
-    copied: "Copied",
-    updated_but_unmerged: "Conflicted",
-    untracked: "Untracked",
-    type_changed: "Type changed",
-    unknown: "Unknown",
-  },
-  auth: {
-    required: "auth required",
-    optional: "auth optional",
-  },
-  role: {
-    owner: "Owner",
-    admin: "Admin",
-    member: "Member",
-    viewer: "Viewer",
-    agent: "Agent",
-  },
-  authMode: {
-    disabled: "Disabled",
-    access_token: "Access Token",
-  },
-  storageKind: {
-    file: "File",
-    memory: "Memory",
-    external: "External",
-  },
-  deploymentMode: {
-    self_hosted: "Self-Hosted",
-    hosted_compatible: "Hosted-Compatible",
-  },
-  notificationChannel: {
-    in_app: "In-App",
-    system: "System",
-  },
-  auditAction: {
-    device_registered: "Device Registered",
-    task_created: "Task Created",
-    task_canceled: "Task Canceled",
-    shell_session_created: "Shell Session Created",
-    shell_session_closed: "Shell Session Closed",
-    preview_created: "Preview Created",
-    preview_closed: "Preview Closed",
-  },
-  auditOutcome: {
-    succeeded: "Succeeded",
-    rejected: "Rejected",
-    failed: "Failed",
-  },
-  platform: {
-    client: {
-      web: "Web",
-      tauri_desktop: "Desktop",
-      android: "Android",
+    ready: "Ready",
+    changedFiles: "{count} changed",
+    inventoryOnly: "New entry",
+    availability: {
+      available: "Available",
+      offline: "Host offline",
+      unreachable: "Needs recheck",
+      history_only: "History only"
     },
+    discovery: {
+      working_root: "Host inventory",
+      git_worktree: "Git worktree",
+      known_project: "Known project"
+    },
+    topics: "Topics",
+    updated: "Updated"
   },
-  error: {
-    targetPortInvalid: "Target port must be an integer between 1 and 65535.",
-  },
-  appShell: {
-    nav: {
-      chat: "Chat",
-      devices: "Devices",
-      menu: "Menu",
-    },
-  },
-  chatHome: {
-    badge: "Remote Projects",
-    title: "Pick a device and reopen the project where the AI work lives.",
-    summary:
-      "The home surface lists each connected device and the project folders that already have conversation history. Open a project to continue its topics like a chat app instead of returning to a control dashboard.",
-    connectionState: "Relay",
-    onlineDevices: "Online devices",
-    totalProjects: "Projects",
-    serverSettings: "Server settings",
-    deviceProjectCount: "{count} projects",
-    defaultWorkspaceEntry: "Default workspace",
-    defaultWorkspacePath: "Default workspace",
-    topicCount: "{count} topics",
-    emptyProjects: "No project history yet. Start from the device's default workspace.",
-  },
-  chatProject: {
-    badge: "Project Chat",
-    title: "Project chat",
-    defaultWorkspaceTitle: "Default Workspace",
-    defaultWorkspacePath: "Default workspace",
-    newTopic: "New topic",
-    archive: "Archive",
-    topicCount: "{count} topics",
-    traceCount: "{count} trace events",
-    waitingInput: "Waiting for your reply.",
-    traceOnlyFailed: "The run failed. Open trace tools from secondary surfaces if you need details.",
-    traceOnlyCompleted: "Run completed without assistant text.",
-    traceOnlyCanceled: "Run canceled.",
-    generating: "Generating...",
-    emptyBadge: "Ready",
-    emptyTitle: "Start the first topic in this project.",
-    emptySummary:
-      "This project keeps the work directory stable while topics stay separate. Send a prompt below to create the first conversation.",
-    inputRequestBadge: "Needs Your Input",
-    customReply: "Custom reply",
-    customReplyPlaceholder: "Type a free-form reply for the provider.",
-    submitReply: "Submit reply",
-    modelPlaceholder: "Optional model override",
-    promptPlaceholder: "Describe the next task for this project...",
-    followupSummary: "Follow-up messages continue the selected topic in the same provider thread.",
-    newTopicSummary: "New topics inherit this device and project folder.",
-    send: "Send",
-    historyTitle: "Topic history",
-    historySummary: "Only topics from the current device and project are shown here.",
-    emptyHistory: "There are no topics in this project yet.",
-    userTurn: "You",
-  },
-  menuPage: {
-    badge: "Menu",
-    title: "Menu",
-    summary:
-      "Settings and secondary capabilities live here so the main product flow stays focused on device and project chats.",
-    serverSettingsTitle: "Settings",
-    serverSettingsSummary:
-      "Configure the relay address, access token, language, and theme.",
-    secondaryToolsTitle: "Secondary tools",
-    secondaryToolsSummary:
-      "Terminal, preview, and low-level diagnostics remain secondary surfaces rather than top-level navigation.",
-    secondaryToolsBadge: "Secondary only",
-  },
-  settingsPage: {
-    badge: "Settings",
-    title: "Server Settings",
-    summary:
-      "Configure how this client connects to the relay and keep appearance preferences in one place.",
-    serverTitle: "Relay Connection",
-    serverSummary: "Relay URL and access token follow the persisted client configuration.",
-    saveAndConnect: "Save and connect",
-    localeTitle: "Language",
-    themeTitle: "Theme",
-    currentServer: "Current relay",
-    notConnected: "Not connected",
-  },
-  dashboard: {
-    nav: {
-      sessions: "AI Sessions",
-      devices: "Devices",
-      advanced: "Advanced",
-    },
-    navDescriptions: {
-      sessions:
-        "Connect once, pick a device, start AI work, and review the outcome in one flow.",
-      devices:
-        "Inspect device inventory, runtime state, deployment metadata, and provider readiness.",
-      advanced:
-        "Use terminal and preview tools only when deeper diagnosis is required.",
-    },
-    shell: {
-      badge: "Operator Console",
-      description:
-        "Route-backed sections keep the core workflows separated, while the same information architecture adapts to desktop and mobile.",
-      connectionState: "Relay Stream",
-      selectedDevice: "Selected Device",
-      noDeviceSelected: "No device selected",
-    },
-    heroBadge: "Vue + Tauri 2 + Rust Relay",
-    heroDescription:
-      "An AI-session-first remote development control plane. Pick a device, launch an AI session, supervise the output, then drop into terminal or preview tunnels only when advanced diagnosis is needed.",
-    relayTitle: "Relay",
-    relayBaseUrl: "Relay Base URL",
-    mobileLoopbackWarning:
-      "Mobile clients cannot connect to localhost / 127.0.0.1. Use the relay machine's LAN IP or an HTTPS public address instead.",
-    mobileRemoteHint:
-      "On mobile, enter the relay machine's LAN IP or an HTTPS public address.",
-    activity: {
-      title: "Activity Center",
-      summary: "{unread} unread of {total} total",
-      markAllRead: "Mark All Read",
-      empty: "Task completions and preview readiness will appear here.",
-      unread: "Unread",
-      categories: {
-        taskSucceeded: "Task Succeeded",
-        taskFailed: "Task Failed",
-        taskCanceled: "Task Canceled",
-        previewReady: "Preview Ready",
-        previewFailed: "Preview Failed",
-      },
-      messages: {
-        taskSucceeded: '"{title}" finished on device {deviceId}.',
-        taskFailed: '"{title}" failed on device {deviceId}.',
-        taskCanceled: '"{title}" was canceled on device {deviceId}.',
-        previewReady: "Preview {host}:{port} is ready on device {deviceId}.",
-        previewFailed: "Preview {host}:{port} failed on device {deviceId}.",
-      },
-    },
-    deployment: {
-      title: "Deployment Surface",
-      summary:
-        "Review the current deployment metadata and connection endpoints here. Detailed self-hosted guidance stays in documentation.",
-      mode: "Deployment Mode",
-      authMode: "Auth Mode",
-      storageKind: "Storage",
-      currentClient: "Current Client",
-      relayOrigin: "Relay Public Origin",
-      documentation: "Self-Hosted Docs",
-      guidance: {
-        selfHosted:
-          "This control plane is operating in self-hosted mode. Keep relay origins, tokens, and forward hosts configurable per environment.",
-        hostedCompatible:
-          "This relay is exposing a hosted-compatible surface. Avoid depending on loopback or single-machine assumptions in clients.",
-        explicitRemote:
-          "This client should use an explicit remote relay URL. Avoid localhost and prefer the relay machine's LAN or public origin.",
-      },
-    },
-    platform: {
-      title: "Current Client",
-      summary:
-        "Platform capabilities are shown from the detected runtime only. Other platforms stay hidden on the main surface to avoid reading this as a switcher.",
-      currentClientLabel: "Currently In Use",
-      currentlyUsing: "In Use",
-      mobileOptimized: "Mobile Optimized",
-      desktopOptimized: "Desktop Optimized",
-      systemNotifications: "System Notifications",
-      inAppOnly: "In-App Notifications",
-      persistedConfig: "Persisted Runtime Config",
-      sessionOnlyConfig: "Session-Only Config",
-      explicitRelay: "Explicit Remote Relay",
-      loopbackFriendly: "Loopback Friendly",
-    },
-    governance: {
-      title: "Governance And Audit",
-      description:
-        "Show the current actor, tenant scope, notification channels, and recent audit events directly in the control plane.",
-      tenant: "Tenant",
-      user: "User",
-      role: "Role",
-      notificationChannels: "Notification Channels",
-      auditTitle: "Audit Events",
-      auditEmpty: "No audit events are available yet for the current tenant.",
-    },
+  home: {
     stats: {
-      onlineDevices: "Online Devices",
-      devices: "Devices",
-      aiSessions: "AI Sessions",
-      advancedTools: "Advanced Tools",
-      unreadActivity: "Unread Activity",
+      onlineHosts: "Online hosts",
+      runningTasks: "Running tasks",
+      needsAttention: "Needs attention"
     },
-    devices: {
-      title: "Devices",
-      registered: "{count} registered devices",
-      sessions: "Sessions {count}",
-      terminals: "Terminal {count}",
-      previews: "Preview {count}",
-      availableProviders: "Available Providers",
-      inventoryTitle: "Device Inventory",
-      inventoryDescription:
-        "Choose a device to inspect its runtime profile before launching AI work or advanced tools.",
-      runtimeTitle: "Runtime Profile",
-      runtimeDescription:
-        "Review platform, working root, last heartbeat, and overlay connectivity for the selected device.",
-      platform: "Platform",
-      workingRoot: "Working Root",
-      lastSeen: "Last Seen",
-      currentTask: "Current Task",
-      overlayMode: "Overlay Mode",
-      overlayState: "Overlay State",
-      overlayRelay: "Overlay Relay",
-      capabilitiesTitle: "Capabilities And Providers",
-      capabilitiesDescription:
-        "Keep raw capability labels visible so the current runtime behavior stays aligned with what the agent actually reports.",
-      capabilitiesLabel: "Reported Capabilities",
-      capabilitiesEmpty:
-        "This device has not reported any capability tags yet.",
-      providersTitle: "Provider Availability",
-      providerAvailable: "Available",
-      providerUnavailable: "Unavailable",
-      providerVersion: "Version",
-      providerVersionPending: "Version pending",
-      workloadTitle: "Live Workload",
-      workloadDescription:
-        "Track how many AI sessions, terminals, and previews are currently associated with the selected device.",
-      managementDescription:
-        "Use this secondary view for runtime inspection, deployment metadata, and governance context.",
-      emptySelection:
-        "Select a device from the inventory to inspect its runtime details, workload, and provider availability.",
-    },
-    sessions: {
-      title: "AI Sessions",
-      primaryBadge: "Primary Workflow",
-      primaryDescription:
-        "Keep the everyday path on one surface: connect to the relay, choose a device, launch an AI session, then review the resulting workspace and Git changes before dropping into advanced tools.",
-      steps: {
-        connect: "Connect Relay",
-        chooseDevice: "Choose Device",
-        start: "Start Session",
-        review: "Review Result",
-      },
-      devicePickerTitle: "Choose A Device",
-      devicePickerDescription:
-        "Pick the machine that should run the next AI session. Runtime capability and provider readiness stay visible here.",
-      recentTitle: "Recent Sessions",
-      launchTitle: "Start A New Session",
-      launchDescription:
-        "Use the selected device context to launch the next AI run without leaving the primary workflow.",
-      launchState: {
-        needs_relay:
-          "Connect to a relay first so devices and sessions can load.",
-        needs_device: "Pick an online device to unlock the session composer.",
-        device_offline:
-          "The selected device is offline. Choose another device or wait for it to reconnect.",
-        needs_provider:
-          "This device has no available providers right now. Resolve provider readiness before starting a session.",
-        ready:
-          "Ready to launch a session on {device}. Fill in the prompt and start the run.",
-      },
-      providerIssuesTitle: "Provider Readiness Issues",
-      visibleSummary: "{visible} visible of {total} total",
-      empty:
-        "No AI sessions match the current filters. Pick a device and start a new session first.",
-      start: "Start AI Session",
-      cancelSession: "Cancel Session",
-      newOnDevice: "New AI Session on {name}",
-      reviewTitle: "Current Session Review",
-      reviewDescription:
-        "Track the live run, confirm where it executed, and keep the prompt and outcome summary together.",
-      resultReviewTitle: "Review Changed Files And Git Context",
-      resultReviewDescription:
-        "Judge what the AI changed before opening a terminal or handing the work off.",
-      eventStreamTitle: "Session Event Stream",
-      eventStreamDescription:
-        "Use the event stream as the execution narrative while the result review stays focused on outcome.",
-      readySelected:
-        "The device is selected. Launch a session here, then review the result, event stream, and workspace without leaving the main workflow.",
-      readyEmpty: "Pick an online device first, then start a new AI session.",
-    },
-    chat: {
-      liveBadge: "Conversation First",
-      setupTitle: "Connect Once, Then Stay In Chat",
-      threadControl: "Long-Lived Thread Control",
-      sidebarTitle: "Project And Threads",
-      setupSummary:
-        "Relay, device, provider, and thread target stay in one compact panel until the first session is ready.",
-      sidebarSummary:
-        "Keep relay setup, device choice, project folder, thread history, and file browsing in the sidebar so the main pane stays focused on chat.",
-      threadSummary:
-        "The chat stays primary. Relay switching and new-thread targeting are compact secondary controls.",
-      contextControls: "Thread Context",
-      hideContextControls: "Hide Context",
-      relayHintLabel: "Relay",
-      threadSwitcherTitle: "Thread Switcher",
-      newConversation: "New Conversation",
-      autoTitleHint: "Auto-generate from first prompt",
-      cwd: "Working Directory",
-      projectFolder: "Project Folder",
-      projectFolderSummary:
-        "New conversations use this folder by default after it is set.",
-      devicesEntry: "Devices & Settings",
-      switchRelay: "Switch relay or token",
-      reconnect: "Reconnect",
-      historyTitle: "Conversation History",
-      historySummary: "Durable provider-native threads, newest first.",
-      startBlank: "Start a fresh thread",
-      startBlankSummary:
-        "Clear the current selection and send the next prompt as a new long-lived conversation.",
-      activeThread: "Active Thread",
-      newThread: "Draft Thread",
-      composeTitle: "Start a durable AI conversation",
-      composeSummary: "Continuing on {device} with {provider}.",
-      composeEmptySummary:
-        "Write the first prompt here. After creation, later turns continue on the provider's native thread.",
-      archive: "Archive",
-      userTurn: "You",
-      waitingInput:
-        "The provider is waiting for your decision before it can continue.",
-      generating: "The agent is still generating the next response.",
-      traceOnlyCompleted:
-        "This turn completed without a normal assistant message. Open Trace for runtime details.",
-      traceOnlyFailed:
-        "This turn failed before a normal assistant reply was produced. Open Trace for details.",
-      traceOnlyCanceled:
-        "This turn was canceled before a normal assistant reply was produced.",
-      traceEntryTitle: "Runtime details moved to Trace",
-      emptyBadge: "Chat Surface",
-      emptyTitle: "Keep the main page focused on dialogue",
-      emptySummary:
-        "Start or select a conversation here. Workspace, Git, terminal, and preview stay available, but reduced to secondary inspection.",
-      inputRequestBadge: "Action Required",
-      inputRequestSummary:
-        "Some provider tools pause for an explicit human choice. Choose an option or provide custom input inline.",
-      customOption: "Other",
-      customOptionSummary: "Use custom text instead of the preset options.",
-      customInputPlaceholder:
-        "Describe the choice, value, or path the agent should use.",
-      submitChoice: "Submit Choice",
-      replyPlaceholder: "Send the next instruction, correction, or follow-up…",
-      startPlaceholder:
-        "Describe what the remote AI should build, change, or inspect…",
-      sendReply: "Send Reply",
-      startConversation: "Start Conversation",
-      inspectorTitle: "Compact Inspector",
-      inspectorSummary:
-        "Git, workspace, and task telemetry remain available without taking over the main surface.",
-      latestTurn: "Latest Turn",
-      toolEvents: "Tool Events",
-      systemEvents: "System Events",
-      traceSummary:
-        "Review tool output, system notices, and provider stderr without crowding the transcript.",
-      traceEmpty: "No trace events are available for this conversation yet.",
-      gitSummary: "Review repository drift and changed files next to the chat.",
-      gitEmpty: "No Git context is available for the current conversation yet.",
-      workspaceBrowserSummary:
-        "Browse the full project tree in the sidebar, including parent and root navigation.",
-      workspaceSummary:
-        "Browse the active workspace without leaving the conversation.",
-      workspaceEmpty:
-        "No workspace snapshot is available for the current conversation yet.",
-      panels: {
-        status: "Status",
-        git: "Git",
-        files: "Files",
-        trace: "Trace",
-      },
-    },
-    workspace: {
-      title: "Session Workspace",
-      newTitle: "New AI Session",
-      newDescription:
-        "Describe the goal, working directory, and optional model override for the selected device.",
-      currentTitle: "Current Session",
-      promptTitle: "Prompt",
-      waitingEvents:
-        "The session was created and is waiting for provider events.",
-      workingDirectory: "Working Directory",
-      sessionMetrics: "Session Metrics",
-      device: "Device",
-      workingRoot: "Working Root",
-      deviceCapacity: "Device Capacity",
-      providers: "{count} providers",
-      capacitySummary:
-        "{sessions} sessions · {terminals} terminals · {previews} previews",
-      relativePathHint:
-        "Use a relative path in session CWD to stay inside this workspace.",
-      exitCode: "Exit {code}",
-      eventsSummary: "{count} events · Device {deviceId}",
-      supervision: {
-        title: "Session Supervision",
-        description:
-          "Combine provider output signals with Git context before opening terminal or preview.",
-        summary: {
-          running:
-            "The AI session is still running. {changed} changed files are currently visible in this workspace scope.",
-          succeededWithChanges:
-            "The AI session completed and left {changed} changed files for review on branch {branch}.",
-          succeededClean:
-            "The AI session completed without visible Git changes in the current workspace scope.",
-          failedWithChanges:
-            "The AI session failed, but {changed} changed files still remain in the current workspace scope.",
-          failedClean:
-            "The AI session failed and no Git changes are visible in the current workspace scope.",
-          noGit:
-            "Git supervision is not available for this workspace yet, so rely on the event stream and workspace preview.",
-        },
-        counts: {
-          assistant: "Assistant Messages",
-          tool: "Tool Activity",
-          stderr: "Provider Errors",
-          changed: "Changed Files",
-        },
-      },
-      browser: {
-        title: "Workspace Browser",
-        description:
-          "Browse the selected session workspace without dropping into terminal.",
-        unsupported:
-          "The selected device does not advertise workspace browse capability yet.",
-        loading: "Loading workspace...",
-        empty: "This folder is empty.",
-        up: "Up",
-        root: "Workspace Root",
-        path: "Current Path",
-        entries: "{count} entries",
-        kind: {
-          directory: "Directory",
-          file: "File",
-        },
-        sizeLabel: "File Size",
-        size: "{size} bytes",
-        lines: "Lines",
-        previewTitle: "File Preview",
-        previewLoading: "Loading file preview...",
-        previewEmpty: "Select a file to preview it here.",
-        binaryNotice:
-          "This file is binary or non-text and cannot be previewed inline.",
-        truncated: "Preview truncated to keep the control plane responsive.",
-      },
-      git: {
-        title: "Git Inspect",
-        description:
-          "Inspect branch state, changed files, and recent commits without dropping into terminal.",
-        unsupported:
-          "The selected device does not advertise Git inspect capability yet.",
-        loading: "Loading Git context...",
-        empty: "Select a device to inspect repository state.",
-        workspaceRoot: "Workspace Scope",
-        repoRoot: "Repository Root",
-        scopePath: "Scope Path",
-        branch: "Branch",
-        upstream: "Upstream",
-        drift: "Upstream Drift",
-        noUpstream: "No upstream",
-        driftSummary: "ahead {ahead} · behind {behind}",
-        state: {
-          not_repository:
-            "The current workspace is not inside a Git repository.",
-          git_unavailable: "Git is not available on the selected device.",
-        },
-        clean: "No changed files are visible in the current workspace scope.",
-        noCommits: "This repository does not have any commits yet.",
-        changedFilesTitle: "Changed Files",
-        recentCommitsTitle: "Recent Commits",
-        preview: "Preview",
-        deletedPreviewUnavailable: "Deleted file cannot be previewed.",
-        stats: {
-          changedFiles: "{count} changed files",
-          stagedFiles: "{count} staged",
-          unstagedFiles: "{count} unstaged",
-          untrackedFiles: "{count} untracked",
-          conflictedFiles: "{count} conflicted",
-          stagedLines: "+{additions} / -{deletions} staged",
-          unstagedLines: "+{additions} / -{deletions} unstaged",
-        },
-      },
-    },
-    fields: {
-      accessToken: "Access Token",
-      provider: "Provider",
-      title: "Title",
-      sessionCwd: "Session CWD",
-      model: "Model",
-      prompt: "Prompt",
-      terminalCwd: "Terminal CWD",
-      targetHost: "Service Host",
-      targetPort: "Service Port",
-    },
-    placeholders: {
-      selectProvider: "Select provider",
-      sessionTitle: "Ad hoc AI session",
-      sessionCwd: "repo/path or /absolute/path",
-      model: "optional model override",
-      prompt:
-        "Tell Codex / Claude Code / OpenCode what to do on the selected device.",
-      terminalCwd: "optional working dir",
-      terminalInput: "pwd",
-      targetHost: "127.0.0.1",
-      targetPort: "3000",
-    },
-    composerNote:
-      "OpenCode currently runs through standard ACP. Codex and Claude Code currently run through CLI. Terminal and Preview remain below as advanced tools.",
-    advanced: {
-      badge: "Advanced Tools",
-      title: "Terminal And Preview",
-      description:
-        "These capabilities stay available for environment checks, manual fallback, and preview access, but they are no longer the homepage's primary workflow.",
-      empty:
-        "No advanced capabilities are enabled for the current deployment. Terminal and preview surfaces will appear here when the corresponding feature flags are available.",
-    },
-    terminal: {
-      title: "Terminal",
-      visibleSummary: "{visible} visible of {total} total · WS {state}",
-      open: "Open Terminal",
-      empty: "No terminal sessions match the current filters.",
-      waiting:
-        "The session was created and is waiting for the agent to start the terminal.",
-      select:
-        "Pick a terminal session or create a new one for the selected device.",
-      noCapability:
-        "The selected device does not advertise shell capability, so a terminal session cannot be created.",
-      note: "Use this for environment checks, manual fallback, and advanced diagnosis. It is not the default product path.",
-      detailTitle: "Terminal {id}",
-      detailSummary: "{status} · started {time}",
-    },
-    preview: {
-      title: "Preview",
-      description:
-        "Expose a local web app or HTTP service from the selected device without starting from raw tunnel details.",
-      visibleSummary: "{visible} visible of {total} total",
-      open: "Create Preview",
-      launchTitle: "Launch Preview From This Workspace",
-      launchDescription:
-        "Use the current device and session context to expose a local HTTP service immediately. Detailed history and raw connection data stay in the advanced panel below.",
-      empty:
-        "There are no matching previews yet. Select a device and enter the local service host and port to create one.",
-      select: "Pick a preview to inspect it here, or create a new one first.",
-      note: "Preview is the product-facing path for common local web services. Raw relay and target endpoint details remain below for advanced debugging.",
-      serviceHint:
-        "Start with the common case: a local HTTP service on the selected device. Keep the host editable for non-localhost services.",
-      serviceTarget: "Service {host}:{port}",
-      previewUrl: "Preview URL",
-      openLink: "Open In Browser",
-      ready:
-        "The preview relay is active. Open it in the browser or inspect the advanced connection details below.",
-      waiting:
-        "The preview is still being provisioned. Wait for it to become active before opening it.",
-      mobileWarning:
-        "This preview currently points to a loopback host and will not open from mobile. Reconfigure the relay forward host instead.",
-      advancedTitle: "Advanced Connection Details",
-      advancedDescription:
-        "Raw relay and target endpoints stay here for self-hosted networking checks and low-level troubleshooting.",
-      transportLabel: "Transport",
-      relayEndpoint: "Relay Endpoint",
-      targetEndpoint: "Target Endpoint",
-      detailTitle: "Preview {id}",
-    },
+    continueWorkBadge: "Continue work",
+    continueWorkEmptyTitle: "Connect a server and open a project.",
+    continueWorkEmptySummary: "Once conversations start, the latest project returns here for quick follow-up from mobile.",
+    runningNow: "Running now",
+    noRunningTasks: "No active task right now. Recent project history and failed work will still appear below.",
+    needsReview: "Needs review",
+    noReviewProjects: "No failed task or pending confirmation at the moment.",
+    recentProjects: "Recent projects"
   },
-} as const;
+  projects: {
+    title: "Browse by host and project",
+    summary: "Move from host status to a concrete worktree-like project context without losing the current path.",
+    searchPlaceholder: "Search host, project, or path",
+    recentFilter: "Recent",
+    hostEmptyOffline: "This host is offline, so its project inventory is not available right now.",
+    hostEmptyNoWorkspace: "This host has no workspace root configured yet, so project discovery cannot start.",
+    hostEmptyNoProjects: "No Git project was discovered on this host yet. Check the workspace root and repository layout.",
+    empty: "No project matches the current filter."
+  },
+  notifications: {
+    badge: "Notifications",
+    title: "Return to work that needs a decision",
+    summary: "Failed runs, provider questions, and completed tasks surface here so mobile users can re-enter the right project quickly.",
+    unreadCount: "{count} unread",
+    visibleCount: "{count} visible",
+    preferencesTitle: "Project notification preferences",
+    preferencesSummary: "Choose whether each project sends all completions or only failures and waiting-input events.",
+    defaultPreferenceTitle: "Default preference",
+    defaultPreferenceSummary: "Projects without an override inherit this notification policy.",
+    preferenceInherited: "Inherited default: {value}",
+    preferenceOverride: "Project override: {value}",
+    preferenceReset: "Use default",
+    preferencesEmpty: "Open some projects first, then their notification preferences will appear here.",
+    preferenceImportant: "Failed + waiting",
+    preferenceAll: "All activity",
+    unread: "Unread",
+    unreadSummary: "Open these first to return to work that still needs your decision.",
+    recent: "Recent",
+    recentSummary: "Already seen items stay here for quick re-entry.",
+    newBadge: "New",
+    actions: {
+      conversation: "Open conversation",
+      changes: "Open changes",
+      logs: "Open logs"
+    },
+    empty: "Nothing new yet. Running, failed, and waiting-for-input work will appear here.",
+    completed: "Completed"
+  },
+  settings: {
+    badge: "My",
+    title: "Server, appearance, and client preferences",
+    summary: "The primary workflow stays in projects. Relay settings, locale, and theme stay here as secondary controls.",
+    serverTitle: "Server settings",
+    serverSummary: "Configure the relay address and control-plane token for this client.",
+    relayUrl: "Relay URL",
+    accessToken: "Access token",
+    accessTokenPlaceholder: "Optional bearer token",
+    save: "Save and refresh",
+    currentServer: "Current server: {value}",
+    notConfigured: "Not configured",
+    language: "Language",
+    theme: "Theme",
+    policy: {
+      badge: "Policy",
+      title: "Execution policy center",
+      summary: "Review which providers are currently visible and what each execution mode now enforces before you send work.",
+      providerAvailability: "{online}/{available} online",
+      empty: "No provider capability has been detected from the current hosts yet.",
+      manageBadge: "Defaults",
+      manageTitle: "Policy defaults",
+      manageSummary: "These defaults are applied by the current client before per-project or per-task overrides take over.",
+      defaultExecutionMode: "Default execution mode",
+      defaultNotifications: "Default notification preference",
+      sensitiveConfirm: "High-risk confirmation",
+      confirmEnabled: "Enabled",
+      confirmDisabled: "Disabled"
+    },
+    audit: {
+      badge: "Audit",
+      title: "Audit coverage",
+      summary: "Current policy and audit coverage is visible here as a read-only summary before a fuller management surface exists.",
+      coverageTitle: "Current coverage",
+      manageBadge: "Records",
+      manageTitle: "Global audit trail",
+      manageSummary: "Review recent task, shell, and preview audit events from one global secondary surface.",
+      empty: "No audit record matches the current filter.",
+      filters: {
+        task: "Task",
+        shellPreview: "Shell + preview"
+      },
+      facts: {
+        projectLogs: "Project logs show audit records ahead of raw runtime output for the active conversation.",
+        taskLifecycle: "Task creation and cancellation actions are already recorded in the audit trail.",
+        shellPreview: "Shell and preview lifecycle actions are recorded when those secondary tools are used.",
+        secondarySurface: "This is a visibility center only for now; policy editing still lives in runtime defaults and secondary views."
+      }
+    }
+  },
+  workspace: {
+    badge: "Project",
+    title: "Project workspace",
+    loadingPath: "Loading project path...",
+    currentState: "Current state",
+    tabs: {
+      conversation: "Conversation",
+      changes: "Changes",
+      files: "Files",
+      logs: "Logs"
+    },
+    desktop: {
+      projects: "Host projects",
+      hostTree: "Hosts and projects",
+      hostEmpty: "No project is currently visible on this host.",
+      worktreeTitle: "New worktree",
+      worktreeSummary: "Create a sibling worktree and branch without leaving the current project.",
+      worktreeBranch: "Branch name",
+      worktreeBranchPlaceholder: "feature/mobile-review",
+      worktreeDirectory: "Directory name",
+      worktreeDestinationHint: "This creates ../{value} beside the current repository.",
+      worktreeSubmit: "Create worktree",
+      worktreeCreating: "Creating worktree...",
+      worktreeCreated: "Worktree ../{value} is ready.",
+      worktreeRemove: "Remove",
+      worktreeRemoving: "Removing...",
+      worktreeRemoved: "Worktree {value} was removed.",
+      worktreeRemoveConfirm: "Remove worktree {value}? This deletes that sibling worktree directory.",
+      worktreeBranchRequired: "Enter a branch name before creating a worktree.",
+      worktreeDirectoryRequired: "Enter the destination directory name.",
+      worktreeList: "Worktrees",
+      worktreeCurrent: "Current",
+      worktreeDetached: "Detached",
+      worktreeStates: {
+        current: "Current",
+        detached: "Detached",
+        inventory_missing: "Inventory missing",
+        offline: "Host offline",
+        unreachable: "Needs recheck",
+        available: "Available",
+        remove_failed: "Remove failed"
+      }
+    },
+    metrics: {
+      topics: "Topics {count}",
+      running: "Running {count}",
+      waiting: "Waiting {count}",
+      branch: "Branch {value}",
+      worktrees: "Worktrees {count}",
+      changedFiles: "Changed files {count}",
+      updated: "Updated {value}"
+    },
+    state: {
+      failed: "Failure needs review",
+      waiting: "Waiting for your input",
+      running: "AI is working",
+      ready: "Ready for a new turn"
+    }
+  },
+  conversation: {
+    topics: "Topics",
+    emptyTitle: "No conversation yet",
+    emptySummary: "This project is ready. Send the first request to start a conversation in {project}.",
+    firstTurnTitle: "Start the first turn",
+    firstTurnSummary: "Use the composer below to create the first AI task for {project}, then this transcript will stay attached to the project.",
+    executionMode: {
+      title: "Execution mode",
+      readOnly: "Read only",
+      readOnlySummary: "Inspect and explain without changing files.",
+      workspaceWrite: "Workspace write",
+      workspaceWriteSummary: "Allow file edits in the current workspace, but avoid tests unless needed later.",
+      workspaceWriteAndTest: "Write + test",
+      workspaceWriteAndTestSummary: "Allow file edits and focused verification commands."
+    },
+    executionModeMeta: {
+      read_only: "read only",
+      workspace_write: "workspace write",
+      workspace_write_and_test: "write + test"
+    },
+    policyTitle: "Effective enforcement",
+    policySummary: {
+      acp: {
+        readOnly: "ACP runtime blocks file writes and terminal sessions.",
+        workspaceWrite: "ACP runtime allows workspace edits but blocks terminal test commands.",
+        workspaceWriteAndTest: "ACP runtime allows workspace edits and focused terminal verification."
+      },
+      codex: {
+        readOnly: "Codex runs with a native read-only sandbox and no approval prompts.",
+        workspaceWrite: "Codex runs with a workspace-write sandbox and approval on untrusted actions.",
+        workspaceWriteAndTest: "Codex runs with a workspace-write sandbox and auto-approves focused verification."
+      },
+      claude: {
+        readOnly: "Claude runs in native plan mode and blocks edit/shell tools by default.",
+        workspaceWrite: "Claude can edit the workspace, but common test commands are blocked by default.",
+        workspaceWriteAndTest: "Claude can edit the workspace and test-command blocking is lifted for this task."
+      },
+      generic: {
+        readOnly: "This mode is requested as read-only, but enforcement depends on the active provider.",
+        workspaceWrite: "This mode allows workspace edits, while stronger enforcement depends on the active provider.",
+        workspaceWriteAndTest: "This mode allows workspace edits and verification, while stronger enforcement depends on the active provider."
+      }
+    },
+    statusLabel: {
+      pending: "Pending",
+      assigned: "Assigned",
+      running: "Running",
+      waiting_input: "Waiting input",
+      cancel_requested: "Cancel requested",
+      succeeded: "Succeeded",
+      failed: "Failed",
+      canceled: "Canceled"
+    },
+    statusSummary: {
+      pending: "Task was queued and has not started yet.",
+      assigned: "Task was assigned and is waiting to start.",
+      running: "Task is actively running.",
+      waiting_input: "Task is waiting for your reply before continuing.",
+      cancel_requested: "Cancellation was requested and the runtime is winding down.",
+      succeeded: "Task finished successfully.",
+      failed: "Task failed before returning assistant text.",
+      canceled: "Task was canceled before completion."
+    },
+    eventSummary: {
+      idle: "No machine events were captured for this turn yet.",
+      status: "{count} status update(s)",
+      toolCalls: "{count} tool call(s)",
+      toolOutputs: "{count} tool result(s)",
+      errors: "{count} stderr event(s)"
+    },
+    eventStreamTitle: "Recent execution events",
+    rawEventsTitle: "Detailed event output",
+    waitingInput: "Waiting input",
+    stopTask: "Stop task",
+    retryTask: "Retry",
+    explainResult: "Explain result",
+    viewChanges: "View changes",
+    viewLogs: "View logs",
+    replyPlaceholder: "Type a reply",
+    sendCustomReply: "Send custom reply",
+    optionalModel: "Optional model",
+    promptPlaceholder: "Tell the AI what to do in this project...",
+    send: "Send",
+    sensitiveConfirmTitle: "Sensitive action",
+    sensitiveConfirmSummary: "This prompt looks like it may trigger a destructive or high-risk command.",
+    sensitiveConfirmDetail: "Review the prompt and execution mode, then confirm if you still want to send it.",
+    confirmSend: "Confirm and send",
+    cancelConfirm: "Cancel"
+  },
+  changes: {
+    branch: "Branch",
+    changedFiles: "Changed files",
+    aheadBehind: "Ahead / Behind",
+    untracked: "Untracked",
+    staged: "Staged",
+    unstaged: "Unstaged",
+    reviewTitle: "Review summary",
+    reviewSummary: "Check scope and risk before reading the raw patch.",
+    reviewNeedsAttention: "Needs review",
+    reviewClean: "Clean",
+    reviewUnavailableTitle: "Git context unavailable",
+    reviewUnavailableSummary: "The current workspace did not return a reviewable Git state yet.",
+    reviewCleanTitle: "No local changes",
+    reviewCleanSummary: "This workspace is currently clean, so there is nothing to review.",
+    reviewScopeTitle: "Change scope",
+    reviewScopeSummary: "{count} file(s) changed on branch {branch}.",
+    reviewConflictTitle: "Conflicts present",
+    reviewConflictSummary: "{count} conflicted file(s) need explicit attention before approval.",
+    reviewDeleteTitle: "Deletion risk",
+    reviewDeleteSummary: "At least one file was deleted. Verify intent before continuing.",
+    reviewNewFilesTitle: "New file review",
+    reviewNewFilesSummary: "{count} newly added or untracked file(s) need a structure check.",
+    reviewMixedTitle: "Mixed staged and unstaged changes",
+    reviewMixedSummary: "This project contains both staged and unstaged edits. Review both sections carefully.",
+    riskConflict: "Conflict",
+    riskDelete: "Delete",
+    riskNewFile: "New file",
+    riskTypeChange: "Type change",
+    riskStandard: "Standard",
+    diffTitle: "File diff",
+    diffEmpty: "Select a file to inspect its patch.",
+    diffUnavailable: "No diff output is available for the selected file yet.",
+    diffStaged: "Staged diff",
+    diffUnstaged: "Unstaged diff",
+    diffTruncated: "Diff output was truncated to keep the mobile review panel responsive.",
+    binary: "Binary patch",
+    noChanges: "No local Git changes were reported.",
+    recentCommits: "Recent commits",
+    noCommits: "No recent commit history is available."
+  },
+  files: {
+    title: "Files",
+    truncated: "truncated preview",
+    empty: "Pick a file to preview it here."
+  },
+  logs: {
+    empty: "No runtime logs are available yet.",
+    errorSummaryTitle: "Error summary",
+    errorSummaryBody: "Recent failed or stderr-heavy runs are grouped here first.",
+    errorFallback: "This task failed without a structured error message.",
+    noFilteredEvents: "No log events match the current filter for this task.",
+    audit: {
+      title: "Audit trail",
+      summary: "User-visible control actions for this conversation and its tasks appear here first.",
+      outcomes: {
+        succeeded: "Succeeded",
+        rejected: "Rejected",
+        failed: "Failed"
+      },
+      actions: {
+        device_registered: "Device registered",
+        task_created: "Task created",
+        task_canceled: "Task canceled",
+        shell_session_created: "Shell session created",
+        shell_session_closed: "Shell session closed",
+        preview_created: "Preview created",
+        preview_closed: "Preview closed"
+      }
+    },
+    filters: {
+      all: "All",
+      errors: "Errors",
+      tools: "Tools",
+      provider: "Provider"
+    }
+  }
+};
 
 export default en;

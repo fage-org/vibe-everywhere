@@ -1,4 +1,8 @@
 export type ExecutionProtocol = "cli" | "acp";
+export type TaskExecutionMode =
+  | "read_only"
+  | "workspace_write"
+  | "workspace_write_and_test";
 export type OverlayState =
   | "connected"
   | "degraded"
@@ -90,6 +94,7 @@ export type TaskRecord = {
   title: string;
   provider: ProviderKind;
   executionProtocol: ExecutionProtocol;
+  executionMode: TaskExecutionMode;
   prompt: string;
   cwd: string | null;
   model: string | null;
@@ -128,6 +133,7 @@ export type ConversationRecord = {
   title: string;
   provider: ProviderKind;
   executionProtocol: ExecutionProtocol;
+  executionMode: TaskExecutionMode;
   cwd: string | null;
   model: string | null;
   providerSessionId: string | null;
@@ -295,6 +301,25 @@ export type GitInspectRequest = {
   sessionCwd?: string;
 };
 
+export type GitDiffFileRequest = {
+  deviceId: string;
+  sessionCwd?: string;
+  repoPath: string;
+};
+
+export type GitCreateWorktreeRequest = {
+  deviceId: string;
+  sessionCwd?: string;
+  branchName: string;
+  destinationPath: string;
+};
+
+export type GitRemoveWorktreeRequest = {
+  deviceId: string;
+  sessionCwd?: string;
+  worktreePath: string;
+};
+
 export type GitChangedFile = {
   path: string;
   repoPath: string;
@@ -323,10 +348,19 @@ export type GitDiffStats = {
   unstagedDeletions: number;
 };
 
+export type GitWorktreeSummary = {
+  path: string;
+  branchName: string | null;
+  headId: string | null;
+  isCurrent: boolean;
+  isDetached: boolean;
+};
+
 export type GitInspectResponse = {
   deviceId: string;
   workspaceRoot: string;
   repoRoot: string | null;
+  repoCommonDir: string | null;
   scopePath: string | null;
   state: GitInspectState;
   branchName: string | null;
@@ -336,7 +370,42 @@ export type GitInspectResponse = {
   hasCommits: boolean;
   changedFiles: GitChangedFile[];
   recentCommits: GitCommitSummary[];
+  worktrees: GitWorktreeSummary[];
   diffStats: GitDiffStats;
+};
+
+export type GitDiffFileResponse = {
+  deviceId: string;
+  workspaceRoot: string;
+  repoRoot: string | null;
+  repoCommonDir: string | null;
+  repoPath: string;
+  path: string;
+  state: GitInspectState;
+  status: GitFileStatus | null;
+  staged: boolean;
+  unstaged: boolean;
+  isBinary: boolean;
+  truncated: boolean;
+  stagedPatch: string | null;
+  unstagedPatch: string | null;
+};
+
+export type GitCreateWorktreeResponse = {
+  deviceId: string;
+  workspaceRoot: string;
+  repoRoot: string | null;
+  repoCommonDir: string | null;
+  branchName: string;
+  destinationPath: string;
+};
+
+export type GitRemoveWorktreeResponse = {
+  deviceId: string;
+  workspaceRoot: string;
+  repoRoot: string | null;
+  repoCommonDir: string | null;
+  removedPath: string;
 };
 
 export type ServiceHealth = {
@@ -417,6 +486,7 @@ export type RelayEventEnvelope = {
 export type CreateTaskPayload = {
   deviceId: string;
   provider: ProviderKind;
+  executionMode?: TaskExecutionMode;
   prompt: string;
   cwd?: string;
   model?: string;
@@ -426,6 +496,7 @@ export type CreateTaskPayload = {
 export type CreateConversationPayload = {
   deviceId: string;
   provider: ProviderKind;
+  executionMode?: TaskExecutionMode;
   prompt: string;
   cwd?: string;
   model?: string;
@@ -439,6 +510,7 @@ export type CreateConversationResponse = {
 
 export type SendConversationMessagePayload = {
   prompt: string;
+  executionMode?: TaskExecutionMode;
   model?: string;
   title?: string;
 };

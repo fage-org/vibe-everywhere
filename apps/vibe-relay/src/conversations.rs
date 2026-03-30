@@ -127,6 +127,7 @@ pub(super) async fn create_conversation(
             device_id: payload.device_id.clone(),
             conversation_id: Some(conversation.id.clone()),
             provider: payload.provider.clone(),
+            execution_mode: payload.execution_mode.clone(),
             prompt: payload.prompt.clone(),
             cwd: payload.cwd.clone(),
             model: payload.model.clone(),
@@ -259,6 +260,10 @@ pub(super) async fn send_conversation_message(
             device_id: existing_conversation.record.device_id.clone(),
             conversation_id: Some(existing_conversation.record.id.clone()),
             provider: existing_conversation.record.provider.clone(),
+            execution_mode: payload
+                .execution_mode
+                .clone()
+                .or_else(|| Some(existing_conversation.record.execution_mode.clone())),
             prompt: payload.prompt.clone(),
             cwd: existing_conversation.record.cwd.clone(),
             model: payload
@@ -310,6 +315,10 @@ pub(super) async fn send_conversation_message(
             entry.record.title = title.to_string();
         }
         entry.record.latest_task_id = Some(task.id.clone());
+        entry.record.execution_mode = payload
+            .execution_mode
+            .clone()
+            .unwrap_or_else(|| entry.record.execution_mode.clone());
         entry.record.model = payload.model.clone().or_else(|| entry.record.model.clone());
         entry.record.updated_at_epoch_ms = now_epoch_millis();
         entry.task_ids.push(task.id.clone());
