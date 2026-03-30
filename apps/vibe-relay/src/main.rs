@@ -2,9 +2,7 @@ use anyhow::Context;
 use async_stream::stream;
 use axum::{
     Json, Router,
-    extract::{
-        Path, Query, State,
-    },
+    extract::{Path, Query, State},
     http::{HeaderMap, StatusCode, Uri},
     response::sse::{Event, KeepAlive, Sse},
     response::{IntoResponse, Response},
@@ -17,7 +15,7 @@ use std::{
     time::Duration,
 };
 use tokio::{
-    io::{AsyncBufReadExt},
+    io::AsyncBufReadExt,
     net::{TcpListener, TcpStream},
     sync::{RwLock, broadcast},
 };
@@ -28,8 +26,8 @@ use vibe_core::{
     ClaimTaskResponse, ConversationDetailResponse, ConversationInputRequest, ConversationRecord,
     CreateConversationInputRequest, CreateConversationRequest, CreateConversationResponse,
     CreateTaskRequest, CreateTaskResponse, DEVICE_OFFLINE_AFTER_MS, DeviceRecord, HeartbeatRequest,
-    HeartbeatResponse, OverlayState, ProviderKind, RegisterDeviceRequest,
-    RegisterDeviceResponse, RelayEventEnvelope, RelayEventType, RespondConversationInputRequest,
+    HeartbeatResponse, OverlayState, ProviderKind, RegisterDeviceRequest, RegisterDeviceResponse,
+    RelayEventEnvelope, RelayEventType, RespondConversationInputRequest,
     SendConversationMessageRequest, SendConversationMessageResponse, ServiceHealth,
     TaskBridgeEvent, TaskBridgeRequest, TaskDetailResponse, TaskEvent, TaskRecord, TaskStatus,
     TaskTransportKind, default_app_config, now_epoch_millis,

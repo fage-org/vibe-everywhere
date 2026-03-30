@@ -134,7 +134,10 @@ pub(super) async fn create_task(
     let snapshot = store.clone();
     drop(store);
 
-    println!("[relay] created task {} on device {}", task.id, task.device_id);
+    println!(
+        "[relay] created task {} on device {}",
+        task.id, task.device_id
+    );
     persist_snapshot(&state, &snapshot)?;
     emit_task(&state, task.clone()).await;
     emit_task_event(&state, queued_event).await;
