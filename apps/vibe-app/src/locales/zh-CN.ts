@@ -221,6 +221,8 @@ const zhCN = {
     viewChanges: "查看变更",
     replyPlaceholder: "输入回复内容",
     sendCustomReply: "发送自定义回复",
+    copyTurn: "复制本轮",
+    copied: "已复制",
     optionalModel: "可选模型",
     promptPlaceholder: "告诉 AI 在这个项目里做什么...",
     disabledPlaceholder: "先完成服务器、项目和 ACP 选择，随后才能发送消息。",

@@ -15,7 +15,7 @@ watch(
 </script>
 
 <template>
-  <div class="min-h-screen">
+  <div class="min-h-screen h-full">
     <router-view />
   </div>
 </template>

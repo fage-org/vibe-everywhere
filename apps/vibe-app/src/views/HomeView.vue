@@ -123,7 +123,7 @@ watch(
 </script>
 
 <template>
-  <section class="mx-auto flex min-h-screen w-full max-w-[1700px] gap-0 px-0 xl:px-4">
+  <section class="mx-auto flex h-[100dvh] max-h-[100dvh] w-full max-w-[1700px] gap-0 overflow-hidden px-0 xl:px-4">
     <div
       v-if="sidebarOpen"
       class="fixed inset-0 z-30 bg-black/40 xl:hidden"
@@ -131,7 +131,7 @@ watch(
     />
 
     <aside
-      class="fixed inset-y-0 left-0 z-40 flex w-[90vw] max-w-[360px] flex-col border-r border-border/60 bg-[#f5f2ea]/96 px-3 py-3 shadow-[0_28px_80px_-40px_rgba(15,23,42,0.6)] backdrop-blur transition-transform dark:bg-slate-950/96 xl:sticky xl:top-0 xl:z-0 xl:h-screen xl:w-[330px] xl:max-w-none xl:translate-x-0 xl:border xl:border-white/10 xl:shadow-none"
+      class="fixed inset-y-0 left-0 z-40 flex h-[100dvh] max-h-[100dvh] w-[90vw] max-w-[360px] flex-col border-r border-border/60 bg-[#f5f2ea]/96 px-3 py-3 shadow-[0_28px_80px_-40px_rgba(15,23,42,0.6)] backdrop-blur transition-transform dark:bg-slate-950/96 xl:sticky xl:top-0 xl:z-0 xl:w-[330px] xl:max-w-none xl:translate-x-0 xl:border xl:border-white/10 xl:shadow-none"
       :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
     >
       <div class="flex items-center justify-between xl:hidden">
@@ -215,7 +215,7 @@ watch(
         <span class="text-muted-foreground">+</span>
       </button>
 
-      <div class="mt-3 flex-1 overflow-auto">
+      <div class="mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <p class="px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
           {{ t("conversation.recentChats") }}
         </p>
@@ -255,8 +255,8 @@ watch(
       </button>
     </aside>
 
-    <div class="flex min-h-screen min-w-0 flex-1 flex-col px-3 py-3 md:px-4 xl:pl-4">
-      <header class="sticky top-0 z-20 rounded-[1.3rem] border border-white/60 bg-white/90 px-4 py-3 shadow-[0_18px_50px_-36px_rgba(15,23,42,0.55)] backdrop-blur dark:border-white/10 dark:bg-slate-950/80">
+    <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-3 py-3 md:px-4 xl:pl-4">
+      <header class="shrink-0 rounded-[1.3rem] border border-white/60 bg-white/90 px-4 py-3 shadow-[0_18px_50px_-36px_rgba(15,23,42,0.55)] backdrop-blur dark:border-white/10 dark:bg-slate-950/80">
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div class="min-w-0">
             <div class="flex flex-wrap items-center gap-2">
@@ -267,24 +267,11 @@ watch(
                 {{ t("common.menu") }}
               </button>
               <StatusBadge>{{ t("dashboard.badge") }}</StatusBadge>
-              <StatusBadge :tone="selectedProject?.online ? 'success' : 'muted'">
-                {{ selectedProject?.deviceName ?? t("chat.noProjectSelected") }}
-              </StatusBadge>
-              <StatusBadge tone="muted">{{ providerLabel }}</StatusBadge>
-              <StatusBadge v-if="store.selectedModelProfile" tone="muted">
-                {{ store.selectedModelProfile.name }}
-              </StatusBadge>
             </div>
             <h1 class="mt-2 truncate text-xl font-semibold">
               {{ selectedProject?.name ?? t("home.chatTitle") }}
             </h1>
-            <p class="mt-1 truncate text-sm text-muted-foreground">
-              {{
-                selectedProject
-                  ? `${selectedProject.pathLabel} · ${selectedProject.deviceName}`
-                  : t("home.chatSummary")
-              }}
-            </p>
+            <p class="mt-1 truncate text-sm text-muted-foreground">{{ t("home.chatSummary") }}</p>
           </div>
 
           <div class="flex flex-wrap gap-2">
@@ -307,26 +294,70 @@ watch(
             </button>
           </div>
         </div>
-
-        <div class="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-          <span>{{ t("home.configuredProjectsCount", { count: store.configuredProjectViews.length }) }}</span>
-          <span>{{ t("dashboard.hostsOnline", { count: store.onlineHostCount }) }}</span>
-          <span>{{ t("workspace.metrics.topics", { count: projectSummary?.conversationCount ?? recentConversationList.length }) }}</span>
-          <span>{{ t("workspace.metrics.running", { count: projectSummary?.runningTaskCount ?? 0 }) }}</span>
-          <span v-if="projectSummary?.branchName">{{ t("workspace.metrics.branch", { value: projectSummary.branchName }) }}</span>
-          <span v-if="projectSummary">{{ t("workspace.metrics.changedFiles", { count: projectSummary.changedFilesCount }) }}</span>
-        </div>
       </header>
 
       <div
         v-if="workspaceErrorMessage"
-        class="mt-3 rounded-[1.1rem] border border-rose-500/20 bg-rose-500/8 px-4 py-3 text-sm text-rose-700 dark:text-rose-300"
+        class="mt-3 shrink-0 rounded-[1.1rem] border border-rose-500/20 bg-rose-500/8 px-4 py-3 text-sm text-rose-700 dark:text-rose-300"
       >
         {{ workspaceErrorMessage }}
       </div>
 
+      <div
+        class="mt-3 shrink-0 rounded-[1.15rem] border border-white/60 bg-white/80 px-4 py-3 shadow-[0_16px_45px_-40px_rgba(15,23,42,0.55)] backdrop-blur dark:border-white/10 dark:bg-slate-950/65"
+      >
+        <div class="grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
+          <div class="min-w-0">
+            <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              {{ t("chat.project") }}
+            </p>
+            <p class="mt-1 truncate font-medium">
+              {{ selectedProject?.name ?? t("chat.noProjectSelected") }}
+            </p>
+            <p v-if="selectedProject?.pathLabel" class="truncate text-xs text-muted-foreground">
+              {{ selectedProject.pathLabel }}
+            </p>
+          </div>
+          <div class="min-w-0">
+            <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              {{ t("settings.hostsTitle") }}
+            </p>
+            <p class="mt-1 truncate font-medium">
+              {{ selectedProject?.deviceName ?? t("chat.noProjectSelected") }}
+            </p>
+            <p class="truncate text-xs text-muted-foreground">
+              {{ selectedProject?.online ? t("common.online") : t("common.offline") }}
+            </p>
+          </div>
+          <div class="min-w-0">
+            <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              {{ t("chat.acp") }}
+            </p>
+            <p class="mt-1 truncate font-medium">{{ providerLabel }}</p>
+            <p class="truncate text-xs text-muted-foreground">
+              {{ t("workspace.metrics.topics", { count: projectSummary?.conversationCount ?? recentConversationList.length }) }}
+            </p>
+          </div>
+          <div class="min-w-0">
+            <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              {{ t("chat.model") }}
+            </p>
+            <p class="mt-1 truncate font-medium">
+              {{ store.selectedModelProfile?.name ?? t("chat.noModelSelected") }}
+            </p>
+            <p class="truncate text-xs text-muted-foreground">
+              {{
+                projectSummary
+                  ? t("workspace.metrics.running", { count: projectSummary.runningTaskCount ?? 0 })
+                  : t("dashboard.hostsOnline", { count: store.onlineHostCount })
+              }}
+            </p>
+          </div>
+        </div>
+      </div>
+
       <ProjectConversationPanel
-        class="mt-3"
+        class="mt-3 min-h-0 flex-1"
         :detail="workspace.conversationDetail.value"
         :project-title="selectedProject?.name"
         :is-draft-conversation="workspace.isDraftConversation.value"

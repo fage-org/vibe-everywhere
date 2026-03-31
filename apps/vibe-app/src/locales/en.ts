@@ -221,6 +221,8 @@ const en = {
     viewChanges: "View changes",
     replyPlaceholder: "Type a reply",
     sendCustomReply: "Send custom reply",
+    copyTurn: "Copy turn",
+    copied: "Copied",
     optionalModel: "Optional model",
     promptPlaceholder: "Tell the AI what to do in this project...",
     disabledPlaceholder: "Finish selecting a server, project, and ACP before sending a message.",
