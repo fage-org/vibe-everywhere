@@ -87,6 +87,9 @@ Validation expectations:
   polling, overlay wiring, or shell/task execution paths.
 - If a change alters documented manual or release validation flow, update `TESTING.md` in the same
   change set.
+- When running the local real `open_code` app conversation integration test for a user, print the
+  generated report file contents in the test output and include that content in the user-facing
+  report.
 
 ## Documentation Boundaries
 

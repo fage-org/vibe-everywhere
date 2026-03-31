@@ -9,8 +9,8 @@ under `docs/plans/`.
 
 - planning index: `docs/plans/README.md`
 - planning process: `docs/plans/process.md`
-- active iteration summary: `docs/plans/iterations/v6-summary.md`
-- active iteration details: `docs/plans/iterations/v6-details.md`
+- active iteration summary: `docs/plans/iterations/v7-summary.md`
+- active iteration details: `docs/plans/iterations/v7-details.md`
 - active remediation summary: `docs/plans/remediation/v12-summary.md`
 - active remediation details: `docs/plans/remediation/v12-details.md`
 

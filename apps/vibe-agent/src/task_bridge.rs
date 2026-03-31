@@ -305,11 +305,65 @@ mod tests {
             .port()
     }
 
-    fn write_fake_codex_binary(root: &Path) -> PathBuf {
-        let path = root.join("fake-codex.sh");
-        let script = r#"#!/bin/sh
-printf '%s\n' '{"type":"thread.started","thread_id":"thread_test"}'
-printf '%s\n' '{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"task bridge ok"}}'
+    fn write_fake_acp_binary(root: &Path) -> PathBuf {
+        let path = root.join("fake-acp.py");
+        let script = r#"#!/usr/bin/env python3
+import json
+import sys
+
+for raw_line in sys.stdin:
+    line = raw_line.strip()
+    if not line:
+        continue
+    message = json.loads(line)
+    method = message.get("method")
+    request_id = message.get("id")
+
+    if method == "initialize":
+        response = {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "result": {
+                "protocolVersion": 1,
+                "capabilities": {}
+            }
+        }
+        print(json.dumps(response), flush=True)
+    elif method == "session/new":
+        response = {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "result": {
+                "sessionId": "session_test"
+            }
+        }
+        print(json.dumps(response), flush=True)
+    elif method == "session/prompt":
+        update = {
+            "jsonrpc": "2.0",
+            "method": "session/update",
+            "params": {
+                "sessionId": "session_test",
+                "update": {
+                    "sessionUpdate": "agent_message_chunk",
+                    "content": [{"type": "text", "text": "task bridge ok"}]
+                }
+            }
+        }
+        response = {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "result": {
+                "stopReason": "end_turn",
+                "usage": {
+                    "inputTokens": 1,
+                    "outputTokens": 1,
+                    "totalTokens": 2
+                }
+            }
+        }
+        print(json.dumps(update), flush=True)
+        print(json.dumps(response), flush=True)
 "#;
         fs::write(&path, script).unwrap();
         let mut permissions = fs::metadata(&path).unwrap().permissions();
@@ -323,12 +377,11 @@ printf '%s\n' '{"type":"item.completed","item":{"id":"item_0","type":"agent_mess
             current_task_id: std::sync::Arc::new(RwLock::new(None)),
             metadata: BTreeMap::new(),
             providers: vec![ProviderStatus {
-                kind: ProviderKind::Codex,
+                kind: ProviderKind::OpenCode,
                 command,
                 available: true,
                 version: Some("test".to_string()),
-                execution_protocol: ExecutionProtocol::Cli,
-                supports_acp: false,
+                execution_protocol: ExecutionProtocol::Acp,
                 error: None,
             }],
             overlay: std::sync::Arc::new(RwLock::new(OverlayNetworkStatus::default())),
@@ -340,7 +393,7 @@ printf '%s\n' '{"type":"item.completed","item":{"id":"item_0","type":"agent_mess
             CreateTaskRequest {
                 device_id: "device-1".to_string(),
                 conversation_id: None,
-                provider: ProviderKind::Codex,
+                provider: ProviderKind::OpenCode,
                 execution_mode: Some(vibe_core::TaskExecutionMode::WorkspaceWrite),
                 prompt: "say hi".to_string(),
                 cwd: None,
@@ -348,7 +401,7 @@ printf '%s\n' '{"type":"item.completed","item":{"id":"item_0","type":"agent_mess
                 title: Some("task bridge test".to_string()),
                 provider_session_id: None,
             },
-            ExecutionProtocol::Cli,
+            ExecutionProtocol::Acp,
             TaskTransportKind::OverlayProxy,
             &vibe_core::ActorIdentity::personal_owner(),
         )
@@ -388,12 +441,12 @@ printf '%s\n' '{"type":"item.completed","item":{"id":"item_0","type":"agent_mess
     }
 
     #[tokio::test]
-    async fn task_bridge_executes_cli_task_and_streams_updates() {
+    async fn task_bridge_executes_acp_task_and_streams_updates() {
         let host = test_local_tcp_host();
         let port = reserve_test_port(&host);
         let root = std::env::temp_dir().join(format!("vibe-agent-task-bridge-{}", Uuid::new_v4()));
         fs::create_dir_all(&root).unwrap();
-        let command = write_fake_codex_binary(&root);
+        let command = write_fake_acp_binary(&root);
         let shared = test_shared_state(command.to_string_lossy().to_string());
         let current_task_id = shared.current_task_id.clone();
         let (shutdown_tx, shutdown_rx) = watch::channel(false);
@@ -472,7 +525,7 @@ printf '%s\n' '{"type":"item.completed","item":{"id":"item_0","type":"agent_mess
         let port = reserve_test_port(&host);
         let root = std::env::temp_dir().join(format!("vibe-agent-task-bridge-{}", Uuid::new_v4()));
         fs::create_dir_all(&root).unwrap();
-        let command = write_fake_codex_binary(&root);
+        let command = write_fake_acp_binary(&root);
         let (shutdown_tx, shutdown_rx) = watch::channel(false);
 
         let server = tokio::spawn(async move {

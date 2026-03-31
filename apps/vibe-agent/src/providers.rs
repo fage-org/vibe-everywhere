@@ -7,35 +7,27 @@ use vibe_core::{
     TaskExecutionMode, TaskRecord,
 };
 
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn build_provider_command(
     provider: &ProviderStatus,
     task: &TaskRecord,
     cwd: &Path,
 ) -> Result<Command> {
-    let mut command = provider_command(&provider.command);
     let prompt = render_task_prompt(task);
 
     match task.provider {
         ProviderKind::Codex => {
-            command.arg("exec");
-            if let Some(session_id) = task.provider_session_id.as_deref() {
-                command.arg("resume").arg(session_id);
-            }
-            command
-                .arg("--json")
-                .arg("--skip-git-repo-check")
-                .arg("--sandbox")
-                .arg(codex_sandbox_mode(task.execution_mode.clone()))
-                .arg("--ask-for-approval")
-                .arg(codex_approval_policy(task.execution_mode.clone()))
-                .arg("-C")
-                .arg(cwd);
-            if let Some(model) = &task.model {
-                command.arg("-m").arg(model);
-            }
-            command.arg(&prompt);
+            return Ok(build_codex_command(
+                &provider.command,
+                task.provider_session_id.as_deref(),
+                &prompt,
+                cwd,
+                task.model.as_deref(),
+                task.execution_mode.clone(),
+            ));
         }
         ProviderKind::ClaudeCode => {
+            let mut command = provider_command(&provider.command);
             command.arg("-p");
             if let Some(session_id) = task.provider_session_id.as_deref() {
                 command.arg("--resume").arg(session_id);
@@ -63,8 +55,10 @@ pub(crate) fn build_provider_command(
                 command.arg("--model").arg(model);
             }
             command.arg(&prompt);
+            Ok(command)
         }
         ProviderKind::OpenCode => {
+            let mut command = provider_command(&provider.command);
             command.arg("run");
             if let Some(session_id) = task.provider_session_id.as_deref() {
                 command.arg("--session").arg(session_id);
@@ -75,13 +69,43 @@ pub(crate) fn build_provider_command(
                 command.arg("--model").arg(model);
             }
             command.arg(&prompt);
+            Ok(command)
         }
     }
-
-    Ok(command)
 }
 
-fn provider_command(command: &str) -> Command {
+pub(crate) fn build_codex_command(
+    command: &str,
+    session_id: Option<&str>,
+    prompt: &str,
+    cwd: &Path,
+    model: Option<&str>,
+    execution_mode: TaskExecutionMode,
+) -> Command {
+    let mut command = provider_command(command);
+    command.arg("exec");
+    if let Some(session_id) = session_id {
+        command.arg("resume").arg(session_id);
+    }
+    command.arg("--json").arg("--skip-git-repo-check");
+    if session_id.is_none() {
+        command
+            .arg("--sandbox")
+            .arg(codex_sandbox_mode(execution_mode.clone()));
+        command.arg("-C").arg(cwd);
+    }
+    command.arg("-c").arg(format!(
+        "approval_policy={:?}",
+        codex_approval_policy(execution_mode)
+    ));
+    if let Some(model) = model {
+        command.arg("-m").arg(model);
+    }
+    command.arg(prompt);
+    command
+}
+
+pub(crate) fn provider_command(command: &str) -> Command {
     if windows_batch_script_requires_cmd(Path::new(command), cfg!(windows)) {
         let mut wrapped = Command::new("cmd.exe");
         wrapped.arg("/C").arg(command);
@@ -110,7 +134,7 @@ fn windows_batch_script_requires_cmd(path: &Path, is_windows: bool) -> bool {
             .unwrap_or(false)
 }
 
-fn codex_sandbox_mode(execution_mode: TaskExecutionMode) -> &'static str {
+pub(crate) fn codex_sandbox_mode(execution_mode: TaskExecutionMode) -> &'static str {
     match execution_mode {
         TaskExecutionMode::ReadOnly => "read-only",
         TaskExecutionMode::WorkspaceWrite | TaskExecutionMode::WorkspaceWriteAndTest => {
@@ -119,13 +143,14 @@ fn codex_sandbox_mode(execution_mode: TaskExecutionMode) -> &'static str {
     }
 }
 
-fn codex_approval_policy(execution_mode: TaskExecutionMode) -> &'static str {
+pub(crate) fn codex_approval_policy(execution_mode: TaskExecutionMode) -> &'static str {
     match execution_mode {
-        TaskExecutionMode::WorkspaceWrite => "untrusted",
+        TaskExecutionMode::WorkspaceWrite => "on-request",
         TaskExecutionMode::ReadOnly | TaskExecutionMode::WorkspaceWriteAndTest => "never",
     }
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn claude_permission_mode(execution_mode: TaskExecutionMode) -> String {
     let default_mode = std::env::var("VIBE_CLAUDE_PERMISSION_MODE")
         .ok()
@@ -150,6 +175,7 @@ fn claude_permission_mode(execution_mode: TaskExecutionMode) -> String {
     }
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn claude_disallowed_tools(execution_mode: TaskExecutionMode) -> Option<String> {
     match execution_mode {
         TaskExecutionMode::ReadOnly => std::env::var("VIBE_CLAUDE_DISALLOWED_TOOLS_READ_ONLY")
@@ -168,10 +194,12 @@ fn claude_disallowed_tools(execution_mode: TaskExecutionMode) -> Option<String> 
     }
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn default_claude_read_only_disallowed_tools() -> String {
     ["Edit", "MultiEdit", "Write", "NotebookEdit", "Bash(*)"].join(",")
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn default_claude_test_disallowed_tools() -> String {
     [
         "Bash(cargo test:*)",
@@ -192,6 +220,7 @@ fn default_claude_test_disallowed_tools() -> String {
     .join(",")
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn render_task_prompt(task: &TaskRecord) -> String {
     let policy = match task.execution_mode {
         TaskExecutionMode::ReadOnly => {
@@ -216,7 +245,8 @@ pub(crate) fn detect_providers() -> Vec<ProviderStatus> {
                 definition.kind,
                 definition.command_env,
                 definition.default_command,
-                definition.supports_acp,
+                definition.available,
+                definition.unavailable_reason,
             )
         })
         .collect()
@@ -296,6 +326,21 @@ pub(crate) fn acp_update_to_events(params: &Value) -> Vec<TaskEventInput> {
     }
 }
 
+pub(crate) fn acp_update_session_id(params: &Value) -> Option<String> {
+    params
+        .get("update")
+        .and_then(|update| {
+            update
+                .get("sessionId")
+                .or_else(|| update.get("providerSessionId"))
+                .or_else(|| update.get("canonicalSessionId"))
+        })
+        .and_then(Value::as_str)
+        .map(str::to_string)
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
+#[allow(dead_code)]
 pub(crate) fn provider_stdout_to_task_events(
     provider_kind: &ProviderKind,
     line: &str,
@@ -310,6 +355,7 @@ pub(crate) fn provider_stdout_to_task_events(
     }
 }
 
+#[allow(dead_code)]
 pub(crate) fn provider_stdout_session_id(
     provider_kind: &ProviderKind,
     line: &str,
@@ -321,6 +367,7 @@ pub(crate) fn provider_stdout_session_id(
     }
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn claude_jsonl_to_task_events(line: &str) -> Vec<TaskEventInput> {
     let message = match serde_json::from_str::<Value>(line) {
         Ok(value) => value,
@@ -365,6 +412,7 @@ fn claude_jsonl_session_id(line: &str) -> Option<String> {
         .map(str::to_string)
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn codex_jsonl_to_task_events(line: &str) -> Vec<TaskEventInput> {
     let message = match serde_json::from_str::<Value>(line) {
         Ok(value) => value,
@@ -434,17 +482,19 @@ struct ProviderDefinition {
     kind: ProviderKind,
     command_env: &'static str,
     default_command: &'static str,
-    supports_acp: bool,
+    available: bool,
+    unavailable_reason: Option<&'static str>,
 }
 
 fn detect_provider(
     kind: ProviderKind,
     command_env: &str,
     default_command: &str,
-    supports_acp: bool,
+    available: bool,
+    unavailable_reason: Option<&'static str>,
 ) -> ProviderStatus {
     let command = std::env::var(command_env).unwrap_or_else(|_| default_command.to_string());
-    let execution_protocol = advertised_execution_protocol(kind.clone(), supports_acp);
+    let execution_protocol = ExecutionProtocol::Acp;
 
     match which::which(&command) {
         Ok(path) => {
@@ -462,11 +512,10 @@ fn detect_provider(
             ProviderStatus {
                 kind,
                 command: path.to_string_lossy().to_string(),
-                available: true,
+                available,
                 version,
                 execution_protocol,
-                supports_acp,
-                error: None,
+                error: unavailable_reason.map(str::to_string),
             }
         }
         Err(error) => ProviderStatus {
@@ -475,17 +524,8 @@ fn detect_provider(
             available: false,
             version: None,
             execution_protocol,
-            supports_acp,
             error: Some(error.to_string()),
         },
-    }
-}
-
-fn advertised_execution_protocol(kind: ProviderKind, supports_acp: bool) -> ExecutionProtocol {
-    if supports_acp && matches!(kind, ProviderKind::OpenCode) {
-        ExecutionProtocol::Acp
-    } else {
-        ExecutionProtocol::Cli
     }
 }
 
@@ -495,19 +535,22 @@ fn provider_definitions() -> Vec<ProviderDefinition> {
             kind: ProviderKind::Codex,
             command_env: "VIBE_CODEX_COMMAND",
             default_command: "codex",
-            supports_acp: false,
+            available: true,
+            unavailable_reason: None,
         },
         ProviderDefinition {
             kind: ProviderKind::ClaudeCode,
             command_env: "VIBE_CLAUDE_COMMAND",
             default_command: "claude",
-            supports_acp: false,
+            available: false,
+            unavailable_reason: Some("Claude Code ACP support is not implemented on this agent"),
         },
         ProviderDefinition {
             kind: ProviderKind::OpenCode,
             command_env: "VIBE_OPENCODE_COMMAND",
             default_command: "opencode",
-            supports_acp: true,
+            available: true,
+            unavailable_reason: None,
         },
     ]
 }
@@ -728,6 +771,7 @@ fn format_config_update(update: &Value) -> String {
     compact_json(update)
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn claude_system_to_task_events(message: &Value) -> Vec<TaskEventInput> {
     let subtype = message
         .get("subtype")
@@ -761,6 +805,7 @@ fn claude_system_to_task_events(message: &Value) -> Vec<TaskEventInput> {
     }]
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn claude_assistant_to_task_events(message: &Value) -> Vec<TaskEventInput> {
     let mut events = Vec::new();
 
@@ -791,6 +836,7 @@ fn claude_assistant_to_task_events(message: &Value) -> Vec<TaskEventInput> {
     events
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn claude_content_block_to_events(block: &Value) -> Vec<TaskEventInput> {
     let block_type = block
         .get("type")
@@ -867,6 +913,7 @@ fn claude_content_block_to_events(block: &Value) -> Vec<TaskEventInput> {
     }
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn claude_result_to_task_events(message: &Value) -> Vec<TaskEventInput> {
     let subtype = message
         .get("subtype")
@@ -934,6 +981,7 @@ fn claude_result_to_task_events(message: &Value) -> Vec<TaskEventInput> {
     events
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn claude_user_to_task_events(message: &Value) -> Vec<TaskEventInput> {
     let Some(content) = message
         .get("message")
@@ -960,6 +1008,7 @@ fn claude_user_to_task_events(message: &Value) -> Vec<TaskEventInput> {
     }
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn codex_item_to_task_events(item: &Value, started: bool) -> Vec<TaskEventInput> {
     let item_type = item
         .get("type")
@@ -1012,6 +1061,7 @@ fn codex_item_to_task_events(item: &Value, started: bool) -> Vec<TaskEventInput>
     }]
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn codex_item_summary(item_type: &str, item: &Value, started: bool) -> String {
     let phase = if started { "started" } else { "completed" };
     let mut details = Vec::new();
@@ -1060,7 +1110,7 @@ mod tests {
             conversation_id: Some("conversation-1".to_string()),
             title: "Test task".to_string(),
             provider,
-            execution_protocol: ExecutionProtocol::Cli,
+            execution_protocol: ExecutionProtocol::Acp,
             execution_mode,
             prompt: "hello".to_string(),
             cwd: Some("/tmp/project".to_string()),
@@ -1089,42 +1139,40 @@ mod tests {
             },
             available: true,
             version: None,
-            execution_protocol: if kind == ProviderKind::OpenCode {
-                ExecutionProtocol::Acp
-            } else {
-                ExecutionProtocol::Cli
-            },
-            supports_acp: kind == ProviderKind::OpenCode,
+            execution_protocol: ExecutionProtocol::Acp,
             error: None,
         }
     }
 
     #[test]
-    fn codex_is_no_longer_advertised_as_acp() {
+    fn codex_is_advertised_as_acp() {
         let codex = provider_definitions()
             .into_iter()
             .find(|definition| definition.kind == ProviderKind::Codex)
             .expect("codex provider definition");
 
-        assert!(!codex.supports_acp);
-        assert_eq!(
-            advertised_execution_protocol(codex.kind, codex.supports_acp),
-            ExecutionProtocol::Cli
-        );
+        assert!(codex.available);
     }
 
     #[test]
-    fn opencode_remains_advertised_as_acp() {
+    fn opencode_remains_available() {
         let opencode = provider_definitions()
             .into_iter()
             .find(|definition| definition.kind == ProviderKind::OpenCode)
             .expect("opencode provider definition");
 
-        assert!(opencode.supports_acp);
-        assert_eq!(
-            advertised_execution_protocol(opencode.kind, opencode.supports_acp),
-            ExecutionProtocol::Acp
-        );
+        assert!(opencode.available);
+    }
+
+    #[test]
+    fn claude_is_not_available_without_acp_support() {
+        let claude = provider_definitions()
+            .into_iter()
+            .find(|definition| definition.kind == ProviderKind::ClaudeCode)
+            .expect("claude provider definition");
+
+        assert!(!claude.available);
+        assert!(claude.unavailable_reason.is_some());
     }
 
     #[test]
@@ -1182,6 +1230,18 @@ mod tests {
     }
 
     #[test]
+    fn session_info_update_extracts_canonical_session_id() {
+        let session_id = acp_update_session_id(&json!({
+            "update": {
+                "sessionUpdate": "session_info_update",
+                "sessionId": "thread_123"
+            }
+        }));
+
+        assert_eq!(session_id.as_deref(), Some("thread_123"));
+    }
+
+    #[test]
     fn usage_update_maps_to_status_event() {
         let events = acp_update_to_events(&json!({
             "update": {
@@ -1219,7 +1279,7 @@ mod tests {
         );
         assert!(
             args.windows(2)
-                .any(|pair| pair == ["--ask-for-approval", "never"])
+                .any(|pair| pair == ["-c", "approval_policy=\"never\""])
         );
     }
 
@@ -1237,8 +1297,26 @@ mod tests {
 
         assert!(
             args.windows(2)
-                .any(|pair| pair == ["--ask-for-approval", "untrusted"])
+                .any(|pair| pair == ["-c", "approval_policy=\"on-request\""])
         );
+    }
+
+    #[test]
+    fn codex_resume_command_omits_workspace_bootstrap_flags() {
+        let provider = test_provider(ProviderKind::Codex);
+        let mut task = test_task(ProviderKind::Codex, TaskExecutionMode::WorkspaceWrite);
+        task.provider_session_id = Some("thread_123".to_string());
+        let command = build_provider_command(&provider, &task, &PathBuf::from("/tmp/project"))
+            .expect("codex command");
+        let args = command
+            .as_std()
+            .get_args()
+            .map(|value| value.to_string_lossy().to_string())
+            .collect::<Vec<_>>();
+
+        assert!(args.windows(2).any(|pair| pair == ["resume", "thread_123"]));
+        assert!(!args.contains(&"--sandbox".to_string()));
+        assert!(!args.contains(&"-C".to_string()));
     }
 
     #[test]
@@ -1262,7 +1340,7 @@ mod tests {
         );
         assert!(
             args.windows(2)
-                .any(|pair| pair == ["--ask-for-approval", "never"])
+                .any(|pair| pair == ["-c", "approval_policy=\"never\""])
         );
     }
 

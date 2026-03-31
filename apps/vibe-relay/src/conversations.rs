@@ -6,6 +6,7 @@ use crate::tasks::{
     dispatch_next_task_for_device, preferred_task_transport, push_task_event_entry, task_detail,
 };
 use vibe_core::ConversationInputRequestStatus;
+use vibe_core::ExecutionProtocol;
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -121,8 +122,7 @@ pub(super) async fn create_conversation(
         ));
     }
 
-    let mut conversation =
-        ConversationRecord::new(&payload, provider.execution_protocol.clone(), &actor);
+    let mut conversation = ConversationRecord::new(&payload, ExecutionProtocol::Acp, &actor);
     let task = TaskRecord::new(
         CreateTaskRequest {
             device_id: payload.device_id.clone(),
@@ -135,7 +135,7 @@ pub(super) async fn create_conversation(
             title: payload.title.clone(),
             provider_session_id: None,
         },
-        provider.execution_protocol,
+        ExecutionProtocol::Acp,
         preferred_task_transport(&state, &device),
         &actor,
     );
@@ -281,7 +281,7 @@ pub(super) async fn send_conversation_message(
                 .or_else(|| Some(existing_conversation.record.title.clone())),
             provider_session_id: existing_conversation.record.provider_session_id.clone(),
         },
-        provider.execution_protocol,
+        ExecutionProtocol::Acp,
         preferred_task_transport(&state, &device),
         &actor,
     );

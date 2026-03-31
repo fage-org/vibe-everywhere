@@ -1,5 +1,5 @@
 use anyhow::{Context, Result, bail};
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use futures_util::{SinkExt, StreamExt};
 use reqwest::header::AUTHORIZATION;
 use serde::{Deserialize, Serialize};
@@ -35,11 +35,13 @@ use vibe_core::{
     PortForwardStatus, PortForwardTransportKind, PortForwardTunnelControl, ProviderKind,
     ProviderStatus, RegisterDeviceRequest, RegisterDeviceResponse, ReportPortForwardStateRequest,
     ShellOutputChunkInput, ShellPendingInputResponse, ShellSessionRecord, ShellSessionStatus,
-    ShellStreamKind, TaskDetailResponse, TaskEventInput, TaskEventKind, TaskRecord, TaskStatus,
-    WorkspaceBrowseResponse, WorkspaceEntry, WorkspaceEntryKind, WorkspaceFilePreviewResponse,
-    WorkspaceOperationRequest, WorkspaceOperationResult, WorkspacePreviewKind,
+    ShellStreamKind, TaskDetailResponse, TaskEventInput, TaskEventKind, TaskExecutionMode,
+    TaskRecord, TaskStatus, WorkspaceBrowseResponse, WorkspaceEntry, WorkspaceEntryKind,
+    WorkspaceFilePreviewResponse, WorkspaceOperationRequest, WorkspaceOperationResult,
+    WorkspacePreviewKind,
 };
 
+mod codex_acp_bridge;
 mod config;
 mod easytier;
 mod git_runtime;
@@ -59,10 +61,7 @@ use config::{
 use easytier::{AgentEasyTierOptions, initial_overlay_status, start_managed_agent_easytier};
 use git_runtime::git_loop;
 use port_forward_runtime::port_forward_loop;
-use providers::{
-    acp_update_to_events, build_provider_command, detect_providers, provider_stdout_session_id,
-    provider_stdout_to_task_events,
-};
+use providers::detect_providers;
 #[cfg(test)]
 use providers::{claude_jsonl_to_task_events, codex_jsonl_to_task_events};
 use shell_runtime::shell_session_loop;
@@ -75,6 +74,9 @@ const TERMINAL_POLL_MS: u64 = 250;
 
 #[derive(Debug, Parser, Clone)]
 struct Cli {
+    #[command(subcommand)]
+    command: Option<CliCommand>,
+
     #[arg(long, env = "VIBE_RELAY_URL")]
     relay_url: Option<String>,
 
@@ -107,6 +109,20 @@ struct Cli {
 
     #[arg(long, env = "VIBE_EASYTIER_NODE_IP")]
     easytier_node_ip: Option<String>,
+}
+
+#[derive(Debug, Subcommand, Clone)]
+enum CliCommand {
+    CodexAcpBridge {
+        #[arg(long)]
+        codex_command: String,
+        #[arg(long)]
+        cwd: PathBuf,
+        #[arg(long)]
+        execution_mode: String,
+        #[arg(long)]
+        model: Option<String>,
+    },
 }
 
 #[derive(Clone)]
@@ -249,6 +265,21 @@ fn with_bearer(request: reqwest::RequestBuilder, token: Option<&str>) -> reqwest
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
+    if let Some(CliCommand::CodexAcpBridge {
+        codex_command,
+        cwd,
+        execution_mode,
+        model,
+    }) = cli.command.clone()
+    {
+        return codex_acp_bridge::run_stdio_bridge(
+            codex_command,
+            cwd,
+            parse_task_execution_mode(&execution_mode)?,
+            model,
+        )
+        .await;
+    }
     let relay_url = resolve_relay_url(cli.relay_url.as_deref(), cfg!(debug_assertions))?;
     let working_root = resolve_working_root(&cli.working_root)?;
     println!(
@@ -469,6 +500,17 @@ async fn main() -> Result<()> {
     }
 
     task_result
+}
+
+fn parse_task_execution_mode(value: &str) -> Result<TaskExecutionMode> {
+    match value {
+        "read_only" | "read-only" => Ok(TaskExecutionMode::ReadOnly),
+        "workspace_write" | "workspace-write" => Ok(TaskExecutionMode::WorkspaceWrite),
+        "workspace_write_and_test" | "workspace-write-and-test" => {
+            Ok(TaskExecutionMode::WorkspaceWriteAndTest)
+        }
+        _ => bail!("unsupported task execution mode: {value}"),
+    }
 }
 
 async fn register_device(
@@ -741,7 +783,6 @@ mod tests {
                 available: true,
                 version: Some("1.0.0".to_string()),
                 execution_protocol: ExecutionProtocol::Acp,
-                supports_acp: true,
                 error: None,
             }],
             overlay: Arc::new(RwLock::new(OverlayNetworkStatus::default())),

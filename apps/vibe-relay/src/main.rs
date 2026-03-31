@@ -1142,7 +1142,7 @@ mod tests {
                 conversation_id: None,
                 title: format!("Task {id}"),
                 provider,
-                execution_protocol: vibe_core::ExecutionProtocol::Cli,
+                execution_protocol: vibe_core::ExecutionProtocol::Acp,
                 execution_mode: vibe_core::TaskExecutionMode::WorkspaceWrite,
                 prompt: "prompt".to_string(),
                 cwd: None,
@@ -1168,14 +1168,12 @@ mod tests {
         execution_protocol: vibe_core::ExecutionProtocol,
     ) -> vibe_core::ProviderStatus {
         let command = kind.label().to_lowercase();
-        let supports_acp = matches!(execution_protocol, vibe_core::ExecutionProtocol::Acp);
         vibe_core::ProviderStatus {
             kind,
             command,
             available: true,
             version: Some("test".to_string()),
             execution_protocol,
-            supports_acp,
             error: None,
         }
     }
@@ -1419,7 +1417,7 @@ mod tests {
                     "device-1",
                     vec![test_provider(
                         ProviderKind::Codex,
-                        vibe_core::ExecutionProtocol::Cli,
+                        vibe_core::ExecutionProtocol::Acp,
                     )],
                 ),
             )]),
@@ -1967,7 +1965,7 @@ mod tests {
                         "device-1",
                         vec![test_provider(
                             ProviderKind::Codex,
-                            vibe_core::ExecutionProtocol::Cli,
+                            vibe_core::ExecutionProtocol::Acp,
                         )],
                     ),
                 )]),
@@ -1999,7 +1997,7 @@ mod tests {
                 &mut write_half,
                 &TaskBridgeEvent::Update {
                     status: Some(TaskStatus::Running),
-                    execution_protocol: Some(vibe_core::ExecutionProtocol::Cli),
+                    execution_protocol: Some(vibe_core::ExecutionProtocol::Acp),
                     provider_session_id: None,
                     events: vec![vibe_core::TaskEventInput {
                         kind: vibe_core::TaskEventKind::System,
@@ -2159,7 +2157,7 @@ mod tests {
                         "device-1",
                         vec![test_provider(
                             ProviderKind::Codex,
-                            vibe_core::ExecutionProtocol::Cli,
+                            vibe_core::ExecutionProtocol::Acp,
                         )],
                     ),
                 )]),
@@ -2191,7 +2189,7 @@ mod tests {
                 &mut write_half,
                 &TaskBridgeEvent::Update {
                     status: Some(TaskStatus::Running),
-                    execution_protocol: Some(vibe_core::ExecutionProtocol::Cli),
+                    execution_protocol: Some(vibe_core::ExecutionProtocol::Acp),
                     provider_session_id: None,
                     events: vec![vibe_core::TaskEventInput {
                         kind: vibe_core::TaskEventKind::System,
@@ -2307,7 +2305,7 @@ mod tests {
                 &mut write_half,
                 &TaskBridgeEvent::Update {
                     status: Some(TaskStatus::Running),
-                    execution_protocol: Some(vibe_core::ExecutionProtocol::Cli),
+                    execution_protocol: Some(vibe_core::ExecutionProtocol::Acp),
                     provider_session_id: None,
                     events: vec![vibe_core::TaskEventInput {
                         kind: vibe_core::TaskEventKind::System,
@@ -2590,7 +2588,7 @@ mod tests {
                 &mut write_half,
                 &TaskBridgeEvent::Update {
                     status: Some(TaskStatus::Running),
-                    execution_protocol: Some(vibe_core::ExecutionProtocol::Cli),
+                    execution_protocol: Some(vibe_core::ExecutionProtocol::Acp),
                     provider_session_id: None,
                     events: vec![vibe_core::TaskEventInput {
                         kind: vibe_core::TaskEventKind::System,

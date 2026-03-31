@@ -196,7 +196,6 @@ pub struct ProviderStatus {
     pub available: bool,
     pub version: Option<String>,
     pub execution_protocol: ExecutionProtocol,
-    pub supports_acp: bool,
     pub error: Option<String>,
 }
 
@@ -377,6 +376,10 @@ impl TaskRecord {
         transport: TaskTransportKind,
         actor: &ActorIdentity,
     ) -> Self {
+        let execution_protocol = match execution_protocol {
+            ExecutionProtocol::Acp => ExecutionProtocol::Acp,
+            ExecutionProtocol::Cli => ExecutionProtocol::Acp,
+        };
         Self {
             tenant_id: actor.tenant_id.clone(),
             user_id: actor.user_id.clone(),
@@ -470,6 +473,10 @@ impl ConversationRecord {
         actor: &ActorIdentity,
     ) -> Self {
         let now = now_epoch_millis();
+        let execution_protocol = match execution_protocol {
+            ExecutionProtocol::Acp => ExecutionProtocol::Acp,
+            ExecutionProtocol::Cli => ExecutionProtocol::Acp,
+        };
         Self {
             tenant_id: actor.tenant_id.clone(),
             user_id: actor.user_id.clone(),

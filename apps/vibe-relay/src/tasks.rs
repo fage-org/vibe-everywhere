@@ -1,6 +1,7 @@
 use super::*;
 use serde::Deserialize;
 use tokio::io::{AsyncWrite, AsyncWriteExt, BufReader};
+use vibe_core::ExecutionProtocol;
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -107,7 +108,7 @@ pub(super) async fn create_task(
     }
 
     let transport = preferred_task_transport(&state, &device);
-    let task = TaskRecord::new(payload, provider.execution_protocol, transport, &actor);
+    let task = TaskRecord::new(payload, ExecutionProtocol::Acp, transport, &actor);
     let queued_event = TaskEvent {
         seq: 1,
         task_id: task.id.clone(),
@@ -474,7 +475,10 @@ async fn append_task_events_internal(
         }
 
         if let Some(execution_protocol) = payload.execution_protocol.clone() {
-            entry.record.execution_protocol = execution_protocol;
+            entry.record.execution_protocol = match execution_protocol {
+                ExecutionProtocol::Acp => ExecutionProtocol::Acp,
+                ExecutionProtocol::Cli => ExecutionProtocol::Acp,
+            };
         }
         if let Some(provider_session_id) = payload.provider_session_id.clone() {
             entry.record.provider_session_id = Some(provider_session_id);

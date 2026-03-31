@@ -23,6 +23,7 @@ env:
   ANDROID_NDK_VERSION: "25.2.9519653"
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   RELEASE_TAG: ${{ github.ref_name }}
+  VIBE_APP_SKIP_REAL_OPENCODE_TEST: "1"
 
 jobs:
   verify:

@@ -1,4 +1,5 @@
 use super::*;
+use crate::providers::acp_update_to_events;
 use vibe_core::TaskExecutionMode;
 
 enum ClaimNextTaskOutcome {
@@ -330,7 +331,7 @@ pub(crate) async fn execute_task_with_sink<S>(
 where
     S: TaskExecutionSink,
 {
-    let execution_protocol = task.execution_protocol.clone();
+    let execution_protocol = ExecutionProtocol::Acp;
     let provider = match providers
         .iter()
         .find(|provider| provider.kind == task.provider)
@@ -423,17 +424,10 @@ where
     })
     .await?;
 
-    let completion = match execution_protocol {
-        ExecutionProtocol::Cli => execute_cli_task(sink, &provider, &task, &cwd).await,
-        ExecutionProtocol::Acp => match provider.kind {
-            ProviderKind::OpenCode => execute_opencode_acp_task(sink, &provider, &task, &cwd).await,
-            ProviderKind::Codex => {
-                execute_codex_embedded_acp_task(sink, &provider, &task, &cwd).await
-            }
-            ProviderKind::ClaudeCode => {
-                bail!("ACP transport is not implemented for Claude Code yet")
-            }
-        },
+    let completion = match provider.kind {
+        ProviderKind::OpenCode => execute_acp_task(sink, &provider, &task, &cwd).await,
+        ProviderKind::Codex => execute_codex_embedded_acp_task(sink, &provider, &task, &cwd).await,
+        ProviderKind::ClaudeCode => bail!("ACP transport is not implemented for Claude Code yet"),
     };
 
     let completion = match completion {
@@ -461,92 +455,6 @@ where
     Ok(())
 }
 
-async fn execute_cli_task<S>(
-    sink: &mut S,
-    provider: &ProviderStatus,
-    task: &TaskRecord,
-    cwd: &Path,
-) -> Result<TaskCompletion>
-where
-    S: TaskExecutionSink,
-{
-    let mut command = build_provider_command(provider, task, cwd)?;
-    command
-        .current_dir(cwd)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-
-    let mut child = command
-        .spawn()
-        .with_context(|| format!("failed to spawn {}", provider.command))?;
-    let stdout = child.stdout.take();
-    let stderr = child.stderr.take();
-    let mut stdout_lines = stdout.map(|handle| BufReader::new(handle).lines());
-    let mut stderr_lines = stderr.map(|handle| BufReader::new(handle).lines());
-    let mut cancel_interval = tokio::time::interval(Duration::from_millis(ACP_CANCEL_POLL_MS));
-    let mut cancel_requested = false;
-    let mut discovered_provider_session_id = task.provider_session_id.clone();
-
-    loop {
-        tokio::select! {
-            result = next_line(&mut stdout_lines), if stdout_lines.is_some() => {
-                match result? {
-                    Some(line) => {
-                        if let Some(provider_session_id) = provider_stdout_session_id(&provider.kind, &line) {
-                            if discovered_provider_session_id.as_deref() != Some(provider_session_id.as_str()) {
-                                discovered_provider_session_id = Some(provider_session_id.clone());
-                                sink.push_update(TaskExecutionUpdate {
-                                    status: None,
-                                    execution_protocol: None,
-                                    provider_session_id: Some(provider_session_id),
-                                    events: Vec::new(),
-                                    exit_code: None,
-                                    error: None,
-                                }).await?;
-                            }
-                        }
-                        for event in provider_stdout_to_task_events(&provider.kind, &line) {
-                            sink.push_event(event.kind, event.message).await?;
-                        }
-                    }
-                    None => stdout_lines = None,
-                }
-            }
-            result = next_line(&mut stderr_lines), if stderr_lines.is_some() => {
-                match result? {
-                    Some(line) => {
-                        sink.push_event(TaskEventKind::ProviderStderr, line).await?;
-                    }
-                    None => stderr_lines = None,
-                }
-            }
-            _ = cancel_interval.tick() => {
-                if !cancel_requested && sink.is_cancel_requested().await? {
-                    cancel_requested = true;
-                    let _ = child.kill().await;
-                }
-            }
-            status = child.wait() => {
-                let status = status.context("failed waiting on child process")?;
-                drain_remaining_output(sink, &provider.kind, &mut stdout_lines, &mut stderr_lines).await?;
-
-                let completion = if cancel_requested {
-                    TaskCompletion::canceled("Task canceled", status.code())
-                } else if status.success() {
-                    TaskCompletion::succeeded("Task finished successfully")
-                } else {
-                    TaskCompletion::failed(
-                        "Task failed",
-                        format!("process exited with status {:?}", status.code()),
-                        status.code(),
-                    )
-                };
-                break Ok(completion);
-            }
-        }
-    }
-}
-
 async fn execute_codex_embedded_acp_task<S>(
     sink: &mut S,
     provider: &ProviderStatus,
@@ -559,85 +467,10 @@ where
     if provider.kind != ProviderKind::Codex {
         bail!("embedded Codex ACP adapter only supports the Codex provider");
     }
-
-    let mut command = build_provider_command(provider, task, cwd)?;
-    command
-        .current_dir(cwd)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-
-    let mut child = command
-        .spawn()
-        .with_context(|| format!("failed to spawn {}", provider.command))?;
-    let stdout = child.stdout.take();
-    let stderr = child.stderr.take();
-    let mut stdout_lines = stdout.map(|handle| BufReader::new(handle).lines());
-    let mut stderr_lines = stderr.map(|handle| BufReader::new(handle).lines());
-    let mut cancel_interval = tokio::time::interval(Duration::from_millis(ACP_CANCEL_POLL_MS));
-    let mut cancel_requested = false;
-    let mut discovered_provider_session_id = task.provider_session_id.clone();
-
-    loop {
-        tokio::select! {
-            result = next_line(&mut stdout_lines), if stdout_lines.is_some() => {
-                match result? {
-                    Some(line) => {
-                        if let Some(provider_session_id) = provider_stdout_session_id(&provider.kind, &line) {
-                            if discovered_provider_session_id.as_deref() != Some(provider_session_id.as_str()) {
-                                discovered_provider_session_id = Some(provider_session_id.clone());
-                                sink.push_update(TaskExecutionUpdate {
-                                    status: None,
-                                    execution_protocol: None,
-                                    provider_session_id: Some(provider_session_id),
-                                    events: Vec::new(),
-                                    exit_code: None,
-                                    error: None,
-                                }).await?;
-                            }
-                        }
-                        for event in provider_stdout_to_task_events(&provider.kind, &line) {
-                            sink.push_event(event.kind, event.message).await?;
-                        }
-                    }
-                    None => stdout_lines = None,
-                }
-            }
-            result = next_line(&mut stderr_lines), if stderr_lines.is_some() => {
-                match result? {
-                    Some(line) => {
-                        sink.push_event(TaskEventKind::ProviderStderr, line).await?;
-                    }
-                    None => stderr_lines = None,
-                }
-            }
-            _ = cancel_interval.tick() => {
-                if !cancel_requested && sink.is_cancel_requested().await? {
-                    cancel_requested = true;
-                    let _ = child.kill().await;
-                }
-            }
-            status = child.wait() => {
-                let status = status.context("failed waiting on embedded Codex adapter process")?;
-                drain_remaining_output(sink, &provider.kind, &mut stdout_lines, &mut stderr_lines).await?;
-
-                let completion = if cancel_requested {
-                    TaskCompletion::canceled("Embedded Codex ACP task canceled", status.code())
-                } else if status.success() {
-                    TaskCompletion::succeeded("Embedded Codex ACP task finished successfully")
-                } else {
-                    TaskCompletion::failed(
-                        "Embedded Codex ACP task failed",
-                        format!("codex exited with status {:?}", status.code()),
-                        status.code(),
-                    )
-                };
-                break Ok(completion);
-            }
-        }
-    }
+    execute_acp_task(sink, provider, task, cwd).await
 }
 
-async fn execute_opencode_acp_task<S>(
+async fn execute_acp_task<S>(
     sink: &mut S,
     provider: &ProviderStatus,
     task: &TaskRecord,
@@ -646,10 +479,6 @@ async fn execute_opencode_acp_task<S>(
 where
     S: TaskExecutionSink,
 {
-    if provider.kind != ProviderKind::OpenCode {
-        bail!("ACP transport is only implemented for OpenCode in this MVP");
-    }
-
     let mut acp = spawn_acp_process(provider, task, cwd)?;
     let execution = async {
         let initialize_id = acp.next_request_id();
@@ -683,7 +512,8 @@ where
                 sink.push_event(
                     TaskEventKind::System,
                     format!(
-                        "OpenCode ACP advertised auth methods: {}",
+                        "{} ACP advertised auth methods: {}",
+                        provider.kind.label(),
                         serde_json::to_string(auth_methods).unwrap_or_else(|_| "[]".to_string())
                     ),
                 )
@@ -695,11 +525,11 @@ where
         let (session_id, session_result, resumed_existing_session) = if let Some(session_id) =
             task.provider_session_id.clone()
         {
-            sink.push_event(
-                TaskEventKind::System,
-                format!("OpenCode ACP resuming session: {session_id}"),
-            )
-            .await?;
+                sink.push_event(
+                    TaskEventKind::System,
+                    format!("{} ACP resuming session: {session_id}", provider.kind.label()),
+                )
+                .await?;
             sink.push_update(TaskExecutionUpdate {
                 status: None,
                 execution_protocol: None,
@@ -715,7 +545,10 @@ where
                     resume_acp_session(sink, &mut acp, &session_id, cwd).await?;
                 sink.push_event(
                     TaskEventKind::System,
-                    format!("OpenCode ACP resumed session via session/resume: {session_id}"),
+                    format!(
+                        "{} ACP resumed session via session/resume: {session_id}",
+                        provider.kind.label()
+                    ),
                 )
                 .await?;
                 (session_id, Some(session_result), true)
@@ -726,7 +559,8 @@ where
                             sink.push_event(
                                 TaskEventKind::System,
                                 format!(
-                                    "OpenCode ACP confirmed stored session: {session_id}{}",
+                                    "{} ACP confirmed stored session: {session_id}{}",
+                                    provider.kind.label(),
                                     format_listed_acp_session_suffix(&session_info)
                                 ),
                             )
@@ -734,14 +568,16 @@ where
                         }
                         Ok(None) => {
                             bail!(
-                                "OpenCode ACP session {session_id} was not returned by session/list; the stored conversation handle is likely stale"
+                                "{} ACP session {session_id} was not returned by session/list; the stored conversation handle is likely stale",
+                                provider.kind.label()
                             );
                         }
                         Err(error) => {
                             sink.push_event(
                                 TaskEventKind::System,
                                 format!(
-                                    "OpenCode ACP session/list validation failed for {session_id}: {error}"
+                                    "{} ACP session/list validation failed for {session_id}: {error}",
+                                    provider.kind.label()
                                 ),
                             )
                             .await?;
@@ -781,7 +617,7 @@ where
             .await?;
             sink.push_event(
                 TaskEventKind::System,
-                format!("OpenCode ACP session established: {session_id}"),
+                format!("{} ACP session established: {session_id}", provider.kind.label()),
             )
             .await?;
             (session_id, Some(session_result), false)
@@ -801,7 +637,8 @@ where
                 sink.push_event(
                     TaskEventKind::System,
                     format!(
-                        "OpenCode ACP resumed session {session_id}; model override is kept on the existing session"
+                        "{} ACP resumed session {session_id}; model override is kept on the existing session",
+                        provider.kind.label()
                     ),
                 )
                 .await?;
@@ -826,8 +663,15 @@ where
         .await?;
 
         let mut cancel_sent = false;
+        let mut active_session_id = session_id.clone();
         let prompt_result =
-            wait_for_prompt_response(sink, &mut acp, prompt_id, &session_id, &mut cancel_sent)
+            wait_for_prompt_response(
+                sink,
+                &mut acp,
+                prompt_id,
+                &mut active_session_id,
+                &mut cancel_sent,
+            )
                 .await?;
 
         if let Some(message) = format_prompt_usage(prompt_result.get("usage")) {
@@ -1001,18 +845,38 @@ fn spawn_acp_process(
     task: &TaskRecord,
     cwd: &Path,
 ) -> Result<AcpProcess> {
-    let mut command = Command::new(&provider.command);
+    let mut command = if provider.kind == ProviderKind::Codex {
+        let current_exe = std::env::current_exe().context("failed to resolve vibe-agent path")?;
+        let mut command = Command::new(current_exe);
+        command
+            .arg("codex-acp-bridge")
+            .arg("--codex-command")
+            .arg(&provider.command)
+            .arg("--cwd")
+            .arg(cwd)
+            .arg("--execution-mode")
+            .arg(match task.execution_mode {
+                TaskExecutionMode::ReadOnly => "read-only",
+                TaskExecutionMode::WorkspaceWrite => "workspace-write",
+                TaskExecutionMode::WorkspaceWriteAndTest => "workspace-write-and-test",
+            });
+        if let Some(model) = task.model.as_deref() {
+            command.arg("--model").arg(model);
+        }
+        command
+    } else {
+        let mut command = Command::new(&provider.command);
+        command.arg("acp").arg("--cwd").arg(cwd);
+        command
+    };
     command
-        .arg("acp")
-        .arg("--cwd")
-        .arg(cwd)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
     let mut child = command
         .spawn()
-        .with_context(|| format!("failed to spawn {} acp", provider.command))?;
+        .with_context(|| format!("failed to spawn {} ACP process", provider.kind.label()))?;
     let stdin = child.stdin.take().context("ACP process missing stdin")?;
     let stdout = child.stdout.take().context("ACP process missing stdout")?;
     let stderr = child.stderr.take().context("ACP process missing stderr")?;
@@ -1123,7 +987,7 @@ where
                         if is_expected_response(&message, expected_id) {
                             return extract_rpc_result(message, method_name);
                         }
-                        handle_acp_message(sink, acp, &message, None, false).await?;
+                        let _ = handle_acp_message(sink, acp, &message, None, false).await?;
                     }
                     None => {
                         bail!("ACP transport closed before {method_name} completed");
@@ -1148,7 +1012,7 @@ async fn wait_for_prompt_response<S>(
     sink: &mut S,
     acp: &mut AcpProcess,
     expected_id: u64,
-    session_id: &str,
+    session_id: &mut String,
     cancel_sent: &mut bool,
 ) -> Result<Value>
 where
@@ -1166,7 +1030,11 @@ where
                         if is_expected_response(&message, expected_id) {
                             return extract_rpc_result(message, "session/prompt");
                         }
-                        handle_acp_message(sink, acp, &message, Some(session_id), *cancel_sent).await?;
+                        if let Some(updated_session_id) =
+                            handle_acp_message(sink, acp, &message, Some(session_id.as_str()), *cancel_sent).await?
+                        {
+                            *session_id = updated_session_id;
+                        }
                     }
                     None => {
                         bail!("ACP transport closed before session/prompt completed");
@@ -1203,7 +1071,7 @@ async fn handle_acp_message<S>(
     message: &Value,
     active_session_id: Option<&str>,
     cancel_sent: bool,
-) -> Result<()>
+) -> Result<Option<String>>
 where
     S: TaskExecutionSink,
 {
@@ -1211,9 +1079,25 @@ where
         match method {
             "session/update" => {
                 if let Some(params) = message.get("params") {
+                    let mut updated_session_id = None;
+                    if let Some(session_id) = crate::providers::acp_update_session_id(params)
+                        && active_session_id != Some(session_id.as_str())
+                    {
+                        sink.push_update(TaskExecutionUpdate {
+                            status: None,
+                            execution_protocol: None,
+                            provider_session_id: Some(session_id.clone()),
+                            events: Vec::new(),
+                            exit_code: None,
+                            error: None,
+                        })
+                        .await?;
+                        updated_session_id = Some(session_id);
+                    }
                     for event in acp_update_to_events(params) {
                         sink.push_event(event.kind, event.message).await?;
                     }
+                    return Ok(updated_session_id);
                 }
             }
             _ => {
@@ -1233,7 +1117,7 @@ where
         }
     }
 
-    Ok(())
+    Ok(None)
 }
 
 async fn handle_acp_request<S>(
@@ -2131,28 +2015,6 @@ async fn is_task_cancel_requested(
 ) -> Result<bool> {
     let detail = fetch_task_detail(client, relay_url, task_id, auth).await?;
     Ok(matches!(detail.task.status, TaskStatus::CancelRequested))
-}
-
-async fn drain_remaining_output<S>(
-    sink: &mut S,
-    provider_kind: &ProviderKind,
-    stdout_lines: &mut Option<tokio::io::Lines<BufReader<tokio::process::ChildStdout>>>,
-    stderr_lines: &mut Option<tokio::io::Lines<BufReader<tokio::process::ChildStderr>>>,
-) -> Result<()>
-where
-    S: TaskExecutionSink,
-{
-    while let Some(line) = next_line(stdout_lines).await? {
-        for event in provider_stdout_to_task_events(provider_kind, &line) {
-            sink.push_event(event.kind, event.message).await?;
-        }
-    }
-
-    while let Some(line) = next_line(stderr_lines).await? {
-        sink.push_event(TaskEventKind::ProviderStderr, line).await?;
-    }
-
-    Ok(())
 }
 
 async fn next_line<R>(lines: &mut Option<tokio::io::Lines<BufReader<R>>>) -> Result<Option<String>>
