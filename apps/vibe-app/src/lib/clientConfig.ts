@@ -34,11 +34,16 @@ export function persistConfiguredProjects(projects: ConfiguredProject[]) {
 }
 
 export function loadModelProfiles() {
-  return loadJsonArray<ModelProfile>(MODEL_PROFILES_STORAGE_KEY, isModelProfile);
+  return loadJsonArray<ModelProfile>(MODEL_PROFILES_STORAGE_KEY, isModelProfile).map(
+    normalizeModelProfile
+  );
 }
 
 export function persistModelProfiles(profiles: ModelProfile[]) {
-  window.localStorage.setItem(MODEL_PROFILES_STORAGE_KEY, JSON.stringify(profiles));
+  window.localStorage.setItem(
+    MODEL_PROFILES_STORAGE_KEY,
+    JSON.stringify(profiles.map(normalizeModelProfile))
+  );
 }
 
 export function loadSelectedProjectId() {
@@ -153,4 +158,25 @@ function isModelProfile(value: unknown): value is ModelProfile {
 
 function isProviderKind(value: unknown): value is ProviderKind {
   return value === "codex" || value === "claude_code" || value === "open_code";
+}
+
+export function normalizeModelId(provider: ProviderKind, modelId: string) {
+  const trimmed = modelId.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  if ((provider === "codex" || provider === "open_code") && /^gbt-/i.test(trimmed)) {
+    return trimmed.replace(/^gbt-/i, "gpt-");
+  }
+
+  return trimmed;
+}
+
+function normalizeModelProfile(profile: ModelProfile): ModelProfile {
+  return {
+    ...profile,
+    name: profile.name.trim(),
+    modelId: normalizeModelId(profile.provider, profile.modelId)
+  };
 }

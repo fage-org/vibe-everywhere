@@ -3,6 +3,7 @@ import { computed, nextTick, ref, useTemplateRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { Check, Copy, Plus, Send, Settings2 } from "lucide-vue-next";
 import StatusBadge from "@/components/common/StatusBadge.vue";
+import { buildTaskFailureSummary } from "@/lib/conversationRealtime";
 import { formatDateTime } from "@/lib/format";
 import { useAppStore } from "@/stores/app";
 import type {
@@ -143,6 +144,12 @@ function submitCustomReply() {
 function buildTurnSummary(taskDetail: TaskDetailResponse, assistantText: string) {
   if (assistantText) {
     return assistantText;
+  }
+  if (taskDetail.task.status === "failed") {
+    const failureSummary = buildTaskFailureSummary(taskDetail);
+    if (failureSummary) {
+      return failureSummary;
+    }
   }
   if (taskDetail.task.error) {
     return taskDetail.task.error;

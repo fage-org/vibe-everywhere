@@ -33,6 +33,7 @@ import {
   loadConfiguredProjects,
   loadLastConversationIdByScope,
   loadModelProfiles,
+  normalizeModelId,
   loadSelectedModelProfileId,
   loadSelectedProjectId,
   loadSelectedProvider,
@@ -62,6 +63,7 @@ import type {
   DeviceRecord,
   GitInspectResponse,
   ProviderKind,
+  RelayEventEnvelope,
   SendConversationMessagePayload,
   ServiceHealth,
   TaskExecutionMode,
@@ -529,7 +531,7 @@ export const useAppStore = defineStore("app", {
         id: crypto.randomUUID(),
         name: payload.name.trim(),
         provider: payload.provider,
-        modelId: payload.modelId.trim(),
+        modelId: normalizeModelId(payload.provider, payload.modelId),
         createdAtEpochMs: now,
         updatedAtEpochMs: now
       };
@@ -547,7 +549,7 @@ export const useAppStore = defineStore("app", {
               ...profile,
               name: payload.name.trim(),
               provider: payload.provider,
-              modelId: payload.modelId.trim(),
+              modelId: normalizeModelId(payload.provider, payload.modelId),
               updatedAtEpochMs: Date.now()
             }
           : profile
@@ -719,6 +721,40 @@ export const useAppStore = defineStore("app", {
     },
     async loadConversation(conversationId: string) {
       return fetchConversationDetail(this.relayBaseUrl, conversationId, this.relayAccessToken);
+    },
+    applyRelayEvent(event: RelayEventEnvelope) {
+      if (event.eventType !== "task_updated" || !event.task) {
+        return;
+      }
+
+      const task = event.task;
+      const existingTask = this.tasks.find((entry) => entry.id === task.id);
+      if (existingTask) {
+        Object.assign(existingTask, task);
+      } else {
+        this.tasks = [task, ...this.tasks].sort(
+          (left, right) => right.createdAtEpochMs - left.createdAtEpochMs
+        );
+      }
+
+      if (!task.conversationId) {
+        return;
+      }
+
+      const conversation = this.conversations.find((entry) => entry.id === task.conversationId);
+      if (!conversation) {
+        return;
+      }
+
+      conversation.latestTaskId = task.id;
+      conversation.updatedAtEpochMs = Math.max(
+        conversation.updatedAtEpochMs,
+        task.finishedAtEpochMs ?? task.startedAtEpochMs ?? task.createdAtEpochMs
+      );
+      if (task.providerSessionId) {
+        conversation.providerSessionId = task.providerSessionId;
+      }
+      conversation.pendingInputRequestId = task.pendingInputRequestId;
     },
     async createProjectConversation(payload: CreateConversationPayload) {
       const response = await createConversation(this.relayBaseUrl, payload, this.relayAccessToken);

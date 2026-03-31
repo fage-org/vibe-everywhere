@@ -1,18 +1,21 @@
-import { computed, ref, toValue, watch, type MaybeRefOrGetter } from "vue";
+import { computed, onScopeDispose, ref, toValue, watch, type MaybeRefOrGetter } from "vue";
 import {
   browseWorkspace,
   fetchGitDiffFile,
   inspectGitWorkspace,
   previewWorkspaceFile
 } from "@/lib/api";
+import { shouldRefreshConversationDetail } from "@/lib/conversationRealtime";
 import { preferredProjectProvider } from "@/lib/policy";
 import { parseProjectRouteParam } from "@/lib/projects";
+import { buildEventStreamUrl } from "@/lib/runtime";
 import { useAppStore } from "@/stores/app";
 import type {
   ConversationDetailResponse,
   GitDiffFileResponse,
   GitInspectResponse,
   ProviderKind,
+  RelayEventEnvelope,
   TaskExecutionMode,
   WorkspaceBrowseResponse,
   WorkspaceFilePreviewResponse
@@ -50,6 +53,8 @@ export function useProjectWorkspace(
   const isDraftConversation = ref(false);
   const isLoading = ref(false);
   const errorMessage = ref("");
+  let activeEventSource: EventSource | null = null;
+  let realtimeRefreshTimer: number | null = null;
 
   watch(
     conversations,
@@ -156,6 +161,66 @@ export function useProjectWorkspace(
     conversationDetail.value = await store.loadConversation(conversationId);
   }
 
+  function disposeRealtimeUpdates() {
+    if (realtimeRefreshTimer !== null) {
+      window.clearTimeout(realtimeRefreshTimer);
+      realtimeRefreshTimer = null;
+    }
+    if (activeEventSource) {
+      activeEventSource.close();
+      activeEventSource = null;
+    }
+  }
+
+  function scheduleConversationReload(conversationId: string) {
+    if (realtimeRefreshTimer !== null) {
+      window.clearTimeout(realtimeRefreshTimer);
+    }
+    realtimeRefreshTimer = window.setTimeout(() => {
+      realtimeRefreshTimer = null;
+      void loadConversationContext(conversationId);
+    }, 250);
+  }
+
+  function handleRelayEvent(payload: string, conversationId: string) {
+    let event: RelayEventEnvelope;
+    try {
+      event = JSON.parse(payload) as RelayEventEnvelope;
+    } catch {
+      return;
+    }
+
+    store.applyRelayEvent(event);
+    if (!shouldRefreshConversationDetail(event, conversationId, conversationDetail.value)) {
+      return;
+    }
+
+    scheduleConversationReload(conversationId);
+  }
+
+  function connectRealtimeUpdates(conversationId: string) {
+    disposeRealtimeUpdates();
+    if (!enabled.value || !store.relayBaseUrl.trim() || !store.relayAccessToken.trim()) {
+      return;
+    }
+
+    const eventSource = new EventSource(
+      buildEventStreamUrl(store.relayBaseUrl, store.relayAccessToken)
+    );
+    eventSource.addEventListener("task_updated", (event) => {
+      handleRelayEvent((event as MessageEvent<string>).data, conversationId);
+    });
+    eventSource.addEventListener("task_event", (event) => {
+      handleRelayEvent((event as MessageEvent<string>).data, conversationId);
+    });
+    eventSource.onerror = () => {
+      console.warn("[vibe-app] conversation realtime stream interrupted", {
+        conversationId
+      });
+    };
+    activeEventSource = eventSource;
+  }
+
   function startNewConversation() {
     isDraftConversation.value = true;
     activeConversationId.value = null;
@@ -254,12 +319,25 @@ export function useProjectWorkspace(
   }
 
   watch(activeConversationId, async (value) => {
+    disposeRealtimeUpdates();
     if (!value) {
       return;
     }
 
     await loadConversationContext(value);
+    connectRealtimeUpdates(value);
   }, { immediate: true });
+
+  watch(
+    () => store.lastRefreshEpochMs,
+    async () => {
+      if (!enabled.value || isDraftConversation.value || !activeConversationId.value) {
+        return;
+      }
+
+      await loadConversationContext(activeConversationId.value);
+    }
+  );
 
   watch(enabled, async (value) => {
     if (!value) {
@@ -270,11 +348,27 @@ export function useProjectWorkspace(
       workspace.value = null;
       filePreview.value = null;
       activeConversationId.value = null;
+      disposeRealtimeUpdates();
       return;
     }
 
     await refreshProject();
   }, { immediate: false });
+
+  watch(
+    () => [store.relayBaseUrl, store.relayAccessToken],
+    () => {
+      if (!activeConversationId.value || isDraftConversation.value) {
+        disposeRealtimeUpdates();
+        return;
+      }
+      connectRealtimeUpdates(activeConversationId.value);
+    }
+  );
+
+  onScopeDispose(() => {
+    disposeRealtimeUpdates();
+  });
 
   return {
     cwd,
