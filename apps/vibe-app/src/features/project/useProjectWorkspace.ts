@@ -12,6 +12,7 @@ import type {
   ConversationDetailResponse,
   GitDiffFileResponse,
   GitInspectResponse,
+  ProviderKind,
   TaskExecutionMode,
   WorkspaceBrowseResponse,
   WorkspaceFilePreviewResponse
@@ -21,14 +22,22 @@ export type ProjectTab = "conversation" | "changes" | "files";
 
 export function useProjectWorkspace(
   deviceIdSource: MaybeRefOrGetter<string>,
-  projectPathSource: MaybeRefOrGetter<string | string[] | undefined>
+  projectPathSource: MaybeRefOrGetter<string | string[] | undefined>,
+  providerSource?: MaybeRefOrGetter<ProviderKind | null | undefined>,
+  enabledSource?: MaybeRefOrGetter<boolean>
 ) {
   const store = useAppStore();
   const deviceId = computed(() => toValue(deviceIdSource));
   const cwd = computed(() => parseProjectRouteParam(toValue(projectPathSource)));
+  const provider = computed(() => toValue(providerSource));
+  const enabled = computed(() => toValue(enabledSource) ?? true);
   const project = computed(() => store.findProject(deviceId.value, cwd.value));
-  const conversations = computed(() => store.listProjectConversations(deviceId.value, cwd.value));
-  const tasks = computed(() => store.listProjectTasks(deviceId.value, cwd.value));
+  const conversations = computed(() =>
+    enabled.value ? store.listProjectConversations(deviceId.value, cwd.value, provider.value) : []
+  );
+  const tasks = computed(() =>
+    enabled.value ? store.listProjectTasks(deviceId.value, cwd.value, provider.value) : []
+  );
   const activeConversationId = ref<string | null>(null);
   const conversationDetail = ref<ConversationDetailResponse | null>(null);
   const gitInspect = ref<GitInspectResponse | null>(null);
@@ -64,6 +73,17 @@ export function useProjectWorkspace(
   );
 
   async function refreshProject() {
+    if (!enabled.value || !deviceId.value || !cwd.value) {
+      conversationDetail.value = null;
+      gitInspect.value = null;
+      gitDiff.value = null;
+      activeDiffRepoPath.value = null;
+      workspace.value = null;
+      filePreview.value = null;
+      errorMessage.value = "";
+      return;
+    }
+
     isLoading.value = true;
     errorMessage.value = "";
     console.info("[vibe-app] project refresh start", {
@@ -183,10 +203,10 @@ export function useProjectWorkspace(
   }
 
   async function createTopic(prompt: string, model?: string, executionMode?: TaskExecutionMode) {
-    const provider = preferredProjectProvider(project.value?.providers);
+    const preferredProvider = preferredProjectProvider(project.value?.providers);
     const response = await store.createProjectConversation({
       deviceId: deviceId.value,
-      provider,
+      provider: provider.value ?? preferredProvider,
       executionMode,
       prompt,
       cwd: cwd.value ?? undefined,
@@ -240,6 +260,21 @@ export function useProjectWorkspace(
 
     await loadConversationContext(value);
   }, { immediate: true });
+
+  watch(enabled, async (value) => {
+    if (!value) {
+      conversationDetail.value = null;
+      gitInspect.value = null;
+      gitDiff.value = null;
+      activeDiffRepoPath.value = null;
+      workspace.value = null;
+      filePreview.value = null;
+      activeConversationId.value = null;
+      return;
+    }
+
+    await refreshProject();
+  }, { immediate: false });
 
   return {
     cwd,

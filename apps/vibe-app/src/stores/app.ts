@@ -29,6 +29,23 @@ import {
   suppressProjectKey
 } from "@/lib/projectInventory";
 import {
+  buildConversationScopeKey,
+  loadConfiguredProjects,
+  loadLastConversationIdByScope,
+  loadModelProfiles,
+  loadSelectedModelProfileId,
+  loadSelectedProjectId,
+  loadSelectedProvider,
+  persistConfiguredProjects,
+  persistLastConversationIdByScope,
+  persistModelProfiles,
+  persistSelectedModelProfileId,
+  persistSelectedProjectId,
+  persistSelectedProvider,
+  type ConfiguredProject,
+  type ModelProfile
+} from "@/lib/clientConfig";
+import {
   loadStoredProjectFolder,
   normalizeRelayBaseUrl,
   persistProjectFolder,
@@ -44,6 +61,7 @@ import type {
   CreateConversationPayload,
   DeviceRecord,
   GitInspectResponse,
+  ProviderKind,
   SendConversationMessagePayload,
   ServiceHealth,
   TaskExecutionMode,
@@ -105,6 +123,50 @@ function updateProjectAvailability(
   };
 }
 
+type ConfiguredProjectView = {
+  id: string;
+  name: string;
+  deviceId: string;
+  deviceName: string;
+  cwd: string;
+  pathLabel: string;
+  projectSummary: ProjectSummary | null;
+  availableProviders: ProviderKind[];
+  online: boolean;
+  updatedAtEpochMs: number;
+};
+
+const APP_SUPPORTED_PROVIDERS: ProviderKind[] = ["codex", "claude_code", "open_code"];
+
+function listVisibleProjectSummaries(state: {
+  devices: DeviceRecord[];
+  conversations: ConversationRecord[];
+  tasks: TaskRecord[];
+  discoveredProjects: DiscoveredProjectRecord[];
+  hiddenProjectKeys: string[];
+}) {
+  return filterVisibleProjectKeys(
+    deriveProjectSummaries(
+      state.devices,
+      state.conversations,
+      state.tasks,
+      state.discoveredProjects
+    ),
+    state.hiddenProjectKeys
+  );
+}
+
+function providerLabel(provider: ProviderKind) {
+  switch (provider) {
+    case "claude_code":
+      return "Claude Code";
+    case "open_code":
+      return "OpenCode";
+    default:
+      return "Codex";
+  }
+}
+
 export const useAppStore = defineStore("app", {
   state: () => ({
     relayBaseUrl: "",
@@ -124,6 +186,12 @@ export const useAppStore = defineStore("app", {
     lastRefreshEpochMs: 0,
     recentProjectKeys: [] as string[],
     hiddenProjectKeys: [] as string[],
+    configuredProjects: [] as ConfiguredProject[],
+    modelProfiles: [] as ModelProfile[],
+    selectedProjectId: "",
+    selectedProvider: "" as ProviderKind | "",
+    selectedModelProfileId: "",
+    lastConversationIdByScope: {} as Record<string, string>,
     defaultExecutionMode: "workspace_write" as TaskExecutionMode,
     refreshTimer: null as number | null
   }),
@@ -146,67 +214,77 @@ export const useAppStore = defineStore("app", {
       ).length;
     },
     projectSummaries(state): ProjectSummary[] {
-      return filterVisibleProjectKeys(
-        deriveProjectSummaries(
-          state.devices,
-          state.conversations,
-          state.tasks,
-          state.discoveredProjects
-        ),
-        state.hiddenProjectKeys
-      );
+      return listVisibleProjectSummaries(state);
     },
     hostSummaries(state) {
-      const visibleProjects = filterVisibleProjectKeys(
-        deriveProjectSummaries(
-          state.devices,
-          state.conversations,
-          state.tasks,
-          state.discoveredProjects
-        ),
-        state.hiddenProjectKeys
-      );
-      return deriveHostSummaries(
-        state.devices,
-        visibleProjects
-      );
+      return deriveHostSummaries(state.devices, listVisibleProjectSummaries(state));
     },
     recentProjects(state): ProjectSummary[] {
-      const summaries = filterVisibleProjectKeys(
-        deriveProjectSummaries(
-          state.devices,
-          state.conversations,
-          state.tasks,
-          state.discoveredProjects
-        ),
-        state.hiddenProjectKeys
-      );
+      const summaries = listVisibleProjectSummaries(state);
       const byKey = new Map(summaries.map((project) => [project.key, project]));
       return state.recentProjectKeys
         .map((key) => byKey.get(key))
         .filter((value): value is ProjectSummary => Boolean(value));
     },
     runningProjects(state): ProjectSummary[] {
-      return filterVisibleProjectKeys(
-        deriveProjectSummaries(
-          state.devices,
-          state.conversations,
-          state.tasks,
-          state.discoveredProjects
-        ),
-        state.hiddenProjectKeys
-      ).filter((project) => project.runningTaskCount > 0);
+      return listVisibleProjectSummaries(state).filter((project) => project.runningTaskCount > 0);
     },
     reviewProjects(state): ProjectSummary[] {
-      return filterVisibleProjectKeys(
-        deriveProjectSummaries(
-          state.devices,
-          state.conversations,
-          state.tasks,
-          state.discoveredProjects
-        ),
-        state.hiddenProjectKeys
-      ).filter((project) => project.failedTaskCount > 0 || project.waitingInputCount > 0);
+      return listVisibleProjectSummaries(state).filter(
+        (project) => project.failedTaskCount > 0 || project.waitingInputCount > 0
+      );
+    },
+    configuredProjectViews(state): ConfiguredProjectView[] {
+      const deviceById = new Map(state.devices.map((device) => [device.id, device]));
+      const summaryByKey = new Map(
+        listVisibleProjectSummaries(state).map((project) => [project.key, project])
+      );
+
+      return [...state.configuredProjects]
+        .map((project) => {
+          const device = deviceById.get(project.deviceId);
+          const key = buildProjectKey(project.deviceId, project.cwd);
+          const summary = summaryByKey.get(key) ?? null;
+          const availableProviders = (device?.providers ?? [])
+            .filter((provider) => provider.available && APP_SUPPORTED_PROVIDERS.includes(provider.kind))
+            .map((provider) => provider.kind);
+
+          return {
+            id: project.id,
+            name: project.name,
+            deviceId: project.deviceId,
+            deviceName: device?.name ?? project.deviceId,
+            cwd: project.cwd,
+            pathLabel: summary?.pathLabel ?? project.cwd,
+            projectSummary: summary,
+            availableProviders,
+            online: device?.online ?? false,
+            updatedAtEpochMs: Math.max(project.updatedAtEpochMs, summary?.updatedAtEpochMs ?? 0)
+          };
+        })
+        .sort((left, right) => right.updatedAtEpochMs - left.updatedAtEpochMs);
+    },
+    selectedConfiguredProject(): ConfiguredProjectView | null {
+      return this.configuredProjectViews.find((project) => project.id === this.selectedProjectId) ?? null;
+    },
+    selectedModelProfile(state): ModelProfile | null {
+      return state.modelProfiles.find((profile) => profile.id === state.selectedModelProfileId) ?? null;
+    },
+    availableProvidersForSelectedProject(): ProviderKind[] {
+      return this.selectedConfiguredProject?.availableProviders ?? [];
+    },
+    availableModelProfiles(): ModelProfile[] {
+      if (!this.selectedProvider) {
+        return [];
+      }
+
+      return this.modelProfiles.filter((profile) => profile.provider === this.selectedProvider);
+    },
+    currentConversationScopeKey(): string | null {
+      if (!this.selectedProjectId || !this.selectedProvider) {
+        return null;
+      }
+      return buildConversationScopeKey(this.selectedProjectId, this.selectedProvider);
     }
   },
   actions: {
@@ -216,11 +294,18 @@ export const useAppStore = defineStore("app", {
       this.recentProjectKeys = loadRecentProjectKeys();
       this.defaultExecutionMode = loadDefaultExecutionMode();
       this.hiddenProjectKeys = loadHiddenProjectKeys();
+      this.configuredProjects = loadConfiguredProjects();
+      this.modelProfiles = loadModelProfiles();
+      this.selectedProjectId = loadSelectedProjectId();
+      this.selectedProvider = loadSelectedProvider();
+      this.selectedModelProfileId = loadSelectedModelProfileId();
+      this.lastConversationIdByScope = loadLastConversationIdByScope();
       this.relayBaseUrl = await resolveInitialRelayBaseUrl();
       this.relayBaseUrlInput = this.relayBaseUrl;
       this.relayAccessToken = resolveInitialRelayAccessToken();
       this.relayAccessTokenInput = this.relayAccessToken;
       await this.refreshAll(true);
+      this.ensureSelections();
       this.startAutoRefresh();
       this.isBootstrapping = false;
       console.info("[vibe-app] bootstrap complete");
@@ -235,6 +320,7 @@ export const useAppStore = defineStore("app", {
       persistRelayBaseUrl(this.relayBaseUrl);
       persistRelayAccessToken(this.relayAccessToken);
       await this.refreshAll(true);
+      this.ensureSelections();
     },
     async refreshAll(forceProjectDiscovery = false) {
       if (!this.relayBaseUrl.trim()) {
@@ -244,6 +330,7 @@ export const useAppStore = defineStore("app", {
         this.tasks = [];
         this.discoveredProjects = [];
         this.projectInventoryUpdatedAtByDevice = {};
+        this.ensureSelections();
         return;
       }
 
@@ -269,6 +356,7 @@ export const useAppStore = defineStore("app", {
         this.conversations = conversations;
         this.tasks = tasks;
         await this.refreshProjectInventory(forceProjectDiscovery);
+        this.ensureSelections();
         this.lastRefreshEpochMs = Date.now();
         console.info("[vibe-app] refresh success", {
           devices: this.devices.length,
@@ -305,14 +393,24 @@ export const useAppStore = defineStore("app", {
         ) ?? null
       );
     },
-    listProjectConversations(deviceId: string, cwd: string | null) {
+    listProjectConversations(deviceId: string, cwd: string | null, provider?: ProviderKind | null) {
       return this.conversations
-        .filter((conversation) => conversation.deviceId === deviceId && conversation.cwd === cwd)
+        .filter(
+          (conversation) =>
+            conversation.deviceId === deviceId &&
+            conversation.cwd === cwd &&
+            (!provider || conversation.provider === provider)
+        )
         .sort((left, right) => right.updatedAtEpochMs - left.updatedAtEpochMs);
     },
-    listProjectTasks(deviceId: string, cwd: string | null) {
+    listProjectTasks(deviceId: string, cwd: string | null, provider?: ProviderKind | null) {
       return this.tasks
-        .filter((task) => task.deviceId === deviceId && task.cwd === cwd)
+        .filter(
+          (task) =>
+            task.deviceId === deviceId &&
+            task.cwd === cwd &&
+            (!provider || task.provider === provider)
+        )
         .sort((left, right) => right.createdAtEpochMs - left.createdAtEpochMs);
     },
     markProjectVisited(deviceId: string, cwd: string | null) {
@@ -345,6 +443,145 @@ export const useAppStore = defineStore("app", {
     setDefaultExecutionMode(executionMode: TaskExecutionMode) {
       this.defaultExecutionMode = executionMode;
       persistDefaultExecutionMode(executionMode);
+    },
+    setSelectedProject(projectId: string) {
+      this.selectedProjectId = projectId;
+      persistSelectedProjectId(projectId);
+      this.ensureSelections();
+    },
+    setSelectedProvider(provider: ProviderKind | "") {
+      this.selectedProvider = provider;
+      persistSelectedProvider(provider);
+      this.ensureSelections();
+    },
+    setSelectedModelProfile(modelProfileId: string) {
+      this.selectedModelProfileId = modelProfileId;
+      persistSelectedModelProfileId(modelProfileId);
+      this.ensureSelections();
+    },
+    rememberConversationForCurrentScope(conversationId: string) {
+      const scopeKey = this.currentConversationScopeKey;
+      if (!scopeKey) {
+        return;
+      }
+
+      this.lastConversationIdByScope = {
+        ...this.lastConversationIdByScope,
+        [scopeKey]: conversationId
+      };
+      persistLastConversationIdByScope(this.lastConversationIdByScope);
+    },
+    getRememberedConversationId(projectId: string, provider: ProviderKind) {
+      return this.lastConversationIdByScope[buildConversationScopeKey(projectId, provider)] ?? null;
+    },
+    createConfiguredProject(payload: { name: string; deviceId: string; cwd: string }) {
+      const now = Date.now();
+      const project: ConfiguredProject = {
+        id: crypto.randomUUID(),
+        name: payload.name.trim(),
+        deviceId: payload.deviceId,
+        cwd: payload.cwd.trim(),
+        createdAtEpochMs: now,
+        updatedAtEpochMs: now
+      };
+      this.configuredProjects = [project, ...this.configuredProjects];
+      persistConfiguredProjects(this.configuredProjects);
+      this.setSelectedProject(project.id);
+      return project;
+    },
+    updateConfiguredProject(projectId: string, payload: { name: string; deviceId: string; cwd: string }) {
+      this.configuredProjects = this.configuredProjects.map((project) =>
+        project.id === projectId
+          ? {
+              ...project,
+              name: payload.name.trim(),
+              deviceId: payload.deviceId,
+              cwd: payload.cwd.trim(),
+              updatedAtEpochMs: Date.now()
+            }
+          : project
+      );
+      persistConfiguredProjects(this.configuredProjects);
+      this.ensureSelections();
+    },
+    deleteConfiguredProject(projectId: string) {
+      this.configuredProjects = this.configuredProjects.filter((project) => project.id !== projectId);
+      persistConfiguredProjects(this.configuredProjects);
+
+      const nextLastConversationIdByScope = Object.fromEntries(
+        Object.entries(this.lastConversationIdByScope).filter(
+          ([scopeKey]) => !scopeKey.startsWith(`${projectId}::`)
+        )
+      );
+      this.lastConversationIdByScope = nextLastConversationIdByScope;
+      persistLastConversationIdByScope(this.lastConversationIdByScope);
+
+      if (this.selectedProjectId === projectId) {
+        this.selectedProjectId = "";
+        persistSelectedProjectId("");
+      }
+
+      this.ensureSelections();
+    },
+    createModelProfile(payload: { name: string; provider: ProviderKind; modelId: string }) {
+      const now = Date.now();
+      const profile: ModelProfile = {
+        id: crypto.randomUUID(),
+        name: payload.name.trim(),
+        provider: payload.provider,
+        modelId: payload.modelId.trim(),
+        createdAtEpochMs: now,
+        updatedAtEpochMs: now
+      };
+      this.modelProfiles = [profile, ...this.modelProfiles];
+      persistModelProfiles(this.modelProfiles);
+      if (this.selectedProvider === profile.provider) {
+        this.setSelectedModelProfile(profile.id);
+      }
+      return profile;
+    },
+    updateModelProfile(modelProfileId: string, payload: { name: string; provider: ProviderKind; modelId: string }) {
+      this.modelProfiles = this.modelProfiles.map((profile) =>
+        profile.id === modelProfileId
+          ? {
+              ...profile,
+              name: payload.name.trim(),
+              provider: payload.provider,
+              modelId: payload.modelId.trim(),
+              updatedAtEpochMs: Date.now()
+            }
+          : profile
+      );
+      persistModelProfiles(this.modelProfiles);
+      this.ensureSelections();
+    },
+    deleteModelProfile(modelProfileId: string) {
+      this.modelProfiles = this.modelProfiles.filter((profile) => profile.id !== modelProfileId);
+      persistModelProfiles(this.modelProfiles);
+      if (this.selectedModelProfileId === modelProfileId) {
+        this.selectedModelProfileId = "";
+        persistSelectedModelProfileId("");
+      }
+      this.ensureSelections();
+    },
+    ensureSelections() {
+      const availableProjectIds = new Set(this.configuredProjectViews.map((project) => project.id));
+      if (!this.selectedProjectId || !availableProjectIds.has(this.selectedProjectId)) {
+        this.selectedProjectId = this.configuredProjectViews[0]?.id ?? "";
+        persistSelectedProjectId(this.selectedProjectId);
+      }
+
+      const availableProviders = this.availableProvidersForSelectedProject;
+      if (!this.selectedProvider || !availableProviders.includes(this.selectedProvider)) {
+        this.selectedProvider = availableProviders[0] ?? "";
+        persistSelectedProvider(this.selectedProvider);
+      }
+
+      const availableModelIds = new Set(this.availableModelProfiles.map((profile) => profile.id));
+      if (!this.selectedModelProfileId || !availableModelIds.has(this.selectedModelProfileId)) {
+        this.selectedModelProfileId = this.availableModelProfiles[0]?.id ?? "";
+        persistSelectedModelProfileId(this.selectedModelProfileId);
+      }
     },
     async refreshProjectInventory(force = false) {
       const inventory = new Map<string, DiscoveredProjectRecord>();
@@ -486,6 +723,9 @@ export const useAppStore = defineStore("app", {
     async createProjectConversation(payload: CreateConversationPayload) {
       const response = await createConversation(this.relayBaseUrl, payload, this.relayAccessToken);
       await this.refreshAll();
+      if (this.selectedProjectId && response.conversation.provider === this.selectedProvider) {
+        this.rememberConversationForCurrentScope(response.conversation.id);
+      }
       return response;
     },
     async sendProjectMessage(conversationId: string, payload: SendConversationMessagePayload) {
@@ -496,6 +736,7 @@ export const useAppStore = defineStore("app", {
         this.relayAccessToken
       );
       await this.refreshAll();
+      this.rememberConversationForCurrentScope(conversationId);
       return response;
     },
     async cancelProjectTask(taskId: string) {
@@ -541,6 +782,12 @@ export const useAppStore = defineStore("app", {
       );
       await this.refreshAll();
       return response;
+    },
+    getSelectedModelId() {
+      return this.selectedModelProfile?.modelId ?? "";
+    },
+    getProviderLabel(provider: ProviderKind) {
+      return providerLabel(provider);
     }
   }
 });

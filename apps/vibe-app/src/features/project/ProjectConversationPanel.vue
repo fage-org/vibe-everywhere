@@ -18,6 +18,10 @@ const props = defineProps<{
   projectProviders?: ProviderKind[];
   projectTitle?: string | null;
   isDraftConversation?: boolean;
+  selectedModel?: string;
+  modelOptions?: { label: string; value: string }[];
+  canCompose?: boolean;
+  emptySummary?: string;
 }>();
 
 const emit = defineEmits<{
@@ -25,6 +29,7 @@ const emit = defineEmits<{
   respondInput: [optionId?: string, text?: string];
   cancelTask: [taskId: string];
   openTab: [tab: "changes" | "files"];
+  "update:selectedModel": [value: string];
 }>();
 
 const { t } = useI18n();
@@ -33,6 +38,18 @@ const prompt = ref("");
 const model = ref("");
 const executionMode = ref<TaskExecutionMode>(store.defaultExecutionMode);
 const customReply = ref("");
+
+watch(
+  () => props.selectedModel,
+  (value) => {
+    model.value = value ?? "";
+  },
+  { immediate: true }
+);
+
+watch(model, (value) => {
+  emit("update:selectedModel", value);
+});
 
 watch(
   () => store.defaultExecutionMode,
@@ -62,6 +79,7 @@ const executionModeOptions: { value: TaskExecutionMode; labelKey: string; summar
 const selectedExecutionMode = computed(
   () => executionModeOptions.find((option) => option.value === executionMode.value) ?? executionModeOptions[1]
 );
+const canCompose = computed(() => props.canCompose !== false);
 
 const turnCards = computed(() =>
   (props.detail?.tasks ?? []).map((taskDetail) => {
@@ -87,7 +105,7 @@ const turnCards = computed(() =>
 const hasTurns = computed(() => turnCards.value.length > 0);
 
 function submitPrompt() {
-  if (!prompt.value.trim()) {
+  if (!canCompose.value || !prompt.value.trim()) {
     return;
   }
 
@@ -102,7 +120,7 @@ function submitPrompt() {
 }
 
 function submitCustomReply() {
-  if (!customReply.value.trim()) {
+  if (!canCompose.value || !customReply.value.trim()) {
     return;
   }
 
@@ -189,7 +207,7 @@ function buildExplainPrompt(turn: (typeof turnCards.value)[number]) {
         v-if="!hasTurns"
         class="mx-auto max-w-2xl rounded-[2rem] border border-dashed border-border bg-background/70 px-6 py-10 text-center"
       >
-        <p class="text-sm font-medium text-foreground">
+          <p class="text-sm font-medium text-foreground">
           {{
             isDraftConversation
               ? t("conversation.newChatTitle")
@@ -197,7 +215,7 @@ function buildExplainPrompt(turn: (typeof turnCards.value)[number]) {
           }}
         </p>
         <p class="mt-3 text-sm text-muted-foreground">
-          {{ t("conversation.firstTurnSummary", { project: projectTitle || t("workspace.title") }) }}
+          {{ emptySummary || t("conversation.firstTurnSummary", { project: projectTitle || t("workspace.title") }) }}
         </p>
       </article>
 
@@ -321,9 +339,10 @@ function buildExplainPrompt(turn: (typeof turnCards.value)[number]) {
             v-model="customReply"
             rows="3"
             class="w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm"
+            :disabled="!canCompose"
             :placeholder="detail.pendingInputRequest.customInputPlaceholder || t('conversation.replyPlaceholder')"
           />
-          <button class="rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground" @click="submitCustomReply">
+          <button class="rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50" :disabled="!canCompose" @click="submitCustomReply">
             {{ t("conversation.sendCustomReply") }}
           </button>
         </div>
@@ -338,6 +357,7 @@ function buildExplainPrompt(turn: (typeof turnCards.value)[number]) {
             <select
               v-model="executionMode"
               class="w-full rounded-2xl border border-border bg-background px-3 py-2.5 text-sm"
+              :disabled="!canCompose"
             >
               <option
                 v-for="option in executionModeOptions"
@@ -349,19 +369,37 @@ function buildExplainPrompt(turn: (typeof turnCards.value)[number]) {
             </select>
             <p class="text-[11px] text-muted-foreground">{{ t(selectedExecutionMode.summaryKey) }}</p>
           </div>
+          <select
+            v-if="modelOptions?.length"
+            v-model="model"
+            class="rounded-2xl border border-border bg-background px-4 py-3 text-sm"
+            :disabled="!canCompose"
+          >
+            <option value="">{{ t("conversation.optionalModel") }}</option>
+            <option
+              v-for="option in modelOptions"
+              :key="option.value"
+              :value="option.value"
+            >
+              {{ option.label }}
+            </option>
+          </select>
           <input
+            v-else
             v-model="model"
             type="text"
             class="rounded-2xl border border-border bg-background px-4 py-3 text-sm"
+            :disabled="!canCompose"
             :placeholder="t('conversation.optionalModel')"
           />
           <textarea
             v-model="prompt"
             rows="3"
             class="min-h-28 rounded-2xl border border-border bg-background px-4 py-3 text-sm"
-            :placeholder="t('conversation.promptPlaceholder')"
+            :disabled="!canCompose"
+            :placeholder="canCompose ? t('conversation.promptPlaceholder') : t('conversation.disabledPlaceholder')"
           />
-          <button class="rounded-[1.4rem] bg-primary px-5 py-3 text-sm font-medium text-primary-foreground" @click="submitPrompt">
+          <button class="rounded-[1.4rem] bg-primary px-5 py-3 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50" :disabled="!canCompose" @click="submitPrompt">
             {{ t("conversation.send") }}
           </button>
         </div>
