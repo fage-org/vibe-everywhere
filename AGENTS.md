@@ -61,6 +61,11 @@ Validation expectations:
   smoke tests in verification.
 - Release/versioning changes: run `./scripts/verify-release-version.sh`, and when validating a tag,
   pass the tag to the script.
+- Release/versioning changes: after updating workspace package versions, regenerate and commit
+  `Cargo.lock` before running `cargo ... --locked` checks or pushing a release tag.
+- Release/versioning changes: ensure `docs/releases/<tag>.md` or `docs/releases/unreleased.md`
+  exists before pushing a release tag, because the `Release` workflow renders notes from those
+  sources.
 
 ## Coding Rules
 
@@ -113,6 +118,11 @@ durable.
   user-facing report.
 - Keep version sources aligned across `Cargo.toml`, `apps/vibe-app/package.json`,
   `apps/vibe-app/package-lock.json`, and `apps/vibe-app/src-tauri/tauri.conf.json`.
+- Keep `Cargo.lock` aligned with workspace version bumps before pushing `main` or release tags;
+  `CI` and `Release` both use `cargo ... --locked` and will fail if the lockfile still points at the
+  previous package version.
+- Keep release note sources present under `docs/releases/` for each tagged release; the `Release`
+  workflow fails if it cannot render notes for the pushed tag.
 - When release packaging or release notes behavior changes, update the corresponding scripts and the
   source files under `docs/releases/` in the same change set.
 
