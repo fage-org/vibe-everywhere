@@ -1,0 +1,15 @@
+[workspace]
+members = [
+  "crates/vibe-wire",
+  "crates/vibe-server",
+  "crates/vibe-agent",
+  "crates/vibe-cli",
+  "crates/vibe-app-logs",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2024"
+license = "MIT"
+version = "0.0.0"
+

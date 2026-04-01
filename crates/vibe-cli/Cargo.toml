@@ -1,0 +1,9 @@
+[package]
+name = "vibe-cli"
+version = "0.0.0"
+edition = "2024"
+license = "MIT"
+
+[[bin]]
+name = "vibe"
+path = "src/main.rs"

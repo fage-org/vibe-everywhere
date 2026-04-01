@@ -1,0 +1,17 @@
+# Rebuild Plan Index
+
+## Active Track
+
+- active planning root: `docs/plans/rebuild/`
+- planning index: `docs/plans/rebuild/README.md`
+- master summary: `docs/plans/rebuild/master-summary.md`
+- master details: `docs/plans/rebuild/master-details.md`
+
+## Current Phase
+
+- phase: planning baseline established, no subsystem implementation has started
+- next milestone: lock shared specs for `vibe-wire`
+
+## Rule
+
+Update the relevant rebuild plan files before implementing or changing any subsystem work.

@@ -1,0 +1,10 @@
+{
+  "name": "vibe-remote",
+  "private": true,
+  "workspaces": {
+    "packages": [
+      "packages/vibe-app"
+    ]
+  },
+  "packageManager": "yarn@1.22.22"
+}

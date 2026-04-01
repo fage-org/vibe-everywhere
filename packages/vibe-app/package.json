@@ -1,0 +1,7 @@
+{
+  "name": "vibe-app",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "yarn@1.22.22",
+  "description": "Placeholder package until happy-app import begins"
+}
