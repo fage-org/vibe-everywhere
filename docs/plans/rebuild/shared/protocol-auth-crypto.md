@@ -22,9 +22,12 @@ Happy behavior.
 ### Agent credentials
 
 - path: `~/.vibe/agent.key`
+- on-disk JSON shape:
+  - `token: string`
+  - `secret: string`
 - stored fields:
   - `token`
-  - `secret` as base64
+  - `secret` as standard base64 of the raw 32-byte account secret seed
 
 ### CLI credentials
 
@@ -49,6 +52,15 @@ The remote-control client path mirrors Happy account linking:
 8. decrypt `response`, persist `{ token, secret }`, then derive the content keypair from the
    account secret for session and machine access
 
+Account secret invariant:
+
+- the decrypted account secret is a raw 32-byte seed
+- that same seed is the source for:
+  - content keypair derivation
+  - Ed25519 auth challenge signing
+- consumers must not wrap, re-hash, or rename this root seed outside the documented derivation
+  steps
+
 ### Deep-link compatibility rule
 
 - external Vibe docs, QR rendering, and user-visible links must use `vibe:///account?...`
@@ -58,23 +70,60 @@ The remote-control client path mirrors Happy account linking:
 
 ## Auth Endpoint Surface
 
-The following routes are protocol-locked because imported app/agent flows depend on them:
+The route inventory is shared with `shared/protocol-api-rpc.md`. This file locks the auth-specific
+request/response DTOs, error bodies, and polling-state semantics used by the imported app, agent,
+and CLI flows.
 
-- `POST /v1/auth/account/request`
-  - request body: `{ publicKey }`
-  - `publicKey` encoding: standard base64 of 32-byte Curve25519 public key
-  - response body: `{ state: 'requested' }` or `{ state: 'authorized', token, response }`
-- `POST /v1/auth/account/response`
-  - app approval route that delivers the encrypted account-secret response for a pending request
 - `POST /v1/auth`
   - request body: `{ publicKey, challenge, signature }`
   - all three binary fields serialize as standard base64 strings
+  - response body: `{ success: true, token }`
+  - invalid signatures return `401 { error: 'Invalid signature' }`
 - `POST /v1/auth/request`
-  - create challenge/approval requests for non-account auth flows
+  - request body: `{ publicKey, supportsV2? }`
+  - `publicKey` encoding: standard base64 of 32-byte Curve25519 public key
+  - semantics: the same route is used both to create and to poll non-account auth requests keyed by
+    `publicKey`
+  - omitted `supportsV2` defaults to `false` on first create
+  - response body: `{ state: 'requested' }` or `{ state: 'authorized', token, response }`
+  - invalid public keys return `401 { error: 'Invalid public key' }`
 - `GET /v1/auth/request/status`
-  - poll status for non-account auth flows
+  - query params: `{ publicKey }`
+  - response body: `{ status: 'not_found' | 'pending' | 'authorized', supportsV2 }`
+  - invalid or unknown public keys currently return the same shape as a missing request:
+    `{ status: 'not_found', supportsV2: false }`, not `401`
+  - pending responses echo the stored `supportsV2` flag; authorized responses currently return
+    `supportsV2: false`
 - `POST /v1/auth/response`
-  - submit approved response for non-account auth flows
+  - requires bearer-token auth
+  - request body: `{ publicKey, response }`
+  - semantics: approves a pending non-account auth request; if a response is already stored, current
+    Happy behavior keeps the existing value and still returns success
+  - response body: `{ success: true }`
+  - invalid public keys return `401 { error: 'Invalid public key' }`
+  - unknown requests return `404 { error: 'Request not found' }`
+- `POST /v1/auth/account/request`
+  - request body: `{ publicKey }`
+  - `publicKey` encoding: standard base64 of 32-byte Curve25519 public key
+  - semantics: the same route is used both to create and to poll account-link requests keyed by
+    `publicKey`
+  - response body: `{ state: 'requested' }` or `{ state: 'authorized', token, response }`
+  - invalid public keys return `401 { error: 'Invalid public key' }`
+- `POST /v1/auth/account/response`
+  - requires bearer-token auth
+  - request body: `{ publicKey, response }`
+  - semantics: approves a pending account-link request; if a response is already stored, current
+    Happy behavior keeps the existing value and still returns success
+  - response body: `{ success: true }`
+  - invalid public keys return `401 { error: 'Invalid public key' }`
+  - unknown requests return `404 { error: 'Request not found' }`
+
+Non-account versus account-link distinction:
+
+- `supportsV2` is only part of the non-account auth flow
+- imported app approval flows use `GET /v1/auth/request/status` to decide whether to submit the V1
+  or V2 terminal auth response bundle
+- account-link flow never carries `supportsV2`
 
 ## Key Derivation Rules
 
@@ -128,6 +177,12 @@ The following bundle types are fixed and must have cross-language compatibility 
 | public-key box bundle | `ephemeralPublicKey(32) + nonce(24) + ciphertext` | NaCl `box`; used for account auth responses and record data keys |
 | AES/dataKey payload bundle | `version(1) + nonce(12) + ciphertext + authTag(16)` | AES-256-GCM; only version `0x00` is valid in phase 1 |
 | stored `dataEncryptionKey` string | `version(1) + public-key box bundle` | outer version byte is currently `0x00`, then standard-base64 encode the whole byte array |
+
+Public-key box bundle rule:
+
+- the first 32 bytes are always the ephemeral Curve25519 public key
+- the next 24 bytes are always the NaCl box nonce
+- decryption failure returns null/error without partial plaintext exposure
 
 ### `dataEncryptionKey` storage rule
 

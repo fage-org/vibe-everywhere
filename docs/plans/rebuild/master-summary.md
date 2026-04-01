@@ -31,9 +31,9 @@ scripts/
 
 ## Current Phase
 
-- phase: baseline reset and planning scaffold
-- implementation status: not started
-- immediate goal: freeze shared contracts needed by `vibe-wire`
+- phase: `M0 - Planning Baseline` complete; `Wave 1: vibe-wire` is ready to start
+- implementation status: shared contracts frozen; subsystem implementation not started
+- immediate goal: implement `vibe-wire` in execution-plan order, starting with `modules/vibe-wire/message-meta.md`
 - authoritative execution sequence: `docs/plans/rebuild/execution-plan.md`
 - AI dispatch batches: `docs/plans/rebuild/execution-batches.md`
 
@@ -70,8 +70,8 @@ scripts/
 
 ## Current Recommended Next Modules
 
-- `modules/vibe-wire/messages.md`
-- `modules/vibe-wire/session-protocol.md`
-- `modules/vibe-wire/legacy-protocol.md`
 - `modules/vibe-wire/message-meta.md`
+- `modules/vibe-wire/legacy-protocol.md`
+- `modules/vibe-wire/session-protocol.md`
+- `modules/vibe-wire/messages.md`
 - `modules/vibe-wire/voice.md`

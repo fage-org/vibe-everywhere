@@ -11,8 +11,8 @@
 
 ## Current Phase
 
-- phase: planning baseline established, no subsystem implementation has started
-- next milestone: lock shared specs for `vibe-wire`
+- phase: Wave 0 planning freeze complete; no subsystem implementation has started
+- next milestone: implement Wave 1 `vibe-wire`, starting with `modules/vibe-wire/message-meta.md`
 
 ## Rule
 

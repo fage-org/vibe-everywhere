@@ -23,6 +23,8 @@ the Rust backend path.
 ## Responsibilities
 
 - validate parser compatibility with `vibe-wire`
+- normalize server-owned late support-domain durable updates where imported app code currently keeps
+  richer app-local projections
 - adapt imported parser code only where required by Rust parity differences already documented
 - keep UI behavior stable
 
@@ -45,31 +47,38 @@ the Rust backend path.
 
 - `import-and-build`
 - `shared/protocol-session.md`
+- `shared/protocol-api-rpc.md`
 - `shared/data-model.md`
 - `vibe-wire` fixtures
 
 ## Implementation Steps
 
-1. Inventory imported parser and reducer assumptions.
+1. Inventory imported parser and reducer assumptions, including late support-domain update bodies.
 2. Add wire fixtures generated from `vibe-wire`.
-3. Patch only the compatibility seams required for Vibe server outputs.
-4. Verify both legacy and session-protocol flows.
+3. Add adapter normalization only where imported app schemas are wider than the canonical server
+   transport.
+4. Patch only the compatibility seams required for Vibe server outputs.
+5. Verify both legacy/session-protocol flows and late support-domain updates.
 
 ## Edge Cases And Failure Modes
 
 - turn-start/turn-end semantics diverging from Happy expectations
 - file/tool/service events rendering incorrectly
+- server-emitted `relationship-updated` or `new-feed-post` bodies not matching imported app-local
+  parser assumptions
 - parent/sidechain relationships breaking in nested outputs
 
 ## Tests
 
 - parser fixture tests for every session event variant
 - legacy message compatibility tests
+- durable update normalization tests for app-local projections such as relationship and feed updates
 - reducer integration tests for turn lifecycle and tool events
 
 ## Acceptance Criteria
 
-- app parser/rendering works with Rust-generated payloads for both protocol families
+- app parser/rendering works with Rust-generated payloads for both protocol families and for the
+  late support-domain durable updates consumed by the imported sync layer
 
 ## Open Questions
 
@@ -78,3 +87,5 @@ the Rust backend path.
 ## Locked Decisions
 
 - parser compatibility is validated against `vibe-wire` fixtures, not hand-made app-only samples
+- normalization of late support-domain durable updates stays in the app adapter/parser seam; it must
+  not rewrite the canonical server transport documented in shared specs

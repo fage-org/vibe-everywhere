@@ -39,20 +39,22 @@ documents:
 4. `shared/protocol-session.md`
 5. `shared/protocol-auth-crypto.md`
 6. `shared/protocol-api-rpc.md`
-7. `execution-plan.md`
-8. `execution-batches.md`
-9. `projects/vibe-wire.md`
-10. `modules/vibe-wire/*`
-11. `projects/vibe-server.md`
-12. `modules/vibe-server/*`
-13. `projects/vibe-agent.md`
-14. `modules/vibe-agent/*`
-15. `projects/vibe-cli.md`
-16. `modules/vibe-cli/*`
-17. `projects/vibe-app.md`
-18. `modules/vibe-app/*`
-19. `projects/vibe-app-logs.md`
-20. `modules/vibe-app-logs/*`
+7. `shared/validation.md`
+8. `shared/migration-order.md`
+9. `execution-plan.md`
+10. `execution-batches.md`
+11. `projects/vibe-wire.md`
+12. `modules/vibe-wire/*`
+13. `projects/vibe-server.md`
+14. `modules/vibe-server/*`
+15. `projects/vibe-agent.md`
+16. `modules/vibe-agent/*`
+17. `projects/vibe-cli.md`
+18. `modules/vibe-cli/*`
+19. `projects/vibe-app.md`
+20. `modules/vibe-app/*`
+21. `projects/vibe-app-logs.md`
+22. `modules/vibe-app-logs/*`
 
 ## AI Execution Contract
 

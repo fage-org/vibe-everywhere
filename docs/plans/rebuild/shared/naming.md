@@ -18,6 +18,15 @@
 | `happy-app` | `vibe-app` | imported TS app package |
 | `happy-app-logs` | `vibe-app-logs` | Rust sidecar binary crate |
 
+## Package And Import Naming
+
+- repository root package/workspace name: `vibe-remote`
+- TypeScript package names created in this repository must prefer `vibe-*` names
+- Do not introduce new Vibe-owned package names or import paths under `@slopus/happy-*`
+- Temporary compatibility imports of `@slopus/happy-wire` are allowed only inside imported
+  app/CLI transition seams and must be isolated or removed by the owning module plan before the
+  corresponding parity milestone closes
+
 ## Binary Names
 
 - `vibe-server`
@@ -27,28 +36,77 @@
 
 Do not ship `happy-*` binaries from this repository.
 
+## Public Commands And Scripts
+
+- public CLI, helper, and release script names must use `vibe` naming
+- if a dev-only variant command is needed, prefer `vibe-dev`
+- if an MCP/stdin bridge helper is needed, prefer `vibe-mcp`
+- do not document or ship new primary interfaces named `happy`, `happy-dev`, `happy-mcp`, or
+  similar Happy-branded commands
+- compatibility-only aliases may exist temporarily inside adapter or migration seams, but they must
+  stay undocumented as the primary Vibe interface
+
 ## Config And Home Paths
 
 - default home dir: `~/.vibe`
+- development-only variant home dir: `~/.vibe-dev`
 - agent credentials: `~/.vibe/agent.key`
 - CLI credentials: `~/.vibe/access.key`
 - daemon files: `~/.vibe/daemon/`
 - logs: `~/.vibe/logs/`
 
+Do not introduce new Vibe-owned flows that default to `~/.happy` or `~/.happy-dev`.
+
 ## Environment Variable Prefix
 
 - primary prefix: `VIBE_`
+- preferred direct ports of Happy environment variables should use:
+  - `VIBE_SERVER_URL`
+  - `VIBE_WEBAPP_URL`
+  - `VIBE_HOME_DIR`
+  - `VIBE_PROJECT_DIR`
+  - `VIBE_PROJECT_ROOT`
+  - `VIBE_EXPERIMENTAL`
+  - `VIBE_DISABLE_CAFFEINATE`
+  - `VIBE_HTTP_MCP_URL`
 - app runtime variables should follow `EXPO_PUBLIC_VIBE_*` or the environment model chosen inside
   `modules/vibe-app/release-and-env.md`
 
 Do not introduce new public `HAPPY_*` environment variables. Temporary compatibility aliases are
 allowed only inside adapter modules and must be called out there.
 
+## Flags, RPC Names, And Compatibility Aliases
+
+- public flags and subcommand names must prefer `vibe-*` or neutral names, never new `happy-*`
+  names
+- internal compatibility-only identifiers such as legacy daemon RPC names, hidden flags, or
+  imported script knobs may temporarily retain `happy*` strings only when an owning module plan
+  explicitly needs them
+- examples that must remain adapter-only if they survive during migration:
+  - `--happy-starting-mode`
+  - `spawn-happy-session`
+  - `resume-happy-session`
+- these compatibility aliases must not be documented as the primary Vibe UX
+
 ## Deep Links And URLs
 
 - primary app deep link scheme: `vibe:///`
 - web/documentation branding: `vibe`
 - server base URL variables and docs must use `vibe` naming
+- public issue/help/documentation links and user-visible prompts must not send users to
+  Happy-branded command names or repositories
+
+## Compatibility-Locked Exceptions
+
+- some serialized field names, crypto literals, and imported-app compatibility shims intentionally
+  retain `happy*` strings during phase one
+- these exceptions are allowed only when a shared spec or owning module plan records them
+- current examples live in:
+  - `shared/data-model.md`
+  - `shared/protocol-auth-crypto.md`
+  - `modules/vibe-app/branding-and-naming-adaptation.md`
+- naming compatibility exceptions must be explicit; this file does not authorize silent drift back
+  to Happy-branded public surfaces
 
 ## Source-Level Transition Rule
 

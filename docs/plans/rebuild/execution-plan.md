@@ -25,6 +25,8 @@ Use this file when deciding:
 - Prefer one end-to-end usable slice over broad but incomplete surface area.
 - Treat the order below as the default critical path. Parallel work is allowed only where this file
   explicitly marks it safe.
+- When an ordered item is completed, mark it inline in this file as `[done]` before starting the
+  next item. This completion-tracking rule applies to every subsequent wave as well.
 
 ## Critical Path Summary
 
@@ -45,16 +47,16 @@ Freeze all shared contracts before any Rust or imported-app implementation start
 
 ### Order
 
-1. `shared/source-crosswalk.md`
-2. `shared/naming.md`
-3. `shared/data-model.md`
-4. `shared/protocol-session.md`
-5. `shared/protocol-auth-crypto.md`
-6. `shared/protocol-api-rpc.md`
-7. `shared/validation.md`
-8. `shared/migration-order.md`
-9. `execution-plan.md`
-10. `execution-batches.md`
+1. `[done]` `shared/source-crosswalk.md`
+2. `[done]` `shared/naming.md`
+3. `[done]` `shared/data-model.md`
+4. `[done]` `shared/protocol-session.md`
+5. `[done]` `shared/protocol-auth-crypto.md`
+6. `[done]` `shared/protocol-api-rpc.md`
+7. `[done]` `shared/validation.md`
+8. `[done]` `shared/migration-order.md`
+9. `[done]` `execution-plan.md`
+10. `[done]` `execution-batches.md`
 
 ### Output
 
