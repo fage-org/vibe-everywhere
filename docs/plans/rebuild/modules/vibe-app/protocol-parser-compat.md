@@ -7,7 +7,8 @@ the Rust backend path.
 
 ## Happy Source Of Truth
 
-- imported app sync/reducer/parser code
+- `packages/happy-app/sources/**` sync/reducer/parser code that is later imported into
+  `packages/vibe-app`
 - `packages/happy-wire/src/messages.ts`
 - `packages/happy-wire/src/sessionProtocol.ts`
 
@@ -42,6 +43,7 @@ the Rust backend path.
 
 ## Dependencies
 
+- `import-and-build`
 - `shared/protocol-session.md`
 - `shared/data-model.md`
 - `vibe-wire` fixtures

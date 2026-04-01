@@ -43,7 +43,6 @@ Implement CLI-side authentication and connect flows for local runtime usage.
 
 ## Dependencies
 
-- `api-client`
 - `ui-terminal`
 - `directories`
 
@@ -76,3 +75,5 @@ Implement CLI-side authentication and connect flows for local runtime usage.
 
 - CLI auth state uses `~/.vibe/access.key`
 - provider-connect flows stay under the CLI auth tree
+- the shared API client consumes auth state after this module lands; auth does not depend on the API
+  client to define its storage and connect semantics

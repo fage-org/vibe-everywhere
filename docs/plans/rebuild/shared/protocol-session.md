@@ -117,18 +117,24 @@ Rules:
 
 ## Update Container Shapes
 
-The update container surface mirrored from Happy must include:
+The durable update body union mirrored from Happy must include:
 
 - `new-message`
 - `update-session`
 - `update-machine`
 
-Each update travels in a container with:
+Each durable update travels inside one container with:
 
 - `id`
 - `seq`
 - `body`
 - `createdAt`
+
+Socket transport compatibility rule:
+
+- the server emits these durable containers on the socket event named `update`
+- `new-message`, `update-session`, and `update-machine` are `body` variants inside that container,
+  not separate socket event names in phase one
 
 ## Compatibility Rules
 

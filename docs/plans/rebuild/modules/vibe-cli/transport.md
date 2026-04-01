@@ -41,7 +41,6 @@ handlers.
 ## Dependencies
 
 - `agent-core`
-- `api-client`
 - `session-protocol-mapper`
 
 ## Implementation Steps
@@ -73,3 +72,5 @@ handlers.
 
 - transport is async and channel-backed
 - ordering guarantees are explicit and test-covered
+- API/session clients consume the transport output contract; they are not a prerequisite for defining
+  the transport abstraction itself

@@ -40,14 +40,31 @@ CLI.
 
 ## Dependencies
 
-- all implemented CLI modules
+### Pass A
+
+- implemented CLI core through `claude-runtime`
 - `vibe-server` test environment
+
+### Pass B additions
+
+- remaining provider runtimes
+- finalized command wiring from `bootstrap-and-commands` pass B
+
+## Pass Boundaries
+
+- pass A:
+  - establish the first provider/runtime harness around the first end-to-end provider slice
+  - prove that the shared CLI core can be regression-tested without ad hoc setup
+- pass B:
+  - broaden the fixture matrix across the remaining providers and late command wiring
 
 ## Implementation Steps
 
-1. Port Happy integration environment concepts into Rust test harnesses.
+1. Pass A: port Happy integration environment concepts into Rust test harnesses for the first
+   provider slice.
 2. Add fixture data for provider outputs and session protocol mappings.
-3. Keep test harness code out of production modules where possible.
+3. Pass B: extend the harness and fixtures across the remaining provider/runtime modules.
+4. Keep test harness code out of production modules where possible.
 
 ## Edge Cases And Failure Modes
 

@@ -36,9 +36,9 @@ contracts. It is not a rewrite project in phase one.
 ## Implementation Order
 
 1. import and build
-2. branding and naming adaptation
+2. protocol parser compatibility checks
 3. API endpoint adaptation
-4. protocol parser compatibility checks
+4. branding and naming adaptation
 5. desktop/Tauri adaptation
 6. release and environment cleanup
 

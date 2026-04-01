@@ -34,6 +34,8 @@ scripts/
 - phase: baseline reset and planning scaffold
 - implementation status: not started
 - immediate goal: freeze shared contracts needed by `vibe-wire`
+- authoritative execution sequence: `docs/plans/rebuild/execution-plan.md`
+- AI dispatch batches: `docs/plans/rebuild/execution-batches.md`
 
 ## Milestones
 

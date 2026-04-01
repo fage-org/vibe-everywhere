@@ -1,5 +1,10 @@
 # Migration Order
 
+This file is the stage-level delivery order only.
+
+For the detailed module-by-module execution sequence, use `docs/plans/rebuild/execution-plan.md`.
+For direct AI dispatch groupings, use `docs/plans/rebuild/execution-batches.md`.
+
 ## Fixed Delivery Sequence
 
 1. `vibe-wire`
@@ -31,6 +36,8 @@
   - auth/api/rpc specs
 - outputs:
   - minimum auth/session/machine/update backend
+  - deterministic session and machine presence handling
+  - machine lifecycle and daemon-state update path required by remote control
 - done when:
   - `vibe-agent` can be developed against a real server
 

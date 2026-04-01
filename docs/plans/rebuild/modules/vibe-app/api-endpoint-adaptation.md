@@ -6,7 +6,7 @@ Adapt the imported app to talk to Vibe server endpoints and environment configur
 
 ## Happy Source Of Truth
 
-- imported `packages/vibe-app` API/config source
+- `packages/happy-app/sources/**` API/config source that is later imported into `packages/vibe-app`
 - `shared/protocol-api-rpc.md`
 
 ## Target Rust/Vibe Location

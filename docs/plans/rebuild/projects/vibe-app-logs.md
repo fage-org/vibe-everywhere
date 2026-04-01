@@ -24,14 +24,12 @@ the main backend and app path are stable.
 
 ## Internal Module Map
 
-- `server`: log-sidecar runtime
-- `config`: configuration and port/env handling
+- `server/config/main`: minimal sidecar bootstrap grouped under one module plan because the Happy
+  source tree is only one runtime file plus package metadata
 
 ## Implementation Order
 
-1. config
-2. log server
-3. integration wiring
+1. log server bootstrap and integration wiring
 
 ## Compatibility Requirements
 

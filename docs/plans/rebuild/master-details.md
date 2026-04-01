@@ -57,14 +57,19 @@ multi-project codebase where:
 4. `shared/protocol-session.md`
 5. `shared/protocol-auth-crypto.md`
 6. `shared/protocol-api-rpc.md`
-7. `vibe-wire`
-8. `vibe-server`
-9. `vibe-agent`
-10. `vibe-cli`
-11. `vibe-app`
-12. `vibe-app-logs`
+7. `execution-plan.md`
+8. `execution-batches.md`
+9. `vibe-wire`
+10. `vibe-server`
+11. `vibe-agent`
+12. `vibe-cli`
+13. `vibe-app`
+14. `vibe-app-logs`
 
 No downstream implementation may define its own variant of types that belong in an upstream layer.
+
+For the exact module execution sequence inside those project stages, follow `execution-plan.md`.
+For direct AI batch dispatch, follow `execution-batches.md`.
 
 ## Milestone Breakdown
 

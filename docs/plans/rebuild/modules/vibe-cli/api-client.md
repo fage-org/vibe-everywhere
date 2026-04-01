@@ -42,7 +42,6 @@ Implement server communication used by the local CLI runtime.
 ## Dependencies
 
 - `auth`
-- `transport`
 - `vibe-wire`
 - `reqwest`
 

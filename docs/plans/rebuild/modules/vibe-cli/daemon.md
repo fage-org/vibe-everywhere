@@ -43,8 +43,6 @@ Implement the local daemon control plane used by the CLI.
 ## Dependencies
 
 - `agent-core`
-- `sandbox`
-- `persistence-resume`
 
 ## Implementation Steps
 
@@ -77,3 +75,5 @@ Implement the local daemon control plane used by the CLI.
 
 - daemon communicates over a local control channel, not stdout parsing
 - installation helpers remain non-interactive by default
+- sandbox and persistence integrations plug into this control plane after the daemon surface is
+  stable; they are not prerequisites for defining it

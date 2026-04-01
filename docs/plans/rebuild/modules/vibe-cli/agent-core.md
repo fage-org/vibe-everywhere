@@ -40,8 +40,7 @@ Implement provider-agnostic runtime abstractions for the Vibe CLI.
 
 ## Dependencies
 
-- `transport`
-- `session-protocol-mapper`
+- none beyond crate-local core types and runtime primitives
 
 ## Implementation Steps
 
@@ -71,3 +70,5 @@ Implement provider-agnostic runtime abstractions for the Vibe CLI.
 
 - use trait-based backend abstraction
 - avoid dynamic plugin loading during parity phase
+- keep the core backend model transport-agnostic so mapper and transport layers can evolve after the
+  registry shape is stable

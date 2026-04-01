@@ -41,7 +41,6 @@ Implement file and object storage for uploads, avatars, and other blob reference
 ## Dependencies
 
 - S3-compatible object storage client
-- `image-processing`
 
 ## Implementation Steps
 
@@ -74,3 +73,5 @@ Implement file and object storage for uploads, avatars, and other blob reference
 
 - primary backend is S3-compatible object storage
 - local filesystem backend is dev-only
+- base file/object storage comes first; image normalization and upload composition are layered on by
+  `image-processing`

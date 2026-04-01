@@ -43,12 +43,13 @@ not run local providers; it controls machines and sessions remotely.
 
 ## Implementation Order
 
-1. config and credentials
-2. encryption and auth
-3. API client
-4. session socket client
-5. machine RPC
-6. command output and CLI wiring
+1. config
+2. encryption
+3. credentials and auth
+4. HTTP API client
+5. session socket client
+6. machine RPC
+7. command output and CLI wiring
 
 ## Compatibility Requirements
 

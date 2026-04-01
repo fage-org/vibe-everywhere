@@ -6,7 +6,7 @@ Adapt the imported app's desktop shell to the Vibe repository layout and product
 
 ## Happy Source Of Truth
 
-- imported `packages/vibe-app/src-tauri/*`
+- `packages/happy-app/src-tauri/*`
 - Happy app build scripts relevant to Tauri/Desktop
 
 ## Target Rust/Vibe Location

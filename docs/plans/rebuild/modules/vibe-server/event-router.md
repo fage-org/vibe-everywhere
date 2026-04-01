@@ -22,6 +22,7 @@ other interested subsystems.
 - sequence them
 - convert them into `vibe-wire` update containers
 - broadcast to the socket layer
+- finalize auxiliary/account/social/feed/artifact update shaping once those domain services exist
 
 ## Non-Goals
 
@@ -42,18 +43,37 @@ other interested subsystems.
 
 ## Dependencies
 
-- `socket-updates`
-- `session-lifecycle`
-- `presence`
+### Pass A
+
 - `vibe-wire`
+
+### Pass B additions
+
+- `account-and-usage`
+- `artifacts-and-access-keys`
+- `feed`
+- `github`
+- `social`
+- `utility-apis`
+
+## Pass Boundaries
+
+- pass A:
+  - define internal event contracts, sequencing, and the core session/machine update builders
+  - expose a stable publish interface that downstream services can target
+- pass B:
+  - add late support-domain update builders once account, artifact, feed, social, and related
+    services are real
+  - keep the sequencing spine unchanged while broadening payload coverage
 
 ## Implementation Steps
 
-1. Define internal event enum keyed to session and machine changes.
+1. Pass A: define the internal event enum keyed to session and machine changes.
 2. Centralize update sequence generation.
-3. Convert internal events to `CoreUpdateContainer`.
-4. Publish to socket rooms without duplicating shaping logic elsewhere.
-5. Test ordering and fanout behavior.
+3. Convert pass-A internal events to `CoreUpdateContainer`.
+4. Pass B: add late auxiliary update builders without reworking the sequencing spine.
+5. Publish to socket rooms without duplicating shaping logic elsewhere.
+6. Test ordering and fanout behavior.
 
 ## Edge Cases And Failure Modes
 

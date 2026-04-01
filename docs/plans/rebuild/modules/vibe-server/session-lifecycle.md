@@ -42,7 +42,8 @@ Implement encrypted session CRUD, message history, metadata updates, and lifecyc
 
 - client creates or updates session via HTTP or socket
 - server stores encrypted records and increments sequence/version fields
-- event router emits update-session and new-message events
+- event router emits durable update containers whose body variants include `update-session` and
+  `new-message`
 
 ## Dependencies
 

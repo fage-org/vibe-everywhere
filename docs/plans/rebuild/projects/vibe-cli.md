@@ -14,6 +14,8 @@ daemon, sandbox, persistence, resume, and terminal interaction.
 
 - crate: `crates/vibe-cli`
 - expected module groups:
+  - `bootstrap`
+  - `config`
   - `agent`
   - `api`
   - `providers`
@@ -35,6 +37,7 @@ daemon, sandbox, persistence, resume, and terminal interaction.
 
 ## Internal Module Map
 
+- `bootstrap`: top-level entrypoint, command tree, config bootstrap, and dispatch wiring
 - `agent`: provider-independent abstractions and transport
 - `api`: server/session/machine communication
 - `providers`: Claude, Codex, Gemini, OpenClaw, ACP
@@ -43,18 +46,19 @@ daemon, sandbox, persistence, resume, and terminal interaction.
 - `persistence`: local state storage
 - `resume`: resume/attach behavior
 - `ui`: terminal presentation and interaction
-- `utils`: low-level helpers that are not shared wire contracts
+- `utils`: low-level helpers, metadata factories, parsers, and system adapters that are not shared
+  wire contracts
 
 ## Implementation Order
 
-1. agent core and transport
-2. API client and auth helpers
-3. daemon
-4. session protocol mapper
-5. provider runtimes
-6. sandbox
-7. persistence and resume
-8. terminal UI
+1. utilities, terminal helpers, and bootstrap/config ownership
+2. agent core, adapters, session-protocol mapper, and transport
+3. auth and API client
+4. daemon control plane
+5. sandbox, persistence, resume, and built-in local modules
+6. first provider vertical slice plus fixture harness
+7. remaining provider runtimes and ACP integration
+8. final command wiring and broader fixture matrix
 
 ## Compatibility Requirements
 

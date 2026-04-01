@@ -6,7 +6,9 @@ Align the imported app's release, environment, and packaging behavior with the V
 
 ## Happy Source Of Truth
 
-- imported app release scripts and env handling
+- `packages/happy-app/package.json`
+- `packages/happy-app/release.cjs`
+- `packages/happy-app/release-*.sh`
 - Happy root workspace scripts relevant to the app
 
 ## Target Rust/Vibe Location
@@ -40,6 +42,7 @@ Align the imported app's release, environment, and packaging behavior with the V
 
 ## Dependencies
 
+- `import-and-build`
 - `branding-and-naming-adaptation`
 - `api-endpoint-adaptation`
 - `desktop-tauri-adaptation`
@@ -74,3 +77,4 @@ Align the imported app's release, environment, and packaging behavior with the V
 
 - keep release/env logic local to the app package
 - use Vibe-prefixed public env variables
+- finalize release/env behavior only after endpoint, branding, and desktop adaptation are stable

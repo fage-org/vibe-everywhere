@@ -15,12 +15,11 @@ flows.
 - crate: `crates/vibe-server`
 - files:
   - `src/storage/redis.rs`
-  - `src/presence/cache.rs`
 
 ## Responsibilities
 
 - manage Redis connection
-- store ephemeral auth and presence state
+- store ephemeral auth and coordination state
 - support update fanout helpers if required
 
 ## Non-Goals
@@ -41,8 +40,6 @@ flows.
 ## Dependencies
 
 - `redis`
-- `auth`
-- `presence`
 
 ## Implementation Steps
 
@@ -75,3 +72,5 @@ flows.
 
 - Redis is mandatory for ephemeral distributed state
 - key naming must stay namespaced under Vibe-specific prefixes
+- presence-specific cache and timeout policy stay owned by `presence`; this module only supplies the
+  Redis client and typed storage helpers that those higher-level services consume

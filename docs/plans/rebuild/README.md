@@ -11,9 +11,13 @@ relevant shared spec, project plan, and module plan.
 
 - `master-summary.md`: high-signal status, milestones, and next work
 - `master-details.md`: global architecture, dependency order, and acceptance gates
+- `execution-plan.md`: authoritative module-by-module implementation order
+- `execution-batches.md`: AI dispatch-ready batch list derived from the execution plan
 - `projects/`: one plan per target project
 - `shared/`: cross-cutting source mappings, naming, protocols, data models, and validation rules
 - `modules/`: execution-grade plans, one module per file
+
+The authoritative module-by-module implementation sequence lives in `execution-plan.md`.
 
 ## Working Rules
 
@@ -26,24 +30,29 @@ relevant shared spec, project plan, and module plan.
 
 ## Recommended Execution Order
 
+First consult `execution-plan.md` and `execution-batches.md`. The list below is only the coarse reading order for plan
+documents:
+
 1. `shared/source-crosswalk.md`
 2. `shared/naming.md`
 3. `shared/data-model.md`
 4. `shared/protocol-session.md`
 5. `shared/protocol-auth-crypto.md`
 6. `shared/protocol-api-rpc.md`
-7. `projects/vibe-wire.md`
-8. `modules/vibe-wire/*`
-9. `projects/vibe-server.md`
-10. `modules/vibe-server/*`
-11. `projects/vibe-agent.md`
-12. `modules/vibe-agent/*`
-13. `projects/vibe-cli.md`
-14. `modules/vibe-cli/*`
-15. `projects/vibe-app.md`
-16. `modules/vibe-app/*`
-17. `projects/vibe-app-logs.md`
-18. `modules/vibe-app-logs/*`
+7. `execution-plan.md`
+8. `execution-batches.md`
+9. `projects/vibe-wire.md`
+10. `modules/vibe-wire/*`
+11. `projects/vibe-server.md`
+12. `modules/vibe-server/*`
+13. `projects/vibe-agent.md`
+14. `modules/vibe-agent/*`
+15. `projects/vibe-cli.md`
+16. `modules/vibe-cli/*`
+17. `projects/vibe-app.md`
+18. `modules/vibe-app/*`
+19. `projects/vibe-app-logs.md`
+20. `modules/vibe-app-logs/*`
 
 ## AI Execution Contract
 

@@ -7,7 +7,7 @@ structural churn.
 
 ## Happy Source Of Truth
 
-- imported `packages/vibe-app` source tree
+- `packages/happy-app/**` public app/package surfaces that are later imported into `packages/vibe-app`
 - `shared/naming.md`
 
 ## Target Rust/Vibe Location

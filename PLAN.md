@@ -6,6 +6,8 @@
 - planning index: `docs/plans/rebuild/README.md`
 - master summary: `docs/plans/rebuild/master-summary.md`
 - master details: `docs/plans/rebuild/master-details.md`
+- execution order: `docs/plans/rebuild/execution-plan.md`
+- AI batch plan: `docs/plans/rebuild/execution-batches.md`
 
 ## Current Phase
 

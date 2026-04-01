@@ -39,7 +39,6 @@ Implement adapter logic that translates provider-native output into the CLI's in
 ## Dependencies
 
 - `agent-core`
-- `session-protocol-mapper`
 
 ## Implementation Steps
 

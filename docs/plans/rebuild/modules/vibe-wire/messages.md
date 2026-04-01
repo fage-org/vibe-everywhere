@@ -49,7 +49,8 @@ and CLI.
 
 - server stores and emits `SessionMessage`
 - agent and CLI decrypt `SessionMessage.content`
-- app receives `CoreUpdateContainer` with `new-message`, `update-session`, or `update-machine`
+- app receives socket event `update` carrying `CoreUpdateContainer`
+- `CoreUpdateContainer.body` resolves to `new-message`, `update-session`, or `update-machine`
 - downstream projects depend on this file for wire-level JSON shape only
 
 ## Dependencies

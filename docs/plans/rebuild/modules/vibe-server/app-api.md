@@ -25,6 +25,19 @@ CLI clients.
 - attach shared auth and state extractors
 - enforce request/response wire compatibility
 - group domain routes by subsystem
+- preserve exact Happy-compatible versioned path names for:
+  - auth
+  - sessions
+  - machines
+  - account and usage
+  - connect/github
+  - social/feed/user
+  - kv
+  - push tokens
+  - artifacts
+  - access keys
+  - version
+  - voice
 
 ## Non-Goals
 
@@ -46,21 +59,43 @@ CLI clients.
 
 ## Dependencies
 
+### Pass A
+
 - `auth`
 - `session-lifecycle`
-- `feed`
-- `social`
-- `github`
+- `machine-lifecycle`
 - `versions-and-config`
 - `axum`, `tokio`, `serde`
 
+### Pass B additions
+
+- `account-and-usage`
+- `connect-vendors`
+- `artifacts-and-access-keys`
+- `utility-apis`
+- `feed`
+- `social`
+- `github`
+
+## Pass Boundaries
+
+- pass A:
+  - stand up the router skeleton, shared middleware, and the minimum auth/session/machine routes
+  - lock the request context and route registration shape used by later route groups
+- pass B:
+  - register the remaining account, connect, utility, social, feed, artifact, and GitHub route
+    groups after their services exist
+  - keep handlers thin and avoid reworking pass-A router structure
+
 ## Implementation Steps
 
-1. Build Axum router with versioned prefixes matching Happy route structure.
+1. Pass A: build the Axum router with versioned prefixes matching Happy route structure.
 2. Add request context containing user id, start time, and service state.
-3. Define typed DTOs only where the shared wire crate does not already own the shape.
-4. Keep handlers thin; delegate to domain services.
-5. Add integration tests per route group.
+3. Lock the full route inventory from `shared/protocol-api-rpc.md` before implementing handlers.
+4. Define typed DTOs only where the shared wire crate does not already own the shape.
+5. Keep handlers thin; delegate to domain services.
+6. Pass B: register the remaining route groups once their domain services are real.
+7. Add integration tests per route group.
 
 ## Edge Cases And Failure Modes
 
@@ -80,6 +115,7 @@ CLI clients.
 - versioned routes are registered and documented
 - protected routes consistently receive auth context
 - response shapes match planned contracts
+- no route groups required by imported Happy clients are missing from the router
 
 ## Open Questions
 
