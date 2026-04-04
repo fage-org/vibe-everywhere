@@ -31,9 +31,9 @@ scripts/
 
 ## Current Phase
 
-- phase: `M1 - Shared Wire`, `M2 - Server Spine`, and `M3 - Remote Agent Client` are complete; `Wave 4` server support-surface expansion is also complete and validated
-- implementation status: `vibe-wire` is implemented and validated; `vibe-server` now ships a single-instance Wave-2 spine plus the Wave-4 support surfaces covering files/images, account/settings/usage, utility APIs, artifacts/access keys, connect/GitHub, social/feed, auxiliary socket APIs, and monitoring; `vibe-agent` now ships the Wave-3 remote-control slice covering auth, HTTP session/machine control, live session socket control, machine RPC, and stable CLI output
-- immediate goal: begin `Wave 5` by implementing the `vibe-cli` local runtime, daemon, and first provider vertical slice against the now-stable server surfaces
+- phase: `M1 - Shared Wire`, `M2 - Server Spine`, `M3 - Remote Agent Client`, and `M4 - Local Runtime CLI` are complete; `Wave 4` server support-surface expansion and `Wave 5` CLI runtime/daemon implementation are both complete and validated
+- implementation status: `vibe-wire` is implemented and validated; `vibe-server` now ships a single-instance Wave-2 spine plus the Wave-4 support surfaces covering files/images, account/settings/usage, utility APIs, artifacts/access keys, connect/GitHub, social/feed, auxiliary socket APIs, and monitoring; `vibe-agent` now ships the Wave-3 remote-control slice covering auth, HTTP session/machine control, live session socket control, machine RPC, and stable CLI output; `vibe-cli` now ships the Wave-5 local runtime covering auth/connect, command bootstrap, provider execution, daemon control, sandbox policy, persistence/resume, session-protocol mapping, and end-to-end validation across the supported provider paths
+- immediate goal: begin `Wave 6` by importing and adapting `packages/vibe-app` against the now-stable wire, server, agent, and CLI surfaces
 - authoritative execution sequence: `docs/plans/rebuild/execution-plan.md`
 - AI dispatch batches: `docs/plans/rebuild/execution-batches.md`
 
