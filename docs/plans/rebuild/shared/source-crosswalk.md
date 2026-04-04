@@ -19,6 +19,9 @@
   dedicated adaptation seams only where a `modules/vibe-app/*.md` plan already exists.
 - Helper-only files must stay with the nearest owning subsystem plan. Do not create new top-level
   `utils` modules in Vibe unless a later plan records that boundary change first.
+- Root bootstrap files, lockfiles, environment manifests, and migration trees that a planned import
+  or rewrite depends on must be listed explicitly in this table. Package-level wildcard ownership is
+  not enough for those shared build inputs.
 - Critical-path HTTP route entrypoints and socket handler entrypoints must be listed explicitly in
   this table even if a broader wildcard entry already exists elsewhere.
 
@@ -48,37 +51,38 @@
 | `packages/happy-server/sources/app/api/routes/connectRoutes.ts` | generic vendor connect routes and GitHub route registration | `crates/vibe-server` | `api/connect.rs` | planned | split generic vendor logic from GitHub-specific behavior |
 | `packages/happy-server/sources/app/api/routes/devRoutes.ts` | optional AI-debug logging endpoint | `crates/vibe-server` | `api/dev.rs` | deferred | debug-only route; exclude from parity unless a concrete consumer requires it |
 | `packages/happy-server/sources/app/api/routes/artifactsRoutes.ts` | artifact CRUD routes | `crates/vibe-server` | `api/artifacts.rs` | planned | pair with socket artifact handlers |
-| `packages/happy-server/sources/app/api/routes/accessKeysRoutes.ts` | access-key CRUD routes | `crates/vibe-server` | `api/access_keys.rs` | planned | session/machine access-key surface |
+| `packages/happy-server/sources/app/api/routes/accessKeysRoutes.ts` | access-key CRUD routes | `crates/vibe-server` | `api/artifacts.rs` | planned | access-key HTTP handlers stay grouped with artifact/access-key support APIs; shared DTOs remain in `api/types.rs` |
 | `packages/happy-server/sources/app/api/routes/sessionRoutes.ts` | legacy `/v1` and `/v2` session CRUD, list, and history routes | `crates/vibe-server` | `sessions/http.rs` | planned | session module owns create-or-load-by-tag, list, delete, and legacy history HTTP behavior; `app-api` only mounts it |
 | `packages/happy-server/sources/app/api/routes/v3SessionRoutes.ts` | paged and idempotent v3 session message routes | `crates/vibe-server` | `sessions/http.rs` | planned | keep v1/v2 and v3 session HTTP semantics in the same session module so message/history contracts do not drift |
-| `packages/happy-server/sources/app/api/routes/kvRoutes.ts` | key-value support routes | `crates/vibe-server` | `api/kv.rs` | planned | support API group |
-| `packages/happy-server/sources/app/api/routes/pushRoutes.ts` | push token registration routes | `crates/vibe-server` | `api/push.rs` | planned | support API group |
-| `packages/happy-server/sources/app/api/routes/versionRoutes.ts` | version check route | `crates/vibe-server` | `api/version.rs` | planned | support API group |
-| `packages/happy-server/sources/app/api/routes/voiceRoutes.ts` | voice token route | `crates/vibe-server` | `api/voice.rs` | planned | support API group |
-| `packages/happy-server/sources/app/api/routes/feedRoutes.ts` | feed route registration and response DTO glue | `crates/vibe-server` | `feed/http.rs` | planned | feed module owns the route surface and DTO shaping; `app-api` only mounts it |
-| `packages/happy-server/sources/app/api/routes/userRoutes.ts` | user profile/search and friend route registration | `crates/vibe-server` | `social/http.rs` | planned | social module owns user and friend HTTP surfaces plus relationship-aware DTO shaping |
+| `packages/happy-server/sources/app/api/routes/kvRoutes.ts` | key-value support routes | `crates/vibe-server` | `api/utility.rs` | planned | grouped support API handlers; shared DTOs stay in `api/types.rs` |
+| `packages/happy-server/sources/app/api/routes/pushRoutes.ts` | push token registration routes | `crates/vibe-server` | `api/utility.rs` | planned | grouped support API handlers; shared DTOs stay in `api/types.rs` |
+| `packages/happy-server/sources/app/api/routes/versionRoutes.ts` | version check route | `crates/vibe-server` | `api/utility.rs` | planned | grouped support API handlers; shared DTOs stay in `api/types.rs` |
+| `packages/happy-server/sources/app/api/routes/voiceRoutes.ts` | voice token route | `crates/vibe-server` | `api/utility.rs` | planned | grouped support API handlers; voice wire DTOs continue to come from `vibe-wire` |
+| `packages/happy-server/sources/app/api/routes/feedRoutes.ts` | feed route registration and response DTO glue | `crates/vibe-server` | `api/feed.rs` | planned | feed HTTP surface is grouped under the shared API tree rather than a standalone `feed/http.rs` module |
+| `packages/happy-server/sources/app/api/routes/userRoutes.ts` | user profile/search and friend route registration | `crates/vibe-server` | `api/social.rs` | planned | social HTTP surface is grouped under the shared API tree rather than a standalone `social/http.rs` module |
 | `packages/happy-server/sources/app/api/socket/pingHandler.ts` | transport health/ping socket handler | `crates/vibe-server` | `api/socket.rs` | planned | transport-local helper; keep with socket bootstrap instead of creating a separate ping module |
 | `packages/happy-server/sources/app/api/socket/sessionUpdateHandler.ts` | inbound session socket events and acks | `crates/vibe-server` | `api/socket.rs` | planned | transport entrypoint delegates durable state changes to `session-lifecycle` |
 | `packages/happy-server/sources/app/api/socket/rpcHandler.ts` | machine RPC socket forwarding | `crates/vibe-server` | `api/socket.rs` | planned | socket transport owns forwarding and ack framing; machine behavior stays in `machine-lifecycle` |
 | `packages/happy-server/sources/app/session/*` | session lifecycle helpers and deletion logic | `crates/vibe-server` | `sessions/` | planned | session CRUD and lifecycle module |
-| `packages/happy-server/sources/app/feed/*` | feed domain logic | `crates/vibe-server` | `feed/` | planned | imported app feed behavior |
-| `packages/happy-server/sources/app/social/*` | social and friend domain logic | `crates/vibe-server` | `social/` | planned | friend, relationship, username flows |
-| `packages/happy-server/sources/app/github/*` | GitHub integration domain logic | `crates/vibe-server` | `github/` | planned | GitHub-specific connect/disconnect/profile logic |
+| `packages/happy-server/sources/app/feed/*` | feed domain logic | `crates/vibe-server` | `api/feed.rs` | planned | phase-one implementation keeps feed HTTP/service behavior inside the shared API tree |
+| `packages/happy-server/sources/app/social/*` | social and friend domain logic | `crates/vibe-server` | `api/social.rs` | planned | phase-one implementation keeps social HTTP/service behavior inside the shared API tree |
+| `packages/happy-server/sources/app/github/*` | GitHub integration domain logic | `crates/vibe-server` | `api/connect.rs` | planned | phase-one implementation keeps GitHub-specific connect/disconnect/profile logic in the shared connect module |
 | `packages/happy-server/sources/app/monitoring/*` | metrics and monitoring hooks | `crates/vibe-server` | `monitoring/` | planned | service metrics and health instrumentation |
 | `packages/happy-server/sources/app/api/routes/machinesRoutes.ts` | machine create/list/detail routes | `crates/vibe-server` | `machines/http.rs` | planned | machine CRUD and encrypted machine records |
 | `packages/happy-server/sources/app/api/socket/machineUpdateHandler.ts` | machine heartbeat and optimistic concurrency updates | `crates/vibe-server` | `machines/socket.rs` | planned | machine-alive and machine-update-* socket handlers |
-| `packages/happy-server/sources/app/api/socket/artifactUpdateHandler.ts` | artifact socket read/update/create/delete | `crates/vibe-server` | `api/socket_artifacts.rs` | planned | artifact socket ack/result compatibility |
-| `packages/happy-server/sources/app/api/socket/accessKeyHandler.ts` | access-key socket lookup | `crates/vibe-server` | `api/socket_access_keys.rs` | planned | socket access-key retrieval |
+| `packages/happy-server/sources/app/api/socket/artifactUpdateHandler.ts` | artifact socket read/update/create/delete | `crates/vibe-server` | `api/socket.rs` | planned | auxiliary artifact socket APIs stay in the unified socket transport module; shared DTOs remain in `api/types.rs` |
+| `packages/happy-server/sources/app/api/socket/accessKeyHandler.ts` | access-key socket lookup | `crates/vibe-server` | `api/socket.rs` | planned | auxiliary access-key socket APIs stay in the unified socket transport module; shared DTOs remain in `api/types.rs` |
 | `packages/happy-server/sources/app/api/socket/usageHandler.ts` | usage-report socket helper surface | `crates/vibe-server` | `api/socket.rs` | planned | pass-B auxiliary socket API owned jointly by `socket-updates` transport and `account-and-usage` service |
 | `packages/happy-server/sources/app/presence/sessionCache.ts` | session/machine validation cache and batched activeAt flush | `crates/vibe-server` | `presence/cache.rs` | planned | lock 30s TTL, 30s threshold, 5s flush interval |
 | `packages/happy-server/sources/app/presence/timeout.ts` | session/machine inactivity timeout sweeper | `crates/vibe-server` | `presence/timeout.rs` | planned | lock 10 minute timeout and 1 minute sweep |
-| `packages/happy-server/sources/app/kv/*` | KV business logic helpers | `crates/vibe-server` | `api/kv.rs` | planned | keep KV ownership explicit outside generic router setup |
+| `packages/happy-server/sources/app/kv/*` | KV business logic helpers | `crates/vibe-server` | `api/utility.rs` | planned | keep KV ownership explicit, even though the phase-one implementation groups support APIs into one module |
 | `packages/happy-server/sources/storage/db.ts` | primary relational storage bootstrap | `crates/vibe-server` | `storage/db.rs` | planned | relational persistence owner |
 | `packages/happy-server/sources/storage/inTx.ts` | transaction wrapper helpers | `crates/vibe-server` | `storage/tx.rs` | planned | stays with relational storage, not a generic server helper layer |
 | `packages/happy-server/sources/storage/seq.ts` | monotonic sequence allocation helpers | `crates/vibe-server` | `storage/seq.rs` | planned | used by sessions/events through `storage-db` |
+| `packages/happy-server/prisma/*` | relational schema and migration history | `crates/vibe-server` | `migrations/` | planned | owned by `storage-db`; SQLx migrations must preserve parity-critical storage concepts from this tree |
 | `packages/happy-server/sources/storage/redis.ts` | Redis-backed cache/queue integration | `crates/vibe-server` | `storage/redis.rs` | planned | cache and fanout support owned by `storage-redis` |
 | `packages/happy-server/sources/storage/files.ts` | object storage accessors and file refs | `crates/vibe-server` | `storage/files.rs` | planned | primary file/blob storage module |
-| `packages/happy-server/sources/storage/types.ts` | file/image reference types | `crates/vibe-server` | `storage/types.rs` | planned | shared file-storage DTOs stay with `storage-files` |
+| `packages/happy-server/sources/storage/types.ts` | file/image reference types | `crates/vibe-server` | `storage/files.rs` | planned | phase-one file/image reference types live with the storage implementation module |
 | `packages/happy-server/sources/storage/uploadImage.ts` | storage-layer upload composition for images | `crates/vibe-server` | `storage/files.rs` | planned | keep upload orchestration with file storage; image transforms are layered separately |
 | `packages/happy-server/sources/storage/repeatKey.ts` | repeated-upload dedupe helper | `crates/vibe-server` | `storage/files.rs` | planned | file-storage helper, not its own subsystem |
 | `packages/happy-server/sources/storage/simpleCache.ts` | storage-local cache helper | `crates/vibe-server` | `storage/redis.rs` | planned | keep local cache helpers inside the cache/storage boundary |
@@ -86,7 +90,7 @@
 | `packages/happy-server/sources/storage/processImage.ts` | image normalization pipeline | `crates/vibe-server` | `storage/process_image.rs` | planned | owned by `image-processing` |
 | `packages/happy-server/sources/storage/thumbhash.ts` | thumbhash placeholder helper | `crates/vibe-server` | `storage/thumbhash.rs` | planned | owned by `image-processing` |
 | `packages/happy-server/sources/modules/encrypt.ts` | server-local symmetric encryption bootstrap | `crates/vibe-server` | `auth/` | planned | keep server-owned secret handling with auth/config bootstrap; do not fork shared crypto rules elsewhere |
-| `packages/happy-server/sources/modules/github.ts` | GitHub app/webhook bootstrap helpers | `crates/vibe-server` | `github/` | planned | provider bootstrap stays with the GitHub integration module |
+| `packages/happy-server/sources/modules/github.ts` | GitHub app/webhook bootstrap helpers | `crates/vibe-server` | `api/connect.rs` | planned | provider bootstrap stays with the GitHub/connect integration module during phase one |
 | `packages/happy-server/sources/utils/*` | crate-local helper functions | `crates/vibe-server` | caller-owned helper files | planned | helpers stay with the nearest subsystem under `config`, `api`, `events`, `storage`, or domain modules; no standalone `utils` target |
 | `packages/happy-agent/src/config.ts` | env and home-path resolution | `crates/vibe-agent` | `config.rs` | planned | foundational config/bootstrap module |
 | `packages/happy-agent/src/auth.ts` | account auth flow | `crates/vibe-agent` | `auth.rs` | planned | QR auth and token persistence |
@@ -97,7 +101,11 @@
 | `packages/happy-agent/src/machineRpc.ts` | machine-scoped RPC | `crates/vibe-agent` | `machine_rpc.rs` | planned | remote runtime control path |
 | `packages/happy-agent/src/output.ts` | human-readable and JSON CLI formatting | `crates/vibe-agent` | `output.rs` | planned | owned by `cli-output` |
 | `packages/happy-agent/src/index.ts` | binary entrypoint and command wiring | `crates/vibe-agent` | `main.rs` | planned | top-level CLI wiring stays with `cli-output`, not with transport or API modules |
+| `packages/happy-agent/bin/happy-agent.mjs` | packaged agent binary wrapper | `crates/vibe-agent` | `main.rs` | planned | CLI packaging wrapper maps to the Rust binary entrypoint |
 | `packages/happy-cli/src/index.ts` | top-level CLI entrypoint | `crates/vibe-cli` | `main.rs` | planned | owned by `bootstrap-and-commands` plan |
+| `packages/happy-cli/bin/happy.mjs` | packaged primary CLI wrapper | `crates/vibe-cli` | `main.rs` | planned | owned by `bootstrap-and-commands`; public Vibe binary remains `vibe` |
+| `packages/happy-cli/bin/happy-dev.mjs` | packaged dev-only CLI wrapper | `crates/vibe-cli` | `main.rs` | planned | compatibility-only dev entrypoint maps to the same command bootstrap surface |
+| `packages/happy-cli/bin/happy-mcp.mjs` | packaged MCP/stdin bridge wrapper | `crates/vibe-cli` | `main.rs` | planned | compatibility-only wrapper stays owned by CLI bootstrap until the MCP path is ported |
 | `packages/happy-cli/src/lib.ts` | reusable CLI bootstrap helpers | `crates/vibe-cli` | `bootstrap.rs` | planned | isolate reusable bootstrap from binary main |
 | `packages/happy-cli/src/configuration.ts` | global CLI configuration bootstrap | `crates/vibe-cli` | `config.rs` | planned | owned by `bootstrap-and-commands` plan |
 | `packages/happy-cli/src/projectPath.ts` | project path resolution | `crates/vibe-cli` | `config.rs` | planned | bootstrap path helper |
@@ -134,6 +142,8 @@
 | `packages/happy-cli/src/testing/*` | reusable CLI test scaffolding | `crates/vibe-cli` | `tests/fixtures/` | planned | integration harness and fixtures |
 | `packages/happy-cli/src/ui/*` | terminal UX | `crates/vibe-cli` | `ui/` | planned | choose Rust TUI only inside locked module plans |
 | `packages/happy-cli/src/utils/*` | shared CLI helper utilities | `crates/vibe-cli` | `utils/` | planned | internal helpers and system adapters |
+| `packages/happy-cli/scripts/*` | CLI helper scripts for launch, local development, and tool bootstrap | `crates/vibe-cli` | `bootstrap.rs` | planned | explicit owner exists before Wave 5; individual scripts must move to the consuming CLI module plan before implementation starts |
+| `packages/happy-cli/tools/*` | packaged helper tool archives and license payloads | `crates/vibe-cli` | `modules/` | planned | owned by `builtin-modules`; download/unpack behavior must stay aligned with the same module plan |
 | `packages/happy-app/package.json` | app package metadata and scripts | `packages/vibe-app` | package metadata | planned | imported by `import-and-build`; script/env renames later flow through `release-and-env` |
 | `packages/happy-app/index.ts` | app package entrypoint | `packages/vibe-app` | imported app tree | planned | baseline import owner is `import-and-build` |
 | `packages/happy-app/app.config.js` | Expo app config and identifiers | `packages/vibe-app` | app config | planned | owned by `release-and-env` and `branding-and-naming-adaptation` |
@@ -159,7 +169,10 @@
 | `packages/happy-app/sources/types/**` | app-local TypeScript type helpers | `packages/vibe-app` | imported type tree | planned | app-local type ownership stays inside the imported package unless promoted deliberately |
 | `packages/happy-app-logs/src/server.ts` | app log sidecar runtime | `crates/vibe-app-logs` | `server.rs` | planned | minimal sidecar runtime mapped by log-server plan |
 | `package.json` | root Yarn workspace and bootstrap scripts | repository root | temporary app bootstrap files | planned | import only the minimum root files documented in `modules/vibe-app/import-and-build.md` |
+| `yarn.lock` | root workspace lockfile for imported app bootstrap | repository root | temporary app bootstrap files | planned | owned by `import-and-build`; keep explicit because app baseline install depends on the locked package-manager graph |
 | `scripts/postinstall.cjs` | root postinstall patching and wire build | repository root | bootstrap install seam | planned | import, then localize so it does not hard-depend on `@slopus/happy-wire` |
+| `scripts/release.cjs` | root release/bootstrap helper used by imported app scripts | repository root | release/env bootstrap seam | planned | conditional import owned by `import-and-build`, with long-term cleanup in `release-and-env` |
+| `environments/environments.ts` | shared environment manifest referenced by imported app/release flows | repository root | release/env bootstrap seam | planned | conditional import owned by `import-and-build`; Vibe-specific env cleanup lands in `release-and-env` |
 | `patches/fix-pglite-prisma-bytes.cjs` | node_modules patch required by app install | `patches/` | imported patch file | planned | keep until app bootstrap no longer needs it |
 
 ## Migration Rule

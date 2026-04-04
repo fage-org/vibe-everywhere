@@ -11,7 +11,7 @@
 
 ## Current Phase
 
-- phase: Wave 1 `vibe-wire` is complete, Wave 2 `vibe-server` minimum spine is implemented and internally validated, Wave 3 `vibe-agent` remote-control client is implemented and validated, and Wave 4 `vibe-server` support-surface expansion is implemented and validated
+- phase: Wave 1 `vibe-wire` is complete, Wave 2 `vibe-server` minimum spine is implemented and validated, Wave 3 `vibe-agent` remote-control client is implemented and validated, and Wave 4 `vibe-server` support-surface expansion is implemented and validated
 - next milestone: begin Wave 5 `vibe-cli` local runtime and daemon implementation
 
 ## Rule

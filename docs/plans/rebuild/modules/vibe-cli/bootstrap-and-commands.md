@@ -7,6 +7,9 @@ for `vibe`.
 
 ## Happy Source Of Truth
 
+- `packages/happy-cli/bin/happy.mjs`
+- `packages/happy-cli/bin/happy-dev.mjs`
+- `packages/happy-cli/bin/happy-mcp.mjs`
 - `packages/happy-cli/src/index.ts`
 - `packages/happy-cli/src/configuration.ts`
 - `packages/happy-cli/src/projectPath.ts`

@@ -15,7 +15,8 @@ Implement file and object storage for uploads, avatars, and other blob reference
 - crate: `crates/vibe-server`
 - files:
   - `src/storage/files.rs`
-  - `src/storage/types.rs`
+  - supporting HTTP/public DTO projections continue to flow through `src/api/types.rs` where a
+    route-owned transport shape is required
 
 ## Responsibilities
 

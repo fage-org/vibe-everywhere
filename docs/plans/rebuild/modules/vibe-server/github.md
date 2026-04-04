@@ -14,9 +14,8 @@ Implement GitHub connect, disconnect, and profile retrieval behavior used by the
 
 - crate: `crates/vibe-server`
 - files:
-  - `src/github/mod.rs`
-  - `src/github/http.rs`
-  - `src/github/types.rs`
+  - `src/api/connect.rs`
+  - `src/api/types.rs`
 
 ## Responsibilities
 
@@ -32,7 +31,7 @@ Implement GitHub connect, disconnect, and profile retrieval behavior used by the
 
 - GitHub profile DTO
 - connect/disconnect handlers
-- GitHub integration service
+- GitHub integration service logic inside the shared connect module
 
 ## Data Flow
 
@@ -76,3 +75,5 @@ Implement GitHub connect, disconnect, and profile retrieval behavior used by the
 ## Locked Decisions
 
 - only GitHub integration is in scope for parity phase
+- phase-one implementation keeps GitHub-specific handlers and service logic inside
+  `src/api/connect.rs` rather than forcing a standalone `src/github/` module split

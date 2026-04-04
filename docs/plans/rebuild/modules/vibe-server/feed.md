@@ -14,9 +14,8 @@ Implement Happy-parity feed endpoints used by the imported app.
 
 - crate: `crates/vibe-server`
 - files:
-  - `src/feed/mod.rs`
-  - `src/feed/http.rs`
-  - `src/feed/types.rs`
+  - `src/api/feed.rs`
+  - `src/api/types.rs`
 
 ## Responsibilities
 
@@ -72,3 +71,5 @@ Implement Happy-parity feed endpoints used by the imported app.
 ## Locked Decisions
 
 - do not expand feed semantics during parity phase
+- phase-one implementation keeps feed handlers and service logic inside the shared API tree rather
+  than forcing a standalone `feed/` module split

@@ -6,9 +6,12 @@ Required before implementation begins:
 
 - planning tree exists and is internally consistent
 - package-to-module mapping is explicit
+- every major Happy source tree plus critical build/bootstrap inputs and transport entrypoints has an explicit owner in `shared/source-crosswalk.md`
+- target module paths in `shared/source-crosswalk.md`, project plans, and module plans agree with the current implementation layout, or the future seam is explicitly marked as deferred
 - canonical shared protocols are documented
 - each project has implementation order and acceptance criteria
 - each module plan has locked decisions and test requirements
+- completion claims in `PLAN.md`, `master-summary.md`, `execution-plan.md`, and `execution-batches.md` are consistent with any open remediation sections in the owning project plans
 
 ## Shared Contract Phase
 
@@ -63,4 +66,6 @@ For `vibe-app`:
 
 - a milestone is complete only when its project acceptance criteria and required validation set are
   both satisfied
+- implementation-order `[done]` markers do not authorize “validated complete” status claims while
+  blocking remediation remains open in the owning project plan
 - no downstream milestone may begin with knowingly unstable upstream shared contracts

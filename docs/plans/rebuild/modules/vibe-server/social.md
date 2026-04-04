@@ -12,10 +12,8 @@ Implement relationship, friend, and username social APIs expected by the importe
 
 - crate: `crates/vibe-server`
 - files:
-  - `src/social/mod.rs`
-  - `src/social/http.rs`
-  - `src/social/service.rs`
-  - `src/social/types.rs`
+  - `src/api/social.rs`
+  - `src/api/types.rs`
 
 ## Responsibilities
 
@@ -76,3 +74,5 @@ Implement relationship, friend, and username social APIs expected by the importe
 
 - preserve Happy endpoint semantics first
 - keep notifications behind explicit service hooks
+- phase-one implementation keeps social handlers and service logic inside the shared API tree rather
+  than forcing a standalone `social/` module split

@@ -16,8 +16,8 @@ CLI clients.
 - crate: `crates/vibe-server`
 - files:
   - `src/api/mod.rs`
-  - `src/api/routes.rs`
   - `src/api/types.rs`
+  - route-group modules under `src/api/`
 
 ## Responsibilities
 

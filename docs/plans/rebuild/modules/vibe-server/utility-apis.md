@@ -17,10 +17,8 @@ justify their own top-level domain crate during parity phase: KV, push tokens, v
 
 - crate: `crates/vibe-server`
 - files:
-  - `src/api/kv.rs`
-  - `src/api/push.rs`
-  - `src/api/version.rs`
-  - `src/api/voice.rs`
+  - `src/api/utility.rs`
+  - `src/api/types.rs`
 
 ## Responsibilities
 
@@ -96,3 +94,5 @@ justify their own top-level domain crate during parity phase: KV, push tokens, v
 
 - KV, push, version, and voice stay grouped as support APIs during parity phase; split them only if
   implementation complexity proves the group too large
+- phase-one implementation keeps these route groups in one `utility.rs` module rather than forcing a
+  one-file-per-route-family split

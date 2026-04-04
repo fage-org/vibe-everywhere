@@ -8,6 +8,9 @@ and proxy helpers.
 ## Happy Source Of Truth
 
 - `packages/happy-cli/src/modules/*`
+- `packages/happy-cli/scripts/download-tools.sh`
+- `packages/happy-cli/scripts/unpack-tools.cjs`
+- `packages/happy-cli/tools/*`
 
 ## Target Rust/Vibe Location
 

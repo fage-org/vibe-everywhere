@@ -14,7 +14,7 @@ any significant adaptation work starts.
   - `scripts/postinstall.cjs`
   - `patches/fix-pglite-prisma-bytes.cjs`
   - `environments/environments.ts` when package scripts still depend on it
-  - root release/bootstrap helpers if imported app scripts still shell out to them
+  - `scripts/release.cjs` when imported app scripts still shell out to it
 
 ## Target Rust/Vibe Location
 
@@ -69,8 +69,11 @@ Import these only if the imported app still references them after the first pack
 - `environments/environments.ts`
 - root `scripts/release.cjs`
 - `packages/happy-app/CHANGELOG.md`
-- any additional root helper script transitively required by `packages/happy-app/package.json` or
-  `packages/happy-app/release.cjs`
+
+Conditional import rule:
+
+- if audit discovers any additional required Happy root helper script, stop and add it to
+  `shared/source-crosswalk.md` before importing it
 
 ### Mandatory audit targets after import
 
@@ -98,8 +101,10 @@ Import these only if the imported app still references them after the first pack
 5. Localize or patch root postinstall behavior so it applies required patches but does not assume
    the full Happy workspace still exists.
 6. Audit and patch all root-relative references from inside `packages/vibe-app`.
-7. Record every remaining `happy` identifier that is still required for compatibility.
-8. Run install and build validation from the imported baseline before any branding or API changes.
+7. If the audit finds any additional required Happy root helper script beyond the manifest above,
+   update `shared/source-crosswalk.md` before importing it.
+8. Record every remaining `happy` identifier that is still required for compatibility.
+9. Run install and build validation from the imported baseline before any branding or API changes.
 
 ## Edge Cases And Failure Modes
 
@@ -120,6 +125,7 @@ Import these only if the imported app still references them after the first pack
 
 - `packages/vibe-app` exists as a buildable imported baseline
 - every required non-package Happy root file is listed explicitly in this plan
+- every root helper imported from Happy is pre-declared in `shared/source-crosswalk.md`
 - every known root-relative import/build assumption has an owner and a cleanup action
 
 ## Open Questions
@@ -132,6 +138,9 @@ Import these only if the imported app still references them after the first pack
 - preserve Happy directory layout initially
 - phase one explicitly imports the Happy root `package.json`, `yarn.lock`, `scripts/postinstall.cjs`,
   and `patches/fix-pglite-prisma-bytes.cjs` as bootstrap artifacts
+- `environments/environments.ts` and `scripts/release.cjs` are the only pre-authorized conditional
+  root imports; any additional Happy root helper must be added to `shared/source-crosswalk.md`
+  before import work continues
 - root postinstall behavior must be localized before first stable Vibe install; imported app
   bootstrap may temporarily reference Happy-era script logic, but it must not keep a hard runtime
   dependency on the missing Happy workspace

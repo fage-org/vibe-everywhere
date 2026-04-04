@@ -69,8 +69,11 @@ Do not introduce new Vibe-owned flows that default to `~/.happy` or `~/.happy-de
   - `VIBE_EXPERIMENTAL`
   - `VIBE_DISABLE_CAFFEINATE`
   - `VIBE_HTTP_MCP_URL`
-- app runtime variables should follow `EXPO_PUBLIC_VIBE_*` or the environment model chosen inside
-  `modules/vibe-app/release-and-env.md`
+- app runtime variables exposed to Expo/web/JS code must use the `EXPO_PUBLIC_VIBE_*` prefix
+- non-public app build, native, or release-only variables must use the `VIBE_` prefix unless an
+  owning module plan records a compatibility exception
+- `modules/vibe-app/release-and-env.md` may define the concrete variable list and profile wiring,
+  but it must not redefine these public/private prefix rules
 
 Do not introduce new public `HAPPY_*` environment variables. Temporary compatibility aliases are
 allowed only inside adapter modules and must be called out there.

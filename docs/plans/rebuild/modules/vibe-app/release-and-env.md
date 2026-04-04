@@ -76,5 +76,6 @@ Align the imported app's release, environment, and packaging behavior with the V
 ## Locked Decisions
 
 - keep release/env logic local to the app package
-- use Vibe-prefixed public env variables
+- use `EXPO_PUBLIC_VIBE_*` for app-public runtime variables exposed to Expo/web/JS code
+- use `VIBE_` for non-public build, native, and release-only app variables
 - finalize release/env behavior only after endpoint, branding, and desktop adaptation are stable

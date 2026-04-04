@@ -17,6 +17,18 @@ use crate::{
     storage::process_image::{ProcessImageError, process_image},
 };
 
+fn default_data_dir() -> PathBuf {
+    if let Some(home_dir) = std::env::var_os("VIBE_HOME_DIR") {
+        return PathBuf::from(home_dir).join("server");
+    }
+
+    if let Some(home_dir) = std::env::var_os("HOME") {
+        return PathBuf::from(home_dir).join(".vibe").join("server");
+    }
+
+    std::env::temp_dir().join("vibe-server")
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ImageRef {
     pub path: String,
@@ -105,7 +117,7 @@ pub struct FileStorage {
 
 impl Default for FileStorage {
     fn default() -> Self {
-        Self::new_for_tests(PathBuf::from("./data"), "http://127.0.0.1:3005".into())
+        Self::new_for_tests(default_data_dir(), "http://127.0.0.1:3005".into())
     }
 }
 
@@ -152,7 +164,7 @@ impl FileStorage {
     fn try_new(config: &Config) -> Result<Self, FileStorageError> {
         let data_dir = env_value(&["VIBE_DATA_DIR", "DATA_DIR"])
             .map(PathBuf::from)
-            .unwrap_or_else(|| PathBuf::from("./data"));
+            .unwrap_or_else(default_data_dir);
 
         if let Some(endpoint) = s3_endpoint_from_env() {
             let bucket = env_value(&["VIBE_S3_BUCKET", "S3_BUCKET"])

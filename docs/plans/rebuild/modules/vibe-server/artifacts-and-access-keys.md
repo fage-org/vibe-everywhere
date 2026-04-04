@@ -17,9 +17,8 @@ and runtime flows.
 - crate: `crates/vibe-server`
 - files:
   - `src/api/artifacts.rs`
-  - `src/api/access_keys.rs`
-  - `src/api/socket_artifacts.rs`
-  - `src/api/socket_access_keys.rs`
+  - `src/api/socket.rs`
+  - `src/api/types.rs`
 
 ## Responsibilities
 
@@ -102,3 +101,5 @@ and runtime flows.
 
 - artifact and access-key APIs stay grouped because both are session/machine-adjacent opaque data
   surfaces used by remote control and app sync
+- HTTP artifact and access-key handlers stay grouped in `artifacts.rs`, while auxiliary socket flows
+  stay in the shared `socket.rs` transport module
