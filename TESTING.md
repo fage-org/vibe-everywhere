@@ -15,6 +15,7 @@
 - `cargo run --example export-fixtures -p vibe-wire`
 - `yarn --cwd scripts install`
 - `yarn --cwd scripts validate:vibe-wire-fixtures`
+- `HAPPY_ROOT=/path/to/happy yarn --cwd scripts validate:vibe-wire-fixtures`
 
 ## Source Of Truth
 
@@ -28,3 +29,5 @@ Current non-Rust compatibility vectors for `vibe-wire` are published under `crat
 and are generated from the Rust fixture source of truth via `cargo run --example export-fixtures -p vibe-wire`.
 Happy-side schema validation for those published fixtures is implemented in
 `scripts/validate-vibe-wire-fixtures.mjs`.
+That validator reads Happy source files from `HAPPY_ROOT`; when `HAPPY_ROOT` is unset it falls back
+to `/root/happy` and fails fast with a clear error if the expected checkout is missing.

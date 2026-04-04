@@ -12,3 +12,4 @@ Current validation helpers:
   - owner: `vibe-wire`
   - role: validate published `crates/vibe-wire/fixtures/*.json` against Happy source-of-truth
     schemas
+  - prerequisites: a local Happy checkout at `HAPPY_ROOT` or the default `/root/happy`

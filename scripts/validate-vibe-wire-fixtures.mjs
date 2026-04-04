@@ -1,25 +1,14 @@
 #!/usr/bin/env node
 
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { access, mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import * as ts from 'typescript';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..');
 const fixtureDir = path.join(repoRoot, 'crates', 'vibe-wire', 'fixtures');
-const happyWireDir = '/root/happy/packages/happy-wire/src';
-const happyAppMessageMetaPath = '/root/happy/packages/happy-app/sources/sync/typesMessageMeta.ts';
-
-const bridgeSources = {
-  messageMeta: path.join(happyWireDir, 'messageMeta.ts'),
-  legacyProtocol: path.join(happyWireDir, 'legacyProtocol.ts'),
-  sessionProtocol: path.join(happyWireDir, 'sessionProtocol.ts'),
-  messages: path.join(happyWireDir, 'messages.ts'),
-  voice: path.join(happyWireDir, 'voice.ts'),
-  appMessageMeta: happyAppMessageMetaPath,
-};
 
 const fixtureFiles = {
   messageMeta: 'message-meta.json',
@@ -32,35 +21,76 @@ const fixtureFiles = {
 };
 
 async function main() {
-  const bridgeDir = await mkdtemp(path.join(tmpdir(), 'vibe-wire-happy-bridge-'));
+  const happyRoot = await resolveHappyRoot();
+  const bridgeSources = bridgeSourcePaths(happyRoot);
+  const bridgeBaseDir = path.join(scriptDir, '.tmp');
+  await mkdir(bridgeBaseDir, { recursive: true });
+  const bridgeDir = await mkdtemp(path.join(bridgeBaseDir, 'vibe-wire-happy-bridge-'));
 
   try {
-    await buildBridgeModules(bridgeDir);
-    const modules = await loadBridgeModules(bridgeDir);
+    await buildBridgeModules(bridgeDir, bridgeSources);
+    const modules = await loadBridgeModules(bridgeDir, bridgeSources);
     await validatePublishedFixtures(modules);
     validateOptionalNullRejections(modules);
 
-    console.log('Validated vibe-wire fixtures against Happy schemas');
+    console.log(`Validated vibe-wire fixtures against Happy schemas from ${happyRoot}`);
   } finally {
     await rm(bridgeDir, { recursive: true, force: true });
   }
 }
 
-async function buildBridgeModules(bridgeDir) {
-  await mkdir(bridgeDir, { recursive: true });
-  const packageImports = {
-    zod: import.meta.resolve('zod'),
-    cuid2: import.meta.resolve('@paralleldrive/cuid2'),
-  };
+async function resolveHappyRoot() {
+  const configuredRoot = process.env.HAPPY_ROOT?.trim();
+  const happyRoot = path.resolve(configuredRoot || '/root/happy');
+  const requiredPaths = Object.values(bridgeSourcePaths(happyRoot));
 
+  for (const requiredPath of requiredPaths) {
+    try {
+      await access(requiredPath);
+    } catch {
+      const prefix = configuredRoot
+        ? `HAPPY_ROOT=${configuredRoot}`
+        : 'default HAPPY_ROOT=/root/happy';
+      throw new Error(
+        `${prefix} does not contain the required Happy source file: ${requiredPath}\n` +
+          'Set HAPPY_ROOT to a local Happy checkout before running this validator.',
+      );
+    }
+  }
+
+  return happyRoot;
+}
+
+function bridgeSourcePaths(happyRoot) {
+  const happyWireDir = path.join(happyRoot, 'packages', 'happy-wire', 'src');
+  const happyAppMessageMetaPath = path.join(
+    happyRoot,
+    'packages',
+    'happy-app',
+    'sources',
+    'sync',
+    'typesMessageMeta.ts',
+  );
+
+  return {
+    messageMeta: path.join(happyWireDir, 'messageMeta.ts'),
+    legacyProtocol: path.join(happyWireDir, 'legacyProtocol.ts'),
+    sessionProtocol: path.join(happyWireDir, 'sessionProtocol.ts'),
+    messages: path.join(happyWireDir, 'messages.ts'),
+    voice: path.join(happyWireDir, 'voice.ts'),
+    appMessageMeta: happyAppMessageMetaPath,
+  };
+}
+
+async function buildBridgeModules(bridgeDir, bridgeSources) {
   for (const [moduleName, sourcePath] of Object.entries(bridgeSources)) {
     const source = await readFile(sourcePath, 'utf8');
-    const transformed = transformTypeScriptModule(source, packageImports);
+    const transformed = transpileTypeScriptModule(source, sourcePath);
     await writeFile(path.join(bridgeDir, `${moduleName}.mjs`), transformed);
   }
 }
 
-async function loadBridgeModules(bridgeDir) {
+async function loadBridgeModules(bridgeDir, bridgeSources) {
   const modules = {};
 
   for (const moduleName of Object.keys(bridgeSources)) {
@@ -71,19 +101,38 @@ async function loadBridgeModules(bridgeDir) {
   return modules;
 }
 
-function transformTypeScriptModule(source, packageImports) {
+function transpileTypeScriptModule(source, sourcePath) {
+  const result = ts.transpileModule(source, {
+    fileName: sourcePath,
+    reportDiagnostics: true,
+    compilerOptions: {
+      module: ts.ModuleKind.ES2022,
+      target: ts.ScriptTarget.ES2022,
+      moduleResolution: ts.ModuleResolutionKind.Bundler,
+      esModuleInterop: true,
+      skipLibCheck: true,
+    },
+  });
+
+  if (result.diagnostics?.length) {
+    const diagnostics = ts.formatDiagnosticsWithColorAndContext(result.diagnostics, {
+      getCanonicalFileName: (fileName) => fileName,
+      getCurrentDirectory: () => process.cwd(),
+      getNewLine: () => '\n',
+    });
+    throw new Error(`failed to transpile ${sourcePath}\n${diagnostics}`);
+  }
+
+  return rewriteRelativeModuleSpecifiers(result.outputText);
+}
+
+function rewriteRelativeModuleSpecifiers(source) {
   return source
-    .replace(/from 'zod'/g, `from '${packageImports.zod}'`)
-    .replace(/from '@paralleldrive\/cuid2'/g, `from '${packageImports.cuid2}'`)
-    .replace(/from '(\.\/[^']+)'/g, (_, relativePath) => `from '${relativePath}.mjs'`)
-    .replace(/,\s*type\s+[A-Za-z0-9_]+/g, '')
-    .replace(/type\s+([A-Za-z0-9_]+)\s*,/g, '$1,')
-    .replace(/export type CreateEnvelopeOptions = \{[\s\S]*?\n\};\n\n/, '')
-    .replace(/^export type .*;\n/gm, '')
     .replace(
-      'export function createEnvelope(role: SessionRole, ev: SessionEvent, opts: CreateEnvelopeOptions = {}): SessionEnvelope {',
-      'export function createEnvelope(role, ev, opts = {}) {',
-    );
+      /((?:import|export)\s[^'"]*from\s*['"])(\.\.?\/[^'"]+?)(['"])/g,
+      '$1$2.mjs$3',
+    )
+    .replace(/(import\s*\(\s*['"])(\.\.?\/[^'"]+?)(['"]\s*\))/g, '$1$2.mjs$3');
 }
 
 async function validatePublishedFixtures(modules) {
