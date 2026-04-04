@@ -31,6 +31,12 @@ struct Args {
         default_value = "https://play.google.com/store/apps/details?id=com.ex3ndr.happy"
     )]
     android_store_url: String,
+    #[arg(
+        long,
+        env = "VIBE_WEBAPP_URL",
+        default_value = "https://app.vibe.engineering"
+    )]
+    webapp_url: String,
 }
 
 #[derive(Debug, Clone)]
@@ -42,6 +48,7 @@ pub struct Config {
     pub android_up_to_date: String,
     pub ios_store_url: String,
     pub android_store_url: String,
+    pub webapp_url: String,
 }
 
 #[derive(Debug, Error)]
@@ -84,6 +91,7 @@ impl Config {
             android_up_to_date: args.android_up_to_date,
             ios_store_url: args.ios_store_url,
             android_store_url: args.android_store_url,
+            webapp_url: args.webapp_url,
         })
     }
 
@@ -106,6 +114,7 @@ mod tests {
             android_up_to_date: ">=1.0.0".into(),
             ios_store_url: "ios".into(),
             android_store_url: "android".into(),
+            webapp_url: "https://app.vibe.engineering".into(),
         };
 
         assert_eq!(cfg.bind_addr(), "127.0.0.1:4123".parse().unwrap());
@@ -121,6 +130,7 @@ mod tests {
             android_up_to_date: ">=1.0.0".into(),
             ios_store_url: "ios".into(),
             android_store_url: "android".into(),
+            webapp_url: "https://app.vibe.engineering".into(),
         })
         .unwrap_err();
 
@@ -137,6 +147,7 @@ mod tests {
             android_up_to_date: ">=1.0.0".into(),
             ios_store_url: "ios".into(),
             android_store_url: "android".into(),
+            webapp_url: "https://app.vibe.engineering".into(),
         })
         .unwrap_err();
 

@@ -484,9 +484,17 @@ fn register_aux_handlers(socket: SocketRef, ctx: AppContext, auth: SocketConnect
                         }));
                     }
                     crate::storage::db::ArtifactCreateOutcome::Created(artifact) => {
-                        let _ =
-                            ctx.events()
-                                .publish_new_artifact(ctx.db(), &auth.user_id, &artifact);
+                        if ctx
+                            .events()
+                            .publish_new_artifact(ctx.db(), &auth.user_id, &artifact)
+                            .is_err()
+                        {
+                            let _ = ack.send(&json!({
+                                "result": "error",
+                                "message": "Internal error"
+                            }));
+                            return;
+                        }
                         let _ = ack.send(&json!({
                             "result": "success",
                             "artifact": {
@@ -593,13 +601,23 @@ fn register_aux_handlers(socket: SocketRef, ctx: AppContext, auth: SocketConnect
                 });
                 match result {
                     Ok((response, header, body)) => {
-                        let _ = ctx.events().publish_update_artifact(
-                            ctx.db(),
-                            &auth.user_id,
-                            &payload.artifact_id,
-                            header,
-                            body,
-                        );
+                        if ctx
+                            .events()
+                            .publish_update_artifact(
+                                ctx.db(),
+                                &auth.user_id,
+                                &payload.artifact_id,
+                                header,
+                                body,
+                            )
+                            .is_err()
+                        {
+                            let _ = ack.send(&json!({
+                                "result": "error",
+                                "message": "Internal error"
+                            }));
+                            return;
+                        }
                         let _ = ack.send(&response);
                     }
                     Err(response) => {
@@ -634,9 +652,14 @@ fn register_aux_handlers(socket: SocketRef, ctx: AppContext, auth: SocketConnect
                 let _ = ack.send(&json!({"result": "error", "message": "Artifact not found"}));
                 return;
             }
-            let _ =
-                ctx.events()
-                    .publish_delete_artifact(ctx.db(), &auth.user_id, &payload.artifact_id);
+            if ctx
+                .events()
+                .publish_delete_artifact(ctx.db(), &auth.user_id, &payload.artifact_id)
+                .is_err()
+            {
+                let _ = ack.send(&json!({"result": "error", "message": "Internal error"}));
+                return;
+            }
             let _ = ack.send(&json!({"result": "success"}));
         },
     );
@@ -683,6 +706,7 @@ mod tests {
             android_up_to_date: ">=1.4.1".into(),
             ios_store_url: "ios-store".into(),
             android_store_url: "android-store".into(),
+            webapp_url: "https://app.vibe.engineering".into(),
         }
     }
 
@@ -1839,6 +1863,148 @@ mod tests {
         assert_eq!(
             other_payload["message"],
             "Artifact with this ID already exists for another account"
+        );
+    }
+
+    #[tokio::test]
+    async fn artifact_create_surfaces_publish_failure_after_persisting_record() {
+        let ctx = AppContext::new(test_config());
+        let account = ctx.db().upsert_account_by_public_key("artifact-create-publish-error");
+        let token = ctx.auth().create_token(&account.id, None);
+        ctx.db().write(|state| {
+            state.accounts.remove(&account.id);
+        });
+        let io = build_test_io(ctx.clone());
+        let (tx, mut rx) = io
+            .new_dummy_sock("/", serde_json::json!({ "token": token }))
+            .await;
+
+        let _ = recv_message(&mut rx).await;
+
+        let artifact_id = uuid::Uuid::now_v7().to_string();
+        tx.send(encode_event(
+            "artifact-create",
+            json!({
+                "id": artifact_id,
+                "header": "header",
+                "body": "body",
+                "dataEncryptionKey": "dek"
+            }),
+            Some(27),
+        ))
+        .await
+        .unwrap();
+
+        let mut ack_packet = recv_until_ack(&mut rx, 27).await;
+        let payload: JsonValue = decode_event_payload(&mut ack_packet, false);
+        assert_eq!(payload["result"], "error");
+        assert_eq!(payload["message"], "Internal error");
+        assert!(ctx.db().read(|state| state.artifacts.contains_key(&artifact_id)));
+    }
+
+    #[tokio::test]
+    async fn artifact_update_surfaces_publish_failure_after_persisting_change() {
+        let ctx = AppContext::new(test_config());
+        let account = ctx.db().upsert_account_by_public_key("artifact-update-publish-error");
+        let token = ctx.auth().create_token(&account.id, None);
+        let artifact_id = uuid::Uuid::now_v7().to_string();
+        ctx.db().write(|state| {
+            state.artifacts.insert(
+                artifact_id.clone(),
+                crate::storage::db::ArtifactRecord {
+                    id: artifact_id.clone(),
+                    account_id: account.id.clone(),
+                    header: "header-1".into(),
+                    header_version: 1,
+                    body: "body-1".into(),
+                    body_version: 1,
+                    data_encryption_key: "dek".into(),
+                    seq: 0,
+                    created_at: crate::storage::db::now_ms(),
+                    updated_at: crate::storage::db::now_ms(),
+                },
+            );
+            state.accounts.remove(&account.id);
+        });
+        let io = build_test_io(ctx.clone());
+        let (tx, mut rx) = io
+            .new_dummy_sock("/", serde_json::json!({ "token": token }))
+            .await;
+
+        let _ = recv_message(&mut rx).await;
+
+        tx.send(encode_event(
+            "artifact-update",
+            json!({
+                "artifactId": artifact_id,
+                "header": {
+                    "data": "header-2",
+                    "expectedVersion": 1
+                }
+            }),
+            Some(28),
+        ))
+        .await
+        .unwrap();
+
+        let mut ack_packet = recv_until_ack(&mut rx, 28).await;
+        let payload: JsonValue = decode_event_payload(&mut ack_packet, false);
+        assert_eq!(payload["result"], "error");
+        assert_eq!(payload["message"], "Internal error");
+        let artifact = ctx
+            .db()
+            .read(|state| state.artifacts.get(&artifact_id).cloned())
+            .expect("artifact should still exist");
+        assert_eq!(artifact.header, "header-2");
+        assert_eq!(artifact.header_version, 2);
+    }
+
+    #[tokio::test]
+    async fn artifact_delete_surfaces_publish_failure_after_deleting_record() {
+        let ctx = AppContext::new(test_config());
+        let account = ctx.db().upsert_account_by_public_key("artifact-delete-publish-error");
+        let token = ctx.auth().create_token(&account.id, None);
+        let artifact_id = uuid::Uuid::now_v7().to_string();
+        ctx.db().write(|state| {
+            state.artifacts.insert(
+                artifact_id.clone(),
+                crate::storage::db::ArtifactRecord {
+                    id: artifact_id.clone(),
+                    account_id: account.id.clone(),
+                    header: "header".into(),
+                    header_version: 1,
+                    body: "body".into(),
+                    body_version: 1,
+                    data_encryption_key: "dek".into(),
+                    seq: 0,
+                    created_at: crate::storage::db::now_ms(),
+                    updated_at: crate::storage::db::now_ms(),
+                },
+            );
+            state.accounts.remove(&account.id);
+        });
+        let io = build_test_io(ctx.clone());
+        let (tx, mut rx) = io
+            .new_dummy_sock("/", serde_json::json!({ "token": token }))
+            .await;
+
+        let _ = recv_message(&mut rx).await;
+
+        tx.send(encode_event(
+            "artifact-delete",
+            json!({ "artifactId": artifact_id }),
+            Some(29),
+        ))
+        .await
+        .unwrap();
+
+        let mut ack_packet = recv_until_ack(&mut rx, 29).await;
+        let payload: JsonValue = decode_event_payload(&mut ack_packet, false);
+        assert_eq!(payload["result"], "error");
+        assert_eq!(payload["message"], "Internal error");
+        assert!(
+            ctx.db()
+                .read(|state| !state.artifacts.contains_key(&artifact_id))
         );
     }
 

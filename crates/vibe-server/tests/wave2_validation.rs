@@ -24,6 +24,7 @@ fn test_context() -> AppContext {
         android_up_to_date: ">=1.4.1".into(),
         ios_store_url: "ios-store".into(),
         android_store_url: "android-store".into(),
+        webapp_url: "https://app.vibe.engineering".into(),
     })
 }
 

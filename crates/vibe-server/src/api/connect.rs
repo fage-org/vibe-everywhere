@@ -84,44 +84,43 @@ async fn github_callback(
     State(ctx): State<AppContext>,
     Query(query): Query<GithubCallbackQuery>,
 ) -> Redirect {
+    let webapp_url = ctx.config().webapp_url.trim_end_matches('/').to_string();
     let Some(code) = query.code else {
-        return Redirect::to("https://app.happy.engineering?error=missing_code");
+        return redirect_to_webapp(&webapp_url, "error=missing_code");
     };
     let Some(state) = query.state else {
-        return Redirect::to("https://app.happy.engineering?error=invalid_state");
+        return redirect_to_webapp(&webapp_url, "error=invalid_state");
     };
     let Some(user_id) = ctx.auth().verify_github_state_token(&state) else {
-        return Redirect::to("https://app.happy.engineering?error=invalid_state");
+        return redirect_to_webapp(&webapp_url, "error=invalid_state");
     };
 
     let Some(client_id) = std::env::var("GITHUB_CLIENT_ID")
         .ok()
         .filter(|value| !value.is_empty())
     else {
-        return Redirect::to("https://app.happy.engineering?error=server_config");
+        return redirect_to_webapp(&webapp_url, "error=server_config");
     };
     let Some(client_secret) = std::env::var("GITHUB_CLIENT_SECRET")
         .ok()
         .filter(|value| !value.is_empty())
     else {
-        return Redirect::to("https://app.happy.engineering?error=server_config");
+        return redirect_to_webapp(&webapp_url, "error=server_config");
     };
 
     match complete_github_callback(&ctx, &user_id, &client_id, &client_secret, &code).await {
-        Ok(login) => Redirect::to(&format!(
-            "https://app.happy.engineering?github=connected&user={}",
-            urlencoding::encode(&login)
-        )),
-        Err(GithubCallbackError::Oauth(error)) => Redirect::to(&format!(
-            "https://app.happy.engineering?error={}",
-            urlencoding::encode(&error)
-        )),
+        Ok(login) => redirect_to_webapp(
+            &webapp_url,
+            &format!("github=connected&user={}", urlencoding::encode(&login)),
+        ),
+        Err(GithubCallbackError::Oauth(error)) => redirect_to_webapp(
+            &webapp_url,
+            &format!("error={}", urlencoding::encode(&error)),
+        ),
         Err(GithubCallbackError::GithubUserFetchFailed) => {
-            Redirect::to("https://app.happy.engineering?error=github_user_fetch_failed")
+            redirect_to_webapp(&webapp_url, "error=github_user_fetch_failed")
         }
-        Err(GithubCallbackError::ServerError) => {
-            Redirect::to("https://app.happy.engineering?error=server_error")
-        }
+        Err(GithubCallbackError::ServerError) => redirect_to_webapp(&webapp_url, "error=server_error"),
     }
 }
 
@@ -452,12 +451,35 @@ fn separate_name(name: Option<&str>) -> (Option<String>, Option<String>) {
     (first, last)
 }
 
+fn redirect_to_webapp(base_url: &str, query: &str) -> Redirect {
+    Redirect::to(&format!("{}?{}", base_url.trim_end_matches('/'), query))
+}
+
 #[cfg(test)]
 mod tests {
-    use axum::{body::to_bytes, response::IntoResponse};
+    use axum::{
+        body::to_bytes,
+        extract::{Query, State},
+        response::IntoResponse,
+    };
     use serde_json::Value;
 
-    use super::verify_github_webhook;
+    use crate::{config::Config, context::AppContext};
+
+    use super::{GithubCallbackQuery, github_callback, redirect_to_webapp, verify_github_webhook};
+
+    fn test_config() -> Config {
+        Config {
+            host: "127.0.0.1".parse().unwrap(),
+            port: 3005,
+            master_secret: "secret".into(),
+            ios_up_to_date: ">=1.4.1".into(),
+            android_up_to_date: ">=1.4.1".into(),
+            ios_store_url: "ios-store".into(),
+            android_store_url: "android-store".into(),
+            webapp_url: "https://app.vibe.example/".into(),
+        }
+    }
 
     #[test]
     fn github_webhook_signature_mismatch_uses_happy_500_error_shape() {
@@ -486,5 +508,38 @@ mod tests {
         let bytes = to_bytes(body, usize::MAX).await.unwrap();
         let json: Value = serde_json::from_slice(&bytes).unwrap();
         assert_eq!(json["error"], "Internal server error");
+    }
+
+    #[test]
+    fn redirect_to_webapp_trims_trailing_slash() {
+        let response = redirect_to_webapp("https://app.vibe.example/", "error=invalid_state")
+            .into_response();
+        let location = response
+            .headers()
+            .get(axum::http::header::LOCATION)
+            .and_then(|value| value.to_str().ok());
+        assert_eq!(
+            location,
+            Some("https://app.vibe.example?error=invalid_state")
+        );
+    }
+
+    #[tokio::test]
+    async fn github_callback_uses_configured_vibe_webapp_url_for_missing_code() {
+        let ctx = AppContext::new(test_config());
+        let response = github_callback(
+            State(ctx),
+            Query(GithubCallbackQuery {
+                code: None,
+                state: Some("state".into()),
+            }),
+        )
+        .await
+        .into_response();
+        let location = response
+            .headers()
+            .get(axum::http::header::LOCATION)
+            .and_then(|value| value.to_str().ok());
+        assert_eq!(location, Some("https://app.vibe.example?error=missing_code"));
     }
 }
