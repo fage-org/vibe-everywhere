@@ -84,3 +84,5 @@ daemon, sandbox, persistence, resume, and terminal interaction.
 
 - major CLI UX redesign
 - new providers not represented in Happy
+- deeper provider-native parity for wrapper-backed Wave 5 runtimes after end-to-end compatibility is
+  validated

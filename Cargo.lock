@@ -3500,6 +3500,28 @@ version = "0.0.0"
 [[package]]
 name = "vibe-cli"
 version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "clap",
+ "directories",
+ "dryoc",
+ "futures-util",
+ "hostname",
+ "qrcode",
+ "reqwest 0.13.2",
+ "rust_socketio",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
+ "url",
+ "uuid",
+ "vibe-agent",
+ "vibe-server",
+ "vibe-wire",
+]
 
 [[package]]
 name = "vibe-server"

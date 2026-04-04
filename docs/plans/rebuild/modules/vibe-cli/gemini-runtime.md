@@ -70,3 +70,5 @@ Implement the Gemini runtime path for the local CLI.
 ## Locked Decisions
 
 - keep Gemini-specific config parsing local to the provider module
+- Wave 5 may use a wrapper-backed runtime adapter while preserving the Gemini-owned module
+  boundary; deeper provider-native parity is deferred until after the compatibility gate is green

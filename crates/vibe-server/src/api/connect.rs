@@ -120,7 +120,9 @@ async fn github_callback(
         Err(GithubCallbackError::GithubUserFetchFailed) => {
             redirect_to_webapp(&webapp_url, "error=github_user_fetch_failed")
         }
-        Err(GithubCallbackError::ServerError) => redirect_to_webapp(&webapp_url, "error=server_error"),
+        Err(GithubCallbackError::ServerError) => {
+            redirect_to_webapp(&webapp_url, "error=server_error")
+        }
     }
 }
 
@@ -512,8 +514,8 @@ mod tests {
 
     #[test]
     fn redirect_to_webapp_trims_trailing_slash() {
-        let response = redirect_to_webapp("https://app.vibe.example/", "error=invalid_state")
-            .into_response();
+        let response =
+            redirect_to_webapp("https://app.vibe.example/", "error=invalid_state").into_response();
         let location = response
             .headers()
             .get(axum::http::header::LOCATION)
@@ -540,6 +542,9 @@ mod tests {
             .headers()
             .get(axum::http::header::LOCATION)
             .and_then(|value| value.to_str().ok());
-        assert_eq!(location, Some("https://app.vibe.example?error=missing_code"));
+        assert_eq!(
+            location,
+            Some("https://app.vibe.example?error=missing_code")
+        );
     }
 }

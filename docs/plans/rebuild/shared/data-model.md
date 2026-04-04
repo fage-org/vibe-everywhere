@@ -1042,7 +1042,7 @@ Canonical serialized union:
   - `username?: string`
   - `arch?: string`
   - `displayName?: string`
-  - `cliAvailability?: { claude: boolean, codex: boolean, gemini: boolean, openclaw: boolean, detectedAt: number }`
+  - `cliAvailability?: { claude: boolean, codex: boolean, gemini: boolean, openclaw: boolean, acp?: boolean, detectedAt: number }`
   - `resumeSupport?: { rpcAvailable: boolean, requiresSameMachine: boolean, requiresHappyAgentAuth: boolean, happyAgentAuthenticated: boolean, detectedAt: number }`
 - not canonical machine-metadata-on-write:
   - `daemonLastKnownStatus`

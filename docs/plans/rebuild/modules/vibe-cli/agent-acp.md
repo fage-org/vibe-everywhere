@@ -73,3 +73,6 @@ Implement ACP-specific runtime support and session management used by the CLI.
 
 - ACP remains a first-class provider path
 - ACP state handling stays isolated from other provider runtimes
+- Wave 5 may route ACP through a wrapper-backed runtime while preserving ACP-owned session
+  management boundaries; deeper ACP-native parity is deferred until after the compatibility gate is
+  green

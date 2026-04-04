@@ -87,3 +87,6 @@ CLI.
 ## Locked Decisions
 
 - test scaffolding lives with the CLI crate and is not shared as runtime code
+- shared helpers live under `tests/fixtures/`, while Cargo integration entrypoints may remain flat
+  `tests/*.rs` crates during Wave 5 as long as they reuse the shared harnesses instead of
+  re-creating setup logic

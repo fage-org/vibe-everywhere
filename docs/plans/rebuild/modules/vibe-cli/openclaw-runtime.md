@@ -70,3 +70,5 @@ Implement the OpenClaw runtime path for the local CLI.
 ## Locked Decisions
 
 - provider-specific socket/auth logic remains isolated from shared transport
+- Wave 5 may use a wrapper-backed runtime adapter while preserving the OpenClaw-owned module
+  boundary; deeper provider-native parity is deferred until after the compatibility gate is green

@@ -75,3 +75,5 @@ Implement local runtime sandboxing and permission policy handling.
 
 - sandbox behavior is mediated by one manager abstraction
 - unsupported modes must fail clearly rather than silently degrade
+- during Wave 5 parity, workspace sandbox is Claude-only until equivalent enforcement exists for
+  the remaining provider paths

@@ -1869,7 +1869,9 @@ mod tests {
     #[tokio::test]
     async fn artifact_create_surfaces_publish_failure_after_persisting_record() {
         let ctx = AppContext::new(test_config());
-        let account = ctx.db().upsert_account_by_public_key("artifact-create-publish-error");
+        let account = ctx
+            .db()
+            .upsert_account_by_public_key("artifact-create-publish-error");
         let token = ctx.auth().create_token(&account.id, None);
         ctx.db().write(|state| {
             state.accounts.remove(&account.id);
@@ -1899,13 +1901,18 @@ mod tests {
         let payload: JsonValue = decode_event_payload(&mut ack_packet, false);
         assert_eq!(payload["result"], "error");
         assert_eq!(payload["message"], "Internal error");
-        assert!(ctx.db().read(|state| state.artifacts.contains_key(&artifact_id)));
+        assert!(
+            ctx.db()
+                .read(|state| state.artifacts.contains_key(&artifact_id))
+        );
     }
 
     #[tokio::test]
     async fn artifact_update_surfaces_publish_failure_after_persisting_change() {
         let ctx = AppContext::new(test_config());
-        let account = ctx.db().upsert_account_by_public_key("artifact-update-publish-error");
+        let account = ctx
+            .db()
+            .upsert_account_by_public_key("artifact-update-publish-error");
         let token = ctx.auth().create_token(&account.id, None);
         let artifact_id = uuid::Uuid::now_v7().to_string();
         ctx.db().write(|state| {
@@ -1962,7 +1969,9 @@ mod tests {
     #[tokio::test]
     async fn artifact_delete_surfaces_publish_failure_after_deleting_record() {
         let ctx = AppContext::new(test_config());
-        let account = ctx.db().upsert_account_by_public_key("artifact-delete-publish-error");
+        let account = ctx
+            .db()
+            .upsert_account_by_public_key("artifact-delete-publish-error");
         let token = ctx.auth().create_token(&account.id, None);
         let artifact_id = uuid::Uuid::now_v7().to_string();
         ctx.db().write(|state| {
