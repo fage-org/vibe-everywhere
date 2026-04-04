@@ -88,6 +88,14 @@ other interested subsystems.
 - machine broadcast test
 - duplicate suppression or idempotency test if implemented
 
+## Follow-Up Status
+
+- Wave 2 hardening now requires router-owned publish helpers for session and machine durable
+  updates so account update-sequence allocation and compatibility payload shaping stop leaking into
+  service modules.
+- Wave 2 hardening also requires session and machine services to surface publish failures instead
+  of silently acknowledging successful state writes when durable fanout could not be sequenced.
+
 ## Acceptance Criteria
 
 - all live update fanout goes through one router

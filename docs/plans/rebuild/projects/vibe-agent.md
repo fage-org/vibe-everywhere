@@ -30,6 +30,18 @@ not run local providers; it controls machines and sessions remotely.
 - subcommands for auth, list, status, create, send, history, stop, wait, and machine control
 - local credential storage under `~/.vibe`
 
+## Wave 3 Feature Checklist
+
+- typed config loading from env and default `~/.vibe` paths
+- account-link auth flow with QR/deep link rendering, polling, credential persistence, logout, and status
+- shared crypto helpers for base64/base64url, key derivation, legacy secretbox, data-key AES bundles, and public-key box bundles
+- authenticated HTTP client for session list/active/create/history/delete and machine list/detail access
+- record decryption for legacy and `dataKey` session/machine payloads
+- live session Socket.IO client for update handling, send-message, stop, wait-for-idle, and turn-completion behavior
+- machine RPC client for spawn/resume flows over the shared socket RPC contract
+- stable human-readable and `--json` CLI output for every planned command
+- crate-level tests covering config, credentials, crypto, HTTP mapping, socket behavior, and CLI parsing/output
+
 ## Internal Module Map
 
 - `config`: env and path resolution
@@ -68,6 +80,22 @@ not run local providers; it controls machines and sessions remotely.
 - real account auth works
 - remote sessions can be listed, created, controlled, and monitored
 - output is stable in both human and JSON modes
+
+## Status
+
+- Wave 3 implementation is complete
+- module set matches the planned target layout
+- command surface covers auth, session list/status/create/send/history/stop/wait, and machine
+  spawn/resume control
+
+## Validation Status
+
+- `cargo check --workspace`
+- `cargo test -p vibe-agent`
+- real `vibe-server` integration coverage exercises auth persistence, session CRUD/control, lossy
+  decrypt handling, and idle waiting
+- mocked socket/CLI coverage exercises `vibe-agent` machine RPC spawn/resume flows
+- `vibe-server` socket-layer tests exercise RPC register/call/unregister transport behavior
 
 ## Deferred Items
 

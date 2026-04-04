@@ -1,3 +1,4 @@
-fn main() {
-    eprintln!("vibe-server is in planning/bootstrap mode");
+#[tokio::main]
+async fn main() -> Result<(), vibe_server::ServerError> {
+    vibe_server::run().await
 }

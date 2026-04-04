@@ -45,9 +45,13 @@ Implement file and object storage for uploads, avatars, and other blob reference
 ## Implementation Steps
 
 1. Port storage reference types.
-2. Implement S3-compatible object storage service.
-3. Add optional local filesystem adapter only for development/testing.
-4. Add upload/retrieve tests against a MinIO-compatible target.
+2. Implement a backend seam that can switch between local filesystem and S3-compatible object
+   storage based on environment configuration.
+3. Persist uploaded-file reuse metadata so repeated avatar/image fetches survive process restarts
+   and match Happy's `reuseKey` behavior.
+4. Add optional local filesystem adapter only for development/testing.
+5. Add upload/retrieve tests against both the local adapter and an S3-compatible mock/test target,
+   keeping the test contract aligned with the later MinIO integration surface.
 
 ## Edge Cases And Failure Modes
 
@@ -60,10 +64,14 @@ Implement file and object storage for uploads, avatars, and other blob reference
 - object upload test
 - reference serialization test
 - local adapter smoke test
+- persisted reuse-key test
+- S3-compatible adapter contract test
 
 ## Acceptance Criteria
 
 - app-facing blob references and uploads work with stable reference types
+- repeated `uploadImage`-style requests with the same reuse key return the same stored reference
+- production configuration can select an S3-compatible backend without changing caller code
 
 ## Open Questions
 

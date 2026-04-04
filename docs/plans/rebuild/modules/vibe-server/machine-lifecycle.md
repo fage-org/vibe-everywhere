@@ -94,6 +94,12 @@ updates, and machine-scoped coordination required by remote control.
 - machine-alive to presence integration test
 - machine update emission test
 
+## Follow-Up Status
+
+- Wave 2 machine-registration hardening keeps the initial compatibility fanout aligned with Happy:
+  `new-machine` carries the full bootstrap record, while the immediate compatibility
+  `update-machine` backfill only repeats metadata.
+
 ## Acceptance Criteria
 
 - machine registration and lookup work for imported app and CLI flows

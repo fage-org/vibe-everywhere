@@ -110,6 +110,12 @@ CLI clients.
 - per-domain happy-path JSON shape tests
 - error mapping tests
 
+## Follow-Up Status
+
+- Wave 2 validation hardening completed for pass-A HTTP routes, including automated coverage for
+  `/v2` session queries, forward-paged `/v3` history reads, machine listing, and delete-path
+  regressions.
+
 ## Acceptance Criteria
 
 - versioned routes are registered and documented

@@ -99,6 +99,15 @@ Implement the Socket.IO-compatible update transport used for session and machine
 - session-scoped update broadcast test
 - machine-scoped update broadcast test
 
+## Follow-Up Status
+
+- Wave 2 socket/update hardening completed for late durable update shaping and service-triggered
+  fanout, with direct regression coverage for `new-session`, `delete-session`, and `new-machine`
+  update delivery paths.
+- Wave 2 socket/update hardening now also requires machine connect/disconnect lifecycle activity to
+  flow through `presence` instead of ad hoc ephemeral emits so user-scoped activity updates stay
+  consistent with persisted liveness.
+
 ## Acceptance Criteria
 
 - Happy-style socket clients can connect and receive scoped updates

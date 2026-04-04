@@ -11,8 +11,8 @@
 
 ## Current Phase
 
-- phase: Wave 1 `vibe-wire` complete with exported compatibility vectors under `crates/vibe-wire/fixtures/` and Happy-schema validation coverage; Wave 2 `vibe-server` minimum spine is ready to start
-- next milestone: implement Wave 2 `vibe-server`, starting with `modules/vibe-server/versions-and-config.md`
+- phase: Wave 1 `vibe-wire` is complete, Wave 2 `vibe-server` minimum spine is implemented and internally validated, Wave 3 `vibe-agent` remote-control client is implemented and validated, and Wave 4 `vibe-server` support-surface expansion is implemented and validated
+- next milestone: begin Wave 5 `vibe-cli` local runtime and daemon implementation
 
 ## Rule
 

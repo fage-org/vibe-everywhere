@@ -5,6 +5,12 @@
 Implement Redis-backed ephemeral state used for updates, presence, queues, and short-lived auth
 flows.
 
+## Wave 2 Bootstrap Note
+
+Wave 2 may start with a process-local ephemeral store behind this module while the server remains a
+single-instance backend. The Redis adapter remains the long-term target, but the initial minimum
+spine may ship if the same typed helper surface is preserved for auth/presence consumers.
+
 ## Happy Source Of Truth
 
 - `packages/happy-server/sources/storage/redis.ts`
@@ -60,9 +66,17 @@ flows.
 - TTL behavior test
 - Redis outage handling test
 
+## Follow-Up Status
+
+- Wave 2 bootstrap hardening now requires auth and presence consumers to use typed helpers from
+  this module even while the backing store remains process-local, so the later Redis adapter does
+  not require higher-level service refactors.
+
 ## Acceptance Criteria
 
 - ephemeral auth and presence flows are backed by Redis predictably
+- wave-2 bootstrap may satisfy the same interface with a process-local TTL store until the Redis
+  adapter lands
 
 ## Open Questions
 
@@ -74,3 +88,4 @@ flows.
 - key naming must stay namespaced under Vibe-specific prefixes
 - presence-specific cache and timeout policy stay owned by `presence`; this module only supplies the
   Redis client and typed storage helpers that those higher-level services consume
+- no higher-level module may parse or manage raw ephemeral keys outside this module

@@ -87,6 +87,20 @@ batched `activeAt` persistence, timeout sweeps, and ephemeral activity fanout.
 - machine timeout transition test
 - ephemeral activity emission deduplication test
 
+## Follow-Up Status
+
+- Wave 2 presence hardening completed for offline-state consistency: pending heartbeat writes are
+  now cleared on explicit and timeout-driven offline transitions, with regression coverage for
+  session-end and timeout sweep paths.
+- Wave 2 monotonic-heartbeat hardening is now completed as well: stale heartbeats no longer regress
+  emitted `activeAt`, and explicit offline-to-online heartbeat recovery restores persisted
+  `active` state immediately before broadcasting the reactivation.
+- machine socket lifecycle transitions remain presence-owned so user-scoped activity updates stay
+  aligned with persisted liveness.
+- Wave 2 seam hardening now also requires the bootstrap cache state to live behind
+  `storage-redis` typed helpers instead of a presence-owned raw in-memory map, so the later Redis
+  adapter can replace the bootstrap store without changing presence call sites.
+
 ## Acceptance Criteria
 
 - session and machine heartbeats no longer write the database on every event

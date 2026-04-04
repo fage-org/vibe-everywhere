@@ -104,27 +104,68 @@ Create the canonical Rust contract crate before any downstream project defines p
 Deliver the smallest real backend that supports account auth, sessions, machines, and live updates
 for `vibe-agent`.
 
+### Feature Inventory
+
+1. typed bootstrap/config path plus version/build metadata
+2. storage seams for accounts, auth requests, sessions, messages, machines, and monotonic sequence
+   allocation
+3. bearer-token auth plus challenge/account-link request-response flows
+4. session HTTP surface:
+   - `GET /v1/sessions`
+   - `GET /v2/sessions/active`
+   - `GET /v2/sessions`
+   - `POST /v1/sessions`
+   - `GET /v1/sessions/:sessionId/messages`
+   - `DELETE /v1/sessions/:sessionId`
+   - `GET /v3/sessions/:sessionId/messages`
+   - `POST /v3/sessions/:sessionId/messages`
+5. machine HTTP surface:
+   - `POST /v1/machines`
+   - `GET /v1/machines`
+   - `GET /v1/machines/:id`
+6. presence subsystem:
+   - validation cache
+   - heartbeat queueing
+   - batched `activeAt` persistence
+   - offline timeout sweeps
+7. internal event router for durable `new-message` / `update-session` / `update-machine` fanout and
+   ephemeral activity fanout
+8. Socket.IO-compatible `/v1/updates` transport with auth handshake plus session, machine, and RPC
+   core handlers
+9. minimum HTTP router/middleware shell that mounts auth, session, machine, and version routes
+10. validation coverage for config parsing, route behavior, optimistic concurrency, update shaping,
+    and presence timing rules
+
+### Wave 2 Bootstrap Decision
+
+- deliver a single-instance backend first
+- keep `storage-db` and `storage-redis` as the only storage seams used by the rest of the crate
+- allow the initial implementation to use process-local typed stores behind those seams so the
+  protocol-compatible server path can land before external persistence adapters
+- treat PostgreSQL/Redis adapter hardening as follow-up work behind the same storage interfaces,
+  without changing HTTP/socket contracts
+
 ### Order
 
-1. `modules/vibe-server/versions-and-config.md`
+1. `[done]` `modules/vibe-server/versions-and-config.md`
    - stand up service config, startup, and version basics
-2. `modules/vibe-server/storage-db.md`
+2. `[done]` `modules/vibe-server/storage-db.md`
    - define the primary persistence model first
-3. `modules/vibe-server/storage-redis.md`
+3. `[done]` `modules/vibe-server/storage-redis.md`
    - required before session/presence/event fanout paths that assume cache/queue support
-4. `modules/vibe-server/auth.md`
+4. `[done]` `modules/vibe-server/auth.md`
    - required before any protected HTTP or socket surface
-5. `modules/vibe-server/event-router.md` pass A
+5. `[done]` `modules/vibe-server/event-router.md` pass A
    - define internal event contracts and sequencing interfaces
-6. `modules/vibe-server/session-lifecycle.md`
+6. `[done]` `modules/vibe-server/session-lifecycle.md`
    - implement session CRUD, history, metadata, and agent-state writes
-7. `modules/vibe-server/machine-lifecycle.md`
+7. `[done]` `modules/vibe-server/machine-lifecycle.md`
    - implement machine registration, metadata, and daemon-state writes
-8. `modules/vibe-server/presence.md`
+8. `[done]` `modules/vibe-server/presence.md`
    - implement session/machine validation cache, heartbeats, and timeout rules
-9. `modules/vibe-server/socket-updates.md` pass A
+9. `[done]` `modules/vibe-server/socket-updates.md` pass A
    - implement `/v1/updates`, auth handshake, session/machine events, and RPC core
-10. `modules/vibe-server/app-api.md` pass A
+10. `[done]` `modules/vibe-server/app-api.md` pass A
    - stand up router, shared middleware, and register the minimum auth/session/machine routes
 
 ### Output
@@ -132,6 +173,8 @@ for `vibe-agent`.
 - account-linking auth works
 - session and machine records exist with live updates
 - socket updates and machine RPC core work
+- the minimum remote-control path is usable against one running `vibe-server` instance without
+  module-local protocol forks
 
 ### Gate To Next Wave
 
@@ -145,13 +188,13 @@ Ship the remote-control client against the real server before tackling local run
 
 ### Order
 
-1. `modules/vibe-agent/config.md`
-2. `modules/vibe-agent/encryption.md`
-3. `modules/vibe-agent/credentials-and-auth.md`
-4. `modules/vibe-agent/http-api-client.md`
-5. `modules/vibe-agent/session-socket-client.md`
-6. `modules/vibe-agent/machine-rpc.md`
-7. `modules/vibe-agent/cli-output.md`
+1. `[done]` `modules/vibe-agent/config.md`
+2. `[done]` `modules/vibe-agent/encryption.md`
+3. `[done]` `modules/vibe-agent/credentials-and-auth.md`
+4. `[done]` `modules/vibe-agent/http-api-client.md`
+5. `[done]` `modules/vibe-agent/session-socket-client.md`
+6. `[done]` `modules/vibe-agent/machine-rpc.md`
+7. `[done]` `modules/vibe-agent/cli-output.md`
 
 ### Why This Order
 
@@ -165,10 +208,13 @@ Ship the remote-control client against the real server before tackling local run
 ### Output
 
 - `vibe-agent` can log in, list, create, send, history, stop, wait, and issue machine RPC calls
+- validation coverage now includes unit tests, CLI smoke tests, mocked RPC tests, server-side RPC
+  socket transport tests, and real `vibe-server` end-to-end flows for auth, session control, and
+  wait behavior
 
 ### Gate To Next Wave
 
-- one real end-to-end remote-control flow works through `vibe-agent -> vibe-server`
+- `[done]` one real end-to-end remote-control flow works through `vibe-agent -> vibe-server`
 
 ## Wave 4: `vibe-server` Support Surface Expansion
 
@@ -178,22 +224,22 @@ Finish the server APIs needed by imported app flows and by the local CLI runtime
 
 ### Order
 
-1. `modules/vibe-server/storage-files.md`
-2. `modules/vibe-server/image-processing.md`
-3. `modules/vibe-server/account-and-usage.md`
-4. `modules/vibe-server/utility-apis.md`
-5. `modules/vibe-server/artifacts-and-access-keys.md`
-6. `modules/vibe-server/connect-vendors.md`
-7. `modules/vibe-server/github.md`
-8. `modules/vibe-server/social.md`
-9. `modules/vibe-server/feed.md`
-10. `modules/vibe-server/event-router.md` pass B
+1. `[done]` `modules/vibe-server/storage-files.md`
+2. `[done]` `modules/vibe-server/image-processing.md`
+3. `[done]` `modules/vibe-server/account-and-usage.md`
+4. `[done]` `modules/vibe-server/utility-apis.md`
+5. `[done]` `modules/vibe-server/artifacts-and-access-keys.md`
+6. `[done]` `modules/vibe-server/connect-vendors.md`
+7. `[done]` `modules/vibe-server/github.md`
+8. `[done]` `modules/vibe-server/social.md`
+9. `[done]` `modules/vibe-server/feed.md`
+10. `[done]` `modules/vibe-server/event-router.md` pass B
     - broaden update shaping to late support domains without changing the sequencing spine
-11. `modules/vibe-server/socket-updates.md` pass B
+11. `[done]` `modules/vibe-server/socket-updates.md` pass B
     - wire artifact/access-key/usage auxiliary socket APIs now that their services exist
-12. `modules/vibe-server/app-api.md` pass B
+12. `[done]` `modules/vibe-server/app-api.md` pass B
     - register and finalize the remaining route groups
-13. `modules/vibe-server/monitoring.md`
+13. `[done]` `modules/vibe-server/monitoring.md`
 
 ### Why This Order
 

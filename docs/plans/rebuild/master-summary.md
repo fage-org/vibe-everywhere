@@ -31,9 +31,9 @@ scripts/
 
 ## Current Phase
 
-- phase: `M1 - Shared Wire` complete; `Wave 2: vibe-server` minimum spine is ready to start
-- implementation status: `vibe-wire` implemented, validated, and published with JSON compatibility vectors under `crates/vibe-wire/fixtures/`, plus Happy-schema fixture validation; downstream subsystems not started
-- immediate goal: implement `vibe-server` minimum spine in execution-plan order, starting with `modules/vibe-server/versions-and-config.md`
+- phase: `M1 - Shared Wire`, `M2 - Server Spine`, and `M3 - Remote Agent Client` are complete; `Wave 4` server support-surface expansion is also complete and validated
+- implementation status: `vibe-wire` is implemented and validated; `vibe-server` now ships a single-instance Wave-2 spine plus the Wave-4 support surfaces covering files/images, account/settings/usage, utility APIs, artifacts/access keys, connect/GitHub, social/feed, auxiliary socket APIs, and monitoring; `vibe-agent` now ships the Wave-3 remote-control slice covering auth, HTTP session/machine control, live session socket control, machine RPC, and stable CLI output
+- immediate goal: begin `Wave 5` by implementing the `vibe-cli` local runtime, daemon, and first provider vertical slice against the now-stable server surfaces
 - authoritative execution sequence: `docs/plans/rebuild/execution-plan.md`
 - AI dispatch batches: `docs/plans/rebuild/execution-batches.md`
 
@@ -70,8 +70,8 @@ scripts/
 
 ## Current Recommended Next Modules
 
-- `modules/vibe-server/versions-and-config.md`
-- `modules/vibe-server/storage-db.md`
-- `modules/vibe-server/storage-redis.md`
-- `modules/vibe-server/auth.md`
-- `modules/vibe-server/event-router.md` pass A
+- `modules/vibe-cli/utils-and-parsers.md`
+- `modules/vibe-cli/ui-terminal.md`
+- `modules/vibe-cli/bootstrap-and-commands.md`
+- `modules/vibe-cli/agent-core.md`
+- `modules/vibe-cli/agent-adapters.md`

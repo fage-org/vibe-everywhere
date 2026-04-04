@@ -67,6 +67,11 @@ Implement server configuration, version reporting, and bootstrap-time environmen
 - version helper test
 - startup validation failure test
 
+## Follow-Up Status
+
+- Wave 2 validation hardening completed for config parsing, including automated coverage for
+  required-secret and invalid-host failures.
+
 ## Acceptance Criteria
 
 - server can start from a single typed config path

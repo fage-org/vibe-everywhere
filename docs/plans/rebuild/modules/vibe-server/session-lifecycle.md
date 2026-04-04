@@ -73,6 +73,12 @@ Implement encrypted session CRUD, message history, metadata updates, and lifecyc
 - archived-session rejection tests
 - update emission tests
 
+## Follow-Up Status
+
+- Wave 2 session hardening now requires message writes to refresh the owning session `updatedAt`
+  field so `/v1/sessions` ordering and `/v2/sessions?changedSince=` stay aligned with Happy
+  incremental-sync behavior.
+
 ## Acceptance Criteria
 
 - core session operations work and emit correct updates

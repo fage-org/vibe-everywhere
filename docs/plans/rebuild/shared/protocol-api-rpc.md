@@ -144,6 +144,8 @@ Exact request/response DTOs, error bodies, and auth-state semantics for these ro
     `404 { error: 'Session not found' }` on miss
   - current Happy reads matching reports ordered by `createdAt desc`, then returns aggregated
     buckets sorted by `timestamp asc`
+  - response body shape is
+    `{ usage: Array<{ timestamp, tokens, cost, reportCount }>, groupBy, totalReports }`
   - `500` error body: `{ error: 'Failed to query usage reports' }`
 
 ### Connect / OAuth / Vendor Integration
@@ -159,6 +161,19 @@ Exact request/response DTOs, error bodies, and auth-state semantics for these ro
 | `DELETE` | `/v1/connect/:vendor` | vendor disconnect |
 | `GET` | `/v1/connect/tokens` | list integration tokens |
 
+## Locked Connect / GitHub Semantics
+
+- `POST /v1/connect/github/webhook`
+  - success body: `{ received: true }`
+  - missing webhook configuration returns `500 { error: 'Webhooks not configured' }`
+  - current Happy routes signature verification failures through the generic
+    `500 { error: 'Internal server error' }` path
+- `DELETE /v1/connect/github`
+  - success body: `{ success: true }`
+  - disconnect clears the GitHub linkage and username while preserving avatar storage
+  - the resulting `update-account` durable fanout only carries the changed `github` and `username`
+    fields; it must not emit an `avatar` change on disconnect
+
 ### Social / Feed / User
 
 | Method | Path | Notes |
@@ -169,6 +184,40 @@ Exact request/response DTOs, error bodies, and auth-state semantics for these ro
 | `POST` | `/v1/friends/add` | add friend |
 | `POST` | `/v1/friends/remove` | remove friend |
 | `GET` | `/v1/friends` | list friends |
+
+## Locked Social / Feed HTTP Semantics
+
+- `GET /v1/user/:id`
+  - response body: `{ user: UserProfile }`
+  - `404` error body: `{ error: 'User not found' }`
+- `GET /v1/user/search`
+  - query params: `{ query: string }`
+  - response body: `{ users: UserProfile[] }`
+  - current Happy matches usernames with case-insensitive `startsWith`, sorts by username ascending,
+    and returns at most 10 users
+- `POST /v1/friends/add`
+  - request body: `{ uid: string }`
+  - response body: `{ user: UserProfile | null }`
+  - current Happy returns `200 { user: null }` when the caller targets themself or the target user
+    does not exist
+  - when a new friend request is created, the receiver feed notification is only emitted if the
+    reverse relationship passes Happy's `lastNotifiedAt` 24-hour cooldown and is not `rejected`
+- `POST /v1/friends/remove`
+  - request body: `{ uid: string }`
+  - response body: `{ user: UserProfile | null }`
+  - current Happy returns `200 { user: null }` when the target user does not exist
+- `GET /v1/friends`
+  - response body: `{ friends: UserProfile[] }`
+  - current Happy returns only relationships with status `friend`, sorted by username ascending
+- `GET /v1/feed`
+  - response body: `{ items, hasMore }`
+  - current Happy sorts by descending counter and supports `before` / `after` cursors shaped as
+    `0-<counter>`
+  - each feed item serializes `{ id, body, repeatKey, cursor, createdAt }`
+  - relationship notifications use stable repeat keys `friend_request_<uid>` and
+    `friend_accepted_<uid>`
+  - when a repeat key is reused, Happy deletes prior items with that repeat key before inserting
+    the replacement item
 
 ### KV / Push / Version / Voice
 

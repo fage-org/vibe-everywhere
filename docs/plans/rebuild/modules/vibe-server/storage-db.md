@@ -5,6 +5,16 @@
 Implement relational persistence for accounts, sessions, machines, feed, social, and related
 server state.
 
+## Wave 2 Bootstrap Note
+
+Wave 2 only needs one running server instance to unblock `vibe-agent`. The initial implementation
+may therefore keep a process-local typed store behind this module's public interfaces, as long as:
+
+- all higher-level modules depend only on `storage-db` interfaces
+- monotonic sequence allocation semantics stay stable
+- record shapes stay aligned with `shared/data-model.md`
+- later PostgreSQL work can replace the backing store without changing handler or socket contracts
+
 ## Happy Source Of Truth
 
 - `packages/happy-server/prisma/*`
@@ -72,6 +82,8 @@ server state.
 ## Acceptance Criteria
 
 - server modules can persist all parity-critical state using one relational backend
+- wave-2 bootstrap may satisfy the same interface with a process-local store until the PostgreSQL
+  adapter lands
 
 ## Open Questions
 
@@ -81,3 +93,4 @@ server state.
 
 - use PostgreSQL with `sqlx`
 - use checked SQL migrations committed to the repo
+- no higher-level module may bypass this storage seam even during the process-local bootstrap phase

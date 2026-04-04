@@ -24,16 +24,16 @@ Use this file when you want to assign work in grouped waves such as:
 
 | Batch | Focus | Blocking Output |
 | --- | --- | --- |
-| `B00` | planning freeze | all shared contracts and execution docs frozen |
-| `B01` | wire metadata and legacy/session schemas | `vibe-wire` core shape available |
-| `B02` | wire containers and voice | complete public `vibe-wire` surface |
-| `B03` | server config and storage spine | server can start and persist state |
-| `B04` | server auth, sessions, machines | minimum backend path exists |
-| `B05` | server presence, router, socket | live backend path exists |
-| `B06` | agent auth and HTTP control | agent can authenticate and call server |
-| `B07` | agent live control and CLI UX | remote-control path works end-to-end |
-| `B08` | server support APIs, files, and images | app/CLI support surface exists |
-| `B09` | server router/socket finalization and monitoring | server route/socket surface complete |
+| `[done] B00` | planning freeze | all shared contracts and execution docs frozen |
+| `[done] B01` | wire metadata and legacy/session schemas | `vibe-wire` core shape available |
+| `[done] B02` | wire containers and voice | complete public `vibe-wire` surface |
+| `[done] B03` | server config and storage spine | server can start and persist state |
+| `[done] B04` | server auth, sessions, machines | minimum backend path exists |
+| `[done] B05` | server presence, router, socket | live backend path exists |
+| `[done] B06` | agent auth and HTTP control | agent can authenticate and call server |
+| `[done] B07` | agent live control and CLI UX | remote-control path works end-to-end |
+| `[done] B08` | server support APIs, files, and images | app/CLI support surface exists |
+| `[done] B09` | server router/socket finalization and monitoring | server route/socket surface complete |
 | `B10` | CLI foundation | local CLI architecture exists |
 | `B11` | CLI daemon and local control plane | daemonized local control works |
 | `B12` | CLI first provider vertical slice | first provider runtime slice works end-to-end |
@@ -42,7 +42,7 @@ Use this file when you want to assign work in grouped waves such as:
 | `B15` | app adaptation | app works against Vibe services |
 | `B16` | optional sidecar | app-log sidecar parity if still needed |
 
-## B00: Planning Freeze
+## [done] B00: Planning Freeze
 
 ### Prerequisites
 
@@ -74,7 +74,7 @@ Use this file when you want to assign work in grouped waves such as:
 - internal document consistency
 - no missing module owner for critical-path work
 
-## B01: Wire Core Schemas
+## [done] B01: Wire Core Schemas
 
 ### Prerequisites
 
@@ -100,7 +100,7 @@ Use this file when you want to assign work in grouped waves such as:
 - JSON round-trips
 - fixture coverage for legacy and session payloads
 
-## B02: Wire Containers And Voice
+## [done] B02: Wire Containers And Voice
 
 ### Prerequisites
 
@@ -124,7 +124,7 @@ Use this file when you want to assign work in grouped waves such as:
 - update container fixtures
 - public type coverage check against `shared/source-crosswalk.md`
 
-## B03: Server Foundation
+## [done] B03: Server Foundation
 
 ### Prerequisites
 
@@ -150,7 +150,7 @@ Use this file when you want to assign work in grouped waves such as:
 - startup/config smoke test
 - storage schema and migration checks
 
-## B04: Server Minimum Durable Domain
+## [done] B04: Server Minimum Durable Domain
 
 ### Prerequisites
 
@@ -178,7 +178,7 @@ Use this file when you want to assign work in grouped waves such as:
 - session CRUD
 - machine registration and optimistic concurrency
 
-## B05: Server Live Path
+## [done] B05: Server Live Path
 
 ### Prerequisites
 
@@ -204,7 +204,7 @@ Use this file when you want to assign work in grouped waves such as:
 - heartbeat and timeout behavior
 - minimum HTTP route registration
 
-## B06: Agent Foundation
+## [done] B06: Agent Foundation
 
 ### Prerequisites
 
@@ -232,7 +232,7 @@ Use this file when you want to assign work in grouped waves such as:
 - auth login/logout/status
 - HTTP client route coverage
 
-## B07: Agent Live Control
+## [done] B07: Agent Live Control
 
 ### Prerequisites
 
@@ -259,7 +259,7 @@ Use this file when you want to assign work in grouped waves such as:
 - machine RPC
 - human and JSON output stability
 
-## B08: Server Support APIs
+## [done] B08: Server Support APIs
 
 ### Prerequisites
 
@@ -286,12 +286,70 @@ Use this file when you want to assign work in grouped waves such as:
 
 - all non-core support domains needed by imported app and local runtime have real owning services
 
+### Wave 4 Feature Inventory
+
+- storage/files:
+  - object reference types
+  - upload/store/retrieve service seam
+  - dev/test local adapter
+- image-processing:
+  - deterministic image normalize pipeline
+  - placeholder/thumbhash metadata seam
+- account-and-usage:
+  - `/v1/account/profile`
+  - `/v1/account/settings` read/write with optimistic concurrency
+  - `/v1/usage/query`
+- utility-apis:
+  - `/v1/kv/:key`
+  - `/v1/kv`
+  - `/v1/kv/bulk`
+  - `/v1/kv`
+  - `/v1/push-tokens`
+  - `/v1/push-tokens/:token`
+  - `/v1/voice/token`
+- artifacts-and-access-keys:
+  - `/v1/artifacts` CRUD
+  - `/v1/access-keys/:sessionId/:machineId` CRUD/rotate
+  - auxiliary socket artifact and access-key APIs
+- connect-vendors:
+  - `/v1/connect/:vendor/register`
+  - `/v1/connect/:vendor/token`
+  - `/v1/connect/:vendor`
+  - `/v1/connect/tokens`
+- github:
+  - `/v1/connect/github/params`
+  - `/v1/connect/github/callback`
+  - `/v1/connect/github/webhook`
+  - `/v1/connect/github`
+- social:
+  - `/v1/user/:id`
+  - `/v1/user/search`
+  - `/v1/friends`
+  - `/v1/friends/add`
+  - `/v1/friends/remove`
+- feed:
+  - `/v1/feed`
+  - durable feed update ownership for later socket/event-router wiring
+
+### Recommended Delivery Slices
+
+1. shared support storage:
+   account settings, usage reports, kv, push tokens, vendor tokens, artifact records, access keys
+2. app bootstrap routes:
+   account/profile/settings, utility APIs, connect/github bootstrap
+3. collaboration routes:
+   social and feed read/write surfaces
+4. opaque session-adjacent data:
+   artifacts and access keys over HTTP first, socket second
+5. pass-B completion:
+   late route registration, durable update shaping, auxiliary socket hooks, monitoring
+
 ### Validation Focus
 
 - route-group completeness against `shared/protocol-api-rpc.md`
 - artifact/access-key HTTP and socket compatibility
 
-## B09: Server Finalization
+## [done] B09: Server Finalization
 
 ### Prerequisites
 
@@ -311,6 +369,39 @@ Use this file when you want to assign work in grouped waves such as:
 ### Gate
 
 - server route and socket surfaces are complete enough for app and CLI integration
+
+### Wave 4 Exit Criteria
+
+- every Wave 4 HTTP route group listed in `shared/protocol-api-rpc.md` is mounted in
+  `crates/vibe-server`
+- late support-domain services own their storage and JSON shaping instead of ad hoc handler logic
+- artifact/access-key auxiliary socket APIs exist behind the already-stable `/v1/updates`
+  transport
+- pass-B event-router and app-api work broadens support-domain coverage without changing the Wave 2
+  sequencing spine
+
+### Review Remediation Checklist
+
+- HTTP route mounting alone is not sufficient; each mounted Wave 4 route must also preserve the
+  Happy-compatible request/response body shape recorded in `shared/protocol-api-rpc.md`
+- account settings, artifacts, feed, social, and related support-domain writes must emit the
+  required durable updates before Wave 4 can be called complete
+- `/v1/updates` pass-B auxiliary socket APIs and `usage-report` ingestion are required Wave 4
+  deliverables, not optional follow-up work
+- placeholder GitHub and voice stubs do not satisfy Wave 4 acceptance; these routes must either
+  implement the Happy-compatible provider flow or fail with the same compatibility-locked error
+  semantics
+- `storage-files`, `image-processing`, and `monitoring` remain part of the Wave 4 definition and
+  must not be omitted from the final completion claim
+- Wave 4 remediation also requires fixing correctness defects found during review:
+  - artifact optimistic-concurrency writes must remain atomic across header/body updates
+  - KV batch mutation must remain all-or-nothing when any mutation in the batch conflicts
+  - auxiliary socket APIs must enforce the same ownership and account scoping guarantees as their
+    HTTP counterparts
+  - displaced GitHub-account owners must receive the required `update-account` disconnect update
+    when another account takes over the same GitHub linkage
+  - auxiliary socket artifact create and usage-report flows must preserve the same idempotency and
+    timestamp semantics as Happy
 
 ### Validation Focus
 
