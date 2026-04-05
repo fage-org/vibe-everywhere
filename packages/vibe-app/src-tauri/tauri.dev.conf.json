@@ -1,0 +1,12 @@
+{
+  "$schema": "../../../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "Vibe (dev)",
+  "identifier": "engineering.vibe.app.dev",
+  "app": {
+    "windows": [
+      {
+        "title": "Vibe (dev)"
+      }
+    ]
+  }
+}

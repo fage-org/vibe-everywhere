@@ -22,13 +22,13 @@ struct Args {
     #[arg(
         long,
         env = "VIBE_IOS_STORE_URL",
-        default_value = "https://apps.apple.com/us/app/happy-claude-code-client/id6748571505"
+        default_value = "https://app.vibe.engineering/ios"
     )]
     ios_store_url: String,
     #[arg(
         long,
         env = "VIBE_ANDROID_STORE_URL",
-        default_value = "https://play.google.com/store/apps/details?id=com.ex3ndr.happy"
+        default_value = "https://app.vibe.engineering/android"
     )]
     android_store_url: String,
     #[arg(

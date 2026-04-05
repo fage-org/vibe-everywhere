@@ -11,8 +11,8 @@
 
 ## Current Phase
 
-- phase: Wave 1 `vibe-wire` is complete, Wave 2 `vibe-server` minimum spine is implemented and validated, Wave 3 `vibe-agent` remote-control client is implemented and validated, Wave 4 `vibe-server` support-surface expansion is implemented and validated, and Wave 5 `vibe-cli` local runtime and daemon implementation is complete and validated
-- next milestone: begin Wave 6 `vibe-app` import and adaptation against the now-stable wire, server, agent, and CLI surfaces
+- phase: Wave 1 `vibe-wire` is complete, Wave 2 `vibe-server` minimum spine is implemented and validated, Wave 3 `vibe-agent` remote-control client is implemented and validated, Wave 4 `vibe-server` support-surface expansion is implemented and validated, Wave 5 `vibe-cli` local runtime and daemon implementation is complete and validated, and Wave 6 `vibe-app` import/adaptation is complete and validated
+- next milestone: evaluate whether Wave 7 `vibe-app-logs` is still required; if it is, implement the minimum sidecar surface without reopening Wave 6 contracts
 
 ## Rule
 

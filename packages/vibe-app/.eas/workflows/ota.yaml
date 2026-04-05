@@ -1,0 +1,13 @@
+name: Branch-based Updates
+
+jobs:
+  production_ota:
+    type: update
+    environment: production
+    env:
+      VIBE_APP_ENV: production
+      APP_ENV: production
+    params:
+      message: "Internal Production Build"
+      platform: "all"
+      channel: "production"

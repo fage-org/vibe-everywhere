@@ -1,9 +1,21 @@
 {
   "name": "vibe-remote",
   "private": true,
+  "scripts": {
+    "postinstall": "node ./scripts/postinstall.cjs"
+  },
   "workspaces": {
     "packages": [
       "packages/vibe-app"
+    ],
+    "nohoist": [
+      "**/zod",
+      "**/react",
+      "**/react-dom",
+      "**/react-native",
+      "**/react-native/**",
+      "**/react-native-edge-to-edge/**",
+      "**/react-native-incall-manager/**"
     ]
   },
   "packageManager": "yarn@1.22.22"

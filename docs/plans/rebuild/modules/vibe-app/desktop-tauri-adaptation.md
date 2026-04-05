@@ -46,17 +46,22 @@ Adapt the imported app's desktop shell to the Vibe repository layout and product
 
 1. Port Tauri config into the Vibe package structure.
 2. Update bundle identifiers, names, and assets.
-3. Verify script and asset paths after import.
+3. Verify script, schema, and asset paths after import.
+4. Ensure the imported `src-tauri` crate can build independently of the Rust workspace root.
 
 ## Edge Cases And Failure Modes
 
 - stale Happy bundle ids
 - asset path breakage after repo move
+- stale `$schema` paths resolving into the wrong `node_modules` tree
+- imported `src-tauri/Cargo.toml` accidentally inheriting the root Rust workspace and failing local
+  desktop checks
 
 ## Tests
 
 - Tauri config validation
 - desktop build smoke test
+- repeatable workspace command for desktop smoke verification
 
 ## Acceptance Criteria
 

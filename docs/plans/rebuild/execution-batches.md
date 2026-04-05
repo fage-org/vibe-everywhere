@@ -34,12 +34,12 @@ Use this file when you want to assign work in grouped waves such as:
 | `[done] B07` | agent live control and CLI UX | remote-control path works end-to-end |
 | `[done] B08` | server support APIs, files, and images | app/CLI support surface exists |
 | `[done] B09` | server router/socket finalization and monitoring | server route/socket surface complete |
-| `B10` | CLI foundation | local CLI architecture exists |
-| `B11` | CLI daemon and local control plane | daemonized local control works |
-| `B12` | CLI first provider vertical slice | first provider runtime slice works end-to-end |
-| `B13` | CLI provider expansion | remaining providers and final command wiring land on stable core |
-| `B14` | app import baseline | imported app builds in this repo |
-| `B15` | app adaptation | app works against Vibe services |
+| `[done] B10` | CLI foundation | local CLI architecture exists |
+| `[done] B11` | CLI daemon and local control plane | daemonized local control works |
+| `[done] B12` | CLI first provider vertical slice | first provider runtime slice works end-to-end |
+| `[done] B13` | CLI provider expansion | remaining providers and final command wiring land on stable core |
+| `[done] B14` | app import baseline | imported app builds in this repo |
+| `[done] B15` | app adaptation | app works against Vibe services |
 | `B16` | optional sidecar | app-log sidecar parity if still needed |
 
 ## [done] B00: Planning Freeze
@@ -410,7 +410,7 @@ Use this file when you want to assign work in grouped waves such as:
 - auxiliary socket API audit
 - monitoring hooks on stable surfaces only
 
-## B10: CLI Foundation
+## [done] B10: CLI Foundation
 
 ### Prerequisites
 
@@ -443,7 +443,7 @@ Use this file when you want to assign work in grouped waves such as:
 - mapper/transport tests
 - API client and auth tests
 
-## B11: CLI Control Plane
+## [done] B11: CLI Control Plane
 
 ### Prerequisites
 
@@ -470,7 +470,7 @@ Use this file when you want to assign work in grouped waves such as:
 - sandbox policy
 - persistence/resume correctness
 
-## B12: CLI First Provider Vertical Slice
+## [done] B12: CLI First Provider Vertical Slice
 
 ### Prerequisites
 
@@ -495,7 +495,7 @@ Use this file when you want to assign work in grouped waves such as:
 - runtime/daemon integration
 - first end-to-end CLI integration harness
 
-## B13: CLI Provider Expansion
+## [done] B13: CLI Provider Expansion
 
 ### Prerequisites
 
@@ -526,7 +526,7 @@ Use this file when you want to assign work in grouped waves such as:
 - top-level command wiring regression checks
 - broader fixture matrix
 
-## B14: App Import Baseline
+## [done] B14: App Import Baseline
 
 ### Prerequisites
 
@@ -544,12 +544,22 @@ Use this file when you want to assign work in grouped waves such as:
 
 - imported app builds inside this repo with explicit root bootstrap files
 
+### Wave 6 Feature Inventory
+
+- import `packages/happy-app/**` into `packages/vibe-app` with the Happy layout preserved first
+- localize the required root bootstrap files (`package.json`, `yarn.lock`, `scripts/postinstall.cjs`,
+  `patches/fix-pglite-prisma-bytes.cjs`) so the app can install in this repo
+- remove or replace stale root-relative assumptions such as the `hello-world` alias, local
+  `CHANGELOG.md` dependency, and Tauri schema path drift
+- replace the imported `@slopus/happy-wire` dependency with a Vibe-owned compatibility seam
+- record any remaining compatibility-locked `happy` identifiers and validate install/build
+
 ### Validation Focus
 
 - install/build reproducibility
 - root-relative path cleanup
 
-## B15: App Adaptation
+## [done] B15: App Adaptation
 
 ### Prerequisites
 
@@ -570,6 +580,16 @@ Use this file when you want to assign work in grouped waves such as:
 ### Gate
 
 - app works against Vibe backend path without public Happy leakage
+
+### Wave 6 Feature Inventory
+
+- validate and normalize parser/reducer behavior against `vibe-wire` fixtures
+- centralize Vibe server URL, socket endpoint, and app runtime env resolution
+- replace public Happy naming with Vibe naming across titles, package metadata, deep links, and
+  user-facing strings
+- adapt desktop/Tauri bundle identifiers, config, and script paths to the Vibe package layout
+- finalize release profiles and env variables under `EXPO_PUBLIC_VIBE_*` and `VIBE_*`
+- validate the integrated app surface against Vibe services without introducing protocol forks
 
 ### Validation Focus
 

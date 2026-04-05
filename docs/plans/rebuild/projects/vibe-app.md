@@ -42,6 +42,18 @@ contracts. It is not a rewrite project in phase one.
 5. desktop/Tauri adaptation
 6. release and environment cleanup
 
+## Wave 6 Feature Inventory
+
+- imported Happy baseline localized into `packages/vibe-app` with explicit root bootstrap files
+- parser and reducer compatibility against `vibe-wire` legacy/session fixtures plus late
+  support-domain durable updates
+- centralized Vibe endpoint, socket-path, and runtime environment resolution
+- public-surface Vibe branding across app metadata, deep links, visible labels, and package naming
+- desktop/Tauri identifiers, bundle metadata, and script paths adapted to the Vibe repository layout
+- release profiles and app env wiring standardized on `EXPO_PUBLIC_VIBE_*` and `VIBE_*`
+- validation covering import/build, parser compatibility, endpoint adaptation, and at least one
+  app-to-Vibe integration chain
+
 ## Compatibility Requirements
 
 - UI behavior should remain as close as practical to imported Happy app behavior

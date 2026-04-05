@@ -1,0 +1,12 @@
+name: Branch-based Updates
+jobs:
+  preview_ota:
+    type: update
+    environment: preview
+    env:
+      VIBE_APP_ENV: preview
+      APP_ENV: preview
+    params:
+      message: "Internal Preview Build"
+      platform: "all"
+      channel: "preview"

@@ -269,30 +269,30 @@ consume.
 
 ### Order
 
-1. `modules/vibe-cli/utils-and-parsers.md`
-2. `modules/vibe-cli/ui-terminal.md`
-3. `modules/vibe-cli/bootstrap-and-commands.md` pass A
+1. `[done]` `modules/vibe-cli/utils-and-parsers.md`
+2. `[done]` `modules/vibe-cli/ui-terminal.md`
+3. `[done]` `modules/vibe-cli/bootstrap-and-commands.md` pass A
    - define config/bootstrap types and the top-level command skeleton
-4. `modules/vibe-cli/agent-core.md`
-5. `modules/vibe-cli/agent-adapters.md`
-6. `modules/vibe-cli/session-protocol-mapper.md`
-7. `modules/vibe-cli/transport.md`
-8. `modules/vibe-cli/auth.md`
-9. `modules/vibe-cli/api-client.md`
-10. `modules/vibe-cli/daemon.md`
-11. `modules/vibe-cli/sandbox.md`
-12. `modules/vibe-cli/persistence-resume.md`
-13. `modules/vibe-cli/builtin-modules.md`
-14. `modules/vibe-cli/claude-runtime.md`
-15. `modules/vibe-cli/testing-fixtures.md` pass A
+4. `[done]` `modules/vibe-cli/agent-core.md`
+5. `[done]` `modules/vibe-cli/agent-adapters.md`
+6. `[done]` `modules/vibe-cli/session-protocol-mapper.md`
+7. `[done]` `modules/vibe-cli/transport.md`
+8. `[done]` `modules/vibe-cli/auth.md`
+9. `[done]` `modules/vibe-cli/api-client.md`
+10. `[done]` `modules/vibe-cli/daemon.md`
+11. `[done]` `modules/vibe-cli/sandbox.md`
+12. `[done]` `modules/vibe-cli/persistence-resume.md`
+13. `[done]` `modules/vibe-cli/builtin-modules.md`
+14. `[done]` `modules/vibe-cli/claude-runtime.md`
+15. `[done]` `modules/vibe-cli/testing-fixtures.md` pass A
     - establish first provider/runtime harness around the first implemented provider
-16. `modules/vibe-cli/codex-runtime.md`
-17. `modules/vibe-cli/gemini-runtime.md`
-18. `modules/vibe-cli/openclaw-runtime.md`
-19. `modules/vibe-cli/agent-acp.md`
-20. `modules/vibe-cli/bootstrap-and-commands.md` pass B
+16. `[done]` `modules/vibe-cli/codex-runtime.md`
+17. `[done]` `modules/vibe-cli/gemini-runtime.md`
+18. `[done]` `modules/vibe-cli/openclaw-runtime.md`
+19. `[done]` `modules/vibe-cli/agent-acp.md`
+20. `[done]` `modules/vibe-cli/bootstrap-and-commands.md` pass B
     - finish command wiring once the underlying services are real
-21. `modules/vibe-cli/testing-fixtures.md` pass B
+21. `[done]` `modules/vibe-cli/testing-fixtures.md` pass B
     - broaden the fixture matrix across providers
 
 ### Why This Order
@@ -323,14 +323,30 @@ consume.
 Bring in the Happy app baseline, then adapt it only after upstream contracts are stable enough to
 avoid churn.
 
+### Wave 6 Feature Inventory
+
+- imported Happy app baseline plus the minimum root bootstrap files needed to install and validate
+  it in this repository
+- `vibe-wire`-driven protocol parser and reducer compatibility for legacy/session payloads plus the
+  late support-domain durable updates consumed by the app sync layer
+- centralized Vibe server URL, socket-path, and runtime env resolution with no ad hoc screen-level
+  endpoint patching
+- public Vibe branding for package metadata, deep links, app titles, and user-visible labels while
+  preserving deliberate compatibility-only internal identifiers
+- desktop/Tauri bundle identifiers, config files, and script paths adapted to the Vibe package
+  layout
+- release profile and environment normalization around `EXPO_PUBLIC_VIBE_*` and `VIBE_*`
+- validation spanning import/build, parser compatibility, endpoint wiring, and app-to-Vibe service
+  integration
+
 ### Order
 
-1. `modules/vibe-app/import-and-build.md`
-2. `modules/vibe-app/protocol-parser-compat.md`
-3. `modules/vibe-app/api-endpoint-adaptation.md`
-4. `modules/vibe-app/branding-and-naming-adaptation.md`
-5. `modules/vibe-app/desktop-tauri-adaptation.md`
-6. `modules/vibe-app/release-and-env.md`
+1. `[done]` `modules/vibe-app/import-and-build.md`
+2. `[done]` `modules/vibe-app/protocol-parser-compat.md`
+3. `[done]` `modules/vibe-app/api-endpoint-adaptation.md`
+4. `[done]` `modules/vibe-app/branding-and-naming-adaptation.md`
+5. `[done]` `modules/vibe-app/desktop-tauri-adaptation.md`
+6. `[done]` `modules/vibe-app/release-and-env.md`
 
 ### Why This Order
 
@@ -351,7 +367,7 @@ avoid churn.
 
 ### Gate To Next Wave
 
-- app works against Vibe services without protocol forks or Happy-branded public surfaces
+- `[done]` app works against Vibe services without protocol forks or Happy-branded public surfaces
 
 ## Wave 7: `vibe-app-logs`
 
