@@ -11,8 +11,8 @@
 
 ## Current Phase
 
-- phase: Wave 1 `vibe-wire` is complete, Wave 2 `vibe-server` minimum spine is implemented and validated, Wave 3 `vibe-agent` remote-control client is implemented and validated, Wave 4 `vibe-server` support-surface expansion is implemented and validated, Wave 5 `vibe-cli` local runtime and daemon implementation is complete and validated, and Wave 6 `vibe-app` import/adaptation is complete and validated
-- next milestone: evaluate whether Wave 7 `vibe-app-logs` is still required; if it is, implement the minimum sidecar surface without reopening Wave 6 contracts
+- phase: Wave 1 `vibe-wire` is complete, Wave 2 `vibe-server` minimum spine is implemented and validated, Wave 3 `vibe-agent` remote-control client is implemented and validated, Wave 4 `vibe-server` support-surface expansion is implemented and validated, Wave 5 `vibe-cli` local runtime and daemon implementation is complete and validated, Wave 6 `vibe-app` import/adaptation is complete and validated, and Wave 7 `vibe-app-logs` minimum sidecar runtime is complete and validated
+- next milestone: run final rebuild parity audits and close any non-blocking documentation or packaging follow-up work without reopening completed wave gates
 
 ## Rule
 

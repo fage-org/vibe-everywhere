@@ -377,7 +377,7 @@ Only implement the sidecar after the app proves it is still required.
 
 ### Order
 
-1. `modules/vibe-app-logs/log-server.md`
+1. `[done]` `modules/vibe-app-logs/log-server.md`
 
 ### Output
 
@@ -385,7 +385,7 @@ Only implement the sidecar after the app proves it is still required.
 
 ### Gate To Finish
 
-- sidecar behavior required by app tooling is satisfied, or the need is explicitly retired in plans
+- `[done]` sidecar behavior required by app tooling is satisfied, or the need is explicitly retired in plans
 
 ## Safe Parallel Windows
 

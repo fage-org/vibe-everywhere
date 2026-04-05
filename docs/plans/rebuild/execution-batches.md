@@ -40,7 +40,7 @@ Use this file when you want to assign work in grouped waves such as:
 | `[done] B13` | CLI provider expansion | remaining providers and final command wiring land on stable core |
 | `[done] B14` | app import baseline | imported app builds in this repo |
 | `[done] B15` | app adaptation | app works against Vibe services |
-| `B16` | optional sidecar | app-log sidecar parity if still needed |
+| `[done] B16` | optional sidecar | app-log sidecar parity if still needed |
 
 ## [done] B00: Planning Freeze
 
@@ -598,7 +598,7 @@ Use this file when you want to assign work in grouped waves such as:
 - user-visible naming
 - Tauri shell checks
 
-## B16: Optional Sidecar
+## [done] B16: Optional Sidecar
 
 ### Prerequisites
 

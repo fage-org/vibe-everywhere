@@ -52,7 +52,7 @@ export default function DevScreen() {
 
         const newUrl = await Modal.prompt(
             'Remote Log Server',
-            'Sends ALL console output as unencrypted plaintext over HTTP to this URL. Use your Mac\'s local IP (e.g. http://192.168.1.5:8787). Run "yarn app-logs" on your Mac to receive. Clear to disable.',
+            'Sends ALL console output as unencrypted plaintext over HTTP to this URL. By default `yarn app-logs` listens on port 8787; if you override `VIBE_APP_LOGS_PORT` or legacy `PORT`, use that actual port in the URL. Example: http://192.168.1.5:8787. Clear to disable.',
             {
                 defaultValue: currentUrl,
                 confirmText: 'Save'

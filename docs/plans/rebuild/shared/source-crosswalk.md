@@ -9,7 +9,7 @@
 | `packages/happy-agent` | remote-control CLI client | `crates/vibe-agent` | `src/` | planned | session and machine control client |
 | `packages/happy-cli` | local runtime, daemon, provider integrations | `crates/vibe-cli` | `src/` | planned | largest subsystem, start only after wire and server spine |
 | `packages/happy-app` | mobile/web/desktop app | `packages/vibe-app` | imported Happy tree | planned | import first, adapt later |
-| `packages/happy-app-logs` | log sidecar | `crates/vibe-app-logs` | `src/` | planned | lowest priority subsystem |
+| `packages/happy-app-logs` | log sidecar | `crates/vibe-app-logs` | `src/` | done | minimal Wave-7 sidecar runtime now satisfies the imported app log receiver flow |
 
 ## Coverage Conventions
 
@@ -167,7 +167,7 @@
 | `packages/happy-app/sources/constants/**` | app constants and static config values | `packages/vibe-app` | imported constant tree | planned | import baseline first; env/public constant cleanup later |
 | `packages/happy-app/sources/track/**` | analytics and screen tracking hooks | `packages/vibe-app` | imported tracking tree | planned | imported baseline; rename only where public Vibe branding requires it |
 | `packages/happy-app/sources/types/**` | app-local TypeScript type helpers | `packages/vibe-app` | imported type tree | planned | app-local type ownership stays inside the imported package unless promoted deliberately |
-| `packages/happy-app-logs/src/server.ts` | app log sidecar runtime | `crates/vibe-app-logs` | `server.rs` | planned | minimal sidecar runtime mapped by log-server plan |
+| `packages/happy-app-logs/src/server.ts` | app log sidecar runtime | `crates/vibe-app-logs` | `server.rs` | done | `config.rs`, `server.rs`, and `main.rs` now back the app-facing `/logs` runtime plus root `yarn app-logs` launch flow |
 | `package.json` | root Yarn workspace and bootstrap scripts | repository root | temporary app bootstrap files | planned | import only the minimum root files documented in `modules/vibe-app/import-and-build.md` |
 | `yarn.lock` | root workspace lockfile for imported app bootstrap | repository root | temporary app bootstrap files | planned | owned by `import-and-build`; keep explicit because app baseline install depends on the locked package-manager graph |
 | `scripts/postinstall.cjs` | root postinstall patching and wire build | repository root | bootstrap install seam | planned | import, then localize so it does not hard-depend on `@slopus/happy-wire` |

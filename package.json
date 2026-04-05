@@ -2,7 +2,8 @@
   "name": "vibe-remote",
   "private": true,
   "scripts": {
-    "postinstall": "node ./scripts/postinstall.cjs"
+    "postinstall": "node ./scripts/postinstall.cjs",
+    "app-logs": "cargo run -p vibe-app-logs --"
   },
   "workspaces": {
     "packages": [

@@ -1,3 +1,4 @@
-fn main() {
-    eprintln!("vibe-app-logs is in planning/bootstrap mode");
+#[tokio::main]
+async fn main() -> Result<(), vibe_app_logs::AppLogsError> {
+    vibe_app_logs::run().await
 }

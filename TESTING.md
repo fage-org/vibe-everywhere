@@ -2,17 +2,25 @@
 
 ## Current Baseline
 
-`vibe-wire` is implemented. Validation currently focuses on:
+`vibe-wire`, `vibe-app`, and `vibe-app-logs` are implemented. Validation currently focuses on:
 
 - Rust workspace sanity
 - `vibe-wire` schema, fixture, and compatibility-vector coverage
-- planning completeness for downstream subsystems before implementation
+- `vibe-app` typecheck, parser/release-flow tests, and web/desktop smoke paths
+- `vibe-app-logs` startup and ingestion smoke coverage
 
 ## Current Commands
 
 - `cargo check --workspace`
 - `cargo test -p vibe-wire`
+- `cargo test -p vibe-app-logs`
 - `cargo run --example export-fixtures -p vibe-wire`
+- `yarn workspace vibe-app typecheck`
+- `yarn workspace vibe-app test`
+- `yarn workspace vibe-app expo export --platform web --output-dir dist`
+- `yarn workspace vibe-app tauri:check`
+- `yarn workspace vibe-app tauri:smoke`
+- `yarn app-logs --help`
 - `yarn --cwd scripts install`
 - `yarn --cwd scripts validate:vibe-wire-fixtures`
 - `HAPPY_ROOT=/path/to/happy yarn --cwd scripts validate:vibe-wire-fixtures`
