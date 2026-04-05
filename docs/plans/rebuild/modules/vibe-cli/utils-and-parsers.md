@@ -17,7 +17,7 @@ session metadata factories, deterministic encoding helpers, and system-integrati
 - crate: `crates/vibe-cli`
 - files under:
   - `src/utils/`
-  - `src/parsers/`
+  - `src/utils/parsing.rs`
 
 ## Responsibilities
 

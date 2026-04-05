@@ -180,7 +180,8 @@ export const AskUserQuestionView = React.memo<ToolViewProps>(({ tool, sessionId 
     }
 
     const isRunning = tool.state === 'running';
-    const canInteract = isRunning && !isSubmitted;
+    const canInteract = isRunning && !isSubmitted && !isSubmitting;
+    const showActions = isRunning && !isSubmitted;
 
     // Check if all questions have at least one selection
     const allQuestionsAnswered = questions.every((_, qIndex) => {
@@ -218,12 +219,6 @@ export const AskUserQuestionView = React.memo<ToolViewProps>(({ tool, sessionId 
 
         setIsSubmitting(true);
 
-        // HACK: Disable the form immediately by switching to the submitted view.
-        // Without this, users could edit their selections while the network calls
-        // are in flight, but those edits would be ignored since we've already
-        // captured the values above. TODO: Revisit this logic.
-        setIsSubmitted(true);
-
         // Format answers as readable text
         const responseLines: string[] = [];
         questions.forEach((q, qIndex) => {
@@ -246,6 +241,7 @@ export const AskUserQuestionView = React.memo<ToolViewProps>(({ tool, sessionId 
             }
             // 2. Send the answer as a message
             await sync.sendMessage(sessionId, responseText);
+            setIsSubmitted(true);
         } catch (error) {
             console.error('Failed to submit answer:', error);
         } finally {
@@ -337,7 +333,7 @@ export const AskUserQuestionView = React.memo<ToolViewProps>(({ tool, sessionId 
                     );
                 })}
 
-                {canInteract && (
+                {showActions && (
                     <View style={styles.actionsContainer}>
                         <TouchableOpacity
                             style={[

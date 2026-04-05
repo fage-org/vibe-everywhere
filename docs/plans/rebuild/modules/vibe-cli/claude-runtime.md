@@ -12,9 +12,7 @@ Implement the Claude runtime path for the local CLI.
 
 - crate: `crates/vibe-cli`
 - files:
-  - `src/providers/claude/mod.rs`
-  - `src/providers/claude/runtime.rs`
-  - supporting utility files under `src/providers/claude/`
+  - `src/providers/claude.rs`
 
 ## Responsibilities
 

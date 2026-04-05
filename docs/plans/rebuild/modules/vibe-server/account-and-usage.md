@@ -13,7 +13,6 @@ Implement account profile, account settings, and usage-query APIs required by th
 - crate: `crates/vibe-server`
 - files:
   - `src/api/account.rs`
-  - `src/api/usage.rs`
 
 ## Responsibilities
 

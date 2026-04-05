@@ -16,11 +16,11 @@ and proxy helpers.
 
 - crate: `crates/vibe-cli`
 - files under:
-  - `src/modules/common/`
-  - `src/modules/ripgrep/`
-  - `src/modules/difftastic/`
-  - `src/modules/watcher/`
-  - `src/modules/proxy/`
+  - `src/modules/common.rs`
+  - `src/modules/ripgrep.rs`
+  - `src/modules/difftastic.rs`
+  - `src/modules/watcher.rs`
+  - `src/modules/proxy.rs`
 
 ## Responsibilities
 

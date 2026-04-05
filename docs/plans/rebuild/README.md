@@ -10,6 +10,7 @@ relevant shared spec, project plan, and module plan.
 ## Document Tree
 
 - `master-summary.md`: high-signal status, milestones, and next work
+- `final-parity-audit.md`: completed rebuild parity audit plus any remaining non-blocking follow-up items
 - `master-details.md`: global architecture, dependency order, and acceptance gates
 - `execution-plan.md`: authoritative module-by-module implementation order
 - `execution-batches.md`: AI dispatch-ready batch list derived from the execution plan

@@ -13,8 +13,8 @@ Implement local persistence and resume/attach behavior for CLI sessions and daem
 
 - crate: `crates/vibe-cli`
 - files:
-  - `src/persistence/mod.rs`
-  - `src/resume/mod.rs`
+  - `src/persistence.rs`
+  - `src/resume.rs`
 
 ## Responsibilities
 

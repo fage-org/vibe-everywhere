@@ -12,10 +12,7 @@ Implement the local daemon control plane used by the CLI.
 
 - crate: `crates/vibe-cli`
 - files:
-  - `src/daemon/mod.rs`
-  - `src/daemon/server.rs`
-  - `src/daemon/client.rs`
-  - `src/daemon/install.rs`
+  - `src/daemon.rs`
 
 ## Responsibilities
 

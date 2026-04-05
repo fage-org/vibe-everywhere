@@ -38,12 +38,12 @@ const stylesheet = StyleSheet.create((theme, runtime) => ({
         padding: 16,
         borderRadius: 8,
         marginBottom: 12,
-        backgroundColor: theme.colors.surface,
+        backgroundColor: theme.colors.button.primary.background,
         borderWidth: 2,
-        borderColor: theme.colors.surface,
+        borderColor: theme.colors.button.primary.background,
     },
     themeText: {
-        color: 'white',
+        color: theme.colors.button.primary.tint,
         fontSize: 16,
         fontWeight: '600',
         textAlign: 'center',
@@ -82,7 +82,7 @@ const stylesheet = StyleSheet.create((theme, runtime) => ({
     },
     responsiveBox: {
         flex: 1,
-        backgroundColor: theme.colors.surface,  // TODO: change to primary
+        backgroundColor: theme.colors.button.primary.background,
         padding: 16,
         borderRadius: 8,
         minHeight: 80,
@@ -117,7 +117,7 @@ const stylesheet = StyleSheet.create((theme, runtime) => ({
         fontFamily: 'monospace',
     },
     themeButton: {
-        backgroundColor: theme.colors.surface,  // TODO: change to primary
+        backgroundColor: theme.colors.button.primary.background,
         padding: 12,
         borderRadius: 8,
         marginHorizontal: 4,
@@ -125,7 +125,7 @@ const stylesheet = StyleSheet.create((theme, runtime) => ({
         alignItems: 'center',
     },
     themeButtonText: {
-        color: 'white',
+        color: theme.colors.button.primary.tint,
         fontWeight: '600',
     },
     switchContainer: {
@@ -135,7 +135,7 @@ const stylesheet = StyleSheet.create((theme, runtime) => ({
         marginBottom: 12,
     },
     adaptiveBox: {
-        backgroundColor: theme.colors.surface,  // TODO: change to primary
+        backgroundColor: theme.colors.button.primary.background,
         padding: {
             xs: 8,
             sm: 12,
@@ -153,7 +153,7 @@ const stylesheet = StyleSheet.create((theme, runtime) => ({
         marginBottom: 8,
     },
     adaptiveText: {
-        color: 'white',
+        color: theme.colors.button.primary.tint,
         fontSize: {
             xs: 12,
             sm: 14,
@@ -190,7 +190,7 @@ export default function UnistylesDemo() {
                             Current Theme: {rt.themeName}
                         </Text>
                         <Text style={[styles.themeText, { fontSize: 14, opacity: 0.8 }]}>
-                            Primary: {theme.colors.surface}  // TODO: change to primary
+                            Primary: {theme.colors.button.primary.background}
                         </Text>
                     </View>
 
@@ -228,10 +228,10 @@ export default function UnistylesDemo() {
 
                     <View style={styles.responsiveContainer}>
                         <View style={styles.responsiveBox}>
-                            <Text style={{ color: 'white', fontWeight: 'bold' }}>Box 1</Text>
+                            <Text style={{ color: theme.colors.button.primary.tint, fontWeight: 'bold' }}>Box 1</Text>
                         </View>
                         <View style={styles.responsiveBox}>
-                            <Text style={{ color: 'white', fontWeight: 'bold' }}>Box 2</Text>
+                            <Text style={{ color: theme.colors.button.primary.tint, fontWeight: 'bold' }}>Box 2</Text>
                         </View>
                     </View>
                 </View>

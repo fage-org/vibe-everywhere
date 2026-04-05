@@ -13,9 +13,7 @@ Implement local runtime sandboxing and permission policy handling.
 
 - crate: `crates/vibe-cli`
 - files:
-  - `src/sandbox/mod.rs`
-  - `src/sandbox/config.rs`
-  - `src/sandbox/manager.rs`
+  - `src/sandbox.rs`
 
 ## Responsibilities
 

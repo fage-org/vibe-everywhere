@@ -1,5 +1,5 @@
-// TODO: Not sure where to put this demo data yet - temporary location
-// This contains mock message data for development and testing purposes
+// Development-only mock message data used by the dev tooling screens.
+// Kept alongside the demo routes so the fixtures remain easy to discover and update.
 
 import { Message, ToolCall } from '@/sync/typesMessage';
 

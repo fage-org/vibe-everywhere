@@ -12,10 +12,7 @@ Implement server communication used by the local CLI runtime.
 
 - crate: `crates/vibe-cli`
 - files:
-  - `src/api/mod.rs`
-  - `src/api/session.rs`
-  - `src/api/machine.rs`
-  - `src/api/rpc.rs`
+  - `src/api.rs`
 
 ## Responsibilities
 

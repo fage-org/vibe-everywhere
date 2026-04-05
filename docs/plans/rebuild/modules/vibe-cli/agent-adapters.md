@@ -13,7 +13,6 @@ Implement adapter logic that translates provider-native output into the CLI's in
 - crate: `crates/vibe-cli`
 - files:
   - `src/agent/adapters/mod.rs`
-  - `src/agent/adapters/mobile_message_format.rs`
 
 ## Responsibilities
 

@@ -53,7 +53,7 @@ Do not ship `happy-*` binaries from this repository.
 - agent credentials: `~/.vibe/agent.key`
 - CLI credentials: `~/.vibe/access.key`
 - daemon files: `~/.vibe/daemon/`
-- logs: `~/.vibe/logs/`
+- app log sidecar files: `~/.vibe/app-logs/`
 
 Do not introduce new Vibe-owned flows that default to `~/.happy` or `~/.happy-dev`.
 
