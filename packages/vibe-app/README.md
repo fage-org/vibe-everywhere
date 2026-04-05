@@ -5,7 +5,7 @@ Imported app baseline adapted to Vibe naming, endpoint wiring, and desktop metad
 Key validation commands:
 
 - `yarn workspace vibe-app typecheck`
-- `yarn workspace vibe-app test`
+- `yarn workspace vibe-app test --exclude 'sources/**/*.integration.spec.ts'`
 - `yarn workspace vibe-app expo export --platform web --output-dir dist`
 - `yarn workspace vibe-app tauri:check`
 - `yarn workspace vibe-app tauri:smoke`
@@ -36,3 +36,7 @@ Notes:
   and production updates do not accidentally fall back to the default development variant.
 - App version-check flows still depend on the server-side `VIBE_IOS_STORE_URL` and
   `VIBE_ANDROID_STORE_URL`; production deployments should set those to the real Vibe store pages.
+- The repository-level app packaging workflow lives at
+  `/root/vibe-remote/.github/workflows/app-release.yml`.
+- `app-v*` tags package web, desktop, and Android assets; Android packaging requires `EXPO_TOKEN`
+  and optionally `VIBE_GOOGLE_SERVICES_JSON` in GitHub secrets.

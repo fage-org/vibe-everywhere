@@ -201,7 +201,7 @@ targeted validation against a prepared local server environment.
 
 ## GitHub Actions
 
-Two workflows are provided:
+Three workflows are provided:
 
 - `.github/workflows/ci.yml`
   - runs on push, pull request, and manual dispatch
@@ -211,6 +211,12 @@ Two workflows are provided:
   - verifies the workspace version matches the release tag
   - builds `vibe`, `vibe-agent`, `vibe-server`, and `vibe-app-logs`
   - publishes tarballs and `sha256` files to a GitHub Release
+- `.github/workflows/app-release.yml`
+  - runs on `app-v*` tags or manual dispatch
+  - validates `packages/vibe-app` once before packaging
+  - exports the web bundle, builds Tauri desktop bundles on Linux/macOS/Windows, and triggers an
+    Android EAS build
+  - publishes app assets to a GitHub Release for `app-v*` tags
 
 Release flow:
 
@@ -223,6 +229,22 @@ git push origin vX.Y.Z
 ```
 
 The release workflow will fail if the tag does not match the root workspace version.
+
+App release flow:
+
+```bash
+# build and publish app assets under a dedicated app tag
+git tag app-vX.Y.Z
+git push origin app-vX.Y.Z
+```
+
+App workflow notes:
+
+- `web` is exported locally from `packages/vibe-app`
+- `desktop` packages are built with Tauri on Linux, macOS, and Windows
+- `android` packaging uses EAS Build from GitHub Actions and requires `EXPO_TOKEN`
+- if Firebase-backed Android configuration is required, set `VIBE_GOOGLE_SERVICES_JSON` as a
+  GitHub secret containing the JSON file contents
 
 ## Notes
 
