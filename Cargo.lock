@@ -3464,7 +3464,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "vibe-agent"
-version = "0.0.0"
+version = "0.1.21"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -3499,7 +3499,7 @@ dependencies = [
 
 [[package]]
 name = "vibe-app-logs"
-version = "0.0.0"
+version = "0.1.21"
 dependencies = [
  "axum",
  "chrono",
@@ -3515,7 +3515,7 @@ dependencies = [
 
 [[package]]
 name = "vibe-cli"
-version = "0.0.0"
+version = "0.1.21"
 dependencies = [
  "anyhow",
  "axum",
@@ -3541,7 +3541,7 @@ dependencies = [
 
 [[package]]
 name = "vibe-server"
-version = "0.0.0"
+version = "0.1.21"
 dependencies = [
  "axum",
  "base64 0.22.1",
@@ -3576,7 +3576,7 @@ dependencies = [
 
 [[package]]
 name = "vibe-wire"
-version = "0.0.0"
+version = "0.1.21"
 dependencies = [
  "cuid2",
  "serde",
