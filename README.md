@@ -245,6 +245,8 @@ App workflow notes:
 - `android` packaging uses EAS Build from GitHub Actions and requires `EXPO_TOKEN`
 - `android` packaging also requires `VIBE_EAS_PROJECT_ID` as a GitHub variable or secret so the
   CI runner can link the Expo project in non-interactive mode
+- `VIBE_EAS_OWNER` is optional if it matches the GitHub repository owner; the workflow now falls
+  back to `github.repository_owner`
 - if Firebase-backed Android configuration is required, set `VIBE_GOOGLE_SERVICES_JSON` as a
   GitHub secret containing the JSON file contents
 

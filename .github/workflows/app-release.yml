@@ -52,7 +52,7 @@ env:
   EXPO_PUBLIC_VIBE_REVENUE_CAT_STRIPE: ${{ vars.EXPO_PUBLIC_VIBE_REVENUE_CAT_STRIPE }}
   VIBE_EAS_PROJECT_ID: ${{ vars.VIBE_EAS_PROJECT_ID || secrets.VIBE_EAS_PROJECT_ID }}
   VIBE_EAS_UPDATE_URL: ${{ vars.VIBE_EAS_UPDATE_URL }}
-  VIBE_EAS_OWNER: ${{ vars.VIBE_EAS_OWNER || secrets.VIBE_EAS_OWNER }}
+  VIBE_EAS_OWNER: ${{ vars.VIBE_EAS_OWNER || secrets.VIBE_EAS_OWNER || github.repository_owner }}
   VIBE_GOOGLE_SERVICES_JSON: ${{ secrets.VIBE_GOOGLE_SERVICES_JSON }}
 
 jobs:
@@ -323,6 +323,14 @@ jobs:
         run: |
           if [[ -z "${VIBE_EAS_PROJECT_ID}" ]]; then
             echo "Missing VIBE_EAS_PROJECT_ID. Set it as a GitHub variable or secret." >&2
+            exit 1
+          fi
+
+      - name: Resolve EAS owner
+        shell: bash
+        run: |
+          if [[ -z "${VIBE_EAS_OWNER}" ]]; then
+            echo "Missing VIBE_EAS_OWNER and unable to derive a fallback owner." >&2
             exit 1
           fi
 
