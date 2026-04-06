@@ -50,9 +50,9 @@ env:
   EXPO_PUBLIC_VIBE_REVENUE_CAT_APPLE: ${{ vars.EXPO_PUBLIC_VIBE_REVENUE_CAT_APPLE }}
   EXPO_PUBLIC_VIBE_REVENUE_CAT_GOOGLE: ${{ vars.EXPO_PUBLIC_VIBE_REVENUE_CAT_GOOGLE }}
   EXPO_PUBLIC_VIBE_REVENUE_CAT_STRIPE: ${{ vars.EXPO_PUBLIC_VIBE_REVENUE_CAT_STRIPE }}
-  VIBE_EAS_PROJECT_ID: ${{ vars.VIBE_EAS_PROJECT_ID }}
+  VIBE_EAS_PROJECT_ID: ${{ vars.VIBE_EAS_PROJECT_ID || secrets.VIBE_EAS_PROJECT_ID }}
   VIBE_EAS_UPDATE_URL: ${{ vars.VIBE_EAS_UPDATE_URL }}
-  VIBE_EAS_OWNER: ${{ vars.VIBE_EAS_OWNER }}
+  VIBE_EAS_OWNER: ${{ vars.VIBE_EAS_OWNER || secrets.VIBE_EAS_OWNER }}
   VIBE_GOOGLE_SERVICES_JSON: ${{ secrets.VIBE_GOOGLE_SERVICES_JSON }}
 
 jobs:
@@ -279,6 +279,14 @@ jobs:
             exit 1
           fi
 
+      - name: Ensure EAS project ID is configured
+        shell: bash
+        run: |
+          if [[ -z "${VIBE_EAS_PROJECT_ID}" ]]; then
+            echo "Missing VIBE_EAS_PROJECT_ID. Set it as a GitHub variable or secret." >&2
+            exit 1
+          fi
+
       - name: Setup Expo and EAS
         uses: expo/expo-github-action@v8
         with:
@@ -310,6 +318,13 @@ jobs:
           fi
           echo "profile=${profile}" >> "${GITHUB_OUTPUT}"
           echo "label=${label}" >> "${GITHUB_OUTPUT}"
+
+      - name: Link EAS project for non-interactive builds
+        shell: bash
+        working-directory: ${{ github.workspace }}/packages/vibe-app
+        run: |
+          set -euo pipefail
+          eas init --id "${VIBE_EAS_PROJECT_ID}" --force --non-interactive
 
       - name: Build Android package on EAS and download artifact
         shell: bash

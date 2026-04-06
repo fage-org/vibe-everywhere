@@ -243,6 +243,8 @@ App workflow notes:
 - `web` is exported locally from `packages/vibe-app`
 - `desktop` packages are built with Tauri on Linux, macOS, and Windows
 - `android` packaging uses EAS Build from GitHub Actions and requires `EXPO_TOKEN`
+- `android` packaging also requires `VIBE_EAS_PROJECT_ID` as a GitHub variable or secret so the
+  CI runner can link the Expo project in non-interactive mode
 - if Firebase-backed Android configuration is required, set `VIBE_GOOGLE_SERVICES_JSON` as a
   GitHub secret containing the JSON file contents
 
