@@ -43,8 +43,8 @@ Out of scope:
 3. App packaging uses a dedicated GitHub Actions workflow:
    - web export is built locally on GitHub Actions and uploaded as an artifact
    - desktop bundles are built locally with Tauri on Linux, macOS, and Windows
-   - Android builds are delegated to EAS Build from GitHub Actions and the resulting archive is
-     downloaded back into the workflow artifacts
+   - Android builds run on the GitHub Actions runner with `eas build --local` so packaging is not
+     blocked by EAS cloud timeout limits
 4. App-release tags use `app-v*` so app packaging stays independent from Rust binary release tags.
 5. Release publishing is tag-driven with `vX.Y.Z` for Rust binaries and `app-v*` for app assets.
 6. Workspace versioning is centralized at the root `Cargo.toml` so the release tag can be checked
@@ -70,6 +70,7 @@ Out of scope:
 - push/PR CI validates the Rust workspace and `packages/vibe-app`
 - a `vX.Y.Z` tag can produce a GitHub Release with packaged Rust binaries and checksums
 - an `app-v*` tag or manual dispatch can package `packages/vibe-app` for web, desktop, and Android
+- Android packaging no longer depends on EAS cloud build completion to produce an artifact
 - the root README documents deployment prerequisites, local bring-up, runtime env vars, and release
   usage
 - the root license keeps MIT terms intact while recording the Happy-aligned origin of imported or

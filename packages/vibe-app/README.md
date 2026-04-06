@@ -40,4 +40,5 @@ Notes:
   `/root/vibe-remote/.github/workflows/app-release.yml`.
 - `app-v*` tags package web, desktop, and Android assets; Android packaging requires `EXPO_TOKEN`
   plus `VIBE_EAS_PROJECT_ID`; `VIBE_EAS_OWNER` can be provided explicitly but otherwise falls back
-  to the GitHub repository owner. `VIBE_GOOGLE_SERVICES_JSON` remains optional.
+  to the GitHub repository owner. Android builds now run locally on the GitHub runner via
+  `eas build --local`. `VIBE_GOOGLE_SERVICES_JSON` remains optional.
