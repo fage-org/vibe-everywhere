@@ -396,27 +396,59 @@ jobs:
 
           mkdir -p "${GITHUB_WORKSPACE}/dist"
           json_path="${GITHUB_WORKSPACE}/dist/vibe-app-android-${{ steps.meta.outputs.profile }}-${{ steps.meta.outputs.label }}.json"
+          raw_path="${GITHUB_WORKSPACE}/dist/vibe-app-android-${{ steps.meta.outputs.profile }}-${{ steps.meta.outputs.label }}.log"
 
+          set +e
           eas build \
             --platform android \
             --profile "${{ steps.meta.outputs.profile }}" \
             --non-interactive \
             --wait \
-            --json > "${json_path}"
-
-          artifact_url="$(jq -r '
-            if type == "array" then
-              (.[0].artifacts.buildUrl // .[0].artifacts.applicationArchiveUrl // empty)
-            else
-              (.artifacts.buildUrl // .artifacts.applicationArchiveUrl // empty)
-            end
-          ' "${json_path}")"
+            --json > "${json_path}" 2> "${raw_path}"
+          build_exit=$?
+          set -e
 
           build_page_url="$(jq -r '
             if type == "array" then
               (.[0].buildDetailsPageUrl // empty)
             else
               (.buildDetailsPageUrl // empty)
+            end
+          ' "${json_path}" 2>/dev/null || true)"
+
+          build_id="$(jq -r '
+            if type == "array" then
+              (.[0].id // empty)
+            else
+              (.id // empty)
+            end
+          ' "${json_path}" 2>/dev/null || true)"
+
+          if [[ -n "${build_page_url}" ]]; then
+            echo "EAS build page: ${build_page_url}"
+          fi
+          if [[ -n "${build_id}" ]]; then
+            echo "EAS build id: ${build_id}"
+          fi
+
+          if [[ "${build_exit}" -ne 0 ]]; then
+            echo "EAS build failed before artifact download." >&2
+            if [[ -s "${raw_path}" ]]; then
+              echo "--- eas stderr ---" >&2
+              cat "${raw_path}" >&2
+            fi
+            if [[ -s "${json_path}" ]]; then
+              echo "--- eas stdout/json ---" >&2
+              cat "${json_path}" >&2
+            fi
+            exit "${build_exit}"
+          fi
+
+          artifact_url="$(jq -r '
+            if type == "array" then
+              (.[0].artifacts.buildUrl // .[0].artifacts.applicationArchiveUrl // empty)
+            else
+              (.artifacts.buildUrl // .artifacts.applicationArchiveUrl // empty)
             end
           ' "${json_path}")"
 
@@ -443,12 +475,14 @@ jobs:
           } > "${GITHUB_WORKSPACE}/dist/vibe-app-android-${{ steps.meta.outputs.profile }}-${{ steps.meta.outputs.label }}.txt"
 
       - name: Upload Android artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: app-release-android
           path: |
             dist/vibe-app-android-${{ steps.meta.outputs.profile }}-${{ steps.meta.outputs.label }}.json
             dist/vibe-app-android-${{ steps.meta.outputs.profile }}-${{ steps.meta.outputs.label }}.txt
+            dist/vibe-app-android-${{ steps.meta.outputs.profile }}-${{ steps.meta.outputs.label }}.log
             dist/*.apk
             dist/*.aab
           if-no-files-found: error
