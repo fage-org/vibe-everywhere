@@ -73,7 +73,20 @@ jobs:
           cache-dependency-path: yarn.lock
 
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if yarn install --frozen-lockfile --network-timeout 600000; then
+              exit 0
+            fi
+            if [[ "${attempt}" -eq 3 ]]; then
+              echo "yarn install failed after ${attempt} attempts" >&2
+              exit 1
+            fi
+            echo "yarn install failed on attempt ${attempt}; retrying..." >&2
+            sleep 15
+          done
 
       - name: Typecheck vibe-app
         run: yarn workspace vibe-app typecheck
@@ -100,7 +113,20 @@ jobs:
           cache-dependency-path: yarn.lock
 
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if yarn install --frozen-lockfile --network-timeout 600000; then
+              exit 0
+            fi
+            if [[ "${attempt}" -eq 3 ]]; then
+              echo "yarn install failed after ${attempt} attempts" >&2
+              exit 1
+            fi
+            echo "yarn install failed on attempt ${attempt}; retrying..." >&2
+            sleep 15
+          done
 
       - name: Resolve app environment
         id: meta
@@ -199,7 +225,20 @@ jobs:
             librsvg2-dev
 
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if yarn install --frozen-lockfile --network-timeout 600000; then
+              exit 0
+            fi
+            if [[ "${attempt}" -eq 3 ]]; then
+              echo "yarn install failed after ${attempt} attempts" >&2
+              exit 1
+            fi
+            echo "yarn install failed on attempt ${attempt}; retrying..." >&2
+            sleep 15
+          done
 
       - name: Resolve desktop build inputs
         id: meta
@@ -294,7 +333,20 @@ jobs:
           token: ${{ secrets.EXPO_TOKEN }}
 
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if yarn install --frozen-lockfile --network-timeout 600000; then
+              exit 0
+            fi
+            if [[ "${attempt}" -eq 3 ]]; then
+              echo "yarn install failed after ${attempt} attempts" >&2
+              exit 1
+            fi
+            echo "yarn install failed on attempt ${attempt}; retrying..." >&2
+            sleep 15
+          done
 
       - name: Materialize Google services file
         if: ${{ env.VIBE_GOOGLE_SERVICES_JSON != '' }}
