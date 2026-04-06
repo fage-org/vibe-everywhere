@@ -215,7 +215,8 @@ Three workflows are provided:
   - runs on `app-v*` tags or manual dispatch
   - validates `packages/vibe-app` once before packaging
   - exports the web bundle, builds Tauri desktop bundles on Linux/macOS/Windows, and builds
-    Android locally on the GitHub runner with `eas build --local`
+    Android locally on the GitHub runner with `expo prebuild --platform android` plus
+    `./gradlew app:bundleRelease`
   - publishes app assets to a GitHub Release for `app-v*` tags
 
 Release flow:
@@ -242,7 +243,8 @@ App workflow notes:
 
 - `web` is exported locally from `packages/vibe-app`
 - `desktop` packages are built with Tauri on Linux, macOS, and Windows
-- `android` packaging uses `eas build --local` on the GitHub runner and requires `EXPO_TOKEN`
+- `android` packaging uses `expo prebuild --platform android` and `./gradlew app:bundleRelease`
+  on the GitHub runner
 - `android` packaging also requires `VIBE_EAS_PROJECT_ID` as a GitHub variable or secret so the
   app config resolves the correct Expo project metadata
 - `VIBE_EAS_OWNER` is optional if it matches the GitHub repository owner; the workflow now falls

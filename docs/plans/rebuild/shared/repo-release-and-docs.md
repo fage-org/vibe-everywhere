@@ -43,8 +43,9 @@ Out of scope:
 3. App packaging uses a dedicated GitHub Actions workflow:
    - web export is built locally on GitHub Actions and uploaded as an artifact
    - desktop bundles are built locally with Tauri on Linux, macOS, and Windows
-   - Android builds run on the GitHub Actions runner with `eas build --local` so packaging is not
-     blocked by EAS cloud timeout limits
+   - Android builds run on the GitHub Actions runner via `expo prebuild --platform android`
+     followed by `./gradlew app:bundleRelease`, avoiding EAS cloud timeout limits and the local
+     EAS wrapper overhead
 4. App-release tags use `app-v*` so app packaging stays independent from Rust binary release tags.
 5. Release publishing is tag-driven with `vX.Y.Z` for Rust binaries and `app-v*` for app assets.
 6. Workspace versioning is centralized at the root `Cargo.toml` so the release tag can be checked

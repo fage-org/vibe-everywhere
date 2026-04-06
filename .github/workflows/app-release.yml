@@ -327,38 +327,6 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Ensure EXPO_TOKEN is configured
-        shell: bash
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: |
-          if [[ -z "${EXPO_TOKEN}" ]]; then
-            echo "Missing EXPO_TOKEN secret. Android packaging uses EAS Build." >&2
-            exit 1
-          fi
-
-      - name: Ensure EAS project ID is configured
-        shell: bash
-        run: |
-          if [[ -z "${VIBE_EAS_PROJECT_ID}" ]]; then
-            echo "Missing VIBE_EAS_PROJECT_ID. Set it as a GitHub variable or secret." >&2
-            exit 1
-          fi
-
-      - name: Resolve EAS owner
-        shell: bash
-        run: |
-          if [[ -z "${VIBE_EAS_OWNER}" ]]; then
-            echo "Missing VIBE_EAS_OWNER and unable to derive a fallback owner." >&2
-            exit 1
-          fi
-
-      - name: Setup Expo and EAS
-        uses: expo/expo-github-action@v8
-        with:
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
-
       - name: Install dependencies
         shell: bash
         run: |
@@ -398,73 +366,62 @@ jobs:
           echo "profile=${profile}" >> "${GITHUB_OUTPUT}"
           echo "label=${label}" >> "${GITHUB_OUTPUT}"
 
-      - name: Prepare local Android build paths
-        id: local
-        shell: bash
-        run: |
-          set -euo pipefail
-          workingdir="${RUNNER_TEMP}/eas-local-android-${{ steps.meta.outputs.label }}"
-          artifacts_dir="${GITHUB_WORKSPACE}/dist/android-local"
-          mkdir -p "${artifacts_dir}"
-          echo "workingdir=${workingdir}" >> "${GITHUB_OUTPUT}"
-          echo "artifacts_dir=${artifacts_dir}" >> "${GITHUB_OUTPUT}"
-
-      - name: Build Android package locally with EAS
+      - name: Build Android package locally
         shell: bash
         working-directory: ${{ github.workspace }}/packages/vibe-app
         env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-          EAS_LOCAL_BUILD_SKIP_CLEANUP: "1"
-          EAS_LOCAL_BUILD_WORKINGDIR: ${{ steps.local.outputs.workingdir }}
-          EAS_LOCAL_BUILD_ARTIFACTS_DIR: ${{ steps.local.outputs.artifacts_dir }}
-          EAS_SKIP_AUTO_FINGERPRINT: "1"
-          GRADLE_OPTS: >-
-            -Dorg.gradle.jvmargs=-Xmx8g -XX:MaxMetaspaceSize=2g -Dfile.encoding=UTF-8
-            -Dorg.gradle.parallel=true
-            -Dorg.gradle.caching=true
-            -Dorg.gradle.workers.max=3
-            -Dkotlin.daemon.jvm.options=-Xmx2g
+          CI: "1"
+          VIBE_APP_ENV: ${{ steps.meta.outputs.profile }}
+          APP_ENV: ${{ steps.meta.outputs.profile }}
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx8g -XX:MaxMetaspaceSize=2g -Dfile.encoding=UTF-8 -Dorg.gradle.parallel=true -Dorg.gradle.caching=true -Dorg.gradle.workers.max=3 -Dkotlin.daemon.jvm.options=-Xmx2g"
         run: |
           set -euo pipefail
 
           mkdir -p "${GITHUB_WORKSPACE}/dist"
+          artifacts_dir="${GITHUB_WORKSPACE}/dist/android-local"
+          mkdir -p "${artifacts_dir}"
           json_path="${GITHUB_WORKSPACE}/dist/vibe-app-android-${{ steps.meta.outputs.profile }}-${{ steps.meta.outputs.label }}.json"
           raw_path="${GITHUB_WORKSPACE}/dist/vibe-app-android-${{ steps.meta.outputs.profile }}-${{ steps.meta.outputs.label }}.log"
           : > "${json_path}"
           : > "${raw_path}"
 
+          rm -rf android
+
           set +e
-          eas build \
-            --platform android \
-            --profile "${{ steps.meta.outputs.profile }}" \
-            --local \
-            --non-interactive \
-            --json \
-            > >(tee "${json_path}") \
-            2> >(tee "${raw_path}" >&2)
+          {
+            echo "== expo prebuild =="
+            npx expo prebuild --platform android --non-interactive
+            echo
+            echo "== gradle bundleRelease =="
+            cd android
+            chmod +x ./gradlew
+            ./gradlew --no-daemon app:bundleRelease
+          } > >(tee "${json_path}") 2> >(tee "${raw_path}" >&2)
           build_exit=$?
           set -e
 
           if [[ "${build_exit}" -ne 0 ]]; then
-            echo "Local EAS Android build failed." >&2
+            echo "Local Android Gradle build failed." >&2
             if [[ -s "${raw_path}" ]]; then
-              echo "--- eas stderr ---" >&2
+              echo "--- android stderr ---" >&2
               cat "${raw_path}" >&2
             fi
             if [[ -s "${json_path}" ]]; then
-              echo "--- eas stdout/json ---" >&2
+              echo "--- android stdout/log ---" >&2
               cat "${json_path}" >&2
             fi
             exit "${build_exit}"
           fi
 
           shopt -s nullglob
-          artifacts=( "${{ steps.local.outputs.artifacts_dir }}"/*.apk "${{ steps.local.outputs.artifacts_dir }}"/*.aab )
+          cp android/app/build/outputs/bundle/release/*.aab "${artifacts_dir}/" 2>/dev/null || true
+          cp android/app/build/outputs/apk/release/*.apk "${artifacts_dir}/" 2>/dev/null || true
+          artifacts=( "${artifacts_dir}"/*.apk "${artifacts_dir}"/*.aab )
           shopt -u nullglob
 
           if [[ "${#artifacts[@]}" -eq 0 ]]; then
-            echo "Local EAS build completed but no Android artifacts were found." >&2
-            ls -la "${{ steps.local.outputs.artifacts_dir }}" >&2 || true
+            echo "Local Android build completed but no Android artifacts were found." >&2
+            find android/app/build/outputs -maxdepth 5 -type f >&2 || true
             exit 1
           fi
 
@@ -473,9 +430,9 @@ jobs:
 
           {
             echo "profile=${{ steps.meta.outputs.profile }}"
-            echo "build_mode=local"
+            echo "build_mode=prebuild-gradlew"
             echo "artifact_path=${artifact_path}"
-            echo "workingdir=${{ steps.local.outputs.workingdir }}"
+            echo "android_outputs_dir=${PWD}/android/app/build/outputs"
             echo "filename=${filename}"
           } > "${GITHUB_WORKSPACE}/dist/vibe-app-android-${{ steps.meta.outputs.profile }}-${{ steps.meta.outputs.label }}.txt"
 
@@ -490,7 +447,6 @@ jobs:
             dist/vibe-app-android-${{ steps.meta.outputs.profile }}-${{ steps.meta.outputs.label }}.log
             dist/android-local/*.apk
             dist/android-local/*.aab
-            ${{ steps.local.outputs.workingdir }}/logs/**
           if-no-files-found: warn
 
   publish:
