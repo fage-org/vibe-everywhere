@@ -408,6 +408,10 @@ jobs:
           EAS_LOCAL_BUILD_WORKINGDIR: ${{ steps.local.outputs.workingdir }}
           EAS_LOCAL_BUILD_ARTIFACTS_DIR: ${{ steps.local.outputs.artifacts_dir }}
           EAS_SKIP_AUTO_FINGERPRINT: "1"
+          GRADLE_OPTS: >-
+            -Dorg.gradle.jvmargs=-Xmx8g -XX:MaxMetaspaceSize=2g -Dfile.encoding=UTF-8
+            -Dorg.gradle.workers.max=2
+            -Dkotlin.daemon.jvm.options=-Xmx2g
         run: |
           set -euo pipefail
 
