@@ -506,9 +506,29 @@ jobs:
           merge-multiple: true
           path: dist
 
+      - name: Flatten release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+
+          find dist -type f \( \
+            -name '*.tar.gz' -o \
+            -name '*.apk' -o \
+            -name '*.aab' -o \
+            -name '*.json' -o \
+            -name '*.txt' -o \
+            -name '*.log' \
+          \) -print0 | while IFS= read -r -d '' file; do
+            cp "${file}" "release-assets/$(basename "${file}")"
+          done
+
+          echo "Release assets:"
+          find release-assets -maxdepth 1 -type f | sort
+
       - name: Publish GitHub release assets
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           generate_release_notes: true
-          files: dist/*
+          files: release-assets/*
