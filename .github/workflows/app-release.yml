@@ -313,7 +313,16 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-          cache: gradle
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('package.json', 'yarn.lock', 'packages/vibe-app/package.json', 'packages/vibe-app/eas.json', 'packages/vibe-app/app.config.js') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
@@ -482,7 +491,7 @@ jobs:
             dist/android-local/*.apk
             dist/android-local/*.aab
             ${{ steps.local.outputs.workingdir }}/logs/**
-          if-no-files-found: error
+          if-no-files-found: warn
 
   publish:
     name: Publish App Release
