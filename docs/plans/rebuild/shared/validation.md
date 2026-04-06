@@ -12,6 +12,12 @@ Required before implementation begins:
 - each project has implementation order and acceptance criteria
 - each module plan has locked decisions and test requirements
 - completion claims in `PLAN.md`, `master-summary.md`, `execution-plan.md`, and `execution-batches.md` are consistent with any open remediation sections in the owning project plans
+- when `vibe-app-tauri` is active, the extraction inventory, route inventory, capability matrix,
+  and coexistence matrix exist as explicit planning artifacts before module implementation begins
+- when `vibe-app-tauri` uses localhost loopback auth, bind address, state validation, listener
+  lifecycle, and per-instance ownership rules are explicit in planning before implementation begins
+- when `vibe-app-tauri` route parity is frozen, currently desktop-visible routes are classified as
+  `P0`, `P1`, `P2`, or `deferred` rather than being left implicit
 
 ## Shared Contract Phase
 
@@ -61,6 +67,19 @@ For `vibe-app`:
 - endpoint adaptation verification
 - at least one real chain test: app -> server -> agent or CLI
 - desktop shell verification once Tauri adaptation begins
+
+For `vibe-app-tauri`:
+
+- package bootstrap validation
+- route-level desktop navigation smoke tests
+- parser/reducer compatibility checks for any reused shared session/message logic
+- at least one real desktop chain test: app-tauri -> server -> agent or CLI
+- auth/connect callback validation against the locked localhost loopback strategy, including state
+  validation, timeout, listener teardown, and per-instance ownership behavior
+- desktop package smoke validation for Tauri bundles
+- realistic session-load performance and memory review before promotion
+- Linux, macOS, and Windows startup/package validation before promotion
+- side-by-side parity checklist review against current `vibe-app` desktop behavior before promotion
 
 ## Milestone Exit Criteria
 

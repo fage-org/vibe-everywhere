@@ -2,8 +2,11 @@
 
 ## Purpose
 
-Record the closing parity audit for the Happy-aligned rebuild after all planned waves reached
-implemented-and-validated status.
+Record the closing parity audit for the original Happy-aligned rebuild baseline after Waves 0
+through 7 reached implemented-and-validated status.
+
+This audit closes the original rebuild track only. It does not forbid later planned follow-on work
+such as the separate `packages/vibe-app-tauri` desktop rewrite.
 
 ## Audit Date
 
@@ -18,6 +21,10 @@ implemented-and-validated status.
 - `packages/vibe-app`
 - `crates/vibe-app-logs`
 - root planning, validation, and helper-entrypoint documentation
+
+Explicitly out of scope:
+
+- the later-planned `packages/vibe-app-tauri` next-iteration desktop rewrite
 
 ## Inputs Reviewed
 
@@ -74,15 +81,15 @@ implemented-and-validated status.
 
 ## Outcome
 
-- All planned rebuild waves remain complete.
-- No additional module plans are required to keep the repository in a truthful completed state.
-- Remaining work, if any, should be treated as narrow non-blocking follow-up rather than a new wave
-  of rebuild implementation.
+- The original rebuild baseline through Wave 7 remains complete.
+- This audit closed the repository's pre-`vibe-app-tauri` rebuild state on 2026-04-05.
+- Later work may still introduce new, explicitly planned waves or projects as long as the Wave 0-7
+  completion claims remain truthful.
 
 ## Non-Blocking Follow-Up Policy
 
-- Keep root and planning documentation synchronized with the completed rebuild state.
-- Treat future parity work as exception-based maintenance only after a concrete regression or source
-  drift is identified.
-- Do not reopen completed wave gates unless a newly discovered mismatch requires a documented plan
-  update first.
+- Keep root and planning documentation synchronized with the closed Wave 0-7 rebuild baseline.
+- Treat maintenance on the completed baseline as exception-based follow-up unless a new project or
+  wave is explicitly added to the planning tree first.
+- Do not reopen completed Wave 0-7 gates unless a newly discovered mismatch requires a documented
+  plan update first.

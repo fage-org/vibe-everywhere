@@ -30,6 +30,12 @@ multi-project codebase where:
 - `packages/vibe-app`
   - imported Happy app plus Vibe adaptation layer
 
+## Next Iteration Repository Addition
+
+- `packages/vibe-app-tauri`
+  - planned desktop-only Tauri 2 + web-native frontend
+  - recreates the current desktop app behavior in parallel without destabilizing `packages/vibe-app`
+
 ## Project Mapping From Happy To Vibe
 
 | Happy project | Vibe target | Language | Delivery rule |
@@ -39,6 +45,7 @@ multi-project codebase where:
 | `packages/happy-agent` | `crates/vibe-agent` | Rust | mirror control-client behavior |
 | `packages/happy-cli` | `crates/vibe-cli` | Rust | mirror runtime and provider orchestration |
 | `packages/happy-app` | `packages/vibe-app` | TypeScript | import first, adapt second |
+| `packages/happy-app` | `packages/vibe-app-tauri` | TypeScript | next iteration parallel desktop rewrite after parity baseline is stable |
 | `packages/happy-app-logs` | `crates/vibe-app-logs` | Rust | defer until main path is stable |
 
 ## Implementation Principles
@@ -65,6 +72,7 @@ multi-project codebase where:
 12. `vibe-cli`
 13. `vibe-app`
 14. `vibe-app-logs`
+15. `vibe-app-tauri` (next iteration)
 
 No downstream implementation may define its own variant of types that belong in an upstream layer.
 
@@ -120,6 +128,12 @@ For direct AI batch dispatch, follow `execution-batches.md`.
 - close residual parity gaps
 - finalize validation coverage
 
+### M7 - Parallel Desktop Rewrite
+
+- create `packages/vibe-app-tauri`
+- recreate current desktop UX with a web-native frontend and Tauri 2 shell
+- keep `packages/vibe-app` shipping until explicit promotion
+
 ## Cross-Cutting Concerns
 
 - naming migration
@@ -128,6 +142,7 @@ For direct AI batch dispatch, follow `execution-batches.md`.
 - protocol compatibility during partial implementation
 - mobile and desktop app environment mapping
 - shared validation and test vectors
+- coexistence rules for old and new desktop app surfaces
 
 ## Acceptance Gates
 
@@ -138,6 +153,7 @@ For direct AI batch dispatch, follow `execution-batches.md`.
 - Gate 4: `vibe-cli` can run local providers and stream messages correctly
 - Gate 5: `vibe-app` works against Vibe services without Happy-specific branding leakage
 - Gate 6: residual utilities, logs, and release scaffolding are aligned
+- Gate 7: `vibe-app-tauri` reaches desktop parity and has an explicit promotion/deprecation plan
 
 ## Change Control Rules
 

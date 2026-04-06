@@ -11,8 +11,8 @@
 
 ## Current Phase
 
-- phase: Wave 1 `vibe-wire` is complete, Wave 2 `vibe-server` minimum spine is implemented and validated, Wave 3 `vibe-agent` remote-control client is implemented and validated, Wave 4 `vibe-server` support-surface expansion is implemented and validated, Wave 5 `vibe-cli` local runtime and daemon implementation is complete and validated, Wave 6 `vibe-app` import/adaptation is complete and validated, and Wave 7 `vibe-app-logs` minimum sidecar runtime is complete and validated
-- next milestone: maintain the completed rebuild baseline and address only newly discovered non-blocking parity, documentation, or packaging follow-up work without reopening completed wave gates
+- phase: the original Happy-aligned rebuild baseline is complete through Wave 7 (`vibe-wire`, `vibe-server`, `vibe-agent`, `vibe-cli`, `vibe-app`, and `vibe-app-logs` are implemented and validated); the active next milestone is Wave 8, the parallel desktop rewrite in `packages/vibe-app-tauri`
+- next milestone: keep the Wave 0-7 baseline stable while planning and executing the `vibe-app-tauri` desktop rewrite behind explicit parity, coexistence, and promotion gates
 
 ## Rule
 

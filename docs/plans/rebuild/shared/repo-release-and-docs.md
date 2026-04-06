@@ -21,12 +21,15 @@ In scope:
 - root `README.md`
 - root `LICENSE`
 - root packaging metadata needed to make tag-driven releases predictable
-- app-release automation that keeps `packages/vibe-app` as the owning package for Expo/EAS/Tauri
+- app-release automation that keeps `packages/vibe-app` as the owning package for Expo/EAS, web,
+  Android, and the current shipping desktop path
+- a separate non-default desktop packaging lane for `packages/vibe-app-tauri` while the rewrite
+  coexists with `packages/vibe-app`
 
 Out of scope:
 
 - iOS release automation
-- moving app release flows out of `packages/vibe-app`
+- moving mobile, web, or the current default desktop release flows out of `packages/vibe-app`
 - redesigning crate or package boundaries
 - changing server, CLI, agent, wire, or app protocol behavior
 
@@ -41,16 +44,24 @@ Out of scope:
    - `vibe-server`
    - `vibe-app-logs`
 3. App packaging uses a dedicated GitHub Actions workflow:
+   - `packages/vibe-app` remains the owning package for web export, Android packaging, and the
+     current default desktop release path
    - web export is built locally on GitHub Actions and uploaded as an artifact
-   - desktop bundles are built locally with Tauri on Linux, macOS, and Windows
+   - desktop bundles for the shipping app are built locally with Tauri on Linux, macOS, and Windows
+   - `packages/vibe-app-tauri` may add a separate non-default desktop packaging lane with distinct
+     artifacts and channels while coexistence rules remain in force
    - Android builds run on the GitHub Actions runner via `expo prebuild --platform android`
      followed by `./gradlew app:bundleRelease`, avoiding EAS cloud timeout limits and the local
      EAS wrapper overhead
-4. App-release tags use `app-v*` so app packaging stays independent from Rust binary release tags.
-5. Release publishing is tag-driven with `vX.Y.Z` for Rust binaries and `app-v*` for app assets.
-6. Workspace versioning is centralized at the root `Cargo.toml` so the release tag can be checked
+4. App-release tags use `app-v*` so the shipping app packaging stays independent from Rust binary
+   release tags.
+5. Any `vibe-app-tauri` desktop packaging lane must stay distinguishable from the shipping
+   `packages/vibe-app` release lane until promotion updates the coexistence rules.
+6. Release publishing is tag-driven with `vX.Y.Z` for Rust binaries and `app-v*` for shipping app
+   assets.
+7. Workspace versioning is centralized at the root `Cargo.toml` so the release tag can be checked
    against a single version source.
-7. Root documentation should emphasize:
+8. Root documentation should emphasize:
    - local deployment
    - self-hosting assumptions
    - CLI/app usage flow
@@ -71,6 +82,8 @@ Out of scope:
 - push/PR CI validates the Rust workspace and `packages/vibe-app`
 - a `vX.Y.Z` tag can produce a GitHub Release with packaged Rust binaries and checksums
 - an `app-v*` tag or manual dispatch can package `packages/vibe-app` for web, desktop, and Android
+- any `vibe-app-tauri` desktop packaging lane remains clearly non-default and does not replace the
+  shipping `packages/vibe-app` release lane without a promotion-plan update
 - Android packaging no longer depends on EAS cloud build completion to produce an artifact
 - the root README documents deployment prerequisites, local bring-up, runtime env vars, and release
   usage

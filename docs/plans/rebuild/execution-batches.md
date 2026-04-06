@@ -41,6 +41,8 @@ Use this file when you want to assign work in grouped waves such as:
 | `[done] B14` | app import baseline | imported app builds in this repo |
 | `[done] B15` | app adaptation | app works against Vibe services |
 | `[done] B16` | optional sidecar | app-log sidecar parity if still needed |
+| `B17` | next desktop iteration planning freeze and first usable slice | parallel `vibe-app-tauri` desktop app reaches first usable slice |
+| `B18` | desktop parity completion and promotion readiness | `vibe-app-tauri` closes remaining parity gaps without becoming the default path early |
 
 ## [done] B00: Planning Freeze
 
@@ -620,6 +622,76 @@ Use this file when you want to assign work in grouped waves such as:
 ### Validation Focus
 
 - sidecar startup and ingestion smoke tests
+
+## B17: `vibe-app-tauri` Next Desktop Iteration
+
+### Prerequisites
+
+- `B16` complete
+- `projects/vibe-app-tauri.md` exists and is treated as the owning project plan
+- `vibe-app-tauri-extraction-inventory.md` exists
+- `vibe-app-tauri-route-inventory.md` exists
+- `vibe-app-tauri-capability-matrix.md` exists
+- `vibe-app-tauri-coexistence-matrix.md` exists
+- `shared/source-crosswalk.md`, `shared/validation.md`, `shared/naming.md`, and
+  `master-details.md` reflect the new parallel desktop project boundary
+
+### Module Order
+
+1. `modules/vibe-app-tauri/bootstrap-and-package.md`
+2. `modules/vibe-app-tauri/desktop-shell-and-routing.md`
+3. `modules/vibe-app-tauri/core-logic-extraction.md`
+4. `modules/vibe-app-tauri/desktop-platform-adapters.md`
+5. `modules/vibe-app-tauri/auth-and-session-state.md`
+6. `modules/vibe-app-tauri/session-ui-parity.md`
+
+### Parallel Allowed
+
+- `core-logic-extraction.md` may overlap lightly with late shell work only after the new package
+  and route/layout ownership are fixed
+- `desktop-platform-adapters.md` may continue late hardening in parallel with `auth-and-session-state.md`
+  or `session-ui-parity.md` only after the auth-critical adapter layer is stable
+- keep the rest serial to avoid broad concurrent rewrites in a greenfield desktop package
+
+### Gate
+
+- a separate `packages/vibe-app-tauri` desktop app exists, reaches a first usable desktop session
+  slice against the real Vibe backend, and preserves the current `packages/vibe-app` as the
+  production baseline
+
+### Validation Focus
+
+- package bootstrap and Tauri shell smoke tests
+- auth/session desktop chain against a real backend
+- route-level desktop navigation checks
+- parity checklist progress against current desktop behavior
+
+## B18: `vibe-app-tauri` Promotion Readiness
+
+### Prerequisites
+
+- `B17` complete
+- first-usable-slice parity gaps are recorded in `vibe-app-tauri-parity-checklist.md`
+
+### Module Order
+
+1. `modules/vibe-app-tauri/secondary-surfaces.md`
+2. `modules/vibe-app-tauri/release-and-promotion.md`
+
+### Parallel Allowed
+
+- no; complete secondary surfaces before finalizing release and promotion rules
+
+### Gate
+
+- `vibe-app-tauri` closes required promotion-scope parity items, has explicit packaging and
+  coexistence rules, and still does not replace `packages/vibe-app` by default before sign-off
+
+### Validation Focus
+
+- secondary-surface route and integration checks
+- release artifact and startup validation on Linux, macOS, and Windows
+- explicit parity checklist sign-off and promotion/deprecation readiness review
 
 ## Direct Prompt Template
 

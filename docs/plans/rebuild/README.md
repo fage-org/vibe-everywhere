@@ -10,7 +10,12 @@ relevant shared spec, project plan, and module plan.
 ## Document Tree
 
 - `master-summary.md`: high-signal status, milestones, and next work
-- `final-parity-audit.md`: completed rebuild parity audit plus any remaining non-blocking follow-up items
+- `final-parity-audit.md`: closing audit for the original Wave 0-7 rebuild baseline
+- `vibe-app-tauri-parity-checklist.md`: desktop rewrite promotion checklist and sign-off artifact
+- `vibe-app-tauri-extraction-inventory.md`: reusable-vs-rewrite inventory for the new desktop project
+- `vibe-app-tauri-route-inventory.md`: route and surface parity inventory for desktop migration
+- `vibe-app-tauri-capability-matrix.md`: desktop capability requirements and replacement matrix
+- `vibe-app-tauri-coexistence-matrix.md`: side-by-side rules for `vibe-app` and `vibe-app-tauri`
 - `master-details.md`: global architecture, dependency order, and acceptance gates
 - `execution-plan.md`: authoritative module-by-module implementation order
 - `execution-batches.md`: AI dispatch-ready batch list derived from the execution plan
@@ -56,6 +61,13 @@ documents:
 20. `modules/vibe-app/*`
 21. `projects/vibe-app-logs.md`
 22. `modules/vibe-app-logs/*`
+23. `projects/vibe-app-tauri.md`
+24. `vibe-app-tauri-extraction-inventory.md`
+25. `vibe-app-tauri-route-inventory.md`
+26. `vibe-app-tauri-capability-matrix.md`
+27. `vibe-app-tauri-coexistence-matrix.md`
+28. `vibe-app-tauri-parity-checklist.md`
+29. `modules/vibe-app-tauri/*`
 
 ## AI Execution Contract
 

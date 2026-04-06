@@ -38,6 +38,8 @@ Use this file when deciding:
 6. implement `vibe-cli`
 7. import and adapt `vibe-app`
 8. implement `vibe-app-logs` only if still needed
+9. implement the parallel desktop rewrite in `packages/vibe-app-tauri` after the original rebuild
+   baseline is complete
 
 ## Wave 0: Shared Planning Freeze
 
@@ -386,6 +388,63 @@ Only implement the sidecar after the app proves it is still required.
 ### Gate To Finish
 
 - `[done]` sidecar behavior required by app tooling is satisfied, or the need is explicitly retired in plans
+
+## Wave 8: `vibe-app-tauri` Next Desktop Iteration
+
+### Goal
+
+Create a new desktop-only `packages/vibe-app-tauri` project that recreates the current app's
+desktop UI and behavior with a Tauri 2 + web-native frontend, without destabilizing
+`packages/vibe-app`.
+
+### Planning Prerequisites
+
+- `projects/vibe-app-tauri.md` exists and is treated as the owning project plan
+- `vibe-app-tauri-extraction-inventory.md` exists and records reusable-vs-rewrite ownership
+- `vibe-app-tauri-route-inventory.md` exists and records the desktop parity scope
+- `vibe-app-tauri-capability-matrix.md` exists and records auth-critical vs later desktop
+  capabilities
+- `vibe-app-tauri-coexistence-matrix.md` exists and records side-by-side package rules before
+  bootstrap starts
+
+### Order
+
+1. `modules/vibe-app-tauri/bootstrap-and-package.md`
+2. `modules/vibe-app-tauri/desktop-shell-and-routing.md`
+3. `modules/vibe-app-tauri/core-logic-extraction.md`
+4. `modules/vibe-app-tauri/desktop-platform-adapters.md`
+5. `modules/vibe-app-tauri/auth-and-session-state.md`
+6. `modules/vibe-app-tauri/session-ui-parity.md`
+7. `modules/vibe-app-tauri/secondary-surfaces.md`
+8. `modules/vibe-app-tauri/release-and-promotion.md`
+
+### Why This Order
+
+- bootstrap/package ownership must exist before any extraction or UI work
+- the new desktop shell should exist early so the rewrite has a stable route/layout home before
+  deeper feature migration starts
+- shared logic extraction should follow the shell bootstrap so reusable seams are shaped around a
+  real desktop surface instead of a speculative abstraction
+- auth-critical platform adapters must exist before desktop credential storage and callback-driven
+  auth flows can be implemented safely
+- auth/session state must work before the main desktop shell can demonstrate real backend flows
+- session UI is the first high-value parity slice
+- platform adapters may continue to harden after auth/session work proves what later desktop
+  capabilities are truly required, but the minimum auth-critical adapter layer comes first
+- secondary surfaces come after the core session path is usable
+- release/promotion is last because it depends on validated parity rather than optimistic planning
+
+### Output
+
+- `packages/vibe-app-tauri` exists as a separate desktop app package
+- the planning inventories and coexistence rules are explicit before code implementation broadens
+- a desktop-first route and session shell works against current Vibe backend contracts
+- current `packages/vibe-app` remains intact while the new desktop app matures in parallel
+
+### Gate To Finish
+
+- `vibe-app-tauri` has a parity checklist, release packaging path, and explicit promotion gate
+  without becoming the default desktop app prematurely
 
 ## Safe Parallel Windows
 
