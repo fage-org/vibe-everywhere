@@ -313,14 +313,14 @@ jobs:
 
       - name: Build Android package on EAS and download artifact
         shell: bash
-        working-directory: /root/vibe-remote/packages/vibe-app
+        working-directory: ${{ github.workspace }}/packages/vibe-app
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           set -euo pipefail
 
-          mkdir -p /root/vibe-remote/dist
-          json_path="/root/vibe-remote/dist/vibe-app-android-${{ steps.meta.outputs.profile }}-${{ steps.meta.outputs.label }}.json"
+          mkdir -p "${GITHUB_WORKSPACE}/dist"
+          json_path="${GITHUB_WORKSPACE}/dist/vibe-app-android-${{ steps.meta.outputs.profile }}-${{ steps.meta.outputs.label }}.json"
 
           eas build \
             --platform android \
@@ -358,14 +358,14 @@ jobs:
             *) filename="vibe-app-android-${{ steps.meta.outputs.profile }}-${{ steps.meta.outputs.label }}.aab" ;;
           esac
 
-          curl -L "${artifact_url}" -o "/root/vibe-remote/dist/${filename}"
+          curl -L "${artifact_url}" -o "${GITHUB_WORKSPACE}/dist/${filename}"
 
           {
             echo "profile=${{ steps.meta.outputs.profile }}"
             echo "artifact_url=${artifact_url}"
             echo "build_page_url=${build_page_url}"
             echo "filename=${filename}"
-          } > "/root/vibe-remote/dist/vibe-app-android-${{ steps.meta.outputs.profile }}-${{ steps.meta.outputs.label }}.txt"
+          } > "${GITHUB_WORKSPACE}/dist/vibe-app-android-${{ steps.meta.outputs.profile }}-${{ steps.meta.outputs.label }}.txt"
 
       - name: Upload Android artifacts
         uses: actions/upload-artifact@v4
