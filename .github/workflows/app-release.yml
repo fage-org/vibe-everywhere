@@ -414,6 +414,8 @@ jobs:
           mkdir -p "${GITHUB_WORKSPACE}/dist"
           json_path="${GITHUB_WORKSPACE}/dist/vibe-app-android-${{ steps.meta.outputs.profile }}-${{ steps.meta.outputs.label }}.json"
           raw_path="${GITHUB_WORKSPACE}/dist/vibe-app-android-${{ steps.meta.outputs.profile }}-${{ steps.meta.outputs.label }}.log"
+          : > "${json_path}"
+          : > "${raw_path}"
 
           set +e
           eas build \
@@ -421,7 +423,9 @@ jobs:
             --profile "${{ steps.meta.outputs.profile }}" \
             --local \
             --non-interactive \
-            --json > "${json_path}" 2> "${raw_path}"
+            --json \
+            > >(tee "${json_path}") \
+            2> >(tee "${raw_path}" >&2)
           build_exit=$?
           set -e
 
