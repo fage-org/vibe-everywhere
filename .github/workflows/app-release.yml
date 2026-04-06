@@ -379,6 +379,8 @@ jobs:
 
           mkdir -p "${GITHUB_WORKSPACE}/dist"
           artifacts_dir="${GITHUB_WORKSPACE}/dist/android-local"
+          android_dir="${PWD}/android"
+          android_outputs_dir="${android_dir}/app/build/outputs"
           mkdir -p "${artifacts_dir}"
           json_path="${GITHUB_WORKSPACE}/dist/vibe-app-android-${{ steps.meta.outputs.profile }}-${{ steps.meta.outputs.label }}.json"
           raw_path="${GITHUB_WORKSPACE}/dist/vibe-app-android-${{ steps.meta.outputs.profile }}-${{ steps.meta.outputs.label }}.log"
@@ -393,7 +395,7 @@ jobs:
             npx expo prebuild --platform android --non-interactive
             echo
             echo "== gradle bundleRelease =="
-            cd android
+            cd "${android_dir}"
             chmod +x ./gradlew
             ./gradlew --no-daemon app:bundleRelease
           } > >(tee "${json_path}") 2> >(tee "${raw_path}" >&2)
@@ -414,14 +416,14 @@ jobs:
           fi
 
           shopt -s nullglob
-          cp android/app/build/outputs/bundle/release/*.aab "${artifacts_dir}/" 2>/dev/null || true
-          cp android/app/build/outputs/apk/release/*.apk "${artifacts_dir}/" 2>/dev/null || true
+          cp "${android_outputs_dir}"/bundle/release/*.aab "${artifacts_dir}/" 2>/dev/null || true
+          cp "${android_outputs_dir}"/apk/release/*.apk "${artifacts_dir}/" 2>/dev/null || true
           artifacts=( "${artifacts_dir}"/*.apk "${artifacts_dir}"/*.aab )
           shopt -u nullglob
 
           if [[ "${#artifacts[@]}" -eq 0 ]]; then
             echo "Local Android build completed but no Android artifacts were found." >&2
-            find android/app/build/outputs -maxdepth 5 -type f >&2 || true
+            find "${android_outputs_dir}" -maxdepth 5 -type f >&2 || true
             exit 1
           fi
 
@@ -432,7 +434,7 @@ jobs:
             echo "profile=${{ steps.meta.outputs.profile }}"
             echo "build_mode=prebuild-gradlew"
             echo "artifact_path=${artifact_path}"
-            echo "android_outputs_dir=${PWD}/android/app/build/outputs"
+            echo "android_outputs_dir=${android_outputs_dir}"
             echo "filename=${filename}"
           } > "${GITHUB_WORKSPACE}/dist/vibe-app-android-${{ steps.meta.outputs.profile }}-${{ steps.meta.outputs.label }}.txt"
 
