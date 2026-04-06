@@ -313,6 +313,7 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+          cache: gradle
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
@@ -410,7 +411,9 @@ jobs:
           EAS_SKIP_AUTO_FINGERPRINT: "1"
           GRADLE_OPTS: >-
             -Dorg.gradle.jvmargs=-Xmx8g -XX:MaxMetaspaceSize=2g -Dfile.encoding=UTF-8
-            -Dorg.gradle.workers.max=2
+            -Dorg.gradle.parallel=true
+            -Dorg.gradle.caching=true
+            -Dorg.gradle.workers.max=3
             -Dkotlin.daemon.jvm.options=-Xmx2g
         run: |
           set -euo pipefail
