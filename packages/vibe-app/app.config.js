@@ -124,7 +124,7 @@ export function resolveExpoConfig(env = process.env) {
     return {
         expo: {
             name,
-            slug: "vibe",
+            slug: "vibe-everywhere",
             version: "1.7.0",
             runtimeVersion: "21",
             orientation: "default",

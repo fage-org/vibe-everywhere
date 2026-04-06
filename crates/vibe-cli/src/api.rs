@@ -31,6 +31,10 @@ use crate::{
     utils::machine_metadata::semantically_equal as machine_metadata_semantically_equal,
 };
 
+const SOCKET_CONNECT_TIMEOUT: Duration = Duration::from_secs(20);
+const SOCKET_READY_TIMEOUT: Duration = Duration::from_secs(20);
+const SOCKET_ACK_TIMEOUT: Duration = Duration::from_secs(20);
+
 #[derive(Debug, Error)]
 pub enum CliApiError {
     #[error("{0}")]
@@ -433,7 +437,7 @@ impl CliApiClient {
             &socket,
             "update-state",
             Value::Object(payload),
-            Duration::from_secs(10),
+            SOCKET_ACK_TIMEOUT,
         )
         .await?;
         let _ = socket.disconnect().await;
@@ -715,11 +719,11 @@ impl MachineSyncClient {
                 .boxed()
             });
 
-        let socket = tokio::time::timeout(Duration::from_secs(10), builder.connect())
+        let socket = tokio::time::timeout(SOCKET_CONNECT_TIMEOUT, builder.connect())
             .await
             .map_err(|_| CliApiError::Message("timeout waiting for machine socket".into()))??;
 
-        tokio::time::timeout(Duration::from_secs(10), async {
+        tokio::time::timeout(SOCKET_READY_TIMEOUT, async {
             loop {
                 let notified = ready.notified();
                 {
@@ -811,7 +815,7 @@ impl MachineSyncClient {
                 "metadata": encrypted,
                 "expectedVersion": machine.metadata_version,
             }),
-            Duration::from_secs(10),
+            SOCKET_ACK_TIMEOUT,
         )
         .await?;
         let ack: MachineUpdateMetadataAck = serde_json::from_value(unwrap_singleton_array(ack))?;
@@ -869,7 +873,7 @@ impl MachineSyncClient {
                 "daemonState": encrypted,
                 "expectedVersion": machine.daemon_state_version,
             }),
-            Duration::from_secs(10),
+            SOCKET_ACK_TIMEOUT,
         )
         .await?;
         let ack: MachineUpdateStateAck = serde_json::from_value(unwrap_singleton_array(ack))?;
@@ -968,11 +972,11 @@ async fn connect_scoped_socket(
             .boxed()
         });
 
-    let socket = tokio::time::timeout(Duration::from_secs(10), builder.connect())
+    let socket = tokio::time::timeout(SOCKET_CONNECT_TIMEOUT, builder.connect())
         .await
         .map_err(|_| CliApiError::Message("timeout waiting for socket connection".into()))??;
 
-    tokio::time::timeout(Duration::from_secs(10), async {
+    tokio::time::timeout(SOCKET_READY_TIMEOUT, async {
         loop {
             let notified = ready.notified();
             {
