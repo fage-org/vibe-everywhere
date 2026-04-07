@@ -409,7 +409,7 @@ desktop UI and behavior with a Tauri 2 + web-native frontend, without destabiliz
 
 ### Order
 
-1. `modules/vibe-app-tauri/bootstrap-and-package.md`
+1. `[done]` `modules/vibe-app-tauri/bootstrap-and-package.md`
 2. `modules/vibe-app-tauri/desktop-shell-and-routing.md`
 3. `modules/vibe-app-tauri/core-logic-extraction.md`
 4. `modules/vibe-app-tauri/desktop-platform-adapters.md`

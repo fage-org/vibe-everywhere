@@ -80,8 +80,9 @@ scripts/
 - `vibe-app-tauri-route-inventory.md`
 - `vibe-app-tauri-capability-matrix.md`
 - `vibe-app-tauri-coexistence-matrix.md`
+- immediate next implementation module:
+  - `modules/vibe-app-tauri/desktop-shell-and-routing.md`
 - future module sequence:
-  - `modules/vibe-app-tauri/bootstrap-and-package.md`
   - `modules/vibe-app-tauri/desktop-shell-and-routing.md`
   - `modules/vibe-app-tauri/core-logic-extraction.md`
   - `modules/vibe-app-tauri/desktop-platform-adapters.md`

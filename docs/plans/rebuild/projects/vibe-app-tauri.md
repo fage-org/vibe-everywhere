@@ -43,6 +43,7 @@ The following decisions are locked for the planning phase and should be treated 
 - upstream product reference: `/root/happy/packages/happy-app`
 - shared contracts: `crates/vibe-wire`, `crates/vibe-server`, `crates/vibe-agent`, `crates/vibe-cli`
 - planning inventories:
+  - `docs/plans/rebuild/vibe-app-tauri-wave8-delivery-plan.md`
   - `docs/plans/rebuild/vibe-app-tauri-extraction-inventory.md`
   - `docs/plans/rebuild/vibe-app-tauri-route-inventory.md`
   - `docs/plans/rebuild/vibe-app-tauri-capability-matrix.md`
