@@ -35,12 +35,12 @@
     "start:production": "cross-env VIBE_APP_ENV=production APP_ENV=production expo start",
     "web:test": "cross-env VIBE_APP_ENV=development APP_ENV=development expo start --web --non-interactive",
     "// ==== macOS Desktop (Tauri) Variants ====": "echo comment",
-    "tauri:dev": "cross-env VIBE_APP_ENV=development APP_ENV=development tauri dev --config src-tauri/tauri.dev.conf.json",
+    "tauri:dev": "cross-env VIBE_APP_ENV=development APP_ENV=development tauri dev --ignore-version-mismatches --config src-tauri/tauri.dev.conf.json",
     "tauri:check": "cargo check --manifest-path src-tauri/Cargo.toml",
-    "tauri:smoke": "cross-env VIBE_APP_ENV=development APP_ENV=development tauri build --debug --no-bundle --config src-tauri/tauri.dev.conf.json",
-    "tauri:build:dev": "cross-env VIBE_APP_ENV=development APP_ENV=development tauri build --config src-tauri/tauri.dev.conf.json",
-    "tauri:build:preview": "cross-env VIBE_APP_ENV=preview APP_ENV=preview tauri build --config src-tauri/tauri.preview.conf.json",
-    "tauri:build:production": "cross-env VIBE_APP_ENV=production APP_ENV=production tauri build"
+    "tauri:smoke": "cross-env VIBE_APP_ENV=development APP_ENV=development tauri build --ignore-version-mismatches --debug --no-bundle --config src-tauri/tauri.dev.conf.json",
+    "tauri:build:dev": "cross-env VIBE_APP_ENV=development APP_ENV=development tauri build --ignore-version-mismatches --config src-tauri/tauri.dev.conf.json",
+    "tauri:build:preview": "cross-env VIBE_APP_ENV=preview APP_ENV=preview tauri build --ignore-version-mismatches --config src-tauri/tauri.preview.conf.json",
+    "tauri:build:production": "cross-env VIBE_APP_ENV=production APP_ENV=production tauri build --ignore-version-mismatches"
   },
   "jest": {
     "preset": "jest-expo"
@@ -70,8 +70,8 @@
     "@revenuecat/purchases-js": "^1.11.1",
     "@shopify/flash-list": "~2.3.0",
     "@shopify/react-native-skia": "~2.5.3",
-    "@tauri-apps/api": "2.8.0",
-    "@tauri-apps/cli": "^2.8.1",
+    "@tauri-apps/api": "2.10.1",
+    "@tauri-apps/cli": "2.10.1",
     "@tauri-apps/plugin-http": "^2.5.2",
     "@types/libsodium-wrappers": "^0.7.14",
     "@types/qrcode": "^1.5.5",
