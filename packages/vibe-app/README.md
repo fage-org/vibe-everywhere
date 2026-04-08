@@ -1,8 +1,19 @@
-# vibe-app
+# vibe-app (Deprecated)
 
-Imported app baseline adapted to Vibe naming, endpoint wiring, and desktop metadata.
+Deprecated legacy reference-only package.
 
-Key validation commands:
+Do not use `packages/vibe-app` for active CI, release, or new feature work.
+Use `packages/vibe-app-tauri` as the sole active app package.
+
+Consult `packages/vibe-app` only when `/root/happy/packages/happy-app` cannot answer a
+Vibe-specific historical continuity question.
+
+## Historical Snapshot
+
+This package is the imported Happy baseline previously adapted to Vibe naming, endpoint wiring, and
+desktop metadata.
+
+Former validation commands retained here for historical reference only:
 
 - `yarn workspace vibe-app typecheck`
 - `yarn workspace vibe-app test --exclude 'sources/**/*.integration.spec.ts'`
@@ -10,7 +21,7 @@ Key validation commands:
 - `yarn workspace vibe-app tauri:check`
 - `yarn workspace vibe-app tauri:smoke`
 
-Primary app runtime environment variables:
+Former primary app runtime environment variables:
 
 - `EXPO_PUBLIC_VIBE_SERVER_URL`
 - `EXPO_PUBLIC_VIBE_LOG_SERVER_URL`
@@ -26,22 +37,14 @@ Primary app runtime environment variables:
 - `VIBE_IOS_AUTO_SUBMIT_PROFILE`
 - `VIBE_ANDROID_AUTO_SUBMIT_PROFILE`
 
-Notes:
+Historical notes:
 
-- Android release builds should point `VIBE_GOOGLE_SERVICES_FILE` at a real Firebase config; the
-  checked-in template lives at `packages/vibe-app/google-services.example.json`.
-- OTA and EAS ownership metadata are intentionally env-driven so the app does not default back to
-  legacy release infrastructure.
-- EAS workflow OTA jobs pin both `environment` and inline `VIBE_APP_ENV` / `APP_ENV` so preview
-  and production updates do not accidentally fall back to the default development variant.
-- App version-check flows still depend on the server-side `VIBE_IOS_STORE_URL` and
-  `VIBE_ANDROID_STORE_URL`; production deployments should set those to the real Vibe store pages.
-- The repository-level app packaging workflow lives at
-  `/root/vibe-remote/.github/workflows/app-release.yml`.
-- `app-v*` tags package web, shipping desktop, Android, and the non-default `vibe-app-tauri`
-  desktop preview assets in one release. Android builds now run locally on the GitHub runner via
-  `expo prebuild --platform android` and `./gradlew app:bundleRelease app:assembleRelease`,
-  producing both `.aab` and `.apk` artifacts.
-- `VIBE_EAS_PROJECT_ID` keeps the generated Expo config aligned with the linked Expo project;
-  `VIBE_EAS_OWNER` can be provided explicitly but otherwise falls back to the GitHub repository
-  owner. `VIBE_GOOGLE_SERVICES_JSON` remains optional.
+- Android release builds used `VIBE_GOOGLE_SERVICES_FILE` against
+  `packages/vibe-app/google-services.example.json`.
+- OTA and EAS ownership metadata were env-driven to avoid falling back to legacy release
+  infrastructure.
+- App version-check flows depended on server-side `VIBE_IOS_STORE_URL` and
+  `VIBE_ANDROID_STORE_URL`.
+- The old repository-level app packaging workflow lived at
+  `/root/vibe-remote/.github/workflows/app-release.yml` before the active pipeline moved to
+  `packages/vibe-app-tauri`.

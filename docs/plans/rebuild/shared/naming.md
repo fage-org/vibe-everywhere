@@ -15,15 +15,15 @@
 | `happy-server` | `vibe-server` | Rust server binary crate |
 | `happy-agent` | `vibe-agent` | Rust agent-control binary crate |
 | `happy-cli` | `vibe-cli` | Rust runtime crate, binary name `vibe` |
-| `happy-app` | `vibe-app` | imported TS app package |
-| `happy-app` | `vibe-app-tauri` | parallel desktop-only TS package; internal planning name until promotion rules say otherwise |
+| `happy-app` | `vibe-app` | deprecated legacy TS reference package |
+| `happy-app` | `vibe-app-tauri` | active TS app package and replacement target |
 | `happy-app-logs` | `vibe-app-logs` | Rust sidecar binary crate |
 
 ## Package And Import Naming
 
 - repository root package/workspace name: `vibe-remote`
 - TypeScript package names created in this repository must prefer `vibe-*` names
-- `packages/vibe-app-tauri` is the reserved package name for the parallel desktop rewrite
+- `packages/vibe-app-tauri` is the reserved active app package name in this repository
 - Do not introduce new Vibe-owned package names or import paths under `@slopus/happy-*`
 - Temporary compatibility imports of `@slopus/happy-wire` are allowed only inside imported
   app/CLI transition seams and must be isolated or removed by the owning module plan before the
@@ -41,9 +41,7 @@ Do not ship `happy-*` binaries from this repository.
 ## Public Commands And Scripts
 
 - public CLI, helper, and release script names must use `vibe` naming
-- the parallel desktop rewrite may use internal names such as `vibe-app-tauri` in repository paths,
-  but public promotion naming must be documented before it becomes a default user-facing desktop
-  package
+- `vibe-app-tauri` remains the repository package path for the active app package; any public naming cleanup must still be documented before a user-facing rename
 - if a dev-only variant command is needed, prefer `vibe-dev`
 - if an MCP/stdin bridge helper is needed, prefer `vibe-mcp`
 - do not document or ship new primary interfaces named `happy`, `happy-dev`, `happy-mcp`, or
@@ -99,8 +97,7 @@ allowed only inside adapter modules and must be called out there.
 ## Deep Links And URLs
 
 - primary app deep link scheme: `vibe:///`
-- while `packages/vibe-app` and `packages/vibe-app-tauri` coexist, default production ownership of
-  `vibe:///` remains with `packages/vibe-app` until the promotion plan explicitly transfers it
+- the old `packages/vibe-app` and `packages/vibe-app-tauri` coexistence rule for `vibe:///` is now historical reference only; active ownership decisions belong to the Wave 9 plan set
 - web/documentation branding: `vibe`
 - server base URL variables and docs must use `vibe` naming
 - public issue/help/documentation links and user-visible prompts must not send users to
@@ -120,9 +117,8 @@ allowed only inside adapter modules and must be called out there.
 
 ## Source-Level Transition Rule
 
-During the imported app phase, some source identifiers may still contain `happy` strings.
-That is acceptable only inside `packages/vibe-app` until
-`modules/vibe-app/branding-and-naming-adaptation.md` is complete.
+During the imported-app phase, some source identifiers contained `happy` strings.
+That historical allowance applied inside `packages/vibe-app` during Wave 7 and is no longer an active naming rule for new work.
 
 External behavior must prefer Vibe naming from day one:
 

@@ -2,11 +2,11 @@
 
 ## Purpose
 
-Capture the non-blocking repository-level follow-up needed after the rebuild baseline:
+Capture the historical non-blocking repository-level follow-up that landed after the rebuild baseline:
 
 - GitHub Actions coverage for the Rust workspace and imported app validation
 - tag-driven GitHub release packaging for the Rust binaries
-- a dedicated app-release workflow for web, desktop, and Android packaging
+- a dedicated app-release workflow for web, desktop, and Android packaging at that time
 - a root README that explains deployment and day-to-day usage instead of only pointing at plans
 - root-level license attribution noting the Happy-aligned origin of the rebuild
 
@@ -21,15 +21,15 @@ In scope:
 - root `README.md`
 - root `LICENSE`
 - root packaging metadata needed to make tag-driven releases predictable
-- app-release automation that keeps `packages/vibe-app` as the owning package for Expo/EAS, web,
-  Android, and the current shipping desktop path
-- a non-default `packages/vibe-app-tauri` desktop packaging lane within the shared app-release
-  workflow while the rewrite coexists with `packages/vibe-app`
+- historical app-release automation that kept `packages/vibe-app` as the owning package for Expo/EAS, web,
+  Android, and the then-shipping desktop path
+- a historical non-default `packages/vibe-app-tauri` desktop packaging lane within the shared app-release
+  workflow while the rewrite coexisted with `packages/vibe-app`
 
 Out of scope:
 
 - iOS release automation
-- moving mobile, web, or the current default desktop release flows out of `packages/vibe-app`
+- moving mobile, web, or the then-default desktop release flows out of `packages/vibe-app`
 - redesigning crate or package boundaries
 - changing server, CLI, agent, wire, or app protocol behavior
 
@@ -43,7 +43,7 @@ Out of scope:
    - `vibe-agent`
    - `vibe-server`
    - `vibe-app-logs`
-3. App packaging uses a dedicated GitHub Actions workflow:
+3. Historical app packaging used a dedicated GitHub Actions workflow:
    - `packages/vibe-app` remains the owning package for web export, Android packaging, and the
      current default desktop release path
    - web export is built locally on GitHub Actions and uploaded as an artifact
@@ -84,9 +84,9 @@ Out of scope:
 
 ## Acceptance Criteria
 
-- push/PR CI validates the Rust workspace and `packages/vibe-app`
+- historically, push/PR CI validated the Rust workspace and `packages/vibe-app`
 - a `vX.Y.Z` tag can produce a GitHub Release with packaged Rust binaries and checksums
-- an `app-v*` tag or manual dispatch can package `packages/vibe-app` for web, desktop, and Android
+- historically, an `app-v*` tag or manual dispatch could package `packages/vibe-app` for web, desktop, and Android
 - Android packaging produces both `.aab` and `.apk` artifacts for the shipping app workflow
 - any `vibe-app-tauri` desktop packaging lane remains clearly non-default inside the shared
   app-release workflow and does not replace the shipping `packages/vibe-app` release lane without

@@ -2,11 +2,11 @@
 
 ## Current Baseline
 
-`vibe-wire`, `vibe-app`, and `vibe-app-logs` are implemented. Validation currently focuses on:
+`vibe-wire`, `vibe-app-tauri`, and `vibe-app-logs` are the active validation focus. `packages/vibe-app` is deprecated and excluded from the automated baseline unless Happy cannot answer a Vibe-specific continuity question. Validation currently focuses on:
 
 - Rust workspace sanity
 - `vibe-wire` schema, fixture, and compatibility-vector coverage
-- `vibe-app` typecheck, parser/release-flow tests, and web/desktop smoke paths
+- `vibe-app-tauri` typecheck, test, desktop-shell, and promotion-doc validation
 - `vibe-app-logs` startup and ingestion smoke coverage
 
 ## Current Commands
@@ -15,15 +15,14 @@
 - `cargo test -p vibe-wire`
 - `cargo test -p vibe-app-logs`
 - `cargo run --example export-fixtures -p vibe-wire`
-- `yarn workspace vibe-app typecheck`
-- `yarn workspace vibe-app test`
-- `yarn workspace vibe-app expo export --platform web --output-dir dist`
-- `yarn workspace vibe-app tauri:check`
-- `yarn workspace vibe-app tauri:smoke`
+- `yarn workspace vibe-app-tauri typecheck`
+- `yarn workspace vibe-app-tauri test`
+- `yarn workspace vibe-app-tauri tauri:test`
+- `yarn workspace vibe-app-tauri tauri:smoke`
 - `yarn workspace vibe-app-tauri validate:promotion`
-- `yarn app-tauri:metrics`
+- `yarn app:metrics`
 - `yarn --cwd scripts validate:vibe-app-tauri-promotion`
-- `yarn app-tauri:promotion-ready`
+- `yarn app:promotion-ready`
 - `yarn app-logs --help`
 - `yarn --cwd scripts install`
 - `yarn --cwd scripts validate:vibe-wire-fixtures`

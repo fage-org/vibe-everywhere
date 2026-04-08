@@ -3,8 +3,9 @@
 Happy-aligned remote coding stack rebuilt around Rust services and clients.
 
 `vibe-remote` keeps the Happy product shape, but moves the server, CLI, agent, wire contracts, and
-log sidecar into Rust while preserving the imported `packages/vibe-app` client. The repository is
-usable as a self-hosted baseline today and remains plan-governed through [PLAN.md](/root/vibe-remote/PLAN.md).
+log sidecar into Rust while treating `packages/vibe-app` as a deprecated legacy import/reference.
+Active app replacement work now centers on `packages/vibe-app-tauri`, and the repository remains
+plan-governed through [PLAN.md](/root/vibe-remote/PLAN.md).
 
 ## What ships here
 
@@ -13,7 +14,8 @@ usable as a self-hosted baseline today and remains plan-governed through [PLAN.m
 - `crates/vibe-agent`: remote-control CLI for machines and sessions
 - `crates/vibe-cli`: local runtime wrapper for `claude`, `codex`, `gemini`, `openclaw`, and `acp`
 - `crates/vibe-app-logs`: optional remote app log receiver
-- `packages/vibe-app`: imported Happy app adapted to Vibe naming, endpoints, and release envs
+- `packages/vibe-app-tauri`: active next-iteration app package and replacement target for desktop/mobile ownership
+- `packages/vibe-app`: deprecated legacy import kept only as a Vibe-specific reference when Happy is insufficient
 
 ## Quick Start
 
@@ -155,17 +157,23 @@ Relevant env vars:
 
 Logs are stored under `${VIBE_HOME_DIR:-~/.vibe}/app-logs`.
 
-### Web and app package
+### App package status
 
-The app package stays in `packages/vibe-app` and uses Expo/Tauri release flows. For local web work:
+Active app replacement work now lives in `packages/vibe-app-tauri`. The legacy `packages/vibe-app`
+package is deprecated from active CI and release lanes and should only be consulted when
+`/root/happy/packages/happy-app` cannot answer a Vibe-specific continuity question.
+
+Current active local app validation commands:
 
 ```bash
-yarn workspace vibe-app typecheck
-yarn workspace vibe-app test --exclude 'sources/**/*.integration.spec.ts'
-yarn workspace vibe-app expo export --platform web --output-dir dist
+yarn workspace vibe-app-tauri typecheck
+yarn workspace vibe-app-tauri test
+yarn workspace vibe-app-tauri tauri:test
+yarn workspace vibe-app-tauri tauri:smoke
 ```
 
-Primary app env vars:
+Primary active app env vars still revolve around the replacement package and its future release
+ownership:
 
 - `EXPO_PUBLIC_VIBE_SERVER_URL`
 - `EXPO_PUBLIC_VIBE_LOG_SERVER_URL`
@@ -178,11 +186,9 @@ Primary app env vars:
 - `VIBE_EAS_UPDATE_URL`
 - `VIBE_EAS_OWNER`
 - `VIBE_GOOGLE_SERVICES_FILE`
-- `VIBE_IOS_AUTO_SUBMIT_PROFILE`
-- `VIBE_ANDROID_AUTO_SUBMIT_PROFILE`
 
-An example Kubernetes manifest for the web export lives at
-[packages/vibe-app/deploy/vibe-app.yaml](/root/vibe-remote/packages/vibe-app/deploy/vibe-app.yaml).
+Legacy `packages/vibe-app` deploy manifests and release files remain in-repo only as historical
+reference material.
 
 ## Validation
 
@@ -192,12 +198,14 @@ Repository baseline checks:
 cargo fmt --all --check
 cargo check --workspace --locked
 cargo test --workspace --locked
-yarn workspace vibe-app typecheck
-yarn workspace vibe-app test --exclude 'sources/**/*.integration.spec.ts'
+yarn workspace vibe-app-tauri typecheck
+yarn workspace vibe-app-tauri test
+yarn workspace vibe-app-tauri tauri:test
+yarn workspace vibe-app-tauri tauri:smoke
 ```
 
-The excluded app specs are long-running real-chain integration tests and are better suited to
-targeted validation against a prepared local server environment.
+Legacy `packages/vibe-app` validation is intentionally out of the active baseline. Use it only as a
+manual reference path when Happy cannot answer a Vibe-specific question.
 
 ## GitHub Actions
 
@@ -205,7 +213,7 @@ Three workflows are provided:
 
 - `.github/workflows/ci.yml`
   - runs on push, pull request, and manual dispatch
-  - validates the Rust workspace plus the stable `packages/vibe-app` test set
+  - validates the Rust workspace plus the active `packages/vibe-app-tauri` test/build set
 - `.github/workflows/release.yml`
   - runs on `v*` tags or manual dispatch with a tag
   - verifies the workspace version matches the release tag
@@ -213,11 +221,9 @@ Three workflows are provided:
   - publishes tarballs and `sha256` files to a GitHub Release
 - `.github/workflows/app-release.yml`
   - runs on `app-v*` tags or manual dispatch
-  - validates `packages/vibe-app` once before packaging
-  - exports the web bundle, builds Tauri desktop bundles on Linux/macOS/Windows, and builds
-    Android locally on the GitHub runner with `expo prebuild --platform android` plus
-    `./gradlew app:bundleRelease`
-  - publishes app assets to a GitHub Release for `app-v*` tags
+  - validates and packages the active `packages/vibe-app-tauri` desktop lane
+  - the deprecated `packages/vibe-app` web/desktop/android lanes are intentionally disabled
+  - publishes active app artifacts to a GitHub Release for `app-v*` tags
 
 Release flow:
 
@@ -241,23 +247,17 @@ git push origin app-vX.Y.Z
 
 App workflow notes:
 
-- `web` is exported locally from `packages/vibe-app`
-- `desktop` packages are built with Tauri on Linux, macOS, and Windows
-- `android` packaging uses `expo prebuild --platform android` and `./gradlew app:bundleRelease`
-  on the GitHub runner
-- `android` packaging also requires `VIBE_EAS_PROJECT_ID` as a GitHub variable or secret so the
-  app config resolves the correct Expo project metadata
-- `VIBE_EAS_OWNER` is optional if it matches the GitHub repository owner; the workflow now falls
-  back to `github.repository_owner`
-- if Firebase-backed Android configuration is required, set `VIBE_GOOGLE_SERVICES_JSON` as a
-  GitHub secret containing the JSON file contents
+- the active workflow currently packages `packages/vibe-app-tauri` desktop bundles on Linux, macOS, and Windows
+- the deprecated `packages/vibe-app` web/desktop/android lanes are not built in CI anymore
+- mobile, OTA, and store release ownership are planned under Wave 9 for `packages/vibe-app-tauri`
+- if `packages/vibe-app` must be inspected, treat it as a legacy Vibe-specific reference only when Happy is insufficient
 
 ## Notes
 
 - `vibe-server` currently targets the completed rebuild baseline, not a horizontally scaled
   production cluster.
-- `packages/vibe-app` keeps package-local release scripts for EAS, OTA, and Tauri because app-store
-  automation remains separate from the Rust binary release flow.
+- `packages/vibe-app` is deprecated from active CI/release use and remains in-repo only as a legacy
+  Vibe-specific reference when Happy cannot answer a continuity question.
 - `/root/happy` remains the behavioral source of truth for product concepts and parity checks.
 
 ## License

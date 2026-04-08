@@ -2,35 +2,6 @@ name: App Release
 
 on:
   workflow_dispatch:
-    inputs:
-      targets:
-        description: Which app targets to package (`desktop` builds both shipping and desktop-next lanes)
-        required: true
-        default: all
-        type: choice
-        options:
-          - all
-          - web
-          - desktop
-          - android
-      app_env:
-        description: Runtime environment for web and desktop builds
-        required: true
-        default: production
-        type: choice
-        options:
-          - production
-          - preview
-          - development
-      android_profile:
-        description: EAS build profile for Android packaging
-        required: true
-        default: production
-        type: choice
-        options:
-          - production
-          - preview
-          - development
   push:
     tags:
       - "app-v*"
@@ -43,63 +14,13 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  APP_DIR: packages/vibe-app
-  APP_TAURI_DIR: packages/vibe-app-tauri
-  EXPO_PUBLIC_VIBE_SERVER_URL: ${{ vars.EXPO_PUBLIC_VIBE_SERVER_URL }}
-  EXPO_PUBLIC_VIBE_LOG_SERVER_URL: ${{ vars.EXPO_PUBLIC_VIBE_LOG_SERVER_URL }}
-  EXPO_PUBLIC_VIBE_POSTHOG_KEY: ${{ vars.EXPO_PUBLIC_VIBE_POSTHOG_KEY }}
-  EXPO_PUBLIC_VIBE_REVENUE_CAT_APPLE: ${{ vars.EXPO_PUBLIC_VIBE_REVENUE_CAT_APPLE }}
-  EXPO_PUBLIC_VIBE_REVENUE_CAT_GOOGLE: ${{ vars.EXPO_PUBLIC_VIBE_REVENUE_CAT_GOOGLE }}
-  EXPO_PUBLIC_VIBE_REVENUE_CAT_STRIPE: ${{ vars.EXPO_PUBLIC_VIBE_REVENUE_CAT_STRIPE }}
-  VIBE_EAS_PROJECT_ID: ${{ vars.VIBE_EAS_PROJECT_ID || secrets.VIBE_EAS_PROJECT_ID }}
-  VIBE_EAS_UPDATE_URL: ${{ vars.VIBE_EAS_UPDATE_URL }}
-  VIBE_EAS_OWNER: ${{ vars.VIBE_EAS_OWNER || secrets.VIBE_EAS_OWNER || github.repository_owner }}
-  VIBE_GOOGLE_SERVICES_JSON: ${{ secrets.VIBE_GOOGLE_SERVICES_JSON }}
+  APP_DIR: packages/vibe-app-tauri
 
 jobs:
   validate:
-    name: Validate vibe-app
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: yarn
-          cache-dependency-path: yarn.lock
-
-      - name: Install dependencies
-        shell: bash
-        run: |
-          set -euo pipefail
-          for attempt in 1 2 3; do
-            if yarn install --frozen-lockfile --network-timeout 600000; then
-              exit 0
-            fi
-            if [[ "${attempt}" -eq 3 ]]; then
-              echo "yarn install failed after ${attempt} attempts" >&2
-              exit 1
-            fi
-            echo "yarn install failed on attempt ${attempt}; retrying..." >&2
-            sleep 15
-          done
-
-      - name: Typecheck vibe-app
-        run: yarn workspace vibe-app typecheck
-
-      - name: Test vibe-app
-        run: yarn workspace vibe-app test --exclude 'sources/**/*.integration.spec.ts'
-
-  validate_tauri:
-    name: Validate vibe-app-tauri preview
+    name: Validate vibe-app-tauri
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    if: ${{ github.event_name == 'push' || inputs.targets == 'all' || inputs.targets == 'desktop' }}
 
     steps:
       - name: Checkout
@@ -145,211 +66,14 @@ jobs:
             sleep 15
           done
 
-      - name: Validate vibe-app-tauri preview
+      - name: Validate vibe-app-tauri
         run: yarn workspace vibe-app-tauri validate:promotion
 
-  web:
-    name: Package Web
-    needs: validate
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    if: ${{ github.event_name == 'push' || inputs.targets == 'all' || inputs.targets == 'web' }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: yarn
-          cache-dependency-path: yarn.lock
-
-      - name: Install dependencies
-        shell: bash
-        run: |
-          set -euo pipefail
-          for attempt in 1 2 3; do
-            if yarn install --frozen-lockfile --network-timeout 600000; then
-              exit 0
-            fi
-            if [[ "${attempt}" -eq 3 ]]; then
-              echo "yarn install failed after ${attempt} attempts" >&2
-              exit 1
-            fi
-            echo "yarn install failed on attempt ${attempt}; retrying..." >&2
-            sleep 15
-          done
-
-      - name: Resolve app environment
-        id: meta
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
-            app_env="production"
-            label="${GITHUB_REF_NAME}"
-          else
-            app_env="${{ inputs.app_env }}"
-            label="manual-${GITHUB_RUN_NUMBER}"
-          fi
-          echo "app_env=${app_env}" >> "${GITHUB_OUTPUT}"
-          echo "label=${label}" >> "${GITHUB_OUTPUT}"
-
-      - name: Export web build
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd "${APP_DIR}"
-          rm -rf dist
-          VIBE_APP_ENV="${{ steps.meta.outputs.app_env }}" \
-          APP_ENV="${{ steps.meta.outputs.app_env }}" \
-          npx expo export --platform web --output-dir dist
-
-      - name: Archive web build
-        id: archive
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p dist
-          archive="dist/vibe-app-web-${{ steps.meta.outputs.label }}.tar.gz"
-          tar -czf "${archive}" -C "${APP_DIR}" dist
-          echo "archive=${archive}" >> "${GITHUB_OUTPUT}"
-
-      - name: Upload web artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-release-web
-          path: ${{ steps.archive.outputs.archive }}
-          if-no-files-found: error
-
   desktop:
-    name: Package Desktop
+    name: Package vibe-app-tauri desktop
     needs: validate
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
-    if: ${{ github.event_name == 'push' || inputs.targets == 'all' || inputs.targets == 'desktop' }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target_label: linux-x86_64
-          - os: macos-latest
-            target_label: macos
-          - os: windows-latest
-            target_label: windows-x86_64
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: yarn
-          cache-dependency-path: yarn.lock
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: |
-            packages/vibe-app/src-tauri -> target
-
-      - name: Install Linux desktop dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential \
-            curl \
-            wget \
-            file \
-            pkg-config \
-            patchelf \
-            libxdo-dev \
-            libssl-dev \
-            libwebkit2gtk-4.1-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev
-
-      - name: Install dependencies
-        shell: bash
-        run: |
-          set -euo pipefail
-          for attempt in 1 2 3; do
-            if yarn install --frozen-lockfile --network-timeout 600000; then
-              exit 0
-            fi
-            if [[ "${attempt}" -eq 3 ]]; then
-              echo "yarn install failed after ${attempt} attempts" >&2
-              exit 1
-            fi
-            echo "yarn install failed on attempt ${attempt}; retrying..." >&2
-            sleep 15
-          done
-
-      - name: Resolve desktop build inputs
-        id: meta
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
-            app_env="production"
-            label="${GITHUB_REF_NAME}"
-          else
-            app_env="${{ inputs.app_env }}"
-            label="manual-${GITHUB_RUN_NUMBER}"
-          fi
-
-          case "${app_env}" in
-            development) script="tauri:build:dev" ;;
-            preview) script="tauri:build:preview" ;;
-            production) script="tauri:build:production" ;;
-            *) echo "Unsupported app env: ${app_env}" >&2; exit 1 ;;
-          esac
-
-          echo "app_env=${app_env}" >> "${GITHUB_OUTPUT}"
-          echo "label=${label}" >> "${GITHUB_OUTPUT}"
-          echo "script=${script}" >> "${GITHUB_OUTPUT}"
-
-      - name: Build desktop bundles
-        run: yarn workspace vibe-app ${{ steps.meta.outputs.script }}
-
-      - name: Archive desktop bundles
-        id: archive
-        shell: bash
-        run: |
-          set -euo pipefail
-          bundle_dir="${APP_DIR}/src-tauri/target/release/bundle"
-          if [[ ! -d "${bundle_dir}" ]]; then
-            echo "Expected bundle directory not found: ${bundle_dir}" >&2
-            exit 1
-          fi
-
-          mkdir -p dist
-          archive="dist/vibe-app-desktop-${{ matrix.target_label }}-${{ steps.meta.outputs.label }}.tar.gz"
-          tar -czf "${archive}" -C "${APP_DIR}/src-tauri/target/release" bundle
-          echo "archive=${archive}" >> "${GITHUB_OUTPUT}"
-
-      - name: Upload desktop artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-release-desktop-${{ matrix.target_label }}
-          path: ${{ steps.archive.outputs.archive }}
-          if-no-files-found: error
-
-  desktop_next:
-    name: Package Desktop Next Preview
-    needs: validate_tauri
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
-    if: ${{ github.event_name == 'push' || inputs.targets == 'all' || inputs.targets == 'desktop' }}
     strategy:
       fail-fast: false
       matrix:
@@ -413,22 +137,27 @@ jobs:
             sleep 15
           done
 
-      - name: Resolve desktop-next build inputs
+      - name: Resolve release label
         id: meta
         shell: bash
         run: |
           set -euo pipefail
-          echo "label=manual-${GITHUB_RUN_NUMBER}" >> "${GITHUB_OUTPUT}"
+          if [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
+            label="${GITHUB_REF_NAME}"
+          else
+            label="manual-${GITHUB_RUN_NUMBER}"
+          fi
+          echo "label=${label}" >> "${GITHUB_OUTPUT}"
 
-      - name: Build desktop-next bundles
+      - name: Build desktop bundles
         run: yarn workspace vibe-app-tauri tauri:build
 
-      - name: Archive desktop-next bundles
+      - name: Archive desktop bundles
         id: archive
         shell: bash
         run: |
           set -euo pipefail
-          bundle_dir="${APP_TAURI_DIR}/src-tauri/target/release/bundle"
+          bundle_dir="${APP_DIR}/src-tauri/target/release/bundle"
           if [[ ! -d "${bundle_dir}" ]]; then
             echo "Expected bundle directory not found: ${bundle_dir}" >&2
             exit 1
@@ -436,194 +165,27 @@ jobs:
 
           mkdir -p dist
           archive="dist/vibe-app-tauri-desktop-${{ matrix.target_label }}-${{ steps.meta.outputs.label }}.tar.gz"
-          tar -czf "${archive}" -C "${APP_TAURI_DIR}/src-tauri/target/release" bundle
+          tar -czf "${archive}" -C "${APP_DIR}/src-tauri/target/release" bundle
           echo "archive=${archive}" >> "${GITHUB_OUTPUT}"
 
-      - name: Upload desktop-next artifact
+      - name: Upload desktop artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-desktop-next-${{ matrix.target_label }}
+          name: app-release-desktop-${{ matrix.target_label }}
           path: ${{ steps.archive.outputs.archive }}
           if-no-files-found: error
-
-  android:
-    name: Package Android
-    needs: validate
-    runs-on: ubuntu-latest
-    timeout-minutes: 90
-    if: ${{ github.event_name == 'push' || inputs.targets == 'all' || inputs.targets == 'android' }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: yarn
-          cache-dependency-path: yarn.lock
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - name: Cache Gradle
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-${{ hashFiles('package.json', 'yarn.lock', 'packages/vibe-app/package.json', 'packages/vibe-app/eas.json', 'packages/vibe-app/app.config.js') }}
-          restore-keys: |
-            gradle-${{ runner.os }}-
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install dependencies
-        shell: bash
-        run: |
-          set -euo pipefail
-          for attempt in 1 2 3; do
-            if yarn install --frozen-lockfile --network-timeout 600000; then
-              exit 0
-            fi
-            if [[ "${attempt}" -eq 3 ]]; then
-              echo "yarn install failed after ${attempt} attempts" >&2
-              exit 1
-            fi
-            echo "yarn install failed on attempt ${attempt}; retrying..." >&2
-            sleep 15
-          done
-
-      - name: Materialize Google services file
-        if: ${{ env.VIBE_GOOGLE_SERVICES_JSON != '' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          printf '%s' "${VIBE_GOOGLE_SERVICES_JSON}" > "${APP_DIR}/google-services.ci.json"
-          echo "VIBE_GOOGLE_SERVICES_FILE=./google-services.ci.json" >> "${GITHUB_ENV}"
-
-      - name: Resolve Android build inputs
-        id: meta
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
-            profile="production"
-            label="${GITHUB_REF_NAME}"
-          else
-            profile="${{ inputs.android_profile }}"
-            label="manual-${GITHUB_RUN_NUMBER}"
-          fi
-          echo "profile=${profile}" >> "${GITHUB_OUTPUT}"
-          echo "label=${label}" >> "${GITHUB_OUTPUT}"
-
-      - name: Build Android package locally
-        shell: bash
-        working-directory: ${{ github.workspace }}/packages/vibe-app
-        env:
-          CI: "1"
-          VIBE_APP_ENV: ${{ steps.meta.outputs.profile }}
-          APP_ENV: ${{ steps.meta.outputs.profile }}
-          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx8g -XX:MaxMetaspaceSize=2g -Dfile.encoding=UTF-8 -Dorg.gradle.parallel=true -Dorg.gradle.caching=true -Dorg.gradle.workers.max=3 -Dkotlin.daemon.jvm.options=-Xmx2g"
-        run: |
-          set -euo pipefail
-
-          mkdir -p "${GITHUB_WORKSPACE}/dist"
-          artifacts_dir="${GITHUB_WORKSPACE}/dist/android-local"
-          android_dir="${PWD}/android"
-          android_outputs_dir="${android_dir}/app/build/outputs"
-          mkdir -p "${artifacts_dir}"
-          json_path="${GITHUB_WORKSPACE}/dist/vibe-app-android-${{ steps.meta.outputs.profile }}-${{ steps.meta.outputs.label }}.json"
-          raw_path="${GITHUB_WORKSPACE}/dist/vibe-app-android-${{ steps.meta.outputs.profile }}-${{ steps.meta.outputs.label }}.log"
-          : > "${json_path}"
-          : > "${raw_path}"
-
-          rm -rf android
-
-          set +e
-          {
-            echo "== expo prebuild =="
-            npx expo prebuild --platform android --non-interactive
-            echo
-            echo "== gradle bundleRelease + assembleRelease =="
-            cd "${android_dir}"
-            chmod +x ./gradlew
-            ./gradlew --no-daemon app:bundleRelease app:assembleRelease
-          } > >(tee "${json_path}") 2> >(tee "${raw_path}" >&2)
-          build_exit=$?
-          set -e
-
-          if [[ "${build_exit}" -ne 0 ]]; then
-            echo "Local Android Gradle build failed." >&2
-            if [[ -s "${raw_path}" ]]; then
-              echo "--- android stderr ---" >&2
-              cat "${raw_path}" >&2
-            fi
-            if [[ -s "${json_path}" ]]; then
-              echo "--- android stdout/log ---" >&2
-              cat "${json_path}" >&2
-            fi
-            exit "${build_exit}"
-          fi
-
-          shopt -s nullglob
-          cp "${android_outputs_dir}"/bundle/release/*.aab "${artifacts_dir}/" 2>/dev/null || true
-          cp "${android_outputs_dir}"/apk/release/*.apk "${artifacts_dir}/" 2>/dev/null || true
-          artifacts=( "${artifacts_dir}"/*.apk "${artifacts_dir}"/*.aab )
-          shopt -u nullglob
-
-          if [[ "${#artifacts[@]}" -eq 0 ]]; then
-            echo "Local Android build completed but no Android artifacts were found." >&2
-            find "${android_outputs_dir}" -maxdepth 5 -type f >&2 || true
-            exit 1
-          fi
-
-          artifact_path="${artifacts[0]}"
-          filename="$(basename "${artifact_path}")"
-
-          {
-            echo "profile=${{ steps.meta.outputs.profile }}"
-            echo "build_mode=prebuild-gradlew"
-            echo "artifact_path=${artifact_path}"
-            echo "android_outputs_dir=${android_outputs_dir}"
-            echo "filename=${filename}"
-          } > "${GITHUB_WORKSPACE}/dist/vibe-app-android-${{ steps.meta.outputs.profile }}-${{ steps.meta.outputs.label }}.txt"
-
-      - name: Upload Android artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-release-android
-          path: |
-            dist/vibe-app-android-${{ steps.meta.outputs.profile }}-${{ steps.meta.outputs.label }}.json
-            dist/vibe-app-android-${{ steps.meta.outputs.profile }}-${{ steps.meta.outputs.label }}.txt
-            dist/vibe-app-android-${{ steps.meta.outputs.profile }}-${{ steps.meta.outputs.label }}.log
-            dist/android-local/*.apk
-            dist/android-local/*.aab
-          if-no-files-found: warn
 
   publish:
     name: Publish App Release
     needs:
-      - web
       - desktop
-      - desktop_next
-      - android
     runs-on: ubuntu-latest
     timeout-minutes: 15
     if: >-
       ${{
         always() &&
         github.event_name == 'push' &&
-        (needs.web.result == 'success' || needs.web.result == 'skipped') &&
-        (needs.desktop.result == 'success' || needs.desktop.result == 'skipped') &&
-        (needs.desktop_next.result == 'success' || needs.desktop_next.result == 'skipped') &&
-        (needs.android.result == 'success' || needs.android.result == 'skipped')
+        needs.desktop.result == 'success'
       }}
 
     steps:
@@ -640,14 +202,7 @@ jobs:
           set -euo pipefail
           mkdir -p release-assets
 
-          find dist -type f \( \
-            -name '*.tar.gz' -o \
-            -name '*.apk' -o \
-            -name '*.aab' -o \
-            -name '*.json' -o \
-            -name '*.txt' -o \
-            -name '*.log' \
-          \) -print0 | while IFS= read -r -d '' file; do
+          find dist -type f -name '*.tar.gz' -print0 | while IFS= read -r -d '' file; do
             cp "${file}" "release-assets/$(basename "${file}")"
           done
 

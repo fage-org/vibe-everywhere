@@ -22,6 +22,7 @@ Current validation helpers:
     you also want release bundle outputs captured
   - optional output path: pass a markdown path after the script name when you need per-platform CI
     snapshots, for example `yarn --cwd scripts metrics:vibe-app-tauri artifacts/vibe-app-tauri/promotion-baseline-linux.md`
+  - root alias: `yarn app:metrics`
 - `validate-vibe-app-tauri-promotion.mjs`
   - owner: `vibe-app-tauri/release-and-promotion`
   - role: validate the tracked promotion baseline and promotion/deprecation plan structure; use
@@ -29,3 +30,4 @@ Current validation helpers:
   - prerequisites: `docs/plans/rebuild/vibe-app-tauri-promotion-baseline.md` and
     `docs/plans/rebuild/vibe-app-tauri-promotion-plan.md` must exist
   - strict command: `yarn --cwd scripts validate:vibe-app-tauri-promotion:ready`
+  - root alias: `yarn app:promotion-ready`

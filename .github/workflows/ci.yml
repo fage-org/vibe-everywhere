@@ -32,33 +32,8 @@ jobs:
       - name: Cargo test
         run: cargo test --workspace --locked
 
-  app:
-    name: App Validation
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: yarn
-          cache-dependency-path: yarn.lock
-
-      - name: Install dependencies
-        run: yarn install --frozen-lockfile
-
-      - name: Typecheck vibe-app
-        run: yarn workspace vibe-app typecheck
-
-      - name: Test vibe-app
-        run: yarn workspace vibe-app test --exclude 'sources/**/*.integration.spec.ts'
-
   app_tauri:
-    name: App Tauri Validation
+    name: App Replacement Validation
     runs-on: ubuntu-latest
     timeout-minutes: 30
 

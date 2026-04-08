@@ -4,14 +4,13 @@
   "scripts": {
     "postinstall": "node ./scripts/postinstall.cjs",
     "app-logs": "cargo run -p vibe-app-logs --",
-    "app-tauri": "yarn workspace vibe-app-tauri tauri:dev",
-    "app-tauri:validate": "yarn workspace vibe-app-tauri validate:promotion",
-    "app-tauri:metrics": "yarn --cwd scripts metrics:vibe-app-tauri",
-    "app-tauri:promotion-ready": "yarn --cwd scripts validate:vibe-app-tauri-promotion --promotion-ready"
+    "app": "yarn workspace vibe-app-tauri tauri:dev",
+    "app:validate": "yarn workspace vibe-app-tauri validate:promotion",
+    "app:metrics": "yarn --cwd scripts metrics:vibe-app-tauri",
+    "app:promotion-ready": "yarn --cwd scripts validate:vibe-app-tauri-promotion --promotion-ready"
   },
   "workspaces": {
     "packages": [
-      "packages/vibe-app",
       "packages/vibe-app-tauri"
     ],
     "nohoist": [

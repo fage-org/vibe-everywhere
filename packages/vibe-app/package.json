@@ -1,5 +1,6 @@
 {
   "name": "vibe-app",
+  "description": "DEPRECATED legacy reference-only app package; do not use for active CI, release, or new development.",
   "main": "index.ts",
   "version": "1.0.0",
   "scripts": {

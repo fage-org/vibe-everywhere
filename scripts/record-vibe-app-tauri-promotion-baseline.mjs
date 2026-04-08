@@ -169,9 +169,9 @@ this file with prose.
 
 ## Promotion Notes
 
-- Keep \`packages/vibe-app\` as the default shipping desktop path until the promotion checklist is signed off.
+- \`packages/vibe-app\` is now legacy reference-only and must not be restored as the default desktop path without an explicit plan update.
 - Attach cross-platform startup evidence and realistic session-load measurements before marking the
-  Wave 8 release-and-promotion slice complete.
+  active release-and-promotion slice complete.
 `;
 
   await mkdir(path.dirname(outputPath), { recursive: true });
