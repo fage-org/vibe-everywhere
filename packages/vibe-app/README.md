@@ -39,7 +39,8 @@ Notes:
 - The repository-level app packaging workflow lives at
   `/root/vibe-remote/.github/workflows/app-release.yml`.
 - `app-v*` tags package web, desktop, and Android assets. Android builds now run locally on the
-  GitHub runner via `expo prebuild --platform android` and `./gradlew app:bundleRelease`.
+  GitHub runner via `expo prebuild --platform android` and
+  `./gradlew app:bundleRelease app:assembleRelease`, producing both `.aab` and `.apk` artifacts.
 - `VIBE_EAS_PROJECT_ID` keeps the generated Expo config aligned with the linked Expo project;
   `VIBE_EAS_OWNER` can be provided explicitly but otherwise falls back to the GitHub repository
   owner. `VIBE_GOOGLE_SERVICES_JSON` remains optional.

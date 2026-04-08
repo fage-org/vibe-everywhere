@@ -51,8 +51,12 @@ Out of scope:
    - `packages/vibe-app-tauri` may add a separate non-default desktop packaging lane with distinct
      artifacts and channels while coexistence rules remain in force
    - Android builds run on the GitHub Actions runner via `expo prebuild --platform android`
-     followed by `./gradlew app:bundleRelease`, avoiding EAS cloud timeout limits and the local
-     EAS wrapper overhead
+     followed by `./gradlew app:bundleRelease app:assembleRelease`, so the workflow emits both AAB
+     and APK artifacts without relying on EAS cloud timeout limits or the local EAS wrapper
+     overhead
+   - manual packaging dispatch may validate and package `packages/vibe-app` and
+     `packages/vibe-app-tauri` desktop artifacts in parallel as long as the resulting artifacts
+     stay clearly separated and the default shipping path does not change implicitly
 4. App-release tags use `app-v*` so the shipping app packaging stays independent from Rust binary
    release tags.
 5. Any `vibe-app-tauri` desktop packaging lane must stay distinguishable from the shipping
@@ -82,6 +86,7 @@ Out of scope:
 - push/PR CI validates the Rust workspace and `packages/vibe-app`
 - a `vX.Y.Z` tag can produce a GitHub Release with packaged Rust binaries and checksums
 - an `app-v*` tag or manual dispatch can package `packages/vibe-app` for web, desktop, and Android
+- Android packaging produces both `.aab` and `.apk` artifacts for the shipping app workflow
 - any `vibe-app-tauri` desktop packaging lane remains clearly non-default and does not replace the
   shipping `packages/vibe-app` release lane without a promotion-plan update
 - Android packaging no longer depends on EAS cloud build completion to produce an artifact

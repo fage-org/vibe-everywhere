@@ -44,6 +44,7 @@ concurrency:
 
 env:
   APP_DIR: packages/vibe-app
+  APP_TAURI_DIR: packages/vibe-app-tauri
   EXPO_PUBLIC_VIBE_SERVER_URL: ${{ vars.EXPO_PUBLIC_VIBE_SERVER_URL }}
   EXPO_PUBLIC_VIBE_LOG_SERVER_URL: ${{ vars.EXPO_PUBLIC_VIBE_LOG_SERVER_URL }}
   EXPO_PUBLIC_VIBE_POSTHOG_KEY: ${{ vars.EXPO_PUBLIC_VIBE_POSTHOG_KEY }}
@@ -93,6 +94,59 @@ jobs:
 
       - name: Test vibe-app
         run: yarn workspace vibe-app test --exclude 'sources/**/*.integration.spec.ts'
+
+  validate_tauri:
+    name: Validate vibe-app-tauri preview
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    if: ${{ github.event_name == 'workflow_dispatch' && (inputs.targets == 'all' || inputs.targets == 'desktop') }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: yarn
+          cache-dependency-path: yarn.lock
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux system dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if yarn install --frozen-lockfile --network-timeout 600000; then
+              exit 0
+            fi
+            if [[ "${attempt}" -eq 3 ]]; then
+              echo "yarn install failed after ${attempt} attempts" >&2
+              exit 1
+            fi
+            echo "yarn install failed on attempt ${attempt}; retrying..." >&2
+            sleep 15
+          done
+
+      - name: Validate vibe-app-tauri preview
+        run: yarn workspace vibe-app-tauri validate:promotion
 
   web:
     name: Package Web
@@ -290,6 +344,108 @@ jobs:
           path: ${{ steps.archive.outputs.archive }}
           if-no-files-found: error
 
+  desktop_next:
+    name: Package Desktop Next Preview
+    needs: validate_tauri
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    if: ${{ github.event_name == 'workflow_dispatch' && (inputs.targets == 'all' || inputs.targets == 'desktop') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target_label: linux-x86_64
+          - os: macos-latest
+            target_label: macos
+          - os: windows-latest
+            target_label: windows-x86_64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: yarn
+          cache-dependency-path: yarn.lock
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            packages/vibe-app-tauri/src-tauri -> target
+
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt update
+          sudo apt install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            pkg-config \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if yarn install --frozen-lockfile --network-timeout 600000; then
+              exit 0
+            fi
+            if [[ "${attempt}" -eq 3 ]]; then
+              echo "yarn install failed after ${attempt} attempts" >&2
+              exit 1
+            fi
+            echo "yarn install failed on attempt ${attempt}; retrying..." >&2
+            sleep 15
+          done
+
+      - name: Resolve desktop-next build inputs
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "label=manual-${GITHUB_RUN_NUMBER}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build desktop-next bundles
+        run: yarn workspace vibe-app-tauri tauri:build
+
+      - name: Archive desktop-next bundles
+        id: archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          bundle_dir="${APP_TAURI_DIR}/src-tauri/target/release/bundle"
+          if [[ ! -d "${bundle_dir}" ]]; then
+            echo "Expected bundle directory not found: ${bundle_dir}" >&2
+            exit 1
+          fi
+
+          mkdir -p dist
+          archive="dist/vibe-app-tauri-desktop-${{ matrix.target_label }}-${{ steps.meta.outputs.label }}.tar.gz"
+          tar -czf "${archive}" -C "${APP_TAURI_DIR}/src-tauri/target/release" bundle
+          echo "archive=${archive}" >> "${GITHUB_OUTPUT}"
+
+      - name: Upload desktop-next artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-desktop-next-${{ matrix.target_label }}
+          path: ${{ steps.archive.outputs.archive }}
+          if-no-files-found: error
+
   android:
     name: Package Android
     needs: validate
@@ -394,10 +550,10 @@ jobs:
             echo "== expo prebuild =="
             npx expo prebuild --platform android --non-interactive
             echo
-            echo "== gradle bundleRelease =="
+            echo "== gradle bundleRelease + assembleRelease =="
             cd "${android_dir}"
             chmod +x ./gradlew
-            ./gradlew --no-daemon app:bundleRelease
+            ./gradlew --no-daemon app:bundleRelease app:assembleRelease
           } > >(tee "${json_path}") 2> >(tee "${raw_path}" >&2)
           build_exit=$?
           set -e
