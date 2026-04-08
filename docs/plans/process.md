@@ -7,7 +7,7 @@ this repository.
 
 ## Hierarchy
 
-Planning documents must be maintained at four levels:
+Planning documents must be maintained at five levels:
 
 1. `PLAN.md`
    - top-level pointer to the active planning track
@@ -44,6 +44,9 @@ Before implementation begins on a planning track, the following must exist:
   together
 - if a module plan becomes stale because the source-of-truth Happy behavior changed, update
   `shared/source-crosswalk.md` first, then the affected project/module plans
+- if a wave or batch is retired as historical baseline material, mark that closure explicitly in the
+  execution docs and label any remaining items as historical or moved work instead of leaving them
+  looking like active backlog
 
 ## AI Dispatch Rules
 

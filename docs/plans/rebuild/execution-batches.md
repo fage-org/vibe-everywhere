@@ -19,6 +19,9 @@ Use this file when you want to assign work in grouped waves such as:
   continuing.
 - If two modules in the same batch touch the same write scope, run them serially even if the batch
   says “parallel allowed”.
+- If a batch is closed as historical baseline material, mark that status in the batch index and
+  relabel any leftover module entries as historical or moved work instead of leaving them looking
+  dispatchable.
 
 ## Batch Index
 
@@ -41,8 +44,8 @@ Use this file when you want to assign work in grouped waves such as:
 | `[done] B14` | app import baseline | imported app builds in this repo |
 | `[done] B15` | app adaptation | app works against Vibe services |
 | `[done] B16` | optional sidecar | app-log sidecar parity if still needed |
-| `B17` | historical desktop-preview planning freeze and first usable slice | historical Wave 8 baseline for the desktop preview path |
-| `B18` | historical desktop promotion planning | historical Wave 8 parity and promotion baseline |
+| `[done] B17` | historical desktop-preview planning freeze and first usable slice | historical Wave 8 baseline for the desktop preview path |
+| `[done] B18` | historical desktop promotion planning | historical Wave 8 parity and promotion baseline |
 | `B19` | unified runtime bootstrap | `vibe-app-tauri` can host desktop, Android Tauri-mobile, and retained static browser export in one package |
 | `B20` | shared core import from Happy | replacement package owns reusable auth/sync/realtime/core modules |
 | `B21` | shell surfaces, static browser export, and identity | desktop/Android/static-export `P0` entry flows and create/link/restore flows work |
@@ -631,7 +634,7 @@ Use this file when you want to assign work in grouped waves such as:
 
 - sidecar startup and ingestion smoke tests
 
-## B17: `vibe-app-tauri` Next Desktop Iteration
+## [done] B17: `vibe-app-tauri` Next Desktop Iteration
 
 ### Status
 
@@ -651,11 +654,11 @@ Use this file when you want to assign work in grouped waves such as:
 ### Module Order
 
 1. `[done]` `modules/vibe-app-tauri/bootstrap-and-package.md`
-2. `modules/vibe-app-tauri/desktop-shell-and-routing.md`
-3. `modules/vibe-app-tauri/core-logic-extraction.md`
-4. `modules/vibe-app-tauri/desktop-platform-adapters.md`
-5. `modules/vibe-app-tauri/auth-and-session-state.md`
-6. `modules/vibe-app-tauri/session-ui-parity.md`
+2. `[historical -> B19-B26]` `modules/vibe-app-tauri/desktop-shell-and-routing.md`
+3. `[historical -> B19-B26]` `modules/vibe-app-tauri/core-logic-extraction.md`
+4. `[historical -> B19-B26]` `modules/vibe-app-tauri/desktop-platform-adapters.md`
+5. `[historical -> B19-B26]` `modules/vibe-app-tauri/auth-and-session-state.md`
+6. `[historical -> B19-B26]` `modules/vibe-app-tauri/session-ui-parity.md`
 
 ### Parallel Allowed
 
@@ -678,7 +681,7 @@ Use this file when you want to assign work in grouped waves such as:
 - route-level desktop navigation checks
 - historical parity-checklist progress review against current desktop behavior
 
-## B18: `vibe-app-tauri` Promotion Readiness
+## [done] B18: `vibe-app-tauri` Promotion Readiness
 
 ### Status
 
@@ -691,8 +694,8 @@ Use this file when you want to assign work in grouped waves such as:
 
 ### Module Order
 
-1. `modules/vibe-app-tauri/secondary-surfaces.md`
-2. `modules/vibe-app-tauri/release-and-promotion.md`
+1. `[historical -> B24]` `modules/vibe-app-tauri/secondary-surfaces.md`
+2. `[historical -> B25-B26]` `modules/vibe-app-tauri/release-and-promotion.md`
 
 ### Parallel Allowed
 

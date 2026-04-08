@@ -5,7 +5,7 @@ Happy-aligned remote coding stack rebuilt around Rust services and clients.
 `vibe-remote` keeps the Happy product shape, but moves the server, CLI, agent, wire contracts, and
 log sidecar into Rust while treating `packages/vibe-app` as a deprecated legacy import/reference.
 Active app replacement work now centers on `packages/vibe-app-tauri`, and the repository remains
-plan-governed through [PLAN.md](/root/vibe-remote/PLAN.md).
+plan-governed through [PLAN.md](./PLAN.md).
 
 ## What ships here
 
@@ -192,7 +192,7 @@ reference material.
 
 ## Validation
 
-Repository baseline checks:
+Repository PR-ready baseline:
 
 ```bash
 cargo fmt --all --check
@@ -202,10 +202,27 @@ yarn workspace vibe-app-tauri typecheck
 yarn workspace vibe-app-tauri test
 yarn workspace vibe-app-tauri tauri:test
 yarn workspace vibe-app-tauri tauri:smoke
+yarn --cwd scripts validate:vibe-app-tauri-promotion
 ```
 
 Legacy `packages/vibe-app` validation is intentionally out of the active baseline. Use it only as a
 manual reference path when Happy cannot answer a Vibe-specific question.
+
+Additional required checks depend on the touched scope:
+
+- if `crates/vibe-wire` changes, also run `cargo run --example export-fixtures -p vibe-wire` and
+  `yarn --cwd scripts validate:vibe-wire-fixtures`
+- if app release, promotion, or rollout docs change, also run `yarn app:promotion-ready`
+- if a module plan defines extra tests, smoke checks, or release evidence, run them or report the
+  block explicitly in the change summary
+
+Repository quality gates:
+
+- no hardcoded secrets in docs, examples, workflows, or committed config
+- plan status, execution status, and active workflow ownership must stay consistent across `PLAN.md`,
+  `docs/plans/rebuild/`, and root entry docs
+- coverage expectations are enforced per project and module plan; keep or improve automated test
+  coverage on touched surfaces and do not skip required acceptance checks
 
 ## GitHub Actions
 
@@ -262,4 +279,4 @@ App workflow notes:
 
 ## License
 
-MIT, with Happy-origin attribution preserved in [LICENSE](/root/vibe-remote/LICENSE).
+MIT, with Happy-origin attribution preserved in [LICENSE](./LICENSE).

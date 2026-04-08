@@ -12,6 +12,9 @@
 ## Current Commands
 
 - `cargo check --workspace`
+- `cargo fmt --all --check`
+- `cargo check --workspace --locked`
+- `cargo test --workspace --locked`
 - `cargo test -p vibe-wire`
 - `cargo test -p vibe-app-logs`
 - `cargo run --example export-fixtures -p vibe-wire`
@@ -28,6 +31,22 @@
 - `yarn --cwd scripts validate:vibe-wire-fixtures`
 - `yarn --cwd scripts metrics:vibe-app-tauri`
 - `HAPPY_ROOT=/path/to/happy yarn --cwd scripts validate:vibe-wire-fixtures`
+
+## PR-Ready Gate
+
+A documentation, code, or workflow change is not PR-ready until:
+
+- the repository baseline commands relevant to the touched area pass
+- any touched module plan's required tests, smoke checks, or release evidence are run or explicitly
+  reported blocked
+- no secrets are introduced in docs, examples, workflows, or committed config
+- plan status remains consistent across `PLAN.md`, `docs/plans/rebuild/execution-plan.md`,
+  `docs/plans/rebuild/execution-batches.md`, and the owning project/module plan
+
+Coverage target remains 80%+ where the owning project already measures it. Because this repository
+spans Rust crates, scripts, and the Tauri app without one unified coverage reporter, enforce
+coverage through the project/module plans rather than pretending a single repo-wide number is
+currently emitted automatically.
 
 ## Source Of Truth
 

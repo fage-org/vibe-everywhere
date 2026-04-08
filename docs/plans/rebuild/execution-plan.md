@@ -27,6 +27,9 @@ Use this file when deciding:
   explicitly marks it safe.
 - When an ordered item is completed, mark it inline in this file as `[done]` before starting the
   next item. This completion-tracking rule applies to every subsequent wave as well.
+- When a wave is retired as historical baseline material instead of being executed to the end, mark
+  the wave status explicitly and relabel any leftover items as historical or moved work so they do
+  not read like active backlog.
 
 ## Critical Path Summary
 
@@ -417,13 +420,13 @@ desktop UI and behavior with a Tauri 2 + web-native frontend, without destabiliz
 ### Order
 
 1. `[done]` `modules/vibe-app-tauri/bootstrap-and-package.md`
-2. `modules/vibe-app-tauri/desktop-shell-and-routing.md`
-3. `modules/vibe-app-tauri/core-logic-extraction.md`
-4. `modules/vibe-app-tauri/desktop-platform-adapters.md`
-5. `modules/vibe-app-tauri/auth-and-session-state.md`
-6. `modules/vibe-app-tauri/session-ui-parity.md`
-7. `modules/vibe-app-tauri/secondary-surfaces.md`
-8. `modules/vibe-app-tauri/release-and-promotion.md`
+2. `[historical -> Wave 9 replacement work]` `modules/vibe-app-tauri/desktop-shell-and-routing.md`
+3. `[historical -> Wave 9 replacement work]` `modules/vibe-app-tauri/core-logic-extraction.md`
+4. `[historical -> Wave 9 replacement work]` `modules/vibe-app-tauri/desktop-platform-adapters.md`
+5. `[historical -> Wave 9 replacement work]` `modules/vibe-app-tauri/auth-and-session-state.md`
+6. `[historical -> Wave 9 replacement work]` `modules/vibe-app-tauri/session-ui-parity.md`
+7. `[historical -> Wave 9 replacement work]` `modules/vibe-app-tauri/secondary-surfaces.md`
+8. `[historical -> Wave 9 replacement work]` `modules/vibe-app-tauri/release-and-promotion.md`
 
 ### Why This Order
 

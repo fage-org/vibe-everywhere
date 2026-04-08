@@ -1,5 +1,21 @@
 # Shared Follow-Up Plan: repo-release-and-docs
 
+## Archival Status
+
+This file is a historical repository-level snapshot.
+
+It records the release and documentation model that existed before the active Wave 9
+`packages/vibe-app-tauri` ownership transition. Do not use it as the current source of authority for
+release ownership. Current authority lives in:
+
+- root `README.md`
+- `.github/workflows/ci.yml`
+- `.github/workflows/release.yml`
+- `.github/workflows/app-release.yml`
+- `docs/plans/rebuild/vibe-app-tauri-wave9-migration-and-release-plan.md`
+- `docs/plans/rebuild/modules/vibe-app-tauri/release-ota-and-store-migration.md`
+- `docs/plans/rebuild/modules/vibe-app-tauri/promotion-and-vibe-app-deprecation.md`
+
 ## Purpose
 
 Capture the historical non-blocking repository-level follow-up that landed after the rebuild baseline:
@@ -12,6 +28,13 @@ Capture the historical non-blocking repository-level follow-up that landed after
 
 This work is packaging/documentation infrastructure. It must not reopen completed wave module scope
 or change locked runtime contracts.
+
+## Current Repository Reality
+
+- Rust CI and Rust release packaging remain active.
+- The current app release workflow packages `packages/vibe-app-tauri`.
+- Deprecated `packages/vibe-app` app release lanes are disabled from the active workflow.
+- Treat the decisions below as historical context for continuity review only.
 
 ## Scope
 

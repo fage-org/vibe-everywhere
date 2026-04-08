@@ -70,10 +70,10 @@ Define release packaging, validation, rollout, and promotion criteria for `vibe-
     tables for startup/performance/memory sign-off
   - strict promotion-ready validation now exists through
     `yarn --cwd scripts validate:vibe-app-tauri-promotion:ready`
-  - merged GitHub release automation now exists in `.github/workflows/app-release.yml`, which
-    packages the shipping `packages/vibe-app` desktop lane and the non-default
-    `packages/vibe-app-tauri` desktop preview lane in parallel, then publishes both artifact sets
-    into the same `app-v*` release without changing default ownership
+  - the historical Wave 8 workflow assumption was a shared app-release lane for both packages;
+    current repository reality has moved on, and `.github/workflows/app-release.yml` now packages
+    only the active `packages/vibe-app-tauri` lane while deprecated `packages/vibe-app` release
+    lanes stay disabled
 - still pending before module acceptance:
   - real cross-platform startup evidence from Linux, macOS, and Windows runs
   - realistic session-load performance and memory measurements recorded in the generated baseline
