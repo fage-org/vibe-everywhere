@@ -23,8 +23,8 @@ In scope:
 - root packaging metadata needed to make tag-driven releases predictable
 - app-release automation that keeps `packages/vibe-app` as the owning package for Expo/EAS, web,
   Android, and the current shipping desktop path
-- a separate non-default desktop packaging lane for `packages/vibe-app-tauri` while the rewrite
-  coexists with `packages/vibe-app`
+- a non-default `packages/vibe-app-tauri` desktop packaging lane within the shared app-release
+  workflow while the rewrite coexists with `packages/vibe-app`
 
 Out of scope:
 
@@ -48,8 +48,9 @@ Out of scope:
      current default desktop release path
    - web export is built locally on GitHub Actions and uploaded as an artifact
    - desktop bundles for the shipping app are built locally with Tauri on Linux, macOS, and Windows
-   - `packages/vibe-app-tauri` may add a separate non-default desktop packaging lane with distinct
-     artifacts and channels while coexistence rules remain in force
+   - `packages/vibe-app-tauri` may add a non-default desktop packaging lane within the shared
+     app-release workflow, with distinct artifacts and channels while coexistence rules remain in
+     force
    - Android builds run on the GitHub Actions runner via `expo prebuild --platform android`
      followed by `./gradlew app:bundleRelease app:assembleRelease`, so the workflow emits both AAB
      and APK artifacts without relying on EAS cloud timeout limits or the local EAS wrapper
@@ -87,8 +88,9 @@ Out of scope:
 - a `vX.Y.Z` tag can produce a GitHub Release with packaged Rust binaries and checksums
 - an `app-v*` tag or manual dispatch can package `packages/vibe-app` for web, desktop, and Android
 - Android packaging produces both `.aab` and `.apk` artifacts for the shipping app workflow
-- any `vibe-app-tauri` desktop packaging lane remains clearly non-default and does not replace the
-  shipping `packages/vibe-app` release lane without a promotion-plan update
+- any `vibe-app-tauri` desktop packaging lane remains clearly non-default inside the shared
+  app-release workflow and does not replace the shipping `packages/vibe-app` release lane without
+  a promotion-plan update
 - Android packaging no longer depends on EAS cloud build completion to produce an artifact
 - the root README documents deployment prerequisites, local bring-up, runtime env vars, and release
   usage

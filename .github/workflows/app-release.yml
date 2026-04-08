@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       targets:
-        description: Which app targets to package
+        description: Which app targets to package (`desktop` builds both shipping and desktop-next lanes)
         required: true
         default: all
         type: choice
@@ -99,7 +99,7 @@ jobs:
     name: Validate vibe-app-tauri preview
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    if: ${{ github.event_name == 'workflow_dispatch' && (inputs.targets == 'all' || inputs.targets == 'desktop') }}
+    if: ${{ github.event_name == 'push' || inputs.targets == 'all' || inputs.targets == 'desktop' }}
 
     steps:
       - name: Checkout
@@ -349,7 +349,7 @@ jobs:
     needs: validate_tauri
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
-    if: ${{ github.event_name == 'workflow_dispatch' && (inputs.targets == 'all' || inputs.targets == 'desktop') }}
+    if: ${{ github.event_name == 'push' || inputs.targets == 'all' || inputs.targets == 'desktop' }}
     strategy:
       fail-fast: false
       matrix:
@@ -612,6 +612,7 @@ jobs:
     needs:
       - web
       - desktop
+      - desktop_next
       - android
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -621,6 +622,7 @@ jobs:
         github.event_name == 'push' &&
         (needs.web.result == 'success' || needs.web.result == 'skipped') &&
         (needs.desktop.result == 'success' || needs.desktop.result == 'skipped') &&
+        (needs.desktop_next.result == 'success' || needs.desktop_next.result == 'skipped') &&
         (needs.android.result == 'success' || needs.android.result == 'skipped')
       }}
 

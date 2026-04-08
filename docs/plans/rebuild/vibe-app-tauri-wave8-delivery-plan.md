@@ -89,7 +89,9 @@ Owning modules:
   - desktop file load/save dialogs for backup-key import plus text and artifact export actions
   - desktop notifications for successful restore/link and artifact mutation feedback
   - package-local promotion validation script plus baseline artifact scaffolding for startup/performance/memory review
-  - distinct `app-tauri-v*` GitHub Actions release lane for cross-platform desktop bundle packaging
+  - merged `app-v*` GitHub Actions release workflow that packages the shipping desktop app and the
+    non-default `vibe-app-tauri` desktop preview in parallel, then publishes both asset sets into
+    the same GitHub release
   - desktop route shell for the locked P0 inventory, with unresolved parity gaps still tracked as in-progress work
 - current hardening focus inside `B17`:
   - converge desktop runtime message and update parsing onto the existing Vibe compatibility schemas instead of maintaining package-local protocol drift

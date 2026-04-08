@@ -120,8 +120,9 @@ Phase 7 in `projects/vibe-app-tauri.md`.
 - status: `in progress`
 - desktop Tauri bundles are generated reliably for Linux, macOS, and Windows
 - packaged app boots successfully on Linux, macOS, and Windows before promotion
-- a separate `app-tauri-v*` release lane now exists for packaging and artifact upload without
-  mutating the shipping `packages/vibe-app` lane
+- the shared `app-v*` release workflow now packages both the shipping `packages/vibe-app` desktop
+  artifacts and the non-default `packages/vibe-app-tauri` desktop preview artifacts in parallel
+  without changing the default shipping path
 
 ### Performance And Runtime
 
@@ -214,7 +215,8 @@ For each exception, document:
 - tracked promotion review artifacts now live in
   `docs/plans/rebuild/vibe-app-tauri-promotion-baseline.md` and
   `docs/plans/rebuild/vibe-app-tauri-promotion-plan.md`
-- tagged `app-tauri-v*` releases now require strict promotion-doc validation before publish
+- tagged `app-v*` releases now publish both shipping and preview desktop assets from the same
+  workflow while keeping `packages/vibe-app-tauri` clearly non-default
 
 ## Notes
 

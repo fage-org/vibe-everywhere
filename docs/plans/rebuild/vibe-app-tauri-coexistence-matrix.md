@@ -56,7 +56,7 @@ module by module.
 | shared account/session credentials | compatible storage may be reused only if format and callback semantics remain compatible | document the exact reuse rule in auth implementation; do not assume implicit sharing beyond what the auth module validates |
 | local UI state, caches, window layout, and desktop-only preferences | `packages/vibe-app` owns its current local state | `vibe-app-tauri` should use package-local subdirectories or keys by default so it can coexist safely |
 | logs, temporary files, and desktop-only downloads | `packages/vibe-app` owns its current local behavior | `vibe-app-tauri` should isolate package-local outputs unless an explicit shared path is required and documented |
-| CI and release lanes | `packages/vibe-app` retains current production lane | `vibe-app-tauri` must add separate validation and release jobs until promotion; manual packaging workflows may run both desktop lanes in parallel only if artifacts, job names, and publish triggers stay clearly separated |
+| CI and release lanes | `packages/vibe-app` retains current production lane | the shared app-release workflow may validate and package both desktop lanes in parallel, but `vibe-app-tauri` assets must stay clearly distinguished and non-default until promotion |
 | default desktop entrypoint in docs and helper scripts | `packages/vibe-app` | keep docs and scripts pointing at the shipping app until promotion sign-off lands |
 
 ## Promotion Constraint

@@ -17,15 +17,17 @@ Promotion must not proceed until all of the following are true:
   `docs/plans/rebuild/vibe-app-tauri-promotion-baseline.md`
 - side-by-side parity review is recorded in
   `docs/plans/rebuild/vibe-app-tauri-promotion-baseline.md`
-- the separate `app-tauri-v*` release lane has produced desktop bundles successfully
+- the shared `app-v*` release workflow has produced distinct `vibe-app-tauri` desktop preview
+  bundles successfully alongside the shipping app assets
 - `packages/vibe-app` remains the default desktop path until explicit approval is recorded here
 
 ## Rollout Stages
 
 1. Parallel preview only
-   - `packages/vibe-app-tauri` ships through the non-default `app-tauri-v*` lane
-   - docs, helper scripts, and release notes continue to treat `packages/vibe-app` as the default
-     desktop path
+   - `packages/vibe-app-tauri` ships as a non-default desktop preview asset in the shared
+     `app-v*` release workflow
+   - docs, helper scripts, release notes, and asset naming continue to treat `packages/vibe-app`
+     as the default desktop path
 2. Promotion candidate review
    - baseline evidence is complete
    - release owner, engineering owner, and product owner review the candidate
@@ -42,7 +44,7 @@ If a promotion candidate regresses before or after the default switch:
 
 - stop further rollout immediately
 - keep the current `packages/vibe-app` desktop release lane available until the issue is resolved
-- publish a follow-up `app-tauri-v*` build only after the regression is understood and validated
+- publish a follow-up `app-v*` release only after the regression is understood and validated
 - record the regression and rollback decision in this file before retrying promotion
 
 ## Deprecation Plan
