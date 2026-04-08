@@ -11,8 +11,8 @@
 
 ## Current Phase
 
-- phase: the original Happy-aligned rebuild baseline is complete through Wave 7 (`vibe-wire`, `vibe-server`, `vibe-agent`, `vibe-cli`, `vibe-app`, and `vibe-app-logs` are implemented and validated); the active next milestone is Wave 8, the parallel desktop rewrite in `packages/vibe-app-tauri`
-- next milestone: keep the Wave 0-7 baseline stable while planning and executing the `vibe-app-tauri` desktop rewrite behind explicit parity, coexistence, and promotion gates
+- phase: the original Happy-aligned rebuild baseline is complete through Wave 7 (`vibe-wire`, `vibe-server`, `vibe-agent`, `vibe-cli`, `vibe-app`, and `vibe-app-logs` are implemented and validated); Wave 8 is closed as the historical desktop-preview baseline for `packages/vibe-app-tauri`; the active planning milestone is Wave 9, which turns `packages/vibe-app-tauri` into the active Wave 9 replacement package for `packages/vibe-app` across desktop, iOS, Android, and retained web/export ownership while keeping `packages/vibe-app` deprecated from active CI and release ownership
+- next milestone: execute the direct `/root/happy/packages/happy-app`-aligned migration into `packages/vibe-app-tauri`, keep `packages/vibe-app` only as a deprecated legacy reference when Happy cannot answer a Vibe-specific continuity question, and keep the old `vibe-app` pipelines disabled
 
 ## Rule
 

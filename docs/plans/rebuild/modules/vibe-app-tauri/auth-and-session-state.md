@@ -1,5 +1,12 @@
 # Module Plan: vibe-app-tauri/auth-and-session-state
 
+## Archival Status
+
+This file is historical Wave 8 desktop-only module planning material.
+
+Do not use it as active execution authority for Wave 9. Active auth and identity ownership now
+belongs to `auth-and-identity-flows.md` and the current Wave 9 module set.
+
 ## Purpose
 
 Stand up desktop auth, account restore, session state bootstrap, and backend connectivity in the

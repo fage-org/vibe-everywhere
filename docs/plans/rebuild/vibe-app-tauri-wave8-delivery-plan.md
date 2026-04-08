@@ -1,10 +1,22 @@
 # Wave 8 Delivery Plan: `vibe-app-tauri`
 
+## Archival Status
+
+This file is historical Wave 8 desktop-only planning material.
+
+Do not use it as active execution authority for Wave 9. Use the active Wave 9 planning set instead:
+
+- `docs/plans/rebuild/projects/vibe-app-tauri.md`
+- `docs/plans/rebuild/vibe-app-tauri-wave9-unified-replacement-plan.md`
+- `docs/plans/rebuild/vibe-app-tauri-wave9-route-and-capability-matrix.md`
+- `docs/plans/rebuild/vibe-app-tauri-wave9-migration-and-release-plan.md`
+- `docs/plans/rebuild/modules/vibe-app-tauri/*`
+
 ## Purpose
 
-This document is the execution-facing delivery plan for Wave 8. It translates the existing
-project, module, parity, route, capability, extraction, and coexistence plans into one practical
-feature checklist for implementation.
+This document is the historical execution-facing delivery plan for Wave 8. It translated the
+original desktop-only project, module, parity, route, capability, extraction, and coexistence
+plans into one practical feature checklist for implementation.
 
 Use this file when deciding:
 
@@ -13,18 +25,18 @@ Use this file when deciding:
 - which module owns each feature area
 - what “done” means for each phase
 
-This file does not replace the authoritative module plans. It is the Wave 8 roll-up view that ties
-them together.
+This file does not replace the authoritative module plans. It now serves as a historical Wave 8
+roll-up view; active replacement work has moved to the Wave 9 planning set.
 
 ## Scope
 
-Wave 8 introduces a new parallel desktop-only package:
+Wave 8 introduced a parallel desktop-only package:
 
 - package target: `packages/vibe-app-tauri`
-- product goal: recreate the current desktop-visible `vibe-app` UX and behavior with a Tauri 2 +
+- product goal: recreate the then-current desktop-visible `vibe-app` UX and behavior with a Tauri 2 +
   web-native implementation
-- delivery rule: `packages/vibe-app` remains the default shipping desktop path until explicit
-  promotion
+- historical delivery rule: `packages/vibe-app` remained the default shipping desktop path until explicit
+  promotion planning existed
 
 ## Source Of Truth
 
@@ -78,9 +90,9 @@ Owning modules:
 1. `secondary-surfaces`
 2. `release-and-promotion`
 
-## Current Execution Note
+## Historical Execution Note
 
-- state: `B17 in progress`
+- state: `historical Wave 8 reference`
 - currently implemented in-repo:
   - separate `packages/vibe-app-tauri` package, workspace wiring, CI validation, and Tauri smoke build
   - locked localhost loopback auth callback plus desktop-safe credential persistence
@@ -89,15 +101,14 @@ Owning modules:
   - desktop file load/save dialogs for backup-key import plus text and artifact export actions
   - desktop notifications for successful restore/link and artifact mutation feedback
   - package-local promotion validation script plus baseline artifact scaffolding for startup/performance/memory review
-  - merged `app-v*` GitHub Actions release workflow that packages the shipping desktop app and the
-    non-default `vibe-app-tauri` desktop preview in parallel, then publishes both asset sets into
-    the same GitHub release
+  - at that time, the shared `app-v*` workflow packaged the shipping desktop app and the
+    non-default `vibe-app-tauri` desktop preview in parallel
   - desktop route shell for the locked P0 inventory, with unresolved parity gaps still tracked as in-progress work
-- current hardening focus inside `B17`:
+- historical hardening focus inside `B17` at close:
   - converge desktop runtime message and update parsing onto the existing Vibe compatibility schemas instead of maintaining package-local protocol drift
   - add stronger localhost loopback auth coverage for state validation, cancellation, timeout, and attempt ownership
   - tighten the desktop Tauri security baseline while keeping the first usable slice runnable
-- current follow-on parity focus:
+- historical follow-on parity focus at close:
   - start migrating the first retained `secondary-surfaces` routes that can already run against desktop state without expanding protocol scope
   - prioritize settings detail routes, server configuration, changelog visibility, and text utility surfaces before heavier machine or artifacts work
   - artifacts, profile detail, and machine detail retained routes are now active migration targets instead of staying route-table placeholders
@@ -114,7 +125,7 @@ Owning modules:
   - `wired` means the route is backed by real desktop state or backend behavior strongly enough to count as a concrete implementation step
   - `retained` means the route is no longer a placeholder and is reviewable in the desktop shell, but still depends on retained mock or review-only data and is not promotion-complete
   - `planned` remains placeholder or deferred route inventory only
-- still open before Wave 8 can be considered complete:
+- historical unfinished items later carried into Wave 9:
   - stronger realtime message sequencing coverage and auth lifecycle hardening
   - deeper parity for social inbox content, machine rows, and settings-side mutations
   - explicit sign-off updates in the parity checklist for any accepted parity relaxation
@@ -135,7 +146,7 @@ Feature points:
 - add a Tauri 2 shell with isolated bundle identifiers and package-local state directories
 - define package-local `dev`, `build`, `typecheck`, `test`, and `release` scripts
 - keep build outputs, artifacts, updater channels, and local state isolated from `packages/vibe-app`
-- add package-local CI/release hooks without mutating the shipping app lane
+- add package-local CI/release hooks without mutating the then-shipping app lane
 
 Definition of done:
 
@@ -333,7 +344,7 @@ Feature points:
 
 - package-local release scripts
 - desktop CI/release automation
-- artifact naming and channel isolation from the shipping app
+- artifact naming and channel isolation from the historical shipping app
 - parity checklist maintenance
 - Linux, macOS, and Windows startup validation before promotion
 - realistic session-load performance review
@@ -343,7 +354,7 @@ Feature points:
 Definition of done:
 
 - release artifacts are produced reliably
-- coexistence rules remain documented
+- historical coexistence rules remain documented
 - promotion gate is explicit and sign-off ready
 
 ## P0 / P1 / P2 Summary
@@ -418,19 +429,19 @@ Each slice should leave behind:
 
 ## Quality Gates
 
-Wave 8 is not complete unless all of the following are true:
+Wave 8 closed as a historical desktop-preview baseline with the following closure conditions recorded:
 
 - `packages/vibe-app-tauri` exists and runs as a separate package
 - no protocol fork from `vibe-wire` or `vibe-server` was introduced
-- auth uses the locked localhost loopback strategy during coexistence
+- auth used the locked localhost loopback strategy during coexistence
 - P0 and P1 checklist items are either `done` or explicitly `deferred` with rationale
 - cross-platform desktop startup validation exists before promotion
 - performance/memory review exists before promotion
-- `packages/vibe-app` remains the default shipping desktop path until promotion is approved
+- `packages/vibe-app` was the default shipping desktop path during Wave 8; it is now deprecated reference-only
 
-## Immediate Next Work
+## Historical Immediate Next Work
 
-Start with the first `B17` module in order:
+At the time Wave 8 was active, the next work started with the first `B17` module in order:
 
 1. `modules/vibe-app-tauri/bootstrap-and-package.md`
 2. `modules/vibe-app-tauri/desktop-shell-and-routing.md`

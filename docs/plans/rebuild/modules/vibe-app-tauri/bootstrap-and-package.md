@@ -1,5 +1,12 @@
 # Module Plan: vibe-app-tauri/bootstrap-and-package
 
+## Archival Status
+
+This file is historical Wave 8 desktop-only module planning material.
+
+Do not use it as active execution authority for Wave 9. For active replacement work, use the Wave 9
+planning set and current module ownership instead.
+
 ## Purpose
 
 Create `packages/vibe-app-tauri` as a new desktop-only package with a runnable Tauri 2 shell and a

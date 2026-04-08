@@ -1,5 +1,12 @@
 # Module Plan: vibe-app-tauri/core-logic-extraction
 
+## Archival Status
+
+This file is historical Wave 8 desktop-only module planning material.
+
+Do not use it as active execution authority for Wave 9. Active shared-core ownership now belongs to
+`shared-core-from-happy.md` and the current Wave 9 module set.
+
 ## Purpose
 
 Extract the minimum reusable non-visual logic required by the new desktop app while keeping that

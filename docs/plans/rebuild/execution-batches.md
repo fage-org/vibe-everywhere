@@ -41,8 +41,16 @@ Use this file when you want to assign work in grouped waves such as:
 | `[done] B14` | app import baseline | imported app builds in this repo |
 | `[done] B15` | app adaptation | app works against Vibe services |
 | `[done] B16` | optional sidecar | app-log sidecar parity if still needed |
-| `B17` | next desktop iteration planning freeze and first usable slice | parallel `vibe-app-tauri` desktop app reaches first usable slice |
-| `B18` | desktop parity completion and promotion readiness | `vibe-app-tauri` closes remaining parity gaps without becoming the default path early |
+| `B17` | historical desktop-preview planning freeze and first usable slice | historical Wave 8 baseline for the desktop preview path |
+| `B18` | historical desktop promotion planning | historical Wave 8 parity and promotion baseline |
+| `B19` | unified runtime bootstrap | `vibe-app-tauri` can host desktop and Expo/mobile runtimes in one package |
+| `B20` | shared core import from Happy | replacement package owns reusable auth/sync/realtime/core modules |
+| `B21` | shell surfaces, browser runtime, and identity | desktop/mobile/browser `P0` entry flows and create/link/restore flows work |
+| `B22` | session runtime and rendering | desktop and mobile reach a real end-to-end session chain |
+| `B23` | promotion-critical native capabilities | mobile and cross-platform capability blockers are closed or explicitly waived |
+| `B24` | secondary route migration | promotion-critical `P1` routes are wired |
+| `B25` | release and store migration | `vibe-app-tauri` can produce the full app artifact set |
+| `B26` | promotion and legacy archival | `packages/vibe-app-tauri` is confirmed as the default app path |
 
 ## [done] B00: Planning Freeze
 
@@ -625,6 +633,10 @@ Use this file when you want to assign work in grouped waves such as:
 
 ## B17: `vibe-app-tauri` Next Desktop Iteration
 
+### Status
+
+- historical and closed; do not dispatch new work here
+
 ### Prerequisites
 
 - `B16` complete
@@ -664,9 +676,13 @@ Use this file when you want to assign work in grouped waves such as:
 - package bootstrap and Tauri shell smoke tests
 - auth/session desktop chain against a real backend
 - route-level desktop navigation checks
-- parity checklist progress against current desktop behavior
+- historical parity-checklist progress review against current desktop behavior
 
 ## B18: `vibe-app-tauri` Promotion Readiness
+
+### Status
+
+- historical and closed; do not dispatch new work here
 
 ### Prerequisites
 
@@ -684,14 +700,338 @@ Use this file when you want to assign work in grouped waves such as:
 
 ### Gate
 
-- `vibe-app-tauri` closes required promotion-scope parity items, has explicit packaging and
-  coexistence rules, and still does not replace `packages/vibe-app` by default before sign-off
+- `vibe-app-tauri` closes required promotion-scope parity items, keeps historical coexistence rules documented, and does not reopen `packages/vibe-app` as an active lane before sign-off
 
 ### Validation Focus
 
 - secondary-surface route and integration checks
 - release artifact and startup validation on Linux, macOS, and Windows
-- explicit parity checklist sign-off and promotion/deprecation readiness review
+- historical parity-checklist sign-off review where continuity notes still matter
+
+
+## B19: `vibe-app-tauri` Unified Runtime Bootstrap
+
+### Prerequisites
+
+- Wave 8 is closed as historical desktop-preview baseline material
+- `projects/vibe-app-tauri.md` records the Wave 9 project boundary
+- `vibe-app-tauri-wave9-unified-replacement-plan.md` exists
+- `vibe-app-tauri-wave9-route-and-capability-matrix.md` exists
+- `vibe-app-tauri-wave9-migration-and-release-plan.md` exists
+
+### Module Order
+
+1. `modules/vibe-app-tauri/universal-bootstrap-and-runtime.md`
+
+### Implementation Tasks
+
+1. Create or normalize the package-root Expo/Tauri bootstrap files so `packages/vibe-app-tauri`
+   owns `index.ts`, `app.config.js`, `eas.json`, and desktop/mobile entry wiring directly.
+2. Define the package-internal directory layout for `sources/app`, `sources/shared`,
+   `sources/mobile`, `sources/desktop`, and `src-tauri` without importing from `packages/vibe-app`
+   at runtime.
+3. Port root theme, font, splash, and provider bootstrap dependencies from Happy into package-local
+   ownership.
+4. Add or normalize scripts for `tauri:dev`, desktop build/smoke flows, Expo boot, and Android/iOS
+   prebuild flows.
+5. Make env/config resolution explicit for preview versus production modes and keep outputs
+   package-local.
+6. Validate that Tauri boot, Expo boot, and both mobile prebuild paths work without mutating
+   `packages/vibe-app`.
+
+### Parallel Allowed
+
+- no; stabilize the package structure first
+
+### Gate
+
+- `packages/vibe-app-tauri` can host the desktop shell and Expo/mobile runtime in one package
+
+### Validation Focus
+
+- Tauri boot
+- Expo boot
+- Android prebuild
+- iOS prebuild
+
+## B20: Shared Core Import From Happy
+
+### Prerequisites
+
+- `B19` complete
+
+### Module Order
+
+1. `modules/vibe-app-tauri/shared-core-from-happy.md`
+
+### Implementation Tasks
+
+1. Inventory Happy auth/sync/realtime/encryption/text/changelog/constants/utils/hooks modules into
+   reusable, adapter-needed, and UI-only categories.
+2. Port reusable auth and encryption helpers into `sources/shared` with Vibe naming and current
+   endpoint assumptions.
+3. Port sync, reducer, parser, and realtime state logic into `sources/shared`, keeping protocol
+   behavior aligned to `vibe-wire`.
+4. Port text, changelog, constants, and UI-independent helpers into package-local shared modules.
+5. Add import-boundary enforcement so shared core does not pull in screen-level React Native code.
+6. Add shared-core unit and compatibility tests for auth/sync/realtime/parser seams before route work
+   broadens.
+
+### Parallel Allowed
+
+- no; keep shared-core ownership tight before screen work broadens
+
+### Gate
+
+- replacement package owns reusable auth/sync/realtime/core logic directly ported from Happy
+
+### Validation Focus
+
+- shared-core unit tests
+- parser/reducer/auth/realtime checks
+- import-boundary checks
+
+## B21: Shell Surfaces, Browser Runtime, And Identity
+
+### Prerequisites
+
+- `B20` complete
+
+### Module Order
+
+1. `modules/vibe-app-tauri/mobile-shell-and-navigation.md`
+2. `modules/vibe-app-tauri/web-export-and-browser-runtime.md`
+3. `modules/vibe-app-tauri/desktop-shell-and-platform-parity.md`
+4. `modules/vibe-app-tauri/auth-and-identity-flows.md`
+
+### Implementation Tasks
+
+1. Recreate the Happy root provider chain and top-level route naming inside the new package for
+   mobile and retained browser runtime ownership.
+2. Port mobile `P0` entry routes: home, restore, inbox, settings hub, and top-level authenticated
+   shell behavior.
+3. Stand up retained browser runtime boot, static web export wiring, favicon/metadata hooks, and
+   browser-only provider affordances.
+4. Recreate the active desktop shell: route chrome, header/sidebar behavior, keyboard/focus rules,
+   modal/overlay semantics, clipboard flows, and required file-dialog/notification seams.
+5. Port create-account, QR/device-link, secret-key restore, and credential persistence flows for
+   both mobile and desktop.
+6. Harden the desktop localhost loopback callback contract with `127.0.0.1` binding, per-attempt
+   `state`, one-shot lifecycle, timeout handling, and per-process ownership.
+7. Validate desktop/mobile/browser `P0` entry flows and auth bootstrap behavior before session work
+   starts.
+
+### Parallel Allowed
+
+- limited overlap is allowed only after the provider, browser runtime, and route shell are stable
+
+### Gate
+
+- desktop/mobile `P0` entry routes plus browser runtime/export bootstrap and create/link/restore flows work on the new package
+
+### Validation Focus
+
+- provider boot
+- desktop shell, keyboard/focus, and adapter checks
+- phone/tablet route checks
+- browser runtime boot and `expo export --platform web --output-dir dist` checks
+- create-account, device-link, and secret-key restore checks
+
+## B22: Session Runtime And Rendering
+
+### Prerequisites
+
+- `B21` complete
+
+### Module Order
+
+1. `modules/vibe-app-tauri/session-runtime-and-storage.md`
+2. `modules/vibe-app-tauri/session-rendering-and-composer.md`
+
+### Implementation Tasks
+
+1. Port session bootstrap, profile/bootstrap fetch chains, realtime subscriptions, and local state
+   persistence into shared runtime modules.
+2. Recreate session inventory selectors and hooks required by home, inbox, recent-session, and
+   session-detail routes.
+3. Port session-detail shell behavior and message timeline rendering by message kind.
+4. Port composer send/abort/autocomplete/mode-selection behavior for both desktop and mobile hosts.
+5. Port markdown, diff, tool, and file rendering semantics with parity-focused validation.
+6. Validate one real end-to-end session chain covering bootstrap, realtime receipt, message send,
+   and tool/file rendering on desktop and mobile.
+
+### Parallel Allowed
+
+- rendering work may overlap lightly only after runtime selectors and realtime state are stable
+
+### Gate
+
+- desktop and mobile both reach a real end-to-end session chain
+
+### Validation Focus
+
+- session inventory and bootstrap checks
+- realtime update checks
+- message/composer/tool rendering checks
+
+## B23: Promotion-Critical Native Capabilities
+
+### Prerequisites
+
+- `B22` complete
+
+### Module Order
+
+1. `modules/vibe-app-tauri/mobile-native-capabilities.md`
+
+### Implementation Tasks
+
+1. Turn the Wave 9 capability matrix into an implementation checklist covering each `C1`
+   promotion-critical capability and every `app.config.js` plugin seam.
+2. Implement or explicitly defer notification routing and push registration behavior with real-device
+   validation.
+3. Implement or explicitly defer purchases and entitlement refresh behavior with continuity notes.
+4. Implement or explicitly defer QR/camera and voice/microphone flows, including permission behavior
+   on real devices.
+5. Implement or explicitly defer file import/export/share flows where route parity depends on them.
+6. Record desktop-specific capability rules that still matter for promotion, especially clipboard,
+   file dialog, and shell interaction semantics that are owned outside the mobile-native module.
+7. Write down release-impacting keep/defer decisions in the migration plan before promotion work
+   continues.
+
+### Parallel Allowed
+
+- no; keep capability ownership explicit and serial
+
+### Gate
+
+- every promotion-critical capability is implemented or explicitly waived in writing
+
+### Validation Focus
+
+- notification routing
+- purchases and entitlement refresh
+- QR/camera
+- voice/microphone
+- file/share flows where required
+
+## B24: Secondary Route Migration
+
+### Prerequisites
+
+- `B23` complete
+
+### Module Order
+
+1. `modules/vibe-app-tauri/secondary-routes-and-social.md`
+
+### Implementation Tasks
+
+1. Port `P1` settings detail routes in priority order: account, appearance, features, language,
+   voice, voice/language, usage, and connect/claude.
+2. Port `P1` session-adjacent detail routes: message permalink, info, files, and single-file view.
+3. Port `P1` artifacts flows: list, create, detail, and edit.
+4. Port `P1` terminal/connect, server, changelog, and text-selection surfaces.
+5. Port `P1` friends, user, and machine surfaces while keeping social/feed scope explicit.
+6. Add route smoke checks and targeted integration checks for artifacts, settings detail, and friend
+   flows.
+7. Record any surviving `P2` or low-value dev-route deferrals explicitly in planning before moving
+   on to promotion.
+
+### Parallel Allowed
+
+- no; keep route-parity closure ordered and reviewable
+
+### Gate
+
+- promotion-critical `P1` routes are present and wired
+
+### Validation Focus
+
+- route smoke tests for `P1` surfaces
+- targeted artifacts/settings/friends checks
+
+## B25: Release And Store Migration
+
+### Prerequisites
+
+- `B24` complete
+
+### Module Order
+
+1. `modules/vibe-app-tauri/release-ota-and-store-migration.md`
+
+### Implementation Tasks
+
+1. Recreate package-local release inputs: `app.config.js`, `eas.json`, `release.cjs`,
+   `release-dev.sh`, and `release-production.sh`.
+2. Port preview and production identifier rules for desktop, iOS, Android, deep links, and OTA
+   channels without colliding with historical shipping ownership.
+3. Update repo workflows so preview and production-candidate lanes package from
+   `packages/vibe-app-tauri`.
+4. Validate preview and production-candidate artifact generation for desktop, iOS, Android, and
+   retained browser web/export outputs.
+5. Record the analytics/tracking continuity keep/defer decision, including provider bootstrap,
+   screen tracking, opt-in/out state, and review-prompt telemetry implications.
+6. Complete the data-migration review table with concrete validation artifacts for each continuity
+   area.
+7. Document exact rollback mechanics and confirm no legacy `packages/vibe-app` upgrade-validation
+   lane remains in scope.
+
+### Parallel Allowed
+
+- no; release-owner switch prep should be serialized
+
+### Gate
+
+- `packages/vibe-app-tauri` can produce the app artifacts required for the default app path
+
+### Validation Focus
+
+- preview and production-candidate artifact generation
+- browser web/export artifact generation
+- workflow packaging checks
+- analytics/tracking continuity review
+- rollback-path review
+
+## B26: Promotion And Legacy Deprecation
+
+### Prerequisites
+
+- `B25` complete
+
+### Module Order
+
+1. `modules/vibe-app-tauri/promotion-and-vibe-app-deprecation.md`
+
+### Implementation Tasks
+
+1. Confirm every `P0`/`P1` route and `C0`/`C1` capability is either satisfied or explicitly waived
+   in writing.
+2. Confirm default release ownership is runnable across desktop, iOS, Android, and retained
+   browser/web export outputs.
+3. Run and record the final hold/rollback drill against the active Wave 9 replacement package.
+4. Update docs, helper scripts, workflow defaults, and release-owner notes so they point to the
+   default app path.
+5. Record the fallback retention window and eventual retirement policy for `packages/vibe-app`.
+6. Produce the final promotion decision record showing that `packages/vibe-app-tauri` is now the
+   default app path and `packages/vibe-app` remains reference-only.
+
+### Parallel Allowed
+
+- no; promotion is a single explicit decision point
+
+### Gate
+
+- `packages/vibe-app-tauri` can be confirmed as the default app path with hold/rollback and archival
+  rules documented
+
+### Validation Focus
+
+- promotion checklist review
+- release-owner switch review
+- rollback drill review
+- docs/workflow default-owner review
 
 ## Direct Prompt Template
 

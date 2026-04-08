@@ -13,7 +13,7 @@ Required before implementation begins:
 - each module plan has locked decisions and test requirements
 - completion claims in `PLAN.md`, `master-summary.md`, `execution-plan.md`, and `execution-batches.md` are consistent with any open remediation sections in the owning project plans
 - when `vibe-app-tauri` is active, the extraction inventory, route inventory, capability matrix,
-  and coexistence matrix exist as explicit planning artifacts before module implementation begins
+  and any required historical coexistence notes exist as explicit planning artifacts before module implementation begins
 - when `vibe-app-tauri` uses localhost loopback auth, bind address, state validation, listener
   lifecycle, and per-instance ownership rules are explicit in planning before implementation begins
 - when `vibe-app-tauri` route parity is frozen, currently desktop-visible routes are classified as
@@ -60,26 +60,28 @@ For `vibe-cli`:
 
 ## App Phase
 
-For `vibe-app`:
+For historical `vibe-app` reference work only:
 
-- import/build verification
-- protocol parser compatibility tests
-- endpoint adaptation verification
-- at least one real chain test: app -> server -> agent or CLI
-- desktop shell verification once Tauri adaptation begins
+- use manual inspection or targeted one-off validation only when Happy cannot answer a Vibe-specific continuity question
+- do not restore `vibe-app` to the automated baseline without a plan update
 
 For `vibe-app-tauri`:
 
 - package bootstrap validation
-- route-level desktop navigation smoke tests
+- route-level `P0` navigation smoke tests across the active desktop and mobile/browser shells
+- browser runtime boot and static web export smoke validation
 - parser/reducer compatibility checks for any reused shared session/message logic
-- at least one real desktop chain test: app-tauri -> server -> agent or CLI
+- at least one real backend chain test for the active app package: app-tauri -> server -> agent or CLI
 - auth/connect callback validation against the locked localhost loopback strategy, including state
   validation, timeout, listener teardown, and per-instance ownership behavior
 - desktop package smoke validation for Tauri bundles
+- Expo/mobile bootstrap and prebuild validation for Android and iOS
+- one real-device iOS validation pass for the active replacement-critical flows
+- one real-device Android validation pass for the active replacement-critical flows
 - realistic session-load performance and memory review before promotion
 - Linux, macOS, and Windows startup/package validation before promotion
-- side-by-side parity checklist review against current `vibe-app` desktop behavior before promotion
+- side-by-side parity review against Happy behavior and any required Vibe continuity notes before
+  promotion
 
 ## Milestone Exit Criteria
 

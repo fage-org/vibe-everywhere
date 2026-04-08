@@ -1,17 +1,28 @@
 # `vibe-app-tauri` Extraction Inventory
 
+## Archival Status
+
+This file is historical Wave 8 desktop-only planning material.
+
+Do not use it as active execution authority for Wave 9. Use the active Wave 9 planning set instead:
+
+- `docs/plans/rebuild/projects/vibe-app-tauri.md`
+- `docs/plans/rebuild/vibe-app-tauri-wave9-unified-replacement-plan.md`
+- `docs/plans/rebuild/vibe-app-tauri-wave9-route-and-capability-matrix.md`
+- `docs/plans/rebuild/vibe-app-tauri-wave9-migration-and-release-plan.md`
+- `docs/plans/rebuild/modules/vibe-app-tauri/*`
+
 ## Purpose
 
-Freeze the reusable-vs-rewrite boundary before `vibe-app-tauri` implementation broadens.
+Freeze the reusable-vs-rewrite boundary for the original Wave 8 desktop rewrite before `vibe-app-tauri` implementation broadened.
 
 This document is the planning source of truth for what is copied, adapted behind platform seams,
 rewritten for desktop, or explicitly deferred.
 
 ## Status
 
-- state: `planning baseline`
-- update rule: revise this file before any `vibe-app-tauri` module changes the expected ownership of
-  a source area
+- state: `historical Wave 8 inventory`
+- update rule: use this file as historical desktop-only reference; active app-replacement extraction decisions now belong to the Wave 9 planning set
 
 ## Classification Rules
 
@@ -23,7 +34,7 @@ rewritten for desktop, or explicitly deferred.
 
 ## Inventory
 
-| Source area | Initial classification | First owning module | Notes |
+| Source area | Historical Wave 8 classification | First owning module | Notes |
 | --- | --- | --- | --- |
 | `packages/vibe-app/sources/sync/**` | adapter required | `core-logic-extraction` | reducers, parsers, and storage seams must be detached from Expo/runtime assumptions explicitly |
 | `packages/vibe-app/sources/auth/**` | adapter required | `core-logic-extraction`, `auth-and-session-state` | auth semantics are reused, but storage and callback handling move behind desktop adapters |
@@ -43,10 +54,10 @@ rewritten for desktop, or explicitly deferred.
 | mobile-only camera/media flows | deferred | `desktop-platform-adapters` | activate only if a concrete desktop requirement is approved |
 | mobile push, sensor, and location flows | deferred | `desktop-platform-adapters` | no phase-one desktop ownership unless explicitly added |
 
-## Phase 0 Gate
+## Historical Gate
 
-- no `vibe-app-tauri` module work starts until the rows needed for the first usable desktop slice
-  are reviewed and this file still matches the project plan
+- during Wave 8, no `vibe-app-tauri` module work started until the rows needed for the first usable desktop slice
+  were reviewed and this file matched the project plan
 
 ## Change Rule
 

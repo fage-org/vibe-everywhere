@@ -28,13 +28,10 @@ multi-project codebase where:
 - `crates/vibe-app-logs`
   - Rust sidecar replacing `happy-app-logs`
 - `packages/vibe-app`
-  - imported Happy app plus Vibe adaptation layer
-
-## Next Iteration Repository Addition
-
+  - deprecated imported Happy app plus Vibe adaptation layer kept only as historical reference
 - `packages/vibe-app-tauri`
-  - planned desktop-only Tauri 2 + web-native frontend
-  - recreates the current desktop app behavior in parallel without destabilizing `packages/vibe-app`
+  - active Wave 9 replacement package
+  - expands from the historical desktop-preview baseline into the active desktop/mobile/web ownership target
 
 ## Project Mapping From Happy To Vibe
 
@@ -44,8 +41,8 @@ multi-project codebase where:
 | `packages/happy-server` | `crates/vibe-server` | Rust | depend only on `vibe-wire` for shared contracts |
 | `packages/happy-agent` | `crates/vibe-agent` | Rust | mirror control-client behavior |
 | `packages/happy-cli` | `crates/vibe-cli` | Rust | mirror runtime and provider orchestration |
-| `packages/happy-app` | `packages/vibe-app` | TypeScript | import first, adapt second |
-| `packages/happy-app` | `packages/vibe-app-tauri` | TypeScript | next iteration parallel desktop rewrite after parity baseline is stable |
+| `packages/happy-app` | `packages/vibe-app` | TypeScript | historical Wave 7 import and adaptation record |
+| `packages/happy-app` | `packages/vibe-app-tauri` | TypeScript | active Wave 9 replacement target for desktop/mobile/web ownership; Wave 8 desktop-preview material is historical reference only |
 | `packages/happy-app-logs` | `crates/vibe-app-logs` | Rust | defer until main path is stable |
 
 ## Implementation Principles
@@ -70,9 +67,9 @@ multi-project codebase where:
 10. `vibe-server`
 11. `vibe-agent`
 12. `vibe-cli`
-13. `vibe-app`
+13. `vibe-app` (historical reference only)
 14. `vibe-app-logs`
-15. `vibe-app-tauri` (next iteration)
+15. `vibe-app-tauri` (active Wave 9 replacement package)
 
 No downstream implementation may define its own variant of types that belong in an upstream layer.
 
@@ -99,7 +96,7 @@ For direct AI batch dispatch, follow `execution-batches.md`.
 - implement authentication and credential flows
 - implement encrypted session CRUD and updates
 - implement machine records and update streams
-- support minimum endpoints needed by `vibe-agent` and `vibe-app`
+- support minimum endpoints needed by `vibe-agent` and the active Wave 9 replacement package
 
 ### M3 - Remote Agent Client
 

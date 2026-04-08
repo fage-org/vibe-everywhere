@@ -2,549 +2,448 @@
 
 ## Purpose
 
-`vibe-app-tauri` is the next-iteration desktop app project: a new Tauri 2 + web-native
-implementation that recreates the current `vibe-app` desktop experience without rewriting or
-destabilizing the existing imported Expo / React Native package.
+`vibe-app-tauri` starts from the historical Wave 8 desktop-preview baseline and becomes the active
+Wave 9 replacement package for `packages/vibe-app`.
 
-This is a **parallel replacement project**, not an in-place migration of `packages/vibe-app`.
+The Wave 9 target is not "desktop plus some mobile support." The target is one future app project
+that owns:
 
-## Current Constraint
+- desktop runtime and desktop UI
+- iOS runtime and iOS UI
+- Android runtime and Android UI
+- retained web/export ownership where the current app still publishes web assets
+- app release, OTA, store, and migration ownership now held by `packages/vibe-app`
 
-- `packages/vibe-app` remains the production baseline for mobile, web export, and the existing
-  Tauri-wrapped desktop surface.
-- `vibe-app-tauri` must be introduced alongside it as a new project so iteration can proceed
-  without breaking the current app.
-- UI and behavior targets are parity-first:
-  - visual structure should match the current app as closely as practical
-  - interaction flows should match the current app as closely as practical
-  - protocol / sync / auth behavior must remain compatible with the existing Vibe backend and wire
-    contracts
+## Current State
 
-## Hard Decisions
+- `packages/vibe-app` is now deprecated from active CI and release ownership and remains only as a
+  legacy Vibe-specific reference when `/root/happy/packages/happy-app` cannot answer a continuity question.
+- `packages/vibe-app-tauri` already exists as the historical desktop-preview package from Wave 8.
+- Wave 9 keeps the deprecated legacy package untouched while turning `packages/vibe-app-tauri` into the
+  active Wave 9 replacement package and eventual default app path.
 
-The following decisions are locked for the planning phase and should be treated as execution rules:
+## Wave 9 Terms
 
-1. Shared logic defaults to `packages/vibe-app-tauri` first.
-   - reusable logic identified during the rewrite should initially live inside
-     `packages/vibe-app-tauri`
-   - do not create a new shared package by default
-   - do not refactor `packages/vibe-app` aggressively just to create cleaner abstractions
-2. UI parity targets desktop-faithful recreation, not redesign.
-   - the preferred target is pixel-close recreation of the current desktop-visible UI
-   - where device size, browser layout, or desktop ergonomics make exact visual matching
-     impractical, the fallback is a maintainable desktop-web implementation that preserves layout
-     hierarchy, information density, and interaction semantics
-3. `packages/vibe-app` remains the untouched production baseline until explicit promotion.
-4. `vibe-app-tauri` is desktop-only in phase one.
+- `historical Wave 8 desktop-preview baseline`: the closed desktop-only phase that produced the
+  starting `packages/vibe-app-tauri` package and related historical planning artifacts
+- `active Wave 9 replacement package`: `packages/vibe-app-tauri` while it is the active full-app
+  replacement target for `packages/vibe-app`
+- `default app path`: the app package that becomes the primary maintained and user-facing path after
+  promotion
+- `default release ownership`: the package and workflow set that owns primary release lanes after
+  promotion
+- `historical continuity reference`: a deprecated package or old planning file used only when Happy
+  and the active Wave 9 planning set cannot answer a continuity question
+
+## Wave 9 Scope Decision
+
+Wave 9 explicitly changes the project boundary:
+
+- Wave 8: parallel desktop rewrite only
+- Wave 9: active full-platform replacement of `packages/vibe-app`
+
+That means the project is no longer desktop-only. It now owns the planning path for desktop,
+mobile, retained web/export, and release migration.
 
 ## Source Of Truth
 
-- primary UX and behavior source: `packages/vibe-app`
-- upstream product reference: `/root/happy/packages/happy-app`
-- shared contracts: `crates/vibe-wire`, `crates/vibe-server`, `crates/vibe-agent`, `crates/vibe-cli`
-- planning inventories:
-  - `docs/plans/rebuild/vibe-app-tauri-wave8-delivery-plan.md`
-  - `docs/plans/rebuild/vibe-app-tauri-extraction-inventory.md`
-  - `docs/plans/rebuild/vibe-app-tauri-route-inventory.md`
-  - `docs/plans/rebuild/vibe-app-tauri-capability-matrix.md`
-  - `docs/plans/rebuild/vibe-app-tauri-coexistence-matrix.md`
-  - `docs/plans/rebuild/vibe-app-tauri-promotion-baseline.md`
-  - `docs/plans/rebuild/vibe-app-tauri-promotion-plan.md`
+### Primary Product Reference
 
-The desktop rewrite must preserve Vibe behavior first and may diverge only when the relevant module
-or shared planning files explicitly record the deviation.
+Use `/root/happy/packages/happy-app` directly for product behavior, module boundaries, route
+families, release structure, and platform capability ownership.
+
+### Continuity References
+
+Use the following only for Vibe-specific continuity when Happy is insufficient, not for new ownership decisions:
+
+- `packages/vibe-app`
+- `.github/workflows/app-release.yml`
+- `README.md`
+- existing Wave 8 planning files under `docs/plans/rebuild/`
+
+### Shared Contracts
+
+- `crates/vibe-wire`
+- `crates/vibe-server`
+- `crates/vibe-agent`
+- `crates/vibe-cli`
+
+### Active Wave 9 Planning Inputs
+
+- `docs/plans/rebuild/vibe-app-tauri-wave9-unified-replacement-plan.md`
+- `docs/plans/rebuild/vibe-app-tauri-wave9-route-and-capability-matrix.md`
+- `docs/plans/rebuild/vibe-app-tauri-wave9-migration-and-release-plan.md`
+
+### Historical Wave 8 Continuity References
+
+- historical: `docs/plans/rebuild/vibe-app-tauri-wave8-delivery-plan.md`
+- historical: `docs/plans/rebuild/vibe-app-tauri-extraction-inventory.md`
+- historical: `docs/plans/rebuild/vibe-app-tauri-route-inventory.md`
+- historical: `docs/plans/rebuild/vibe-app-tauri-capability-matrix.md`
+- historical: `docs/plans/rebuild/vibe-app-tauri-coexistence-matrix.md`
+- historical: `docs/plans/rebuild/vibe-app-tauri-promotion-baseline.md`
+- historical: `docs/plans/rebuild/vibe-app-tauri-promotion-plan.md`
+
+These Wave 8 documents are historical reference material only. They may inform continuity checks,
+but they do not define the active Wave 9 boundary, priority classes, or promotion gate.
+
+## Locked Decisions
+
+1. Keep the package path as `packages/vibe-app-tauri`.
+   - the name is historical now, but the package path remains stable
+   - do not create a second replacement package just to get a cleaner name
+2. Use `/root/happy/packages/happy-app` as the direct planning reference.
+   - do not re-derive product ownership from `packages/vibe-app`
+   - use `packages/vibe-app` only when Happy is insufficient for a Vibe-specific continuity check
+3. Shared logic lands in `packages/vibe-app-tauri` first.
+   - do not create a new shared `vibe-app-core` package by default
+   - promote extracted modules later only after replacement parity is proven
+4. Desktop and mobile keep different UI shells.
+   - desktop keeps the Wave 8 Tauri 2 + web-native shell
+   - mobile uses Expo / React Native ownership aligned to Happy's module structure
+   - do not force the desktop web shell to become the mobile UI layer
+5. `packages/vibe-app` is deprecated immediately at the CI/release layer.
+   - keep it only as a legacy Vibe-specific reference when Happy is insufficient
+   - do not re-enable old pipelines unless a later plan update explicitly authorizes that reversal
+6. Parity first, redesign later.
+   - do not invent a new information architecture during the migration
+   - preserve Happy/Vibe route semantics, major interaction flows, and capability ownership first
+7. Shared contracts stay upstream.
+   - any protocol-shape changes still go through `shared/*.md` and `crates/vibe-wire` first
+   - the app replacement must not introduce package-local protocol forks
 
 ## Target Layout
 
 - package: `packages/vibe-app-tauri`
 - expected top-level ownership:
-  - desktop web UI shell
-  - route tree and layout system for desktop only
-  - desktop-friendly state adapters over shared Vibe sync/auth/domain logic
-  - Tauri 2 application shell, permissions, updater, and desktop integrations
+  - Expo bootstrap and mobile runtime ownership
+  - Tauri bootstrap and desktop runtime ownership
+  - package-local shared auth/sync/realtime/encryption/text/utils/core modules
+  - mobile route tree and screen ownership
+  - desktop route tree and screen ownership
+  - app config, EAS config, release scripts, OTA, and store submission ownership
 
-`packages/vibe-app` stays intact during the rewrite and remains the fallback reference
-implementation until `vibe-app-tauri` is explicitly promoted.
+Recommended internal layout direction:
+
+```text
+packages/vibe-app-tauri/
+  app.config.js
+  eas.json
+  index.ts
+  release.cjs
+  release-dev.sh
+  release-production.sh
+  sources/
+    app/
+    shared/
+    mobile/
+    desktop/
+    assets/
+    modal/
+    hooks/
+  src-tauri/
+```
+
+The exact folder split may evolve, but the boundary rule is fixed: shared core can be shared,
+platform shells cannot be collapsed into one lowest-common-denominator UI layer.
 
 ## Non-Goals
 
-- replacing the mobile app in phase one
-- replacing the current web export in phase one
-- redesigning the Vibe product UX before parity is measured
-- changing server routes, wire contracts, or account/session semantics to fit the new desktop app
-- deleting or heavily restructuring `packages/vibe-app` before `vibe-app-tauri` proves parity
+- changing backend routes, wire contracts, or account/session semantics to fit the new app
+- deleting `packages/vibe-app` before the replacement is promoted
+- using Wave 9 as a justification for a broad product redesign
+- inventing new mobile-only or desktop-only features unrelated to Happy/Vibe parity
+- solving every possible cross-app abstraction before a working replacement exists
 
-## Migration Thesis
+## Happy Module Reference Inventory
 
-The hard part is not the Tauri shell itself. The hard part is moving from a React Native / Expo UI
-and platform model to a desktop-native web UI while preserving behavior.
+Wave 9 should plan directly against the Happy app modules below.
 
-Key migration realities:
+### Bootstrap, Config, And Release
 
-1. The current app is heavily coupled to:
-   - `react-native`
-   - `expo-router`
-   - `react-native-unistyles`
-   - `react-native-reanimated`
-   - Expo platform modules and React Native component primitives
-2. Business logic is only partially reusable as-is:
-   - many `sources/sync/*`, `sources/auth/*`, `sources/encryption/*`, `sources/utils/*`, and
-     translation assets are good candidates for extraction
-   - many current modules still assume Expo / React Native platform APIs, so extraction must happen
-     behind explicit seams
-3. The project should therefore be split into:
-   - reusable domain/state/adaptor packages or local modules
-   - a new desktop web UI layer
-   - a minimal Tauri 2 shell
+- `/root/happy/packages/happy-app/package.json`
+- `/root/happy/packages/happy-app/index.ts`
+- `/root/happy/packages/happy-app/app.config.js`
+- `/root/happy/packages/happy-app/eas.json`
+- `/root/happy/packages/happy-app/release.cjs`
+- `/root/happy/packages/happy-app/release-dev.sh`
+- `/root/happy/packages/happy-app/release-production.sh`
+- `/root/happy/packages/happy-app/src-tauri/**`
 
-## Shared Logic Destination Policy
+### Route And Provider Shell
 
-### Default Rule
+- `/root/happy/packages/happy-app/sources/app/_layout.tsx`
+- `/root/happy/packages/happy-app/sources/app/(app)/_layout.tsx`
+- `/root/happy/packages/happy-app/sources/app/(app)/**`
+- `/root/happy/packages/happy-app/sources/components/MainView.tsx`
+- `/root/happy/packages/happy-app/sources/components/SidebarNavigator.tsx`
+- `/root/happy/packages/happy-app/sources/components/navigation/Header.tsx`
 
-- extracted or rewritten logic should land inside `packages/vibe-app-tauri` first
-- `packages/vibe-app` remains the source of truth reference, but not the place where the new
-  abstractions are incubated
+### Auth, State, And Realtime
 
-### Allowed Early Reuse Sources
+- `/root/happy/packages/happy-app/sources/auth/**`
+- `/root/happy/packages/happy-app/sources/sync/**`
+- `/root/happy/packages/happy-app/sources/realtime/**`
+- `/root/happy/packages/happy-app/sources/encryption/**`
+- `/root/happy/packages/happy-app/sources/hooks/**`
+- `/root/happy/packages/happy-app/sources/utils/**`
 
-The following categories may be copied, adapted, or wrapped into `packages/vibe-app-tauri`:
+### Session And Rendering Surfaces
 
-- protocol parsing helpers
-- sync/domain utilities
-- auth/account/session state helpers
-- translation/text assets
-- pure TypeScript utility modules
+- `/root/happy/packages/happy-app/sources/-session/SessionView.tsx`
+- `/root/happy/packages/happy-app/sources/components/SessionsList.tsx`
+- `/root/happy/packages/happy-app/sources/components/MessageView.tsx`
+- `/root/happy/packages/happy-app/sources/components/AgentInput.tsx`
+- `/root/happy/packages/happy-app/sources/components/markdown/**`
+- `/root/happy/packages/happy-app/sources/components/diff/**`
+- `/root/happy/packages/happy-app/sources/components/tools/**`
+- `/root/happy/packages/happy-app/sources/components/autocomplete/**`
 
-### Not Allowed Early
+### Secondary Surfaces, Text, And Assets
 
-During phases 0 through 4, do not:
-
-- create a general-purpose `packages/vibe-app-core` by default
-- perform broad mechanical rewrites inside `packages/vibe-app`
-- move large React Native / Expo coupled modules out of `packages/vibe-app` in one pass
-- optimize for elegance at the expense of stability of the current app
-
-### Promotion Rule For Shared Extraction
-
-A module may only be promoted into a future shared package after:
-
-- the `vibe-app-tauri` version of the feature already works
-- the logic has proven cross-app value
-- extracting it will not destabilize `packages/vibe-app`
-
-## Public Interfaces
-
-- desktop executable distributed via Tauri 2 bundles
-- desktop route/navigation surface
-- desktop auth/account/session UX
-- desktop session list, session detail, agent input, artifacts, settings, feed/social, and utility
-  surfaces
-- deep links and desktop-local integrations required for parity
-
-## Project Strategy
-
-Build `vibe-app-tauri` as a **fresh desktop-first frontend** with explicit compatibility seams back
-to the current app.
-
-Do **not** attempt a big-bang in-place conversion of `packages/vibe-app`.
-
-Instead:
-
-1. freeze desktop parity targets against the current app
-2. extract reusable non-UI logic behind stable seams
-3. build a new desktop route/layout shell
-4. migrate feature slices one by one
-5. validate parity continuously against the current desktop behavior
+- `/root/happy/packages/happy-app/sources/components/InboxView.tsx`
+- `/root/happy/packages/happy-app/sources/components/SettingsView.tsx`
+- `/root/happy/packages/happy-app/sources/changelog/**`
+- `/root/happy/packages/happy-app/sources/text/**`
+- `/root/happy/packages/happy-app/sources/constants/**`
+- `/root/happy/packages/happy-app/sources/assets/**`
+- `/root/happy/packages/happy-app/sources/modal/**`
+- `/root/happy/packages/happy-app/sources/track/**`
 
 ## Workstreams
 
-### 1. Architecture And Extraction
+### 1. Universal Runtime Bootstrap
 
-- identify code that can be reused without React Native primitives
-- identify code that must be wrapped behind platform adapters
-- define the shared desktop package boundaries
+Make one package able to host:
 
-### 2. Desktop Design System And Layout
+- the retained desktop shell lineage that started in Wave 8
+- an Expo mobile shell
+- retained browser web/export configuration
+- one release/config surface
+- shared theme/font/splash/provider bootstrap ownership
 
-- choose the web UI stack for the new package
-- recreate the current Vibe information architecture and visual hierarchy
-- map React Native style/token usage to desktop web equivalents
-- define the desktop parity tolerances for spacing, typography, breakpoints, and panel resizing
+### 2. Shared Core From Happy
 
-### 3. Navigation And Screen Migration
+Port the reusable non-visual logic from Happy into package-local shared modules:
 
-- rebuild route groups, stack behavior, drawer/panel patterns, and session navigation
-- preserve current desktop-visible flows before introducing any redesign
+- auth
+- sync
+- realtime
+- encryption
+- text
+- changelog
+- constants
+- selected utilities and hooks
 
-### 4. Platform Integration
+### 3. Mobile Shell And Navigation
 
-- replace Expo-only platform modules with desktop-compatible implementations
-- define Tauri commands/plugins for filesystem, notifications, clipboard, external browser, and
-  other desktop-specific needs
+Recreate the Happy app's provider stack, route tree, phone/tablet navigation rules, and header or
+drawer behavior inside `packages/vibe-app-tauri`.
 
-### 5. Validation And Promotion
+### 4. Web Export And Browser Runtime
 
-- verify route-by-route parity
-- run side-by-side smoke comparisons with the existing `vibe-app`
-- promote only after the replacement is viable for desktop use
+Preserve the browser runtime and static web export path instead of treating web/export as an
+implicit side effect of the mobile shell.
 
-## Phased Implementation Plan
+### 5. Identity And Session Bootstrap
 
-## Phase 0: Planning Freeze
+Port:
+
+- account creation
+- QR/device linking
+- secret-key restore
+- credential persistence
+- session bootstrap
+- profile/bootstrap fetch chains
+
+### 6. Session Runtime And Rendering
+
+Port:
+
+- session list
+- session detail
+- realtime updates
+- message rendering
+- composer behavior
+- tool/diff/markdown/file rendering
+
+### 7. Native Capability Replacement
+
+Keep desktop and mobile parity explicit for:
+
+- deep links and callback ownership
+- secure storage
+- camera and QR
+- notifications and push routing
+- purchases and entitlement refresh
+- microphone and voice flows
+- file import/export/share
+- haptics and platform review prompts
+
+### 8. Secondary Routes And Social Surfaces
+
+Port the remaining user-visible route families and settings detail pages without broad redesign.
+
+### 9. Release, OTA, Store, And Promotion Migration
+
+Keep all new app-release ownership in `packages/vibe-app-tauri`; `packages/vibe-app` remains
+reference-only while the Wave 9 replacement package proves runtime and route parity.
+
+## Phase Plan
+
+## Phase 0: Planning Reset
 
 ### Goal
 
-Create a migration map before any code lands.
+Turn the project from a desktop-only rewrite into a full replacement plan.
 
 ### Required Outputs
 
 - this project plan
-- module plans for the desktop rewrite slices listed below
-- `docs/plans/rebuild/vibe-app-tauri-extraction-inventory.md`
-  - records which `vibe-app` modules are reusable as-is, reusable after adapter seams,
-    desktop-only rewrites, or out of scope for phase one
-- `docs/plans/rebuild/vibe-app-tauri-route-inventory.md`
-  - records route parity targets, screen parity targets, component parity targets, and shell
-    invariants for desktop review
-- `docs/plans/rebuild/vibe-app-tauri-capability-matrix.md`
-  - records auth-critical, session-critical, and promotion-scope desktop capability replacement
-    requirements
-- `docs/plans/rebuild/vibe-app-tauri-coexistence-matrix.md`
-  - records bundle, deep-link, updater, local-storage, and release-artifact coexistence rules with
-    `packages/vibe-app`
+- `docs/plans/rebuild/vibe-app-tauri-wave9-unified-replacement-plan.md`
+- `docs/plans/rebuild/vibe-app-tauri-wave9-route-and-capability-matrix.md`
+- `docs/plans/rebuild/vibe-app-tauri-wave9-migration-and-release-plan.md`
+- the Wave 9 module plan set under `docs/plans/rebuild/modules/vibe-app-tauri/`
 
-### Gate To Phase 1
+### Gate
 
-- no implementation begins until the reusable-vs-rewrite boundary, desktop parity inventory, and
-  side-by-side coexistence rules are explicit in those files
+- route families, capability owners, release migration rules, and promotion gates are explicit
 
-## Phase 1: Bootstrap New Package
+## Phase 1: Universal Runtime Bootstrap
 
 ### Goal
 
-Create `packages/vibe-app-tauri` without touching the production role of `packages/vibe-app`.
+Make `packages/vibe-app-tauri` runnable as:
 
-### Scope
-
-- package bootstrap
-- Tauri 2 shell bootstrap
-- desktop web frontend bootstrap
-- build scripts, lint/test/typecheck wiring
-- release packaging entrypoints
+- desktop preview via Tauri
+- Expo app via mobile runtimes
+- retained web/export source package
 
 ### Acceptance
 
-- a blank desktop app boots locally
-- Tauri bundle generation works
-- the package has its own CI/release hooks without mutating `vibe-app`
+- `tauri dev` works
+- `expo start` works
+- browser runtime boot works
+- `expo prebuild --platform android` works
+- `expo prebuild --platform ios` works
 
-## Phase 2: Extract Reusable Core
+## Phase 2: Shared Core Import
 
 ### Goal
 
-Move non-visual logic behind stable seams the new desktop app can consume.
-
-### Scope
-
-- auth/session/account domain adapters
-- sync client and reducer interfaces
-- wire parsing compatibility
-- shared i18n/text assets where practical
-- utility modules that do not require React Native primitives
-- extraction targets remain package-local to `vibe-app-tauri` unless explicitly promoted later
+Port Happy app state and domain modules into package-local shared modules.
 
 ### Acceptance
 
-- `vibe-app-tauri` can authenticate and read core session/account state using extracted logic
-- extracted modules compile without importing React Native UI primitives
+- shared auth/sync/realtime logic compiles without React Native screen imports
+- desktop and mobile can both consume the shared modules
 
-## Phase 3: Desktop Shell And Navigation Parity
+## Phase 3: Mobile Shell And Identity
 
 ### Goal
 
-Recreate the current desktop route tree and main layout structure.
-
-### Scope
-
-- route tree and navigation primitives
-- app chrome, header, sidebar/inbox/session list shell
-- desktop settings shell
-- modal/overlay/focus management for desktop interactions
+Stand up the provider stack, route tree, auth bootstrap, and restore flows for mobile.
 
 ### Acceptance
 
-- users can navigate the main desktop flows without placeholder dead ends
-- layout hierarchy mirrors the current app closely enough for side-by-side review
+- iOS and Android reach the main authenticated shell
+- create-account, device-link, and secret-key restore work
 
-## Phase 4: Core Session UX Parity
+## Phase 4: Session Runtime And Rendering
 
 ### Goal
 
-Port the session-heavy flows first, since they define most of the product value.
-
-### Scope
-
-- session list
-- session detail
-- message rendering
-- input composer
-- tool / diff / markdown / file rendering
-- session resume / active session indicators
+Port the session-heavy core experience.
 
 ### Acceptance
 
-- one end-to-end desktop session flow works against the real Vibe backend
-- the major session UI states are parity-complete enough for internal dogfooding
+- users can open sessions, receive realtime updates, send messages, and render tool output on
+  mobile and desktop
 
-## Phase 5: Secondary Surface Migration
+## Phase 5: Native Capability And Secondary Surface Completion
 
 ### Goal
 
-Close the non-core but user-visible parity gaps.
-
-### Scope
-
-- artifacts
-- account/settings/profile
-- connect/vendor flows
-- feed/social/friends where still relevant to desktop
-- changelog, diagnostics, and utility pages
+Close the capability and route gaps that block full replacement.
 
 ### Acceptance
 
-- no major desktop-visible route remains missing for parity scope
+- required P1 routes work
+- retained browser web/export capability works
+- required platform capabilities work on real devices
 
-## Desktop Parity Inventory
-
-This inventory defines the expected parity scope before module work begins.
-
-### P0: Must Match In The First Usable Desktop Slice
-
-- auth/login/account restore flows
-- inbox / session list shell
-- session detail shell
-- message rendering
-- composer interaction model
-- active session indicators and resume affordances
-- core settings/account entry points required for desktop use
-
-### P1: Required Before Promotion
-
-- artifacts
-- account/profile/settings detail flows
-- connect/vendor flows used by desktop users
-- changelog and diagnostics surfaces
-- markdown, diff, file, and tool rendering parity
-
-### P2: Nice-To-Have Or Late Desktop Parity
-
-- feed/social/friends surfaces if still relevant to desktop
-- developer and diagnostics pages not required for primary desktop workflows
-
-### Explicit Desktop Deferrals
-
-- mobile-only camera/media flows unless a concrete desktop requirement is recorded first
-- mobile push/device-specific surfaces that do not have a meaningful desktop analog
-
-## UI Parity Standard
-
-### Primary Requirement
-
-- the target is pixel-close recreation of the current desktop-visible `vibe-app` UI
-
-### Allowed Desktop Adjustments
-
-The rewrite may diverge only where needed for:
-
-- desktop viewport differences
-- browser layout constraints
-- keyboard/focus ergonomics
-- maintainability of the desktop web implementation
-
-These adjustments must preserve:
-
-- information architecture
-- hierarchy and grouping
-- panel relationships
-- interaction semantics
-- user expectation for where actions and state live
-
-### Not Allowed Without Explicit Plan Update
-
-- stylistic redesign
-- simplified layouts that materially change information density
-- moving actions to unrelated surfaces just because the web implementation is easier that way
-
-## Phase 6: Desktop Capability Replacement
+## Phase 6: Release Migration And Promotion
 
 ### Goal
 
-Replace remaining Expo-only platform assumptions with Tauri/web-native implementations.
-
-### Scope
-
-- secure storage
-- notifications
-- external browser / OAuth callbacks
-- clipboard
-- file open/save dialogs
-- camera/media only if actually required for desktop parity; otherwise explicitly defer
-
-## Desktop Capability Matrix
-
-### Required For Phase-One Desktop Viability
-
-- secure credential storage
-- external browser / OAuth callback handling
-- localhost loopback callback handling that returns control to the running app without hijacking the
-  shipping `vibe-app` deep-link path
-- clipboard integration
-
-The following are promotion-scope capabilities rather than first-slice requirements unless a module
-plan explicitly promotes them earlier for a concrete desktop flow:
-
-- file picker / save dialogs where current desktop behavior depends on them
-- desktop notifications if current desktop flows depend on them materially
-
-### Allowed To Degrade Gracefully
-
-- browser-only fallbacks for some external-link flows
-- desktop-specific modal or focus behavior differences that preserve the same action semantics
-
-### Explicitly Deferred Unless New Scope Is Approved
-
-- camera capture
-- mobile sensor/location-dependent behavior not critical for desktop use
-- other mobile-only Expo capability surfaces with no current desktop value
+Complete release and store ownership in `packages/vibe-app-tauri`, then formalize `packages/vibe-app` as a reference-only legacy path.
 
 ### Acceptance
 
-- desktop app no longer depends on mobile-only Expo capabilities for supported desktop flows
-
-## Phase 7: Validation, Packaging, And Promotion
-
-### Goal
-
-Prove parity, package the app cleanly, and define promotion criteria.
-
-### Scope
-
-- desktop regression validation
-- performance and memory checks on realistic session loads
-- release artifacts
-- migration / rollout notes
-- explicit promotion gate for when `vibe-app-tauri` can become the preferred desktop app
-
-### Acceptance
-
-- release bundles are generated reliably
-- the parity checklist in `docs/plans/rebuild/vibe-app-tauri-parity-checklist.md` is signed off
-- promotion/deprecation plan for the old desktop path is documented
+- `packages/vibe-app-tauri` holds default release ownership for desktop/mobile/web lanes
+- explicit hold/rollback plans remain documented
+- `packages/vibe-app` remains reference-only and must not regain active pipeline ownership without a new plan update
 
 ## Recommended Module Plan Breakdown
 
-When implementation starts, create and execute module plans in roughly this order:
+Wave 8 desktop module plans remain historical reference material for continuity only. New execution
+work should follow the Wave 9 module set below and update those files first when reality changes.
 
-1. `modules/vibe-app-tauri/bootstrap-and-package.md`
-2. `modules/vibe-app-tauri/desktop-shell-and-routing.md`
-3. `modules/vibe-app-tauri/core-logic-extraction.md`
-4. `modules/vibe-app-tauri/desktop-platform-adapters.md`
-5. `modules/vibe-app-tauri/auth-and-session-state.md`
-6. `modules/vibe-app-tauri/session-ui-parity.md`
-7. `modules/vibe-app-tauri/secondary-surfaces.md`
-8. `modules/vibe-app-tauri/release-and-promotion.md`
+Wave 9 work should be executed through the following module plans:
+
+1. `modules/vibe-app-tauri/universal-bootstrap-and-runtime.md`
+2. `modules/vibe-app-tauri/shared-core-from-happy.md`
+3. `modules/vibe-app-tauri/mobile-shell-and-navigation.md`
+4. `modules/vibe-app-tauri/web-export-and-browser-runtime.md`
+5. `modules/vibe-app-tauri/desktop-shell-and-platform-parity.md`
+6. `modules/vibe-app-tauri/auth-and-identity-flows.md`
+7. `modules/vibe-app-tauri/session-runtime-and-storage.md`
+8. `modules/vibe-app-tauri/session-rendering-and-composer.md`
+9. `modules/vibe-app-tauri/mobile-native-capabilities.md`
+10. `modules/vibe-app-tauri/secondary-routes-and-social.md`
+11. `modules/vibe-app-tauri/release-ota-and-store-migration.md`
+12. `modules/vibe-app-tauri/promotion-and-vibe-app-deprecation.md`
 
 No single implementation task should attempt the full migration.
-
-## UI Parity Rules
-
-The new desktop app must preserve:
-
-- route structure and entry points where desktop users already rely on them
-- major information density and panel structure
-- session rendering semantics
-- composer and tool interaction semantics
-- settings/account flows
-
-Allowed changes in early phases:
-
-- replacement of RN-specific interaction plumbing with web-native equivalents
-- desktop-specific keyboard/focus handling where it improves parity on desktop
-- implementation-driven internal state and component refactors
-
-Not allowed in early phases:
-
-- visual redesign for novelty
-- collapsing multiple current screens into a new IA before parity is demonstrated
-- changing session semantics or data dependencies to simplify the rewrite
 
 ## Validation Strategy
 
 ### Required During Migration
 
-- package-level typecheck and test wiring for `vibe-app-tauri`
-- route-level smoke tests for desktop navigation
-- parser / reducer compatibility checks against `vibe-wire` fixtures where reused
-- real desktop app -> Vibe backend chain for auth and sessions
-- release-bundle smoke checks for Tauri
-- review updates to the extraction inventory, route inventory, capability matrix, and coexistence
-  matrix whenever a module discovers a new boundary decision
+- package-level `typecheck`, `test`, `tauri:test`, and `tauri:smoke`
+- Expo bootstrap validation for Android and iOS prebuild
+- browser runtime boot and `expo export --platform web --output-dir dist` smoke validation
+- shared-core unit tests for auth/sync/realtime/parser utilities
+- route-level smoke checks for mobile and desktop entry flows
+- desktop shell checks for keyboard/focus, modal/overlay, clipboard, and required file-dialog flows
+- one real backend chain for auth, bootstrap, session load, message send, and realtime receipt
+- release-script dry runs and config validation before ownership switches
 
 ### Required Before Promotion
 
-- side-by-side parity audit against current `vibe-app` desktop behavior
-- explicit review of:
-  - auth/connect flow
-  - session list
-  - session detail
-  - message rendering
-  - composer actions
-  - artifacts/settings/account flows
-- packaging and startup validation on Linux, macOS, and Windows
-
-## Promotion Platform Matrix
-
-The promotion gate for `vibe-app-tauri` is cross-platform desktop parity, not a single-OS pilot.
-
-- required before promotion:
-  - Linux desktop package boots successfully
-  - macOS desktop package boots successfully
-  - Windows desktop package boots successfully
-- allowed before promotion:
-  - day-to-day development or first-slice validation may start on fewer platforms
-- not allowed:
-  - declaring promotion-ready status from a single-platform validation result
-
-## Parallel Operation Rules
-
-- `packages/vibe-app` remains the default shipping app during all early phases
-- `packages/vibe-app-tauri` ships as an additional desktop-focused package until promotion
-- release automation, package naming, and CI must keep the two projects distinguishable
-- bundle identifiers, updater channels, and callback ownership must stay distinguishable while the
-  two desktop paths coexist
-- shared credentials may reuse documented compatible storage only where the coexistence matrix says
-  it is safe; package-local caches, logs, and window/UI state should stay isolated by default
-- no default desktop entrypoint should be flipped to `vibe-app-tauri` without an explicit
-  promotion/deprecation plan update
+- side-by-side parity review against Happy behavior for:
+  - home / restore / inbox / new session / session detail / settings
+  - message rendering, composer, tool rendering, diff rendering, and file rendering
+  - notifications, QR/device-link, voice, purchases, and file import/export where applicable
+  - desktop keyboard/focus, modal, clipboard, and required file-dialog semantics
+- cross-platform startup validation on Linux, macOS, and Windows
+- real-device validation on at least one iOS and one Android target
+- retained browser runtime and static export validation
+- explicit release migration sign-off for bundle identifiers, OTA channels, store metadata, and
+  rollback paths
 
 ## Key Risks
 
-- underestimating the amount of UI code tied to React Native primitives
-- trying to preserve too much of the current UI layer instead of extracting only real domain logic
-- desktop-only rewrites drifting from current behavior before parity is measured
-- platform capability gaps around secure storage, notifications, OAuth, and file integrations
-- AI implementation attempts that are too broad and rewrite multiple desktop subsystems at once
-
-## Recommended Execution Policy
-
-- do not start implementation until the extraction inventory exists
-- migrate one feature slice at a time
-- require a parity demo after each major phase
-- keep `packages/vibe-app` shipping until `vibe-app-tauri` clears promotion gates
+- treating the Wave 8 desktop shell as if it can be reused directly for mobile UI
+- underestimating how much Happy behavior lives in Expo/RN providers and platform modules
+- drifting from Happy route semantics while trying to "clean up" the app structure
+- breaking store, OTA, secure-storage, or purchase continuity during release migration
+- broad AI prompts that rewrite shared core, mobile shell, and release scripts all at once
 
 ## Acceptance Criteria
 
-- `packages/vibe-app-tauri` exists as a separate project and does not destabilize `packages/vibe-app`
-- the desktop UI and interactions are substantially recreated, not redesigned first
-- the new desktop app works against current Vibe backend contracts without protocol forks
-- the old desktop path can remain in service until the new package is explicitly promoted
+- `packages/vibe-app-tauri` can act as the active Wave 9 replacement package for `packages/vibe-app`
+  across desktop, iOS, Android, and retained browser web/export ownership without protocol forks
+- the replacement follows Happy behavior first and records any allowed Vibe deviations explicitly
+- release, OTA, store, and rollback behavior are documented before the default switch
+- `packages/vibe-app` remains a deprecated historical reference only; it is not part of the active pipeline baseline

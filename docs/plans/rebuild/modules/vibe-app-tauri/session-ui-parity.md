@@ -1,5 +1,12 @@
 # Module Plan: vibe-app-tauri/session-ui-parity
 
+## Archival Status
+
+This file is historical Wave 8 desktop-only module planning material.
+
+Do not use it as active execution authority for Wave 9. Active session rendering ownership now
+belongs to `session-rendering-and-composer.md` and the current Wave 9 module set.
+
 ## Purpose
 
 Port the core session-heavy UI surfaces with pixel-close parity where practical and maintainable

@@ -1,14 +1,26 @@
 # `vibe-app-tauri` Parity Checklist
 
+## Archival Status
+
+This file is historical Wave 8 desktop-only planning material.
+
+Do not use it as active execution authority for Wave 9. Use the active Wave 9 planning set instead:
+
+- `docs/plans/rebuild/projects/vibe-app-tauri.md`
+- `docs/plans/rebuild/vibe-app-tauri-wave9-unified-replacement-plan.md`
+- `docs/plans/rebuild/vibe-app-tauri-wave9-route-and-capability-matrix.md`
+- `docs/plans/rebuild/vibe-app-tauri-wave9-migration-and-release-plan.md`
+- `docs/plans/rebuild/modules/vibe-app-tauri/*`
+
 ## Purpose
 
-This document is the sign-off checklist for promoting `packages/vibe-app-tauri` from a parallel
+This document is the historical sign-off checklist for promoting `packages/vibe-app-tauri` from a parallel
 desktop rewrite into a production-ready desktop app candidate.
 
 It is intentionally checklist-driven and should be updated as implementation progresses.
 
-This file does **not** replace the project plan or module plans. It is the audit artifact used by
-Phase 7 in `projects/vibe-app-tauri.md`.
+This file does **not** replace the project plan or module plans. It is now a historical audit artifact from
+Wave 8 desktop promotion planning.
 
 ## Status Scale
 
@@ -20,7 +32,7 @@ Phase 7 in `projects/vibe-app-tauri.md`.
 
 ## Promotion Rule
 
-`packages/vibe-app-tauri` must not become the default desktop path until:
+Historical Wave 8 rule: `packages/vibe-app-tauri` did not become the default desktop path until the following conditions were met. Any remaining `in progress` markers below are historical and were carried into Wave 9 where still relevant:
 
 - all required P0 and P1 items below are `done`, or
 - a remaining gap is explicitly marked `deferred` in planning files with a written rationale, and
@@ -31,7 +43,7 @@ Phase 7 in `projects/vibe-app-tauri.md`.
 ### Auth And Account
 
 - status: `in progress`
-- desktop login flow matches the current app semantically
+- desktop login flow matches the then-current app semantically
 - account restore flow works
 - secure credential storage works on desktop
 - external browser auth/connect flow returns control to the running app
@@ -99,7 +111,7 @@ Phase 7 in `projects/vibe-app-tauri.md`.
 - `settings/appearance`, `settings/voice`, and `settings/voice/language` now persist desktop-backed
   preference state and sync supported fields through account settings instead of depending on local
   preview-only controls
-- `settings/connect/claude` now mirrors the current app's explicit terminal-command handoff instead
+- `settings/connect/claude` now mirrors the then-current app's explicit terminal-command handoff instead
   of staying documentation-only
 - `terminal/index` and `terminal/connect` now expose live desktop helper commands and terminal auth
   approval flow instead of remaining retained-only helper shells

@@ -1,5 +1,13 @@
 # Module Plan: vibe-app-tauri/release-and-promotion
 
+## Archival Status
+
+This file is historical Wave 8 desktop-only module planning material.
+
+Do not use it as active execution authority for Wave 9. Active release and promotion ownership now
+belongs to `release-ota-and-store-migration.md`, `promotion-and-vibe-app-deprecation.md`, and the
+current Wave 9 module set.
+
 ## Purpose
 
 Define release packaging, validation, rollout, and promotion criteria for `vibe-app-tauri`.

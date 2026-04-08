@@ -1,8 +1,20 @@
 # `vibe-app-tauri` Capability Matrix
 
+## Archival Status
+
+This file is historical Wave 8 desktop-only planning material.
+
+Do not use it as active execution authority for Wave 9. Use the active Wave 9 planning set instead:
+
+- `docs/plans/rebuild/projects/vibe-app-tauri.md`
+- `docs/plans/rebuild/vibe-app-tauri-wave9-unified-replacement-plan.md`
+- `docs/plans/rebuild/vibe-app-tauri-wave9-route-and-capability-matrix.md`
+- `docs/plans/rebuild/vibe-app-tauri-wave9-migration-and-release-plan.md`
+- `docs/plans/rebuild/modules/vibe-app-tauri/*`
+
 ## Purpose
 
-Record the desktop capability replacements needed to support `vibe-app-tauri` without silently
+Record the historical desktop capability replacements defined for the Wave 8 `vibe-app-tauri` rewrite without silently
 depending on Expo/mobile runtime behavior.
 
 This file is also the source of truth for which adapter work is auth-critical and must land before
@@ -10,9 +22,8 @@ This file is also the source of truth for which adapter work is auth-critical an
 
 ## Status
 
-- state: `implementation in progress`
-- update rule: revise this file before changing the required capability set or degrading a desktop
-  flow intentionally
+- state: `historical Wave 8 capability reference`
+- update rule: use this file as historical desktop-only reference; active full-app capability ownership now belongs to the Wave 9 planning set
 - current execution note:
   - desktop file load/save dialogs now back manual restore import plus text/artifact export flows
   - desktop notifications now back restore/link success and artifact mutation feedback paths
@@ -22,12 +33,12 @@ This file is also the source of truth for which adapter work is auth-critical an
 
 - `P0 auth-critical`: required before desktop auth/account restore can be considered viable
 - `P0 session-critical`: required for the first usable desktop session slice
-- `P1 promotion-critical`: required before promotion to the default desktop path
+- `P1 promotion-critical`: required before promotion to the then-default desktop path
 - `deferred`: out of phase-one scope unless explicitly activated
 
 ## Locked Phase-One Callback Strategy
 
-During coexistence with the shipping `packages/vibe-app` desktop path:
+During the historical coexistence period with the shipping `packages/vibe-app` desktop path:
 
 - `packages/vibe-app-tauri` must not take default ownership of the production `vibe:///` deep-link
   scheme

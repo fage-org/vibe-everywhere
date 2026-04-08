@@ -1,21 +1,32 @@
 # `vibe-app-tauri` Route Inventory
 
+## Archival Status
+
+This file is historical Wave 8 desktop-only planning material.
+
+Do not use it as active execution authority for Wave 9. Use the active Wave 9 planning set instead:
+
+- `docs/plans/rebuild/projects/vibe-app-tauri.md`
+- `docs/plans/rebuild/vibe-app-tauri-wave9-unified-replacement-plan.md`
+- `docs/plans/rebuild/vibe-app-tauri-wave9-route-and-capability-matrix.md`
+- `docs/plans/rebuild/vibe-app-tauri-wave9-migration-and-release-plan.md`
+- `docs/plans/rebuild/modules/vibe-app-tauri/*`
+
 ## Purpose
 
-Freeze the desktop-visible route and surface parity scope before the new route tree is implemented.
+Freeze the historical desktop-visible route and surface parity scope used during Wave 8 before the new route tree was implemented.
 
 This file is the planning source of truth for which routes and shell surfaces are required in the
 first usable slice, which are required before promotion, and which are deferred.
 
 ## Status
 
-- state: `planning baseline`
-- update rule: revise this file before adding, removing, or deferring a desktop-visible route in
-  `vibe-app-tauri`
+- state: `historical Wave 8 route inventory`
+- update rule: use this file as historical desktop-route reference; active cross-platform route ownership now belongs to the Wave 9 planning set
 
 ## Shell Invariants
 
-The new desktop shell must preserve these baseline expectations unless a plan update records an
+The Wave 8 desktop shell preserved these baseline expectations unless a plan update recorded an
 exception:
 
 - recognizable header/sidebar/main-panel structure
@@ -28,7 +39,7 @@ exception:
 
 ## Inventory
 
-| Route or surface | Promotion class | First owning module | Notes |
+| Route or surface | Historical promotion class | First owning module | Notes |
 | --- | --- | --- | --- |
 | shell chrome: header, sidebar, main panel, modal/overlay/focus behavior | `P0` | `desktop-shell-and-routing` | must exist before deeper feature migration starts |
 | `/(app)/index` shell landing / default desktop entry route | `P0` | `desktop-shell-and-routing` | preserve current desktop entry behavior and avoid dead-end placeholder routing |

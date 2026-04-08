@@ -1,5 +1,12 @@
 # Module Plan: vibe-app-tauri/secondary-surfaces
 
+## Archival Status
+
+This file is historical Wave 8 desktop-only module planning material.
+
+Do not use it as active execution authority for Wave 9. Active secondary-route ownership now
+belongs to `secondary-routes-and-social.md` and the current Wave 9 module set.
+
 ## Purpose
 
 Port the non-core but still user-visible desktop surfaces after the main session flows are stable.

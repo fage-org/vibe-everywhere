@@ -1,10 +1,22 @@
 # `vibe-app-tauri` Promotion Baseline
 
+## Archival Status
+
+This file is historical Wave 8 desktop-only planning material.
+
+Do not use it as active execution authority for Wave 9. Use the active Wave 9 planning set instead:
+
+- `docs/plans/rebuild/projects/vibe-app-tauri.md`
+- `docs/plans/rebuild/vibe-app-tauri-wave9-unified-replacement-plan.md`
+- `docs/plans/rebuild/vibe-app-tauri-wave9-route-and-capability-matrix.md`
+- `docs/plans/rebuild/vibe-app-tauri-wave9-migration-and-release-plan.md`
+- `docs/plans/rebuild/modules/vibe-app-tauri/*`
+
 ## Purpose
 
 Record the concrete startup, performance, memory, parity-review, and sign-off artifacts required
-before `packages/vibe-app-tauri` can be promoted ahead of the shipping `packages/vibe-app`
-desktop path.
+before `packages/vibe-app-tauri` can be confirmed as the sole active desktop path while `packages/vibe-app`
+remains reference-only.
 
 This file is the tracked manual review companion to the generated
 `artifacts/vibe-app-tauri/promotion-baseline.md` snapshot.
@@ -12,7 +24,7 @@ This file is the tracked manual review companion to the generated
 ## Latest Automated Snapshot
 
 - latest generated artifact: `artifacts/vibe-app-tauri/promotion-baseline.md`
-- refresh command: `yarn app-tauri:metrics`
+- refresh command: `yarn app:metrics`
 - latest reviewed snapshot timestamp: `pending`
 
 ## Startup Validation

@@ -4,7 +4,8 @@
 
 Rebuild `vibe-remote` as a Happy-shaped product family:
 
-- `packages/vibe-app` imported from `happy-app` and adapted
+- `packages/vibe-app` imported from `happy-app` and retained only as deprecated historical reference
+- `packages/vibe-app-tauri` active Wave 9 replacement package aligned directly to `happy-app` for future app ownership
 - `crates/vibe-wire` rewritten in Rust from `happy-wire`
 - `crates/vibe-server` rewritten in Rust from `happy-server`
 - `crates/vibe-agent` rewritten in Rust from `happy-agent`
@@ -24,17 +25,20 @@ crates/
   vibe-cli/
   vibe-app-logs/
 packages/
-  vibe-app/
-  vibe-app-tauri/   # planned next-iteration desktop rewrite
+  vibe-app/         # deprecated historical reference only
+  vibe-app-tauri/   # active Wave 9 replacement package
 docs/plans/rebuild/
 scripts/
 ```
 
 ## Current Phase
 
-- phase: the original Happy-aligned rebuild plan is complete through `Wave 7`; the next iteration target is the parallel desktop rewrite project `packages/vibe-app-tauri`
-- implementation status: `vibe-wire` is implemented and validated; `vibe-server` now ships a single-instance Wave-2 spine plus the Wave-4 support surfaces covering files/images, account/settings/usage, utility APIs, artifacts/access keys, connect/GitHub, social/feed, auxiliary socket APIs, and monitoring; `vibe-agent` now ships the Wave-3 remote-control slice covering auth, HTTP session/machine control, live session socket control, machine RPC, and stable CLI output; `vibe-cli` now ships the Wave-5 local runtime covering auth/connect, command bootstrap, provider execution, daemon control, sandbox policy, persistence/resume, session-protocol mapping, and end-to-end validation across the supported provider paths; `vibe-app` now ships the imported/adapted Wave-6 app baseline with localized workspace bootstrap, `vibe-wire` fixture compatibility tests, centralized Vibe endpoint/env wiring, public Vibe branding, desktop/Tauri bundle identifiers, and successful web export smoke validation; `vibe-app-logs` now ships the Wave-7 minimal sidecar runtime with `POST /logs` ingestion, Vibe home-directory file sinks, root `yarn app-logs` launch support, and startup/ingestion smoke coverage
-- immediate goal: keep the completed rebuild baseline stable and execute the next desktop iteration around a new parallel `packages/vibe-app-tauri` project that recreates the current app's desktop UI and behavior without destabilizing `packages/vibe-app`
+- phase: the original Happy-aligned rebuild plan is complete through `Wave 7`; Wave 8 is closed as
+  the historical desktop-preview baseline for `packages/vibe-app-tauri`; the active milestone is
+  Wave 9, which turns `packages/vibe-app-tauri` into the active Wave 9 replacement package for
+  desktop, mobile, and retained browser web/export ownership
+- implementation status: `vibe-wire` is implemented and validated; `vibe-server` now ships a single-instance Wave-2 spine plus the Wave-4 support surfaces covering files/images, account/settings/usage, utility APIs, artifacts/access keys, connect/GitHub, social/feed, auxiliary socket APIs, and monitoring; `vibe-agent` now ships the Wave-3 remote-control slice covering auth, HTTP session/machine control, live session socket control, machine RPC, and stable CLI output; `vibe-cli` now ships the Wave-5 local runtime covering auth/connect, command bootstrap, provider execution, daemon control, sandbox policy, persistence/resume, session-protocol mapping, and end-to-end validation across the supported provider paths; `vibe-app` remains only as a deprecated historical reference when Happy is insufficient; `vibe-app-tauri` is the active Wave 9 replacement package; `vibe-app-logs` now ships the Wave-7 minimal sidecar runtime with `POST /logs` ingestion, Vibe home-directory file sinks, root `yarn app-logs` launch support, and startup/ingestion smoke coverage
+- immediate goal: execute the Wave 9 `packages/vibe-app-tauri` replacement plan across desktop, mobile, and retained browser web/export behavior without reopening the deprecated `packages/vibe-app` pipeline
 - authoritative execution sequence: `docs/plans/rebuild/execution-plan.md`
 - AI dispatch batches: `docs/plans/rebuild/execution-batches.md`
 
@@ -63,7 +67,11 @@ scripts/
 8. `M7 - Parallel Desktop Rewrite`
    - create `packages/vibe-app-tauri`
    - recreate the desktop UX with a Tauri 2 + web-native frontend
-   - keep `packages/vibe-app` as the production baseline until promotion
+   - close the desktop-preview track as historical baseline material
+9. `M8 - Unified App Replacement`
+   - turn `packages/vibe-app-tauri` into the active Wave 9 replacement package for desktop/mobile/web-export ownership
+   - preserve browser web export explicitly
+   - finalize release and store ownership in the replacement package
 
 ## Critical Risks
 
@@ -76,17 +84,11 @@ scripts/
 ## Current Recommended Next Modules
 
 - `projects/vibe-app-tauri.md`
-- `vibe-app-tauri-extraction-inventory.md`
-- `vibe-app-tauri-route-inventory.md`
-- `vibe-app-tauri-capability-matrix.md`
-- `vibe-app-tauri-coexistence-matrix.md`
-- immediate next implementation module:
-  - `modules/vibe-app-tauri/desktop-shell-and-routing.md`
-- future module sequence:
-  - `modules/vibe-app-tauri/desktop-shell-and-routing.md`
-  - `modules/vibe-app-tauri/core-logic-extraction.md`
-  - `modules/vibe-app-tauri/desktop-platform-adapters.md`
-  - `modules/vibe-app-tauri/auth-and-session-state.md`
-  - `modules/vibe-app-tauri/session-ui-parity.md`
-  - `modules/vibe-app-tauri/secondary-surfaces.md`
-  - `modules/vibe-app-tauri/release-and-promotion.md`
+- `vibe-app-tauri-wave9-unified-replacement-plan.md`
+- `vibe-app-tauri-wave9-route-and-capability-matrix.md`
+- `vibe-app-tauri-wave9-migration-and-release-plan.md`
+- immediate next implementation modules:
+  - `modules/vibe-app-tauri/universal-bootstrap-and-runtime.md`
+  - `modules/vibe-app-tauri/shared-core-from-happy.md`
+  - `modules/vibe-app-tauri/mobile-shell-and-navigation.md`
+  - `modules/vibe-app-tauri/web-export-and-browser-runtime.md`

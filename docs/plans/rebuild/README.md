@@ -11,14 +11,17 @@ relevant shared spec, project plan, and module plan.
 
 - `master-summary.md`: high-signal status, milestones, and next work
 - `final-parity-audit.md`: closing audit for the original Wave 0-7 rebuild baseline
-- `vibe-app-tauri-parity-checklist.md`: desktop rewrite promotion checklist and sign-off artifact
-- `vibe-app-tauri-wave8-delivery-plan.md`: Wave 8 feature inventory, batch plan, and execution checklist
-- `vibe-app-tauri-extraction-inventory.md`: reusable-vs-rewrite inventory for the new desktop project
-- `vibe-app-tauri-route-inventory.md`: route and surface parity inventory for desktop migration
-- `vibe-app-tauri-capability-matrix.md`: desktop capability requirements and replacement matrix
-- `vibe-app-tauri-coexistence-matrix.md`: side-by-side rules for `vibe-app` and `vibe-app-tauri`
-- `vibe-app-tauri-promotion-baseline.md`: tracked startup/performance/memory/parity review evidence template
-- `vibe-app-tauri-promotion-plan.md`: explicit promotion gate, fallback path, and old-desktop deprecation plan
+- `vibe-app-tauri-wave9-unified-replacement-plan.md`: Wave 9 batch plan for turning `vibe-app-tauri` into the active Wave 9 replacement package
+- `vibe-app-tauri-wave9-route-and-capability-matrix.md`: Wave 9 route families, parity classes, and cross-platform capability owners
+- `vibe-app-tauri-wave9-migration-and-release-plan.md`: Wave 9 release, OTA, store, identifier, migration, and rollback plan
+- `vibe-app-tauri-wave8-delivery-plan.md`: historical Wave 8 desktop-preview batch plan
+- `vibe-app-tauri-extraction-inventory.md`: historical Wave 8 reusable-vs-rewrite inventory
+- `vibe-app-tauri-route-inventory.md`: historical Wave 8 desktop route inventory
+- `vibe-app-tauri-capability-matrix.md`: historical Wave 8 desktop capability matrix
+- `vibe-app-tauri-coexistence-matrix.md`: historical Wave 8 coexistence rules before the unified replacement boundary
+- `vibe-app-tauri-promotion-baseline.md`: historical desktop-only evidence template; use only for continuity review where still relevant
+- `vibe-app-tauri-promotion-plan.md`: historical desktop-only promotion/fallback reference
+- `vibe-app-tauri-parity-checklist.md`: historical desktop-only parity checklist
 - `master-details.md`: global architecture, dependency order, and acceptance gates
 - `execution-plan.md`: authoritative module-by-module implementation order
 - `execution-batches.md`: AI dispatch-ready batch list derived from the execution plan
@@ -27,6 +30,30 @@ relevant shared spec, project plan, and module plan.
 - `modules/`: execution-grade plans, one module per file
 
 The authoritative module-by-module implementation sequence lives in `execution-plan.md`.
+
+For `vibe-app-tauri`, the active planning set is:
+
+- `projects/vibe-app-tauri.md`
+- `vibe-app-tauri-wave9-unified-replacement-plan.md`
+- `vibe-app-tauri-wave9-route-and-capability-matrix.md`
+- `vibe-app-tauri-wave9-migration-and-release-plan.md`
+- `modules/vibe-app-tauri/*`
+
+Wave 8 desktop-only planning artifacts remain as historical references and must not override Wave 9
+route, capability, migration, or promotion rules implicitly.
+
+## Wave 9 Glossary
+
+- `historical Wave 8 desktop-preview baseline`: the closed desktop-only planning and implementation
+  phase that established `packages/vibe-app-tauri` before the full replacement boundary
+- `active Wave 9 replacement package`: `packages/vibe-app-tauri` as the current full-platform app
+  replacement target for `packages/vibe-app`
+- `default app path`: the app package users and maintainers should treat as the primary current path
+  after promotion
+- `default release ownership`: the release workflows, identifiers, channels, and store lanes that
+  define the primary shipping path after promotion
+- `historical continuity reference`: an old plan or package kept only to answer Vibe-specific
+  continuity or rollback questions when Happy and the active Wave 9 docs are not sufficient
 
 ## Working Rules
 
@@ -65,15 +92,18 @@ documents:
 21. `projects/vibe-app-logs.md`
 22. `modules/vibe-app-logs/*`
 23. `projects/vibe-app-tauri.md`
-24. `vibe-app-tauri-wave8-delivery-plan.md`
-25. `vibe-app-tauri-extraction-inventory.md`
-26. `vibe-app-tauri-route-inventory.md`
-27. `vibe-app-tauri-capability-matrix.md`
-28. `vibe-app-tauri-coexistence-matrix.md`
-29. `vibe-app-tauri-promotion-baseline.md`
-30. `vibe-app-tauri-promotion-plan.md`
-31. `vibe-app-tauri-parity-checklist.md`
-32. `modules/vibe-app-tauri/*`
+24. `vibe-app-tauri-wave9-unified-replacement-plan.md`
+25. `vibe-app-tauri-wave9-route-and-capability-matrix.md`
+26. `vibe-app-tauri-wave9-migration-and-release-plan.md`
+27. `historical: vibe-app-tauri-wave8-delivery-plan.md`
+28. `historical: vibe-app-tauri-extraction-inventory.md`
+29. `historical: vibe-app-tauri-route-inventory.md`
+30. `historical: vibe-app-tauri-capability-matrix.md`
+31. `historical: vibe-app-tauri-coexistence-matrix.md`
+32. `historical: vibe-app-tauri-promotion-baseline.md`
+33. `historical: vibe-app-tauri-promotion-plan.md`
+34. `historical: vibe-app-tauri-parity-checklist.md`
+35. `modules/vibe-app-tauri/*`
 
 ## AI Execution Contract
 

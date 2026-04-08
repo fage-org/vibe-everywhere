@@ -1,5 +1,12 @@
 # Module Plan: vibe-app-tauri/desktop-platform-adapters
 
+## Archival Status
+
+This file is historical Wave 8 desktop-only module planning material.
+
+Do not use it as active execution authority for Wave 9. Active desktop shell and adapter ownership
+now belongs to `desktop-shell-and-platform-parity.md` and the current Wave 9 module set.
+
 ## Purpose
 
 Replace Expo/mobile platform assumptions with Tauri/web-native desktop adapters required for the

@@ -40,6 +40,8 @@ Use this file when deciding:
 8. implement `vibe-app-logs` only if still needed
 9. implement the parallel desktop rewrite in `packages/vibe-app-tauri` after the original rebuild
    baseline is complete
+10. expand `packages/vibe-app-tauri` into the full cross-platform replacement for `packages/vibe-app`
+    after the desktop preview foundation and planning reset are stable
 
 ## Wave 0: Shared Planning Freeze
 
@@ -397,6 +399,11 @@ Create a new desktop-only `packages/vibe-app-tauri` project that recreates the c
 desktop UI and behavior with a Tauri 2 + web-native frontend, without destabilizing
 `packages/vibe-app`.
 
+### Status
+
+- historical and closed as the desktop-preview baseline
+- no new implementation work should target Wave 8 directly; any remaining desktop-specific work must be re-scoped under Wave 9
+
 ### Planning Prerequisites
 
 - `projects/vibe-app-tauri.md` exists and is treated as the owning project plan
@@ -441,10 +448,69 @@ desktop UI and behavior with a Tauri 2 + web-native frontend, without destabiliz
 - a desktop-first route and session shell works against current Vibe backend contracts
 - current `packages/vibe-app` remains intact while the new desktop app matures in parallel
 
+### Historical Closure Condition
+
+- Wave 8 now serves as historical desktop-preview baseline material; remaining parity or release work has moved to Wave 9
+
+
+## Wave 9: `vibe-app-tauri` Active App Replacement
+
+### Goal
+
+Turn `packages/vibe-app-tauri` from the historical Wave 8 desktop-preview baseline into the active
+Wave 9 replacement package for `packages/vibe-app` across desktop, iOS, Android, and retained
+web/export ownership.
+
+### Planning Prerequisites
+
+- `projects/vibe-app-tauri.md` records the Wave 9 project boundary
+- `vibe-app-tauri-wave9-unified-replacement-plan.md` exists and records the Wave 9 batch layout
+- `vibe-app-tauri-wave9-route-and-capability-matrix.md` exists and records route and capability
+  priorities directly from `/root/happy/packages/happy-app`
+- `vibe-app-tauri-wave9-migration-and-release-plan.md` exists and records release-owner switch and
+  rollback rules
+- any retained Wave 8 desktop-only planning files are treated as historical references rather than
+  competing execution authority
+
+### Order
+
+1. `modules/vibe-app-tauri/universal-bootstrap-and-runtime.md`
+2. `modules/vibe-app-tauri/shared-core-from-happy.md`
+3. `modules/vibe-app-tauri/mobile-shell-and-navigation.md`
+4. `modules/vibe-app-tauri/web-export-and-browser-runtime.md`
+5. `modules/vibe-app-tauri/desktop-shell-and-platform-parity.md`
+6. `modules/vibe-app-tauri/auth-and-identity-flows.md`
+7. `modules/vibe-app-tauri/session-runtime-and-storage.md`
+8. `modules/vibe-app-tauri/session-rendering-and-composer.md`
+9. `modules/vibe-app-tauri/mobile-native-capabilities.md`
+10. `modules/vibe-app-tauri/secondary-routes-and-social.md`
+11. `modules/vibe-app-tauri/release-ota-and-store-migration.md`
+12. `modules/vibe-app-tauri/promotion-and-vibe-app-deprecation.md`
+
+### Why This Order
+
+- runtime bootstrap must exist before the new package can own Expo/mobile boot
+- shared core should be extracted before route-level screen migration broadens
+- mobile shell, browser runtime, desktop shell parity, and identity flows define the first usable
+  replacement slice
+- session runtime must exist before rendering-heavy parity work starts
+- native capabilities should harden after the main session flow proves which platform seams are
+  required in practice
+- secondary surfaces come after the core session path is stable
+- release migration must wait for route and capability parity to exist
+- promotion and legacy deprecation are last because they depend on explicit rollback-safe release
+  ownership
+
+### Output
+
+- `packages/vibe-app-tauri` can act as the active Wave 9 replacement package
+- desktop and mobile shells share package-local core modules without protocol forks
+- release, OTA, and store ownership can move to the new package by explicit promotion
+
 ### Gate To Finish
 
-- `vibe-app-tauri` has a parity checklist, release packaging path, and explicit promotion gate
-  without becoming the default desktop app prematurely
+- `packages/vibe-app-tauri` is approved as the default app path, with hold/rollback and
+  legacy-reference rules documented
 
 ## Safe Parallel Windows
 

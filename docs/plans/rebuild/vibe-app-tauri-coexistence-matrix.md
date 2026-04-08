@@ -1,30 +1,36 @@
 # `vibe-app-tauri` Coexistence Matrix
 
+## Archival Status
+
+This file is historical Wave 8 desktop-only planning material.
+
+Do not use it as active execution authority for Wave 9. Use the active Wave 9 planning set instead:
+
+- `docs/plans/rebuild/projects/vibe-app-tauri.md`
+- `docs/plans/rebuild/vibe-app-tauri-wave9-unified-replacement-plan.md`
+- `docs/plans/rebuild/vibe-app-tauri-wave9-route-and-capability-matrix.md`
+- `docs/plans/rebuild/vibe-app-tauri-wave9-migration-and-release-plan.md`
+- `docs/plans/rebuild/modules/vibe-app-tauri/*`
+
 ## Purpose
 
-Lock the side-by-side operating rules for the shipping `packages/vibe-app` desktop path and the
-parallel `packages/vibe-app-tauri` desktop rewrite.
+Record the historical side-by-side rules for the old `packages/vibe-app` desktop path and the
+`packages/vibe-app-tauri` rewrite, while making clear that `packages/vibe-app` is now deprecated reference-only.
 
 This file exists so bootstrap, auth, packaging, and promotion work do not invent coexistence rules
 module by module.
 
 ## Status
 
-- state: `planning baseline`
-- update rule: revise this file before either desktop package changes default ownership of a shared
-  public surface
+- state: `historical coexistence reference`
+- update rule: revise this file only if a continuity or rollback question requires the old coexistence rules to be clarified
 
 ## Baseline Rules
 
-- `packages/vibe-app` remains the default production desktop path until the promotion plan says
-  otherwise
-- `packages/vibe-app-tauri` may ship in parallel only with clearly distinguishable package,
-  artifact, and updater identities
-- shared backend contracts stay the same; coexistence rules apply only to client packaging,
-  callback ownership, and local machine state
-- phase-one auth callback ownership for `vibe-app-tauri` uses a localhost loopback callback owned
-  by the running app process; it does not claim the default production `vibe:///` route while
-  `packages/vibe-app` remains the shipping desktop path
+- `packages/vibe-app` is deprecated reference-only and owns no active CI or release lane
+- `packages/vibe-app-tauri` is the sole active desktop package
+- shared backend contracts stay the same; the historical coexistence rules below remain useful only for continuity or rollback reasoning
+- desktop auth callback ownership remains package-local to `vibe-app-tauri`; do not restore old default-route assumptions from `packages/vibe-app` without an explicit plan update
 
 ## Locked Loopback Ownership Rules
 
@@ -43,7 +49,7 @@ module by module.
 
 ## Matrix
 
-| Concern | Current default owner | Parallel `vibe-app-tauri` rule |
+| Concern | Historical owner | Historical `vibe-app-tauri` coexistence rule |
 | --- | --- | --- |
 | repository package path | `packages/vibe-app` | `packages/vibe-app-tauri` is a separate package and must not replace the existing path |
 | bundle identifier / app id | `packages/vibe-app` | use a distinct next-iteration identifier until promotion; do not ship two desktop apps with the same production app id |
