@@ -43,9 +43,9 @@ Use this file when you want to assign work in grouped waves such as:
 | `[done] B16` | optional sidecar | app-log sidecar parity if still needed |
 | `B17` | historical desktop-preview planning freeze and first usable slice | historical Wave 8 baseline for the desktop preview path |
 | `B18` | historical desktop promotion planning | historical Wave 8 parity and promotion baseline |
-| `B19` | unified runtime bootstrap | `vibe-app-tauri` can host desktop and Expo/mobile runtimes in one package |
+| `B19` | unified runtime bootstrap | `vibe-app-tauri` can host desktop, Android Tauri-mobile, and retained static browser export in one package |
 | `B20` | shared core import from Happy | replacement package owns reusable auth/sync/realtime/core modules |
-| `B21` | shell surfaces, browser runtime, and identity | desktop/mobile/browser `P0` entry flows and create/link/restore flows work |
+| `B21` | shell surfaces, static browser export, and identity | desktop/Android/static-export `P0` entry flows and create/link/restore flows work |
 | `B22` | session runtime and rendering | desktop and mobile reach a real end-to-end session chain |
 | `B23` | promotion-critical native capabilities | mobile and cross-platform capability blockers are closed or explicitly waived |
 | `B24` | secondary route migration | promotion-critical `P1` routes are wired |
@@ -725,19 +725,19 @@ Use this file when you want to assign work in grouped waves such as:
 
 ### Implementation Tasks
 
-1. Create or normalize the package-root Expo/Tauri bootstrap files so `packages/vibe-app-tauri`
-   owns `index.ts`, `app.config.js`, `eas.json`, and desktop/mobile entry wiring directly.
+1. Create or normalize the package-root bootstrap files so `packages/vibe-app-tauri` owns the
+   package-root desktop/mobile/browser bootstrap surface directly.
 2. Define the package-internal directory layout for `sources/app`, `sources/shared`,
    `sources/mobile`, `sources/desktop`, and `src-tauri` without importing from `packages/vibe-app`
    at runtime.
 3. Port root theme, font, splash, and provider bootstrap dependencies from Happy into package-local
    ownership.
-4. Add or normalize scripts for `tauri:dev`, desktop build/smoke flows, Expo boot, and Android/iOS
-   prebuild flows.
+4. Add or normalize scripts for `tauri:dev`, desktop build/smoke flows, mobile build/dev flows,
+   and retained static browser export validation.
 5. Make env/config resolution explicit for preview versus production modes and keep outputs
    package-local.
-6. Validate that Tauri boot, Expo boot, and both mobile prebuild paths work without mutating
-   `packages/vibe-app`.
+6. Validate that desktop boot, Android mobile runtime ownership, and retained static browser export
+   all work without mutating `packages/vibe-app`.
 
 ### Parallel Allowed
 
@@ -745,14 +745,15 @@ Use this file when you want to assign work in grouped waves such as:
 
 ### Gate
 
-- `packages/vibe-app-tauri` can host the desktop shell and Expo/mobile runtime in one package
+- `packages/vibe-app-tauri` can host the desktop shell, Android Tauri-mobile ownership, and
+  retained static browser export path in one package
 
 ### Validation Focus
 
 - Tauri boot
-- Expo boot
-- Android prebuild
-- iOS prebuild
+- mobile runtime/bootstrap validation
+- Android mobile-path validation
+- retained static browser export validation
 
 ## B20: Shared Core Import From Happy
 
@@ -791,7 +792,7 @@ Use this file when you want to assign work in grouped waves such as:
 - parser/reducer/auth/realtime checks
 - import-boundary checks
 
-## B21: Shell Surfaces, Browser Runtime, And Identity
+## B21: Shell Surfaces, Static Browser Export, And Identity
 
 ### Prerequisites
 
@@ -807,34 +808,35 @@ Use this file when you want to assign work in grouped waves such as:
 ### Implementation Tasks
 
 1. Recreate the Happy root provider chain and top-level route naming inside the new package for
-   mobile and retained browser runtime ownership.
-2. Port mobile `P0` entry routes: home, restore, inbox, settings hub, and top-level authenticated
+   Android and retained static browser export ownership.
+2. Port Android `P0` entry routes: home, restore, inbox, settings hub, and top-level authenticated
    shell behavior.
-3. Stand up retained browser runtime boot, static web export wiring, favicon/metadata hooks, and
-   browser-only provider affordances.
+3. Stand up retained static browser export wiring, favicon/metadata hooks, and browser-only provider
+   affordances.
 4. Recreate the active desktop shell: route chrome, header/sidebar behavior, keyboard/focus rules,
    modal/overlay semantics, clipboard flows, and required file-dialog/notification seams.
 5. Port create-account, QR/device-link, secret-key restore, and credential persistence flows for
    both mobile and desktop.
 6. Harden the desktop localhost loopback callback contract with `127.0.0.1` binding, per-attempt
    `state`, one-shot lifecycle, timeout handling, and per-process ownership.
-7. Validate desktop/mobile/browser `P0` entry flows and auth bootstrap behavior before session work
-   starts.
+7. Validate desktop/Android/static-export `P0` entry flows and auth bootstrap behavior before
+   session work starts.
 
 ### Parallel Allowed
 
-- limited overlap is allowed only after the provider, browser runtime, and route shell are stable
+- limited overlap is allowed only after the provider, static-export path, and route shell are stable
 
 ### Gate
 
-- desktop/mobile `P0` entry routes plus browser runtime/export bootstrap and create/link/restore flows work on the new package
+- desktop/Android `P0` entry routes plus retained static browser export and create/link/restore
+  flows work on the new package
 
 ### Validation Focus
 
 - provider boot
 - desktop shell, keyboard/focus, and adapter checks
-- phone/tablet route checks
-- browser runtime boot and `expo export --platform web --output-dir dist` checks
+- Android phone/tablet route checks
+- retained static browser export checks
 - create-account, device-link, and secret-key restore checks
 
 ## B22: Session Runtime And Rendering
@@ -887,7 +889,7 @@ Use this file when you want to assign work in grouped waves such as:
 ### Implementation Tasks
 
 1. Turn the Wave 9 capability matrix into an implementation checklist covering each `C1`
-   promotion-critical capability and every `app.config.js` plugin seam.
+   promotion-critical capability and every Happy mobile/native integration seam.
 2. Implement or explicitly defer notification routing and push registration behavior with real-device
    validation.
 3. Implement or explicitly defer purchases and entitlement refresh behavior with continuity notes.
@@ -963,14 +965,14 @@ Use this file when you want to assign work in grouped waves such as:
 
 ### Implementation Tasks
 
-1. Recreate package-local release inputs: `app.config.js`, `eas.json`, `release.cjs`,
+1. Recreate package-local release inputs: `release.cjs`, browser/native build config,
    `release-dev.sh`, and `release-production.sh`.
-2. Port preview and production identifier rules for desktop, iOS, Android, deep links, and OTA
-   channels without colliding with historical shipping ownership.
+2. Port preview and production identifier rules for desktop, Android, deep links, updater channels,
+   APK naming, and GitHub Release metadata without colliding with historical shipping ownership.
 3. Update repo workflows so preview and production-candidate lanes package from
    `packages/vibe-app-tauri`.
-4. Validate preview and production-candidate artifact generation for desktop, iOS, Android, and
-   retained browser web/export outputs.
+4. Validate preview and production-candidate artifact generation for desktop, Android APK, and
+   retained static browser export outputs.
 5. Record the analytics/tracking continuity keep/defer decision, including provider bootstrap,
    screen tracking, opt-in/out state, and review-prompt telemetry implications.
 6. Complete the data-migration review table with concrete validation artifacts for each continuity
@@ -989,7 +991,7 @@ Use this file when you want to assign work in grouped waves such as:
 ### Validation Focus
 
 - preview and production-candidate artifact generation
-- browser web/export artifact generation
+- retained static browser export artifact generation
 - workflow packaging checks
 - analytics/tracking continuity review
 - rollback-path review
@@ -1008,8 +1010,8 @@ Use this file when you want to assign work in grouped waves such as:
 
 1. Confirm every `P0`/`P1` route and `C0`/`C1` capability is either satisfied or explicitly waived
    in writing.
-2. Confirm default release ownership is runnable across desktop, iOS, Android, and retained
-   browser/web export outputs.
+2. Confirm default release ownership is runnable across desktop, Android, and retained static
+   browser export outputs.
 3. Run and record the final hold/rollback drill against the active Wave 9 replacement package.
 4. Update docs, helper scripts, workflow defaults, and release-owner notes so they point to the
    default app path.

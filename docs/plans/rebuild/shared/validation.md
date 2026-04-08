@@ -68,15 +68,15 @@ For historical `vibe-app` reference work only:
 For `vibe-app-tauri`:
 
 - package bootstrap validation
-- route-level `P0` navigation smoke tests across the active desktop and mobile/browser shells
-- browser runtime boot and static web export smoke validation
+- route-level `P0` navigation smoke tests across the active desktop, Android, and static-export
+  shells where applicable
+- retained static browser export smoke validation
 - parser/reducer compatibility checks for any reused shared session/message logic
 - at least one real backend chain test for the active app package: app-tauri -> server -> agent or CLI
 - auth/connect callback validation against the locked localhost loopback strategy, including state
   validation, timeout, listener teardown, and per-instance ownership behavior
 - desktop package smoke validation for Tauri bundles
-- Expo/mobile bootstrap and prebuild validation for Android and iOS
-- one real-device iOS validation pass for the active replacement-critical flows
+- Tauri-mobile bootstrap and native build-path validation for Android
 - one real-device Android validation pass for the active replacement-critical flows
 - realistic session-load performance and memory review before promotion
 - Linux, macOS, and Windows startup/package validation before promotion

@@ -458,8 +458,8 @@ desktop UI and behavior with a Tauri 2 + web-native frontend, without destabiliz
 ### Goal
 
 Turn `packages/vibe-app-tauri` from the historical Wave 8 desktop-preview baseline into the active
-Wave 9 replacement package for `packages/vibe-app` across desktop, iOS, Android, and retained
-web/export ownership.
+Wave 9 replacement package for `packages/vibe-app` across desktop, Android, and retained static
+browser export ownership.
 
 ### Planning Prerequisites
 
@@ -489,10 +489,11 @@ web/export ownership.
 
 ### Why This Order
 
-- runtime bootstrap must exist before the new package can own Expo/mobile boot
+- runtime bootstrap must exist before the new package can own Tauri desktop, Tauri mobile, and
+  retained browser build ownership
 - shared core should be extracted before route-level screen migration broadens
-- mobile shell, browser runtime, desktop shell parity, and identity flows define the first usable
-  replacement slice
+- mobile shell, retained static browser export, desktop shell parity, and identity flows define the
+  first usable replacement slice
 - session runtime must exist before rendering-heavy parity work starts
 - native capabilities should harden after the main session flow proves which platform seams are
   required in practice

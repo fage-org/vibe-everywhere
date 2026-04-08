@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Finalize desktop, iOS, Android, retained browser web/export, OTA, and store-release ownership
+Finalize desktop, Android, retained browser build/export, updater, and store-release ownership
 inside `packages/vibe-app-tauri`.
 
 ## Source Of Truth
@@ -18,6 +18,13 @@ inside `packages/vibe-app-tauri`.
 - `.github/workflows/app-release.yml`
 - root `package.json`
 
+## Wave 9 Canonical Inputs
+
+- package-local release scripts and artifact naming rules
+- repository-owned Android native project, signing inputs, and APK packaging config
+- GitHub Release workflow inputs and artifact publication rules
+- package-local retained static browser export config
+
 ## Target Location
 
 - `packages/vibe-app-tauri`
@@ -25,12 +32,12 @@ inside `packages/vibe-app-tauri`.
 
 ## Responsibilities
 
-- app config ownership
-- EAS profile ownership
+- native build and release config ownership
+- native project and release-profile ownership
 - desktop bundle scripts
-- Android and iOS build/submission ownership
-- retained browser web/export ownership
-- OTA/update channel ownership
+- Android build/signing/submission ownership
+- retained static browser export ownership
+- updater/update channel ownership
 - release artifact naming and continuity
 - analytics / tracking continuity decision ownership
 - explicit statement that legacy `packages/vibe-app` upgrade validation is not required
@@ -48,10 +55,13 @@ inside `packages/vibe-app-tauri`.
 
 ## Implementation Steps
 
-1. Recreate Happy-aligned release/bootstrap files in `packages/vibe-app-tauri`.
-2. Port Vibe-specific identifiers, envs, and store metadata carefully.
+1. Recreate Wave 9 release/bootstrap files in `packages/vibe-app-tauri` using Happy only as a
+   continuity reference.
+2. Port Vibe-specific identifiers, envs, Android signing inputs, APK naming, and release metadata
+   carefully.
 3. Update repo workflows so preview lanes can ship from the new package first.
-4. Validate desktop/mobile/web artifact generation from the new package.
+4. Validate desktop, Android APK, and retained static browser export artifact generation from the new
+   package.
 5. Record the Wave 9 keep/defer decision for analytics and tracking continuity explicitly:
    - root provider bootstrap ownership
    - screen tracking ownership
@@ -63,23 +73,25 @@ inside `packages/vibe-app-tauri`.
 ## Edge Cases And Failure Modes
 
 - preview and production identifiers colliding
-- OTA channels switching before route or capability parity is ready
-- store submissions tied to stale package paths or secrets
+- desktop updater policy drifting from the Android APK release path
+- Android signing or GitHub Release inputs tied to stale package paths or secrets
 - release scripts still reading from `packages/vibe-app`
-- browser export ownership remaining implicit instead of package-local
+- browser build/export ownership remaining implicit instead of package-local
 
 ## Tests
 
 - release-script dry runs
-- preview artifact generation for desktop, Android, iOS, and retained browser web/export
+- preview artifact generation for desktop, Android APK, and retained static browser export
 - workflow-level packaging checks
 - analytics / tracking bootstrap and opt-out continuity review
 - rollback drill documentation review
 
 ## Acceptance Criteria
 
-- `packages/vibe-app-tauri` can generate the app artifacts required for the default app path
-- default release ownership can move without undefined identifier, OTA, web/export, or rollback behavior
+- `packages/vibe-app-tauri` can generate the desktop, Android APK, and retained static export
+  artifacts required for the default app path
+- default release ownership can move without undefined identifier, desktop updater policy, retained
+  static export behavior, or rollback gaps
 - analytics / tracking continuity is either preserved or explicitly deferred in writing before
   promotion
 

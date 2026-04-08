@@ -35,7 +35,7 @@ Port the reusable Happy app logic into package-local shared modules inside `pack
 
 - broad screen migration
 - creating a new repo-wide shared package
-- pulling over React Native screen primitives as part of the shared layer
+- pulling over UI host primitives as part of the shared layer
 
 ## Dependencies
 
@@ -53,7 +53,7 @@ Port the reusable Happy app logic into package-local shared modules inside `pack
 
 ## Edge Cases And Failure Modes
 
-- hidden Expo assumptions inside sync or utility modules
+- hidden mobile-host assumptions inside sync or utility modules
 - logic copied without matching current `vibe-wire` contract ownership
 - accidental imports from `packages/vibe-app`
 - over-extracting modules that should stay screen-local

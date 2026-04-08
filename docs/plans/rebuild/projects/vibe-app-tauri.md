@@ -9,10 +9,14 @@ The Wave 9 target is not "desktop plus some mobile support." The target is one f
 that owns:
 
 - desktop runtime and desktop UI
-- iOS runtime and iOS UI
 - Android runtime and Android UI
-- retained web/export ownership where the current app still publishes web assets
-- app release, OTA, store, and migration ownership now held by `packages/vibe-app`
+- retained static browser export ownership where the current app still publishes web assets
+- app release, update, store, and migration ownership now held by `packages/vibe-app`
+
+iOS is explicitly deferred in the current Wave 9 scope. Do not treat iOS runtime, store, or release
+work as promotion-blocking unless a later plan update reactivates it.
+
+Android distribution is APK-first through GitHub Releases in the current Wave 9 scope.
 
 ## Current State
 
@@ -40,10 +44,11 @@ that owns:
 Wave 9 explicitly changes the project boundary:
 
 - Wave 8: parallel desktop rewrite only
-- Wave 9: active full-platform replacement of `packages/vibe-app`
+- Wave 9: active full-platform replacement of `packages/vibe-app` using Tauri as the app runtime
+  boundary across desktop and mobile, plus a retained browser build/export path
 
 That means the project is no longer desktop-only. It now owns the planning path for desktop,
-mobile, retained web/export, and release migration.
+mobile, retained browser build/export, and release migration.
 
 ## Source Of Truth
 
@@ -51,6 +56,10 @@ mobile, retained web/export, and release migration.
 
 Use `/root/happy/packages/happy-app` directly for product behavior, module boundaries, route
 families, release structure, and platform capability ownership.
+
+Do not inherit Happy's Expo / React Native / EAS tooling boundary as an implementation requirement.
+Wave 9 uses Happy as a product and behavior reference, not as a mandate to keep Expo as the runtime
+host.
 
 ### Continuity References
 
@@ -98,10 +107,12 @@ but they do not define the active Wave 9 boundary, priority classes, or promotio
 3. Shared logic lands in `packages/vibe-app-tauri` first.
    - do not create a new shared `vibe-app-core` package by default
    - promote extracted modules later only after replacement parity is proven
-4. Desktop and mobile keep different UI shells.
-   - desktop keeps the Wave 8 Tauri 2 + web-native shell
-   - mobile uses Expo / React Native ownership aligned to Happy's module structure
-   - do not force the desktop web shell to become the mobile UI layer
+4. Wave 9 uses a pure Tauri runtime boundary for app shells.
+   - desktop remains Tauri 2 + web-native
+   - Android moves to Tauri mobile + web-native ownership in the active scope
+   - iOS is deferred until a later plan update explicitly reactivates it
+   - retained static browser export remains an explicit build target
+   - do not reintroduce Expo, React Native shell ownership, or EAS as the primary app boundary
 5. `packages/vibe-app` is deprecated immediately at the CI/release layer.
    - keep it only as a legacy Vibe-specific reference when Happy is insufficient
    - do not re-enable old pipelines unless a later plan update explicitly authorizes that reversal
@@ -116,21 +127,21 @@ but they do not define the active Wave 9 boundary, priority classes, or promotio
 
 - package: `packages/vibe-app-tauri`
 - expected top-level ownership:
-  - Expo bootstrap and mobile runtime ownership
   - Tauri bootstrap and desktop runtime ownership
+  - Android Tauri mobile bootstrap and mobile runtime ownership
+  - retained static browser export ownership
   - package-local shared auth/sync/realtime/encryption/text/utils/core modules
-  - mobile route tree and screen ownership
+  - mobile route tree and screen ownership through the web-native app shell
   - desktop route tree and screen ownership
-  - app config, EAS config, release scripts, OTA, and store submission ownership
+  - release scripts, Android APK distribution, retained static export, and store submission ownership
 
 Recommended internal layout direction:
 
 ```text
 packages/vibe-app-tauri/
-  app.config.js
-  eas.json
   index.ts
-  release.cjs
+  browser-build.config.*
+  android/
   release-dev.sh
   release-production.sh
   sources/
@@ -138,6 +149,7 @@ packages/vibe-app-tauri/
     shared/
     mobile/
     desktop/
+    browser/
     assets/
     modal/
     hooks/
@@ -146,6 +158,15 @@ packages/vibe-app-tauri/
 
 The exact folder split may evolve, but the boundary rule is fixed: shared core can be shared,
 platform shells cannot be collapsed into one lowest-common-denominator UI layer.
+
+## Android Scope Lock
+
+- Android is the only active mobile platform in Wave 9.
+- Android native project files and critical build inputs are treated as first-class, repository-owned
+  sources rather than disposable generated output.
+- GitHub Releases is the default Android distribution path, with APK artifacts as the primary mobile
+  release output.
+- iOS remains deferred and must not appear in Wave 9 promotion gates unless explicitly reactivated.
 
 ## Non-Goals
 
@@ -217,8 +238,8 @@ Wave 9 should plan directly against the Happy app modules below.
 Make one package able to host:
 
 - the retained desktop shell lineage that started in Wave 8
-- an Expo mobile shell
-- retained browser web/export configuration
+- a Tauri mobile shell on Android
+- retained static browser export configuration
 - one release/config surface
 - shared theme/font/splash/provider bootstrap ownership
 
@@ -238,12 +259,13 @@ Port the reusable non-visual logic from Happy into package-local shared modules:
 ### 3. Mobile Shell And Navigation
 
 Recreate the Happy app's provider stack, route tree, phone/tablet navigation rules, and header or
-drawer behavior inside `packages/vibe-app-tauri`.
+drawer behavior inside `packages/vibe-app-tauri` using the shared web-native app shell rendered
+inside Tauri mobile.
 
-### 4. Web Export And Browser Runtime
+### 4. Static Browser Export
 
-Preserve the browser runtime and static web export path instead of treating web/export as an
-implicit side effect of the mobile shell.
+Preserve the retained static browser export path as an explicit ownership area instead of treating
+web/export as a side effect of mobile tooling.
 
 ### 5. Identity And Session Bootstrap
 
@@ -316,16 +338,15 @@ Turn the project from a desktop-only rewrite into a full replacement plan.
 Make `packages/vibe-app-tauri` runnable as:
 
 - desktop preview via Tauri
-- Expo app via mobile runtimes
-- retained web/export source package
+- Tauri mobile app via Android runtime
+- retained static browser export source package
 
 ### Acceptance
 
 - `tauri dev` works
-- `expo start` works
-- browser runtime boot works
-- `expo prebuild --platform android` works
-- `expo prebuild --platform ios` works
+- Android Tauri mobile bootstrap and native build path are explicit and validated
+- retained static browser export path is explicit and validated
+- iOS is recorded as deferred instead of being left as an implied future requirement
 
 ## Phase 2: Shared Core Import
 
@@ -335,8 +356,8 @@ Port Happy app state and domain modules into package-local shared modules.
 
 ### Acceptance
 
-- shared auth/sync/realtime logic compiles without React Native screen imports
-- desktop and mobile can both consume the shared modules
+- shared auth/sync/realtime logic compiles without UI-host screen imports
+- desktop and Android can both consume the shared modules
 
 ## Phase 3: Mobile Shell And Identity
 
@@ -346,7 +367,7 @@ Stand up the provider stack, route tree, auth bootstrap, and restore flows for m
 
 ### Acceptance
 
-- iOS and Android reach the main authenticated shell
+- Android reaches the main authenticated shell
 - create-account, device-link, and secret-key restore work
 
 ## Phase 4: Session Runtime And Rendering
@@ -369,7 +390,7 @@ Close the capability and route gaps that block full replacement.
 ### Acceptance
 
 - required P1 routes work
-- retained browser web/export capability works
+- retained static browser export capability works
 - required platform capabilities work on real devices
 
 ## Phase 6: Release Migration And Promotion
@@ -380,7 +401,7 @@ Complete release and store ownership in `packages/vibe-app-tauri`, then formaliz
 
 ### Acceptance
 
-- `packages/vibe-app-tauri` holds default release ownership for desktop/mobile/web lanes
+- `packages/vibe-app-tauri` holds default release ownership for desktop/Android APK/static-export lanes
 - explicit hold/rollback plans remain documented
 - `packages/vibe-app` remains reference-only and must not regain active pipeline ownership without a new plan update
 
@@ -411,8 +432,8 @@ No single implementation task should attempt the full migration.
 ### Required During Migration
 
 - package-level `typecheck`, `test`, `tauri:test`, and `tauri:smoke`
-- Expo bootstrap validation for Android and iOS prebuild
-- browser runtime boot and `expo export --platform web --output-dir dist` smoke validation
+- Android Tauri mobile bootstrap validation and Android native build/dev wiring validation
+- retained static browser export smoke validation
 - shared-core unit tests for auth/sync/realtime/parser utilities
 - route-level smoke checks for mobile and desktop entry flows
 - desktop shell checks for keyboard/focus, modal/overlay, clipboard, and required file-dialog flows
@@ -427,15 +448,17 @@ No single implementation task should attempt the full migration.
   - notifications, QR/device-link, voice, purchases, and file import/export where applicable
   - desktop keyboard/focus, modal, clipboard, and required file-dialog semantics
 - cross-platform startup validation on Linux, macOS, and Windows
-- real-device validation on at least one iOS and one Android target
-- retained browser runtime and static export validation
-- explicit release migration sign-off for bundle identifiers, OTA channels, store metadata, and
+- real-device validation on at least one Android target
+- retained static browser export validation
+- explicit release migration sign-off for bundle identifiers, updater policy, Android APK
+  distribution, and
   rollback paths
 
 ## Key Risks
 
 - treating the Wave 8 desktop shell as if it can be reused directly for mobile UI
-- underestimating how much Happy behavior lives in Expo/RN providers and platform modules
+- underestimating how much Happy behavior lives in Android-native capabilities and platform-specific
+  host integration
 - drifting from Happy route semantics while trying to "clean up" the app structure
 - breaking store, OTA, secure-storage, or purchase continuity during release migration
 - broad AI prompts that rewrite shared core, mobile shell, and release scripts all at once
@@ -443,7 +466,7 @@ No single implementation task should attempt the full migration.
 ## Acceptance Criteria
 
 - `packages/vibe-app-tauri` can act as the active Wave 9 replacement package for `packages/vibe-app`
-  across desktop, iOS, Android, and retained browser web/export ownership without protocol forks
+  across desktop, Android, and retained static browser export ownership without protocol forks
 - the replacement follows Happy behavior first and records any allowed Vibe deviations explicitly
 - release, OTA, store, and rollback behavior are documented before the default switch
 - `packages/vibe-app` remains a deprecated historical reference only; it is not part of the active pipeline baseline

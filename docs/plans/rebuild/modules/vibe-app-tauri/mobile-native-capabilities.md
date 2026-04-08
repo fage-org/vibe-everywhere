@@ -2,8 +2,8 @@
 
 ## Purpose
 
-Implement or explicitly defer the mobile-native and cross-platform capabilities required for Wave 9
-promotion.
+Implement or explicitly defer the Tauri-mobile-native and cross-platform capabilities required for
+Wave 9 promotion.
 
 ## Source Of Truth
 
@@ -21,6 +21,11 @@ promotion.
 - `/root/happy/packages/happy-app/sources/utils/requestReview.ts`
 - `/root/happy/packages/happy-app/sources/utils/microphonePermissions.ts`
 
+## Platform Scope Lock
+
+- Android is the only active mobile platform in the current Wave 9 scope.
+- iOS remains deferred and must not be treated as a promotion-blocking target.
+
 ## Target Location
 
 - `packages/vibe-app-tauri` platform adapters and runtime capability seams
@@ -33,12 +38,12 @@ promotion.
 - purchases and entitlement refresh
 - voice/microphone permissions and flows
 - file import/export/share where parity requires it
-- explicit Happy `app.config.js` plugin inventory and classification
+- explicit Happy mobile/native integration inventory and classification
 - review prompts, haptics, and other platform-visible utility flows where still product-critical
 
 ## Non-Goals
 
-- implementing every Expo API just because Happy imported it
+- implementing every Happy mobile/native seam just because Happy used Expo to host it
 - silently keeping unsupported capabilities out of the plan
 
 ## Dependencies
@@ -49,10 +54,11 @@ promotion.
 
 ## Implementation Steps
 
-1. Build and maintain an explicit inventory of Happy `app.config.js` plugins and capability seams.
+1. Build and maintain an explicit inventory of Happy mobile/native seams and their pure-Tauri Wave 9
+   replacements or deferrals.
 2. Confirm every `C1 promotion-critical` capability in the matrix against actual Happy usage.
 3. Implement the replacement path or explicit deferral note for each one.
-4. Validate mobile device permissions and runtime behavior on real devices.
+4. Validate Android device permissions and runtime behavior on real devices.
 5. Keep desktop-specific capability rules explicit where desktop parity still depends on them.
 6. Record any release-impacting capability decisions in the migration plan.
 
@@ -60,23 +66,23 @@ promotion.
 
 - notification routing drift after upgrade
 - purchase entitlement refresh mismatches
-- QR or camera permissions differing between iOS and Android
-- microphone or voice flows working in simulator but not on device
-- plugin-level capability gaps getting dropped implicitly instead of being classified
+- QR or camera permissions drifting across Android device variants
+- microphone or voice flows working in local testing but not on Android hardware
+- native-integration gaps getting dropped implicitly instead of being classified
 
 ## Tests
 
-- real-device notification validation
-- QR/camera validation
-- purchase and entitlement smoke tests
-- voice and microphone permission checks
+- Android real-device notification validation
+- Android QR/camera validation
+- Android purchase and entitlement smoke tests
+- Android voice and microphone permission checks
 - file/share flow checks where required
-- `app.config.js` plugin inventory review against the Wave 9 matrix
+- mobile/native integration inventory review against the Wave 9 matrix
 
 ## Acceptance Criteria
 
 - promotion-critical capabilities are implemented or explicitly waived in writing
-- no Happy `app.config.js` plugin remains unclassified in planning
+- no Happy mobile/native integration seam remains unclassified in planning
 - no hidden mobile-native blocker remains for Wave 9 promotion
 
 ## Locked Decisions

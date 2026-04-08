@@ -3,7 +3,7 @@
 ## Purpose
 
 Recreate the Happy mobile provider stack, route tree, and phone/tablet shell behavior inside
-`packages/vibe-app-tauri`.
+`packages/vibe-app-tauri` using the shared web-native shell rendered through Tauri mobile.
 
 ## Source Of Truth
 
@@ -26,7 +26,7 @@ Recreate the Happy mobile provider stack, route tree, and phone/tablet shell beh
 ## Responsibilities
 
 - root provider chain
-- Expo Router route ownership
+- mobile route ownership through the package-local web-native router
 - phone and tablet shell behavior
 - headers, drawer/sidebar, and top-level navigation affordances
 - major `P0` entry routes
@@ -72,4 +72,5 @@ Recreate the Happy mobile provider stack, route tree, and phone/tablet shell beh
 ## Locked Decisions
 
 - mobile shell is reconstructed from Happy directly
-- do not use the desktop web shell as the mobile UI layer
+- mobile shell stays on the shared web-native app boundary under Tauri mobile; do not reintroduce
+  Expo or a React Native shell as the runtime host

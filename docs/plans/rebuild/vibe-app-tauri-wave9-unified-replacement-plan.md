@@ -18,12 +18,16 @@ Wave 9 covers all app ownership that historically lived in `packages/vibe-app` a
 the active Wave 9 replacement package:
 
 - desktop app ownership
-- iOS app ownership
 - Android app ownership
-- retained browser web/export ownership
+- retained static browser export ownership
 - app config and env ownership
-- OTA and store release ownership
+- updater, browser build/export, and store release ownership
 - migration and rollback ownership
+
+iOS remains deferred in the current Wave 9 scope and does not block promotion.
+
+Android APK distribution through GitHub Releases is the primary mobile release path in the current
+Wave 9 scope.
 
 ## Source Of Truth
 
@@ -133,7 +137,8 @@ they do not replace the matrix inventory.
 
 Goal:
 
-- make `packages/vibe-app-tauri` able to host both the desktop shell and the Expo mobile shell
+- make `packages/vibe-app-tauri` able to host the desktop shell, Android Tauri mobile ownership,
+  and the retained static browser export path without Expo
 
 Owning modules:
 
@@ -149,12 +154,14 @@ Primary Happy references:
 
 Output:
 
-- package can boot Tauri and Expo entrypoints
+- package can boot Tauri desktop entrypoints, define Tauri mobile entry ownership, and produce the
+  retained static browser export output
 - scripts, env resolution, and build outputs are package-local
 
 Gate:
 
-- desktop boot and Expo boot both work without mutating `packages/vibe-app`
+- desktop boot, Android mobile runtime ownership, and static browser export all work without mutating
+  `packages/vibe-app`
 
 ### `B20`: Shared Core Import From Happy
 
@@ -189,8 +196,9 @@ Gate:
 
 Goal:
 
-- stand up the Expo provider stack, browser runtime/export path, desktop shell/adapters, route
-  shell, and account bootstrap flows
+- stand up the web-native provider stack, retained static browser export path, desktop
+  shell/adapters, Android mobile shell behavior under Tauri mobile, route shell, and account
+  bootstrap flows
 
 Owning modules:
 
@@ -216,16 +224,16 @@ Primary Happy references:
 
 Output:
 
-- phone and tablet shells load on iOS and Android
-- browser runtime boots and static web export exists
+- phone and tablet shells load on Android under the Tauri mobile boundary
+- retained static browser export exists
 - desktop shell, keyboard/focus behavior, and required desktop adapters are explicit in the active
   Wave 9 module set
 - create-account, device-link, and secret-key restore flows work
 
 Gate:
 
-- `P0 replacement-critical` entry flows are live across desktop and mobile and the retained browser
-  runtime/export path is explicit
+- `P0 replacement-critical` entry flows are live across desktop and Android and the retained static
+  browser export path is explicit
 
 ### `B22`: Session Runtime And Storage
 
@@ -305,7 +313,7 @@ Primary Happy references:
 Output:
 
 - notifications, purchases, voice, camera/QR, sharing, and related native flows are explicit and
-  testable
+  testable under the pure Tauri mobile/runtime direction
 
 Gate:
 
@@ -346,7 +354,8 @@ Gate:
 
 Goal:
 
-- finalize app release ownership inside `packages/vibe-app-tauri` for desktop, mobile, and retained browser web/export outputs
+- finalize app release ownership inside `packages/vibe-app-tauri` for desktop, Android, and retained
+  static browser export outputs without Expo/EAS as the primary toolchain
 
 Owning modules:
 
@@ -362,8 +371,8 @@ Primary Happy references:
 
 Output:
 
-- `packages/vibe-app-tauri` can produce desktop, Android, iOS, and retained browser web/export release
-  outputs
+- `packages/vibe-app-tauri` can produce desktop, Android APK, and retained static browser export
+  release outputs
 
 Gate:
 
@@ -397,7 +406,6 @@ Gate:
 
 ### Mobile
 
-- one iOS real-device pass for auth, restore, session load, message send, notification, and deep link
 - one Android real-device pass for auth, restore, session load, message send, notification, and QR
 
 ### Shared Core
@@ -408,8 +416,7 @@ Gate:
 
 ### Web Export
 
-- browser runtime boot validation
-- `expo export --platform web --output-dir dist` smoke validation
+- retained static browser export validation
 
 ## Completion Rule
 
