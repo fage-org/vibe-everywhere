@@ -1,6 +1,7 @@
 target/
 node_modules/
 dist/
+artifacts/vibe-app-tauri/
 .DS_Store
 .env
 .env.*

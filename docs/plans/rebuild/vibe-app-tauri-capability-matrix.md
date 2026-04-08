@@ -10,9 +10,13 @@ This file is also the source of truth for which adapter work is auth-critical an
 
 ## Status
 
-- state: `planning baseline`
+- state: `implementation in progress`
 - update rule: revise this file before changing the required capability set or degrading a desktop
   flow intentionally
+- current execution note:
+  - desktop file load/save dialogs now back manual restore import plus text/artifact export flows
+  - desktop notifications now back restore/link success and artifact mutation feedback paths
+  - broader promotion-scope sign-off still remains pending until cross-platform review is complete
 
 ## Capability Classes
 
@@ -29,6 +33,9 @@ During coexistence with the shipping `packages/vibe-app` desktop path:
   scheme
 - desktop auth/connect callbacks for `vibe-app-tauri` use a localhost loopback callback owned by
   the running desktop app process
+- phase-one desktop backend connections must prefer `https`; plain `http` is reserved for
+  `127.0.0.1` / `localhost` development and loopback flows unless a later plan explicitly widens
+  that rule
 - the callback listener must bind only to `127.0.0.1` on an ephemeral port chosen at auth start;
   it must never bind to wildcard interfaces such as `0.0.0.0`
 - each auth attempt must mint a strong per-attempt `state` value and reject callbacks whose

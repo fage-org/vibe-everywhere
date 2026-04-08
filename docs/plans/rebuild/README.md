@@ -17,6 +17,8 @@ relevant shared spec, project plan, and module plan.
 - `vibe-app-tauri-route-inventory.md`: route and surface parity inventory for desktop migration
 - `vibe-app-tauri-capability-matrix.md`: desktop capability requirements and replacement matrix
 - `vibe-app-tauri-coexistence-matrix.md`: side-by-side rules for `vibe-app` and `vibe-app-tauri`
+- `vibe-app-tauri-promotion-baseline.md`: tracked startup/performance/memory/parity review evidence template
+- `vibe-app-tauri-promotion-plan.md`: explicit promotion gate, fallback path, and old-desktop deprecation plan
 - `master-details.md`: global architecture, dependency order, and acceptance gates
 - `execution-plan.md`: authoritative module-by-module implementation order
 - `execution-batches.md`: AI dispatch-ready batch list derived from the execution plan
@@ -68,8 +70,10 @@ documents:
 26. `vibe-app-tauri-route-inventory.md`
 27. `vibe-app-tauri-capability-matrix.md`
 28. `vibe-app-tauri-coexistence-matrix.md`
-29. `vibe-app-tauri-parity-checklist.md`
-30. `modules/vibe-app-tauri/*`
+29. `vibe-app-tauri-promotion-baseline.md`
+30. `vibe-app-tauri-promotion-plan.md`
+31. `vibe-app-tauri-parity-checklist.md`
+32. `modules/vibe-app-tauri/*`
 
 ## AI Execution Contract
 

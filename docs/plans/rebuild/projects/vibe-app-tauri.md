@@ -48,6 +48,8 @@ The following decisions are locked for the planning phase and should be treated 
   - `docs/plans/rebuild/vibe-app-tauri-route-inventory.md`
   - `docs/plans/rebuild/vibe-app-tauri-capability-matrix.md`
   - `docs/plans/rebuild/vibe-app-tauri-coexistence-matrix.md`
+  - `docs/plans/rebuild/vibe-app-tauri-promotion-baseline.md`
+  - `docs/plans/rebuild/vibe-app-tauri-promotion-plan.md`
 
 The desktop rewrite must preserve Vibe behavior first and may diverge only when the relevant module
 or shared planning files explicitly record the deviation.

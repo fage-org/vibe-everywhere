@@ -1,0 +1,42 @@
+{
+  "name": "vibe-app-tauri",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 1420",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 4173",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "validate:promotion": "yarn typecheck && yarn test && yarn tauri:test && yarn build && yarn --cwd ../../scripts validate:vibe-app-tauri-promotion && yarn tauri:smoke",
+    "tauri:test": "cargo test --manifest-path src-tauri/Cargo.toml",
+    "tauri:dev": "tauri dev",
+    "tauri:smoke": "tauri build --debug --no-bundle",
+    "tauri:build": "tauri build",
+    "release:bundle": "yarn tauri:build"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "2.10.1",
+    "diff": "^8.0.2",
+    "libsodium-wrappers": "0.8.2",
+    "qrcode": "^1.5.4",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "react-syntax-highlighter": "^15.6.1",
+    "socket.io-client": "^4.8.1",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.10.1",
+    "@types/libsodium-wrappers": "^0.7.14",
+    "@types/qrcode": "^1.5.5",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@types/react-syntax-highlighter": "^15.5.13",
+    "@vitejs/plugin-react": "^6.0.1",
+    "typescript": "5.9.3",
+    "vite": "^8.0.5",
+    "vitest": "^4.1.2"
+  }
+}

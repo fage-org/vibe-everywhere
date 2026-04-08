@@ -9,6 +9,8 @@ Define release packaging, validation, rollout, and promotion criteria for `vibe-
 - `projects/vibe-app-tauri.md`
 - `docs/plans/rebuild/vibe-app-tauri-parity-checklist.md`
 - `docs/plans/rebuild/vibe-app-tauri-coexistence-matrix.md`
+- `docs/plans/rebuild/vibe-app-tauri-promotion-baseline.md`
+- `docs/plans/rebuild/vibe-app-tauri-promotion-plan.md`
 - `docs/plans/rebuild/shared/repo-release-and-docs.md`
 - repository packaging workflows
 - current `packages/vibe-app` desktop release behavior
@@ -49,6 +51,24 @@ Define release packaging, validation, rollout, and promotion criteria for `vibe-
 4. Record explicit promotion criteria, including Linux, macOS, and Windows startup validation plus
    realistic session-load performance/memory review.
 5. Record fallback/deprecation strategy for the old desktop path.
+
+## Current Execution Note
+
+- current progress:
+  - package-local promotion validation now exists through `yarn workspace vibe-app-tauri validate:promotion`
+  - promotion baseline scaffolding now exists through
+    `yarn --cwd scripts metrics:vibe-app-tauri`, which records bundle snapshots and manual review
+    tables for startup/performance/memory sign-off
+  - strict promotion-ready validation now exists through
+    `yarn --cwd scripts validate:vibe-app-tauri-promotion:ready`
+  - separate GitHub release automation now exists in `.github/workflows/app-tauri-release.yml`
+    using the distinct `app-tauri-v*` tag lane required by coexistence rules, with strict
+    promotion-doc validation on tagged releases
+- still pending before module acceptance:
+  - real cross-platform startup evidence from Linux, macOS, and Windows runs
+  - realistic session-load performance and memory measurements recorded in the generated baseline
+    artifact
+  - final promotion/deprecation approval for the shipping `packages/vibe-app` desktop path
 
 ## Edge Cases And Failure Modes
 

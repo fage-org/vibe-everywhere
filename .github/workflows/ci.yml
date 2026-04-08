@@ -56,3 +56,57 @@ jobs:
 
       - name: Test vibe-app
         run: yarn workspace vibe-app test --exclude 'sources/**/*.integration.spec.ts'
+
+  app_tauri:
+    name: App Tauri Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: yarn
+          cache-dependency-path: yarn.lock
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux system dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Typecheck vibe-app-tauri
+        run: yarn workspace vibe-app-tauri typecheck
+
+      - name: Test vibe-app-tauri
+        run: yarn workspace vibe-app-tauri test
+
+      - name: Test vibe-app-tauri Rust shell
+        run: yarn workspace vibe-app-tauri tauri:test
+
+      - name: Build vibe-app-tauri
+        run: yarn workspace vibe-app-tauri build
+
+      - name: Validate vibe-app-tauri promotion docs
+        run: yarn --cwd scripts validate:vibe-app-tauri-promotion
+
+      - name: Smoke bundle vibe-app-tauri
+        run: yarn workspace vibe-app-tauri tauri:smoke

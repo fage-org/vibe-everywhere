@@ -39,7 +39,7 @@ exception:
 | `/(app)/session/[id]` | `P0` | `session-ui-parity` | includes timeline shell, composer, and primary state loading |
 | `/(app)/session/recent` | `P0` | `session-ui-parity` | preserve active-session resume affordance and route entry point |
 | core account/settings entry via `/(app)/settings/index` | `P0` | `desktop-shell-and-routing`, `auth-and-session-state` | users must be able to reach settings/account entry points and return to the main shell |
-| `/(app)/session/[id]/file`, `/(app)/session/[id]/files`, and `/(app)/session/[id]/info` | `P1` | `session-ui-parity` | promotion-scope detail surfaces tied to session rendering/file inspection |
+| `/(app)/session/[id]/file`, `/(app)/session/[id]/files`, and `/(app)/session/[id]/info` | `P1` | `session-ui-parity` | promotion-scope detail surfaces tied to session rendering/file inspection; file detail must remain deep-linkable with explicit file selection in route state |
 | `/(app)/artifacts/index`, `/(app)/artifacts/new`, `/(app)/artifacts/[id]`, and `/(app)/artifacts/edit/[id]` | `P1` | `secondary-surfaces` | required before promotion |
 | `/(app)/settings/account`, `/(app)/settings/appearance`, `/(app)/settings/features`, `/(app)/settings/language`, `/(app)/settings/usage`, `/(app)/settings/voice`, and `/(app)/settings/voice/language` | `P1` | `secondary-surfaces` | detailed settings/account flows required before promotion |
 | `/(app)/settings/connect/claude` and other retained connect/vendor flows | `P1` | `secondary-surfaces` | implement only the routes with real desktop value, but classify them explicitly here |

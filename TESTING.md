@@ -20,9 +20,14 @@
 - `yarn workspace vibe-app expo export --platform web --output-dir dist`
 - `yarn workspace vibe-app tauri:check`
 - `yarn workspace vibe-app tauri:smoke`
+- `yarn workspace vibe-app-tauri validate:promotion`
+- `yarn app-tauri:metrics`
+- `yarn --cwd scripts validate:vibe-app-tauri-promotion`
+- `yarn app-tauri:promotion-ready`
 - `yarn app-logs --help`
 - `yarn --cwd scripts install`
 - `yarn --cwd scripts validate:vibe-wire-fixtures`
+- `yarn --cwd scripts metrics:vibe-app-tauri`
 - `HAPPY_ROOT=/path/to/happy yarn --cwd scripts validate:vibe-wire-fixtures`
 
 ## Source Of Truth

@@ -1,0 +1,1 @@
+{"default":{"identifier":"default","description":"enables the default permissions for the Wave 8 desktop bootstrap shell","local":true,"windows":["main"],"permissions":["core:default","log:default","http:default",{"identifier":"http:default","allow":[{"url":"https://**"},{"url":"http://127.0.0.1:**"},{"url":"http://localhost:**"}]}]}}

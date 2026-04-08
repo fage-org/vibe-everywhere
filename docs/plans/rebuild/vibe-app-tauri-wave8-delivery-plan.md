@@ -78,6 +78,46 @@ Owning modules:
 1. `secondary-surfaces`
 2. `release-and-promotion`
 
+## Current Execution Note
+
+- state: `B17 in progress`
+- currently implemented in-repo:
+  - separate `packages/vibe-app-tauri` package, workspace wiring, CI validation, and Tauri smoke build
+  - locked localhost loopback auth callback plus desktop-safe credential persistence
+  - live backend bootstrap for account profile, session inventory, session detail, and composer send flow
+  - stronger desktop-home and settings-hub migration that now mirrors the current app more closely
+  - desktop file load/save dialogs for backup-key import plus text and artifact export actions
+  - desktop notifications for successful restore/link and artifact mutation feedback
+  - package-local promotion validation script plus baseline artifact scaffolding for startup/performance/memory review
+  - distinct `app-tauri-v*` GitHub Actions release lane for cross-platform desktop bundle packaging
+  - desktop route shell for the locked P0 inventory, with unresolved parity gaps still tracked as in-progress work
+- current hardening focus inside `B17`:
+  - converge desktop runtime message and update parsing onto the existing Vibe compatibility schemas instead of maintaining package-local protocol drift
+  - add stronger localhost loopback auth coverage for state validation, cancellation, timeout, and attempt ownership
+  - tighten the desktop Tauri security baseline while keeping the first usable slice runnable
+- current follow-on parity focus:
+  - start migrating the first retained `secondary-surfaces` routes that can already run against desktop state without expanding protocol scope
+  - prioritize settings detail routes, server configuration, changelog visibility, and text utility surfaces before heavier machine or artifacts work
+  - artifacts, profile detail, and machine detail retained routes are now active migration targets instead of staying route-table placeholders
+  - session info, files, and file-detail retained routes are now active migration targets for closing the session-side P1 review gap
+  - `artifacts` is now moving from retained local review state to a real desktop backend chain for list/detail/create/update/delete
+  - `user-detail` and `machine-detail` now load from real backend data instead of retained desktop fixtures
+  - `session-files` and `session-file` now load live git/file data through session RPC instead of retained desktop fixtures
+  - `settings/account` and `settings/usage` now rely on live desktop account and session state rather than retained review-only data
+  - `settings/features` and `settings/language` now derive from real implementation/runtime state, with desktop-backed preference persistence and account-settings sync instead of hard-coded review fixtures
+  - `settings/appearance`, `settings/voice`, and `settings/voice/language` now persist desktop-backed preferences and sync supported fields through account settings instead of resetting as review-only preview controls
+  - `settings/connect/claude` now mirrors the current app's explicit terminal-command handoff instead of staying documentation-only
+  - `terminal/index` and `terminal/connect` now use live desktop command helpers plus terminal auth approval rather than remaining retained placeholders
+- route-status rule for the current desktop shell:
+  - `wired` means the route is backed by real desktop state or backend behavior strongly enough to count as a concrete implementation step
+  - `retained` means the route is no longer a placeholder and is reviewable in the desktop shell, but still depends on retained mock or review-only data and is not promotion-complete
+  - `planned` remains placeholder or deferred route inventory only
+- still open before Wave 8 can be considered complete:
+  - stronger realtime message sequencing coverage and auth lifecycle hardening
+  - deeper parity for social inbox content, machine rows, and settings-side mutations
+  - explicit sign-off updates in the parity checklist for any accepted parity relaxation
+  - all promotion-scope P1 routes, dialogs, notifications, and cross-platform promotion validation
+
 ## Feature Inventory
 
 ### A. Package And Bootstrap
