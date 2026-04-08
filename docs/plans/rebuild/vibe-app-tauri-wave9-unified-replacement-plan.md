@@ -44,6 +44,7 @@ Wave 9 scope.
 ### Companion Wave 9 Files
 
 - `projects/vibe-app-tauri.md`
+- `docs/plans/rebuild/shared/ui-visual-parity.md`
 - `vibe-app-tauri-wave9-route-and-capability-matrix.md`
 - `vibe-app-tauri-wave9-migration-and-release-plan.md`
 
@@ -55,8 +56,21 @@ Wave 9 scope.
 - do not change server or wire behavior to simplify app migration
 - move shared logic into `packages/vibe-app-tauri` first; do not create a new shared package by
   default
+- UI and visual parity correction is an explicit Wave 9 task, not a post-parity polish pass
+- if a user-visible surface ships with Happy-visible style drift, that Wave 9 task is not complete
 - route and capability priority lives in `vibe-app-tauri-wave9-route-and-capability-matrix.md`;
   this file summarizes batches and gates but must not become a competing classification source
+
+## Cross-Cutting Priority
+
+### UI And Visual Parity Correction
+
+Wave 9 explicitly includes correcting the current `vibe-app-tauri` style drift from Happy across
+desktop, Android, and retained browser export surfaces.
+
+This work is high priority because visual drift currently makes the replacement read as a different
+product even when route coverage improves. For Wave 9, route migration without Happy-aligned visual
+correction does not count as parity-complete.
 
 ## Route Priority Classes
 
@@ -199,6 +213,7 @@ Goal:
 - stand up the web-native provider stack, retained static browser export path, desktop
   shell/adapters, Android mobile shell behavior under Tauri mobile, route shell, and account
   bootstrap flows
+- correct shell-level visual drift so the replacement reads as Happy rather than as a Wave 8 review UI
 
 Owning modules:
 
@@ -229,11 +244,14 @@ Output:
 - desktop shell, keyboard/focus behavior, and required desktop adapters are explicit in the active
   Wave 9 module set
 - create-account, device-link, and secret-key restore flows work
+- shell-level typography, grouped surfaces, brand assets, spacing, and navigation hierarchy are
+  recognizably Happy-aligned
 
 Gate:
 
 - `P0 replacement-critical` entry flows are live across desktop and Android and the retained static
   browser export path is explicit
+- obvious shell-level style drift from Happy is removed for the primary entry surfaces
 
 ### `B22`: Session Runtime And Storage
 
@@ -265,6 +283,7 @@ Gate:
 Goal:
 
 - port the message timeline, composer, and tool rendering surfaces
+- correct session-surface visual drift so timeline, composer, and renderers stay in the Happy visual family
 
 Owning modules:
 
@@ -283,10 +302,12 @@ Primary Happy references:
 Output:
 
 - users can work inside real sessions on desktop and mobile
+- session density, renderer styling, and composer treatment are recognizably Happy-aligned
 
 Gate:
 
 - one end-to-end session interaction chain works on both platform families
+- session surfaces no longer depend on visibly non-Happy styling to remain usable
 
 ### `B24`: Native Capability Replacement
 
@@ -325,6 +346,7 @@ Gate:
 Goal:
 
 - close the non-core but user-visible route families
+- close the remaining user-visible visual parity gaps on `P1` routes while wiring those route families
 
 Owning modules:
 
@@ -345,10 +367,13 @@ Primary Happy references:
 Output:
 
 - all required `P1 promotion-critical` routes are wired
+- all required `P1 promotion-critical` routes are wired with Happy-aligned visual hierarchy and styling
 
 Gate:
 
 - no user-visible promotion-critical route remains missing
+- no user-visible promotion-critical route remains obviously style-divergent from Happy without a
+  documented exception
 
 ### `B26`: Release, OTA, And Store Migration
 
@@ -424,6 +449,8 @@ Wave 9 is complete only when:
 
 - `packages/vibe-app-tauri` holds default release ownership for the full app path
 - the route and capability matrix is satisfied
+- shell, session, and promotion-critical secondary surfaces have completed Happy-aligned UI and
+  visual parity correction or have documented approved exceptions
 - migration and rollback documents are signed off
 - `packages/vibe-app-tauri` is the default app path and active Wave 9 replacement package, while
   `packages/vibe-app` remains only as a deprecated historical reference

@@ -38,7 +38,7 @@ scripts/
   Wave 9, which turns `packages/vibe-app-tauri` into the active Wave 9 replacement package for
   desktop, mobile, and retained browser web/export ownership
 - implementation status: `vibe-wire` is implemented and validated; `vibe-server` now ships a single-instance Wave-2 spine plus the Wave-4 support surfaces covering files/images, account/settings/usage, utility APIs, artifacts/access keys, connect/GitHub, social/feed, auxiliary socket APIs, and monitoring; `vibe-agent` now ships the Wave-3 remote-control slice covering auth, HTTP session/machine control, live session socket control, machine RPC, and stable CLI output; `vibe-cli` now ships the Wave-5 local runtime covering auth/connect, command bootstrap, provider execution, daemon control, sandbox policy, persistence/resume, session-protocol mapping, and end-to-end validation across the supported provider paths; `vibe-app` remains only as a deprecated historical reference when Happy is insufficient; `vibe-app-tauri` is the active Wave 9 replacement package; `vibe-app-logs` now ships the Wave-7 minimal sidecar runtime with `POST /logs` ingestion, Vibe home-directory file sinks, root `yarn app-logs` launch support, and startup/ingestion smoke coverage
-- immediate goal: execute the Wave 9 `packages/vibe-app-tauri` replacement plan across desktop, mobile, and retained browser web/export behavior without reopening the deprecated `packages/vibe-app` pipeline
+- immediate goal: execute the Wave 9 `packages/vibe-app-tauri` replacement plan across desktop, mobile, and retained browser web/export behavior without reopening the deprecated `packages/vibe-app` pipeline, while treating Happy-aligned UI and visual parity correction as a first-class replacement task
 - authoritative execution sequence: `docs/plans/rebuild/execution-plan.md`
 - AI dispatch batches: `docs/plans/rebuild/execution-batches.md`
 
@@ -84,6 +84,7 @@ scripts/
 ## Current Recommended Next Modules
 
 - `projects/vibe-app-tauri.md`
+- `shared/ui-visual-parity.md`
 - `vibe-app-tauri-wave9-unified-replacement-plan.md`
 - `vibe-app-tauri-wave9-route-and-capability-matrix.md`
 - `vibe-app-tauri-wave9-migration-and-release-plan.md`
@@ -92,3 +93,5 @@ scripts/
   - `modules/vibe-app-tauri/shared-core-from-happy.md`
   - `modules/vibe-app-tauri/mobile-shell-and-navigation.md`
   - `modules/vibe-app-tauri/web-export-and-browser-runtime.md`
+  - `modules/vibe-app-tauri/desktop-shell-and-platform-parity.md`
+  - priority note: shell/session/secondary-surface style correction is active Wave 9 work, not deferred polish

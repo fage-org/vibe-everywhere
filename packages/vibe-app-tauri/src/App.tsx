@@ -4,7 +4,6 @@ import {
   formatFeatureCount,
   formatModuleCount,
   lockedAuthCallbackRequirements,
-  promotionSlice,
   shellInvariants,
   wave8FeatureAreas,
   wave8Modules,
@@ -81,6 +80,10 @@ import {
   normalizeTerminalPublicKeyInput,
   readTerminalConnectKey,
 } from "./terminal-connect";
+import logoBlack from "../../vibe-app/sources/assets/images/logo-black.png";
+import logoWhite from "../../vibe-app/sources/assets/images/logo-white.png";
+import logotypeDark from "../../vibe-app/sources/assets/images/logotype-dark.png";
+import logotypeLight from "../../vibe-app/sources/assets/images/logotype-light.png";
 
 const RichTimelineMessageBody = lazy(() =>
   import("./rich-message-renderers").then((module) => ({
@@ -344,6 +347,15 @@ export function DesktopShell({
   const [selectedSessionFilePaths, setSelectedSessionFilePaths] = useState<Record<string, string>>(
     {},
   );
+  const resolvedTheme = useMemo(() => {
+    const mediaQuery =
+      typeof window !== "undefined" && typeof window.matchMedia === "function"
+        ? window.matchMedia("(prefers-color-scheme: dark)")
+        : null;
+    return resolveDesktopThemePreference(appearanceSettings.themePreference, mediaQuery?.matches);
+  }, [appearanceSettings.themePreference]);
+  const brandLogo = resolvedTheme === "light" ? logoBlack : logoWhite;
+  const brandLogotype = resolvedTheme === "light" ? logotypeDark : logotypeLight;
 
   const syncOptimisticPreference = useCallback(
     async <T,>(
@@ -557,14 +569,6 @@ export function DesktopShell({
     }
 
     const root = document.documentElement;
-    const mediaQuery =
-      typeof window !== "undefined" && typeof window.matchMedia === "function"
-        ? window.matchMedia("(prefers-color-scheme: dark)")
-        : null;
-    const resolvedTheme = resolveDesktopThemePreference(
-      appearanceSettings.themePreference,
-      mediaQuery?.matches,
-    );
 
     root.dataset.theme = resolvedTheme;
     root.dataset.density = appearanceSettings.density;
@@ -575,7 +579,7 @@ export function DesktopShell({
       delete root.dataset.density;
       root.removeAttribute("lang");
     };
-  }, [appearanceSettings.density, appearanceSettings.themePreference, languageSettings.appLanguage]);
+  }, [appearanceSettings.density, languageSettings.appLanguage, resolvedTheme]);
 
   return (
     <div
@@ -591,22 +595,28 @@ export function DesktopShell({
 
       <aside className="sidebar">
         <div className="brand-block">
-          <p className="eyebrow">Wave 8</p>
-          <h1>Vibe Desktop Next</h1>
+          <div className="brand-lockup">
+            <img className="brand-mark" src={brandLogo} alt="" aria-hidden="true" />
+            <div className="brand-copy-block">
+              <img className="brand-logotype" src={brandLogotype} alt="Vibe" />
+              <p className="eyebrow">Happy-aligned desktop shell</p>
+            </div>
+          </div>
           <p className="brand-copy">
-            Desktop rewrite workspace with real account bootstrapping, session loading,
-            and message flow against the live Vibe backend.
+            Sessions, inbox, settings, and deep links now share one desktop shell backed by
+            live Vibe data instead of a standalone preview layout.
           </p>
-          <div className="pill-row">
-            <span className="pill pill-accent">B17 active</span>
+          <div className="pill-row shell-status-row">
+            <span className="pill pill-accent">{statusLabel(desktop.status)}</span>
             <span className="pill pill-muted">{formatModuleCount(wave8Modules)}</span>
+            <span className="pill pill-outline">{formatFeatureCount(wave8FeatureAreas)}</span>
           </div>
         </div>
 
         <nav className="nav-block" aria-label="Primary desktop routes">
           <div className="section-heading">
-            <span>Primary routes</span>
-            <small>P0 shell</small>
+            <span>Navigate</span>
+            <small>Sessions first</small>
           </div>
           <div className="nav-list">
             {primaryNavigation.map((route) => (
@@ -633,8 +643,8 @@ export function DesktopShell({
 
         <section className="nav-block">
           <div className="section-heading">
-            <span>Promotion routes</span>
-            <small>P1 visibility</small>
+            <span>More routes</span>
+            <small>Settings and tools</small>
           </div>
           <div className="nav-list compact-list">
             {promotionNavigation.map((route) => (
@@ -650,8 +660,8 @@ export function DesktopShell({
 
         <section className="nav-block meta-block">
           <div className="section-heading">
-            <span>Desktop status</span>
-            <small>Current boot</small>
+            <span>Connection</span>
+            <small>Current desktop state</small>
           </div>
           <div className="mini-card status-summary-card">
             <div className="mini-card-header">
@@ -681,11 +691,11 @@ export function DesktopShell({
           </div>
           <div className="topbar-actions">
             <div className="pill-row right-aligned">
+              <span className="pill pill-muted">{statusLabel(desktop.status)}</span>
               <span className={`pill pill-priority pill-${activeRoute.promotionClass.toLowerCase()}`}>
                 {activeRoute.promotionClass}
               </span>
               <span className="pill pill-outline">{activeRoute.ownerModule}</span>
-              <span className="pill pill-muted">{statusLabel(desktop.status)}</span>
             </div>
             <button className="command-trigger" type="button" onClick={onCommandOpen}>
               Open Palette
@@ -715,13 +725,15 @@ export function DesktopShell({
               preferences={desktopPreferences}
               secondarySurfaces={secondarySurfaces}
               onNavigate={onNavigate}
+              brandLogoSrc={brandLogo}
+              brandLogotypeSrc={brandLogotype}
             />
           </main>
 
           <aside className="inspector-panel">
             <section className="panel-card inspector-route">
               <div className="card-header">
-                <h3>Route inspector</h3>
+                <h3>Route details</h3>
                 <span className={`status-dot status-${activeRoute.status}`}>
                   {activeRoute.status}
                 </span>
@@ -759,7 +771,7 @@ export function DesktopShell({
 
             <section className="panel-card">
               <div className="card-header">
-                <h3>Wave 8 scope</h3>
+                <h3>Parity scope</h3>
                 <span className="pill pill-muted">
                   {formatFeatureCount(wave8FeatureAreas)}
                 </span>
@@ -783,7 +795,7 @@ export function DesktopShell({
 
             <section className="panel-card">
               <div className="card-header">
-                <h3>Route inventory</h3>
+                <h3>Navigation map</h3>
                 <span className="pill pill-outline">All classes visible</span>
               </div>
               <div className="inventory-group">
@@ -814,7 +826,7 @@ export function DesktopShell({
 
             <section className="panel-card">
               <div className="card-header">
-                <h3>Keyboard map</h3>
+                <h3>Keyboard shortcuts</h3>
                 <span className="pill pill-outline">Focus-safe</span>
               </div>
               <ul className="shortcut-list">
@@ -842,7 +854,7 @@ export function DesktopShell({
             <div className="card-header">
               <div>
                 <p className="eyebrow">Overlay palette</p>
-                <h3 id="command-palette-title">Desktop route launcher</h3>
+                <h3 id="command-palette-title">Go to route or session</h3>
               </div>
               <button className="ghost-button" type="button" onClick={onCommandClose}>
                 Close
@@ -899,6 +911,8 @@ type RouteSurfaceProps = {
   preferences: DesktopPreferencesState;
   secondarySurfaces: SecondarySurfaceState;
   onNavigate: (path: string) => void;
+  brandLogoSrc: string;
+  brandLogotypeSrc: string;
 };
 
 function RouteSurface({
@@ -907,12 +921,21 @@ function RouteSurface({
   preferences,
   secondarySurfaces,
   onNavigate,
+  brandLogoSrc,
+  brandLogotypeSrc,
 }: RouteSurfaceProps) {
   const { definition } = resolved;
 
   switch (definition.key) {
     case "home":
-      return <HomeSurface desktop={desktop} onNavigate={onNavigate} />;
+      return (
+        <HomeSurface
+          desktop={desktop}
+          onNavigate={onNavigate}
+          brandLogoSrc={brandLogoSrc}
+          brandLogotypeSrc={brandLogotypeSrc}
+        />
+      );
     case "restore-index":
       return <RestoreSurface desktop={desktop} onNavigate={onNavigate} />;
     case "restore-manual":
@@ -1067,9 +1090,13 @@ function RouteSurface({
 function HomeSurface({
   desktop,
   onNavigate,
+  brandLogoSrc,
+  brandLogotypeSrc,
 }: {
   desktop: DesktopState;
   onNavigate: (path: string) => void;
+  brandLogoSrc: string;
+  brandLogotypeSrc: string;
 }) {
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<MainViewTab>("sessions");
@@ -1092,7 +1119,11 @@ function HomeSurface({
   if (!desktop.credentials || !desktop.profile) {
     return (
       <div className="surface-stack">
-        <section className="hero-panel">
+        <section className="hero-panel home-entry-hero">
+          <div className="desktop-home-brand">
+            <img className="hero-brand-mark" src={brandLogoSrc} alt="" aria-hidden="true" />
+            <img className="hero-brand-logotype" src={brandLogotypeSrc} alt="Vibe" />
+          </div>
           <div>
             <p className="eyebrow">Desktop entry</p>
             <h3>Create or restore a Vibe desktop account</h3>
@@ -1122,11 +1153,11 @@ function HomeSurface({
         <section className="surface-grid two-up">
           <article className="panel-card">
             <div className="card-header">
-              <h3>B17 First Usable Slice</h3>
-              <span className="pill pill-accent">P0 critical path</span>
+              <h3>Desktop essentials</h3>
+              <span className="pill pill-accent">Core flow</span>
             </div>
             <ul className="bullet-list">
-              {firstUsableSlice.map((item) => (
+              {shellInvariants.map((item) => (
                 <li key={item}>{item}</li>
               ))}
             </ul>
@@ -1134,11 +1165,11 @@ function HomeSurface({
 
           <article className="panel-card">
             <div className="card-header">
-              <h3>B18 Promotion Readiness</h3>
-              <span className="pill pill-outline">P1 before switch</span>
+              <h3>Available in this desktop slice</h3>
+              <span className="pill pill-outline">Current coverage</span>
             </div>
             <ul className="bullet-list">
-              {promotionSlice.map((item) => (
+              {firstUsableSlice.slice(0, 5).map((item) => (
                 <li key={item}>{item}</li>
               ))}
             </ul>
@@ -1159,14 +1190,19 @@ function HomeSurface({
   return (
     <div className="surface-stack">
       <section className="hero-panel mainview-hero">
-        <div>
-          <p className="eyebrow">Desktop entry</p>
-          <h3>Continue with your desktop sessions</h3>
-          <p className="hero-copy">
-            The home route now mirrors the current app more closely: sessions stay
-            front and center, inbox and settings remain one tab away, and account
-            recovery is still available from the same shell.
-          </p>
+        <div className="mainview-hero-copy">
+          <div className="desktop-home-brand compact">
+            <img className="hero-brand-mark" src={brandLogoSrc} alt="" aria-hidden="true" />
+            <img className="hero-brand-logotype" src={brandLogotypeSrc} alt="Vibe" />
+          </div>
+          <div>
+            <p className="eyebrow">Desktop entry</p>
+            <h3>Continue with your desktop sessions</h3>
+            <p className="hero-copy">
+              Sessions stay front and center, with inbox and settings one step away in the
+              same shell hierarchy Happy uses today.
+            </p>
+          </div>
         </div>
         <div className="hero-actions profile-summary-row">
           <ProfileAvatar label={profileName} />
@@ -1377,31 +1413,6 @@ function HomeSurface({
         ) : null}
       </section>
 
-      <section className="surface-grid two-up">
-        <article className="panel-card">
-          <div className="card-header">
-            <h3>First usable slice</h3>
-            <span className="pill pill-accent">P0 critical path</span>
-          </div>
-          <ul className="bullet-list">
-            {firstUsableSlice.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-        </article>
-
-        <article className="panel-card">
-          <div className="card-header">
-            <h3>B18 Promotion Readiness</h3>
-            <span className="pill pill-outline">P1 before switch</span>
-          </div>
-          <ul className="bullet-list">
-            {promotionSlice.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-        </article>
-      </section>
     </div>
   );
 }

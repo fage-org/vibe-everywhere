@@ -22,6 +22,7 @@ rollback ownership from `packages/vibe-app`.
 - `packages/vibe-app/app.config.js`
 - `packages/vibe-app/eas.json`
 - `.github/workflows/app-release.yml`
+- `docs/plans/rebuild/shared/ui-visual-parity.md`
 
 These legacy Vibe paths are reference-only. They are not active CI or release owners anymore.
 
@@ -34,6 +35,8 @@ Do not move release ownership just because the new package builds. Ownership mov
 
 - the route matrix is satisfied
 - the capability matrix is satisfied
+- Happy-aligned UI and visual parity correction is complete for shell, session, and
+  promotion-critical secondary surfaces, or approved exceptions are documented
 - preview releases prove upgrade and rollback safety
 
 ## Release Ownership Stages
@@ -57,6 +60,8 @@ Do not move release ownership just because the new package builds. Ownership mov
 - `packages/vibe-app-tauri` produces production-candidate artifacts under controlled validation
 - no legacy `packages/vibe-app` upgrade-validation lane remains in scope; validation happens against the active replacement package and its own release candidates
 - no new fallback release lane is kept on `packages/vibe-app`; rollback must use prior `packages/vibe-app-tauri` artifacts or a later explicitly approved plan update
+- user-visible release assets and in-app presentation must pass Happy-aligned visual parity review
+  before production ownership can move
 
 ### Stage 3: Production Switch
 
@@ -148,6 +153,7 @@ If a production switch candidate regresses:
 - preview release scripts from `packages/vibe-app-tauri`
 - production-candidate release scripts from `packages/vibe-app-tauri`
 - Android APK artifact generation and GitHub Release packaging validation
+- Happy-aligned visual parity review for shell, session, and promotion-critical secondary surfaces
 - rollback drill documented and exercised at least once before the default switch
 
 ### Web And Browser Export
@@ -162,5 +168,7 @@ If a production switch candidate regresses:
 
 - the project plan says Wave 9 parity is complete
 - the route and capability matrix items are satisfied or explicitly waived in writing
+- Happy-aligned UI and visual parity correction is complete for shell, session, and
+  promotion-critical secondary surfaces, or approved exceptions are documented
 - this file records the exact release-owner switch and rollback path
 - the promotion module plan signs off the archival/reference-only policy for `packages/vibe-app`

@@ -15,6 +15,7 @@ new package.
 ## Source Of Truth
 
 - `projects/vibe-app-tauri.md`
+- `docs/plans/rebuild/shared/ui-visual-parity.md`
 - `docs/plans/rebuild/vibe-app-tauri-capability-matrix.md`
 - `docs/plans/rebuild/vibe-app-tauri-coexistence-matrix.md`
 - `packages/vibe-app/sources/auth/**`
@@ -91,3 +92,5 @@ new package.
 - localhost callback listeners bind only to `127.0.0.1`, remain one-shot and short-lived, and may
   satisfy only the active auth attempt of the initiating process instance
 - platform-specific credential handling lives behind desktop adapters, not inside UI code
+- auth/bootstrap surfaces must remain visually and structurally aligned with
+  `docs/plans/rebuild/shared/ui-visual-parity.md` unless a narrower exception is recorded first

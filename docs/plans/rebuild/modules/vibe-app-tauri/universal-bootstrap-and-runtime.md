@@ -9,6 +9,7 @@ to boot.
 ## Source Of Truth
 
 - `projects/vibe-app-tauri.md`
+- `docs/plans/rebuild/shared/ui-visual-parity.md`
 - `docs/plans/rebuild/vibe-app-tauri-wave9-unified-replacement-plan.md`
 - `docs/plans/rebuild/vibe-app-tauri-wave9-migration-and-release-plan.md`
 - `/root/happy/packages/happy-app/package.json`
@@ -105,3 +106,5 @@ to boot.
 
 - keep the package path as `packages/vibe-app-tauri`
 - preserve separate desktop and mobile shells inside one package
+- bootstrap ownership must preserve the theme, font, asset, and provider baseline required by
+  `docs/plans/rebuild/shared/ui-visual-parity.md`

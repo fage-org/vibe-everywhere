@@ -15,6 +15,7 @@ desktop-first app.
 ## Source Of Truth
 
 - `projects/vibe-app-tauri.md`
+- `docs/plans/rebuild/shared/ui-visual-parity.md`
 - `docs/plans/rebuild/vibe-app-tauri-capability-matrix.md`
 - `docs/plans/rebuild/vibe-app-tauri-coexistence-matrix.md`
 - platform capability usage in `packages/vibe-app`
@@ -80,3 +81,5 @@ desktop-first app.
 
 - capability replacement is driven by parity needs, not by completeness of all Expo APIs
 - unsupported mobile-only features must be explicitly deferred rather than silently dropped
+- adapter work must not force user-visible shell or interaction changes that violate
+  `docs/plans/rebuild/shared/ui-visual-parity.md` without an explicit plan exception

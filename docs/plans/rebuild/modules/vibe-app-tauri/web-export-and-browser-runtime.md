@@ -8,6 +8,7 @@ the active Wave 9 replacement package and moves toward the default app path.
 ## Source Of Truth
 
 - `projects/vibe-app-tauri.md`
+- `docs/plans/rebuild/shared/ui-visual-parity.md`
 - `docs/plans/rebuild/vibe-app-tauri-wave9-unified-replacement-plan.md`
 - `docs/plans/rebuild/vibe-app-tauri-wave9-route-and-capability-matrix.md`
 - `docs/plans/rebuild/vibe-app-tauri-wave9-migration-and-release-plan.md`
@@ -88,3 +89,5 @@ the active Wave 9 replacement package and moves toward the default app path.
 - retained static browser export is an explicit Wave 9 scope item, not an implied side effect
 - retained static browser export must remain tied to the replacement package rather than the
   deprecated legacy app
+- retained browser export visuals, fonts, and asset behavior must remain governed by
+  `docs/plans/rebuild/shared/ui-visual-parity.md` unless a narrower exception is recorded first

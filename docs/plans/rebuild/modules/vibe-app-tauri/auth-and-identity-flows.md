@@ -8,6 +8,7 @@ bootstrap flows into `packages/vibe-app-tauri`.
 ## Source Of Truth
 
 - `projects/vibe-app-tauri.md`
+- `docs/plans/rebuild/shared/ui-visual-parity.md`
 - `docs/plans/rebuild/vibe-app-tauri-wave9-route-and-capability-matrix.md`
 - `/root/happy/packages/happy-app/sources/auth/**`
 - `/root/happy/packages/happy-app/sources/app/(app)/index.tsx`
@@ -89,3 +90,5 @@ bootstrap flows into `packages/vibe-app-tauri`.
   replacement strategy
 - localhost callback listeners bind only to `127.0.0.1`, remain one-shot and short-lived, and must
   validate per-attempt `state`
+- auth/bootstrap surfaces must remain visually and structurally aligned with
+  `docs/plans/rebuild/shared/ui-visual-parity.md` unless a narrower exception is recorded first

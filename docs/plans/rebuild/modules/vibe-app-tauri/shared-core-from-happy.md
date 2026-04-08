@@ -7,6 +7,7 @@ Port the reusable Happy app logic into package-local shared modules inside `pack
 ## Source Of Truth
 
 - `projects/vibe-app-tauri.md`
+- `docs/plans/rebuild/shared/ui-visual-parity.md`
 - `docs/plans/rebuild/vibe-app-tauri-wave9-unified-replacement-plan.md`
 - `/root/happy/packages/happy-app/sources/auth/**`
 - `/root/happy/packages/happy-app/sources/sync/**`
@@ -74,3 +75,5 @@ Port the reusable Happy app logic into package-local shared modules inside `pack
 
 - shared logic lives in `packages/vibe-app-tauri` first
 - no new shared package is created during early Wave 9 work
+- shared-core extraction must preserve Happy-owned text, constants, and asset references needed by
+  `docs/plans/rebuild/shared/ui-visual-parity.md`

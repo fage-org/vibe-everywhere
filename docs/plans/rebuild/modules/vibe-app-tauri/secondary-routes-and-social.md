@@ -8,6 +8,7 @@ replacement package.
 ## Source Of Truth
 
 - `projects/vibe-app-tauri.md`
+- `docs/plans/rebuild/shared/ui-visual-parity.md`
 - `docs/plans/rebuild/vibe-app-tauri-wave9-route-and-capability-matrix.md`
 - `/root/happy/packages/happy-app/sources/app/(app)/artifacts/**`
 - `/root/happy/packages/happy-app/sources/app/(app)/friends/**`
@@ -73,3 +74,5 @@ replacement package.
 
 - `P1` routes come before `P2` or cosmetic extras
 - route semantics follow Happy first, even if the internal implementation differs
+- secondary-route visuals and information density must remain governed by
+  `docs/plans/rebuild/shared/ui-visual-parity.md` unless a narrower exception is recorded first

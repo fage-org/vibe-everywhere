@@ -8,6 +8,7 @@ inside `packages/vibe-app-tauri`.
 ## Source Of Truth
 
 - `projects/vibe-app-tauri.md`
+- `docs/plans/rebuild/shared/ui-visual-parity.md`
 - `docs/plans/rebuild/vibe-app-tauri-wave9-migration-and-release-plan.md`
 - `/root/happy/packages/happy-app/package.json`
 - `/root/happy/packages/happy-app/app.config.js`
@@ -100,3 +101,5 @@ inside `packages/vibe-app-tauri`.
 - preview lanes move before production ownership moves
 - no legacy `packages/vibe-app` upgrade-validation lane is required or implied
 - release migration must remain rollback-safe at every stage
+- release-owned assets, metadata, screenshots, and packaged presentation must not drift from
+  `docs/plans/rebuild/shared/ui-visual-parity.md` without an approved plan exception

@@ -25,6 +25,10 @@ Use the owner columns below as follows:
 Historical Wave 8 desktop plans may still answer continuity questions, but they are not active
 execution owners for Wave 9.
 
+Visual parity correction is part of route completion for any user-visible surface in this matrix.
+A route is not parity-complete if it is functionally wired but still visibly reads as a different
+product from Happy without a documented exception.
+
 ## Platform Scope Lock
 
 - Android is the only active mobile platform in the current Wave 9 scope.
@@ -76,6 +80,7 @@ execution owners for Wave 9.
 
 | Surface | Priority | Primary Happy source | Shared/runtime owner | Mobile/browser UI owner | Desktop UI owner | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
+| visual tokens, shell styling, information density, and Happy-aligned brand asset usage across app-facing surfaces | `P0` | `/root/happy/packages/happy-app/sources/theme.ts`, `/root/happy/packages/happy-app/sources/constants/Typography.ts`, `/root/happy/packages/happy-app/sources/theme.css`, `/root/happy/packages/happy-app/sources/assets/**` | `universal-bootstrap-and-runtime` | `mobile-shell-and-navigation` | `desktop-shell-and-platform-parity` | explicit Wave 9 task; all user-visible surfaces inherit this parity requirement unless a module plan records an approved exception |
 | main authenticated shell | `P0` | `/root/happy/packages/happy-app/sources/components/MainView.tsx` | `mobile-shell-and-navigation` | `mobile-shell-and-navigation` | `desktop-shell-and-platform-parity` | preserve phone/sidebar mode split |
 | sidebar / drawer shell | `P0` | `/root/happy/packages/happy-app/sources/components/SidebarNavigator.tsx`, `/root/happy/packages/happy-app/sources/components/SidebarView.tsx` | `mobile-shell-and-navigation` | `mobile-shell-and-navigation` | `desktop-shell-and-platform-parity` | desktop and tablet navigation semantics |
 | sessions list | `P0` | `/root/happy/packages/happy-app/sources/components/SessionsList.tsx` | `session-runtime-and-storage` | `session-rendering-and-composer` | `session-rendering-and-composer` | selected state, actions, status dots |

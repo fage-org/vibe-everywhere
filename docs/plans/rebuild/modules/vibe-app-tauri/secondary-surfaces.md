@@ -14,6 +14,7 @@ Port the non-core but still user-visible desktop surfaces after the main session
 ## Source Of Truth
 
 - `projects/vibe-app-tauri.md`
+- `docs/plans/rebuild/shared/ui-visual-parity.md`
 - `docs/plans/rebuild/vibe-app-tauri-route-inventory.md`
 - `docs/plans/rebuild/vibe-app-tauri-parity-checklist.md`
 - `packages/vibe-app/sources/app/**`
@@ -67,3 +68,5 @@ Port the non-core but still user-visible desktop surfaces after the main session
 ## Locked Decisions
 
 - P1 surfaces come before nice-to-have desktop extras
+- secondary-surface visuals and hierarchy must remain governed by
+  `docs/plans/rebuild/shared/ui-visual-parity.md` unless a narrower exception is recorded first

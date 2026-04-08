@@ -76,6 +76,7 @@ Use the following only for Vibe-specific continuity when Happy is insufficient, 
 - `crates/vibe-server`
 - `crates/vibe-agent`
 - `crates/vibe-cli`
+- `docs/plans/rebuild/shared/ui-visual-parity.md`
 
 ### Active Wave 9 Planning Inputs
 
@@ -119,6 +120,10 @@ but they do not define the active Wave 9 boundary, priority classes, or promotio
 6. Parity first, redesign later.
    - do not invent a new information architecture during the migration
    - preserve Happy/Vibe route semantics, major interaction flows, and capability ownership first
+   - preserve Happy visual hierarchy, typography, grouped surfaces, button treatment, and brand
+     assets first
+   - any intentional visual divergence must be written into the owning plan before implementation
+   - UI and visual parity correction is active Wave 9 delivery work, not a post-parity polish backlog
 7. Shared contracts stay upstream.
    - any protocol-shape changes still go through `shared/*.md` and `crates/vibe-wire` first
    - the app replacement must not introduce package-local protocol forks
@@ -261,6 +266,14 @@ Port the reusable non-visual logic from Happy into package-local shared modules:
 Recreate the Happy app's provider stack, route tree, phone/tablet navigation rules, and header or
 drawer behavior inside `packages/vibe-app-tauri` using the shared web-native app shell rendered
 inside Tauri mobile.
+
+### Cross-Cutting Priority: UI And Visual Parity Correction
+
+Wave 9 explicitly includes correcting the current `vibe-app-tauri` visual drift from Happy.
+
+This is not optional cleanup after route migration. Any Wave 9 module that owns user-visible
+surfaces must treat Happy-aligned styling, hierarchy, density, and brand asset parity as part of
+the core replacement task.
 
 ### 4. Static Browser Export
 

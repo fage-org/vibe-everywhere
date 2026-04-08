@@ -8,6 +8,7 @@ Recreate the Happy mobile provider stack, route tree, and phone/tablet shell beh
 ## Source Of Truth
 
 - `projects/vibe-app-tauri.md`
+- `docs/plans/rebuild/shared/ui-visual-parity.md`
 - `docs/plans/rebuild/vibe-app-tauri-wave9-route-and-capability-matrix.md`
 - `/root/happy/packages/happy-app/sources/app/_layout.tsx`
 - `/root/happy/packages/happy-app/sources/app/(app)/_layout.tsx`
@@ -65,7 +66,7 @@ Recreate the Happy mobile provider stack, route tree, and phone/tablet shell beh
 
 ## Acceptance Criteria
 
-- iOS and Android can boot into a recognizable Happy-aligned shell
+- Android can boot into a recognizable Happy-aligned shell
 - `P0` entry routes exist and are navigable
 - route and shell semantics are stable enough for auth and session module work
 
@@ -74,3 +75,5 @@ Recreate the Happy mobile provider stack, route tree, and phone/tablet shell beh
 - mobile shell is reconstructed from Happy directly
 - mobile shell stays on the shared web-native app boundary under Tauri mobile; do not reintroduce
   Expo or a React Native shell as the runtime host
+- mobile shell visuals and hierarchy must remain governed by
+  `docs/plans/rebuild/shared/ui-visual-parity.md` unless a narrower exception is recorded first

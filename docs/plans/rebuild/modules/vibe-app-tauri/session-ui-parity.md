@@ -15,6 +15,7 @@ desktop-web fallbacks where exact matching is not reasonable.
 ## Source Of Truth
 
 - `projects/vibe-app-tauri.md`
+- `docs/plans/rebuild/shared/ui-visual-parity.md`
 - `packages/vibe-app/sources/app/(app)/session/**`
 - `packages/vibe-app/sources/components/**` related to session rendering and composer behavior
 
@@ -74,3 +75,5 @@ desktop-web fallbacks where exact matching is not reasonable.
 
 - pixel-close parity is the primary target
 - maintainability overrides exact visual duplication only when device/layout constraints demand it
+- session UI exceptions must be judged against `docs/plans/rebuild/shared/ui-visual-parity.md`
+  rather than ad hoc desktop-web styling preferences

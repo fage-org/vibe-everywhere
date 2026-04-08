@@ -15,6 +15,7 @@ desktop app.
 ## Source Of Truth
 
 - `projects/vibe-app-tauri.md`
+- `docs/plans/rebuild/shared/ui-visual-parity.md`
 - `docs/plans/rebuild/vibe-app-tauri-route-inventory.md`
 - `packages/vibe-app/sources/app/**`
 - `packages/vibe-app/sources/components/navigation/**`
@@ -75,3 +76,5 @@ desktop app.
 
 - preserve route and shell semantics before redesign
 - favor maintainable desktop-web layout only where exact visual parity is impractical
+- route-shell visuals must remain governed by `docs/plans/rebuild/shared/ui-visual-parity.md`
+  unless a narrower written exception is recorded first

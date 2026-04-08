@@ -8,6 +8,7 @@ Wave 9 promotion.
 ## Source Of Truth
 
 - `projects/vibe-app-tauri.md`
+- `docs/plans/rebuild/shared/ui-visual-parity.md`
 - `docs/plans/rebuild/vibe-app-tauri-wave9-route-and-capability-matrix.md`
 - `docs/plans/rebuild/vibe-app-tauri-wave9-migration-and-release-plan.md`
 - `/root/happy/packages/happy-app/app.config.js`
@@ -89,3 +90,5 @@ Wave 9 promotion.
 
 - capabilities must be explicit; silent omission is not allowed
 - real-device validation is required for promotion-critical mobile capabilities
+- capability-driven UI affordances must stay aligned with
+  `docs/plans/rebuild/shared/ui-visual-parity.md` unless a narrower exception is recorded first

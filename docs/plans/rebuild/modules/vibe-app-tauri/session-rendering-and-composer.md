@@ -8,6 +8,7 @@ Port the Happy session detail experience, message timeline, composer, and tool r
 ## Source Of Truth
 
 - `projects/vibe-app-tauri.md`
+- `docs/plans/rebuild/shared/ui-visual-parity.md`
 - `docs/plans/rebuild/vibe-app-tauri-wave9-route-and-capability-matrix.md`
 - `/root/happy/packages/happy-app/sources/-session/SessionView.tsx`
 - `/root/happy/packages/happy-app/sources/components/MessageView.tsx`
@@ -73,3 +74,5 @@ Port the Happy session detail experience, message timeline, composer, and tool r
 - session rendering parity is more important than UI abstraction elegance
 - desktop and mobile may have different host components but must preserve the same message and
   action semantics
+- session visuals, timeline density, and composer presentation must remain governed by
+  `docs/plans/rebuild/shared/ui-visual-parity.md` unless a narrower exception is recorded first

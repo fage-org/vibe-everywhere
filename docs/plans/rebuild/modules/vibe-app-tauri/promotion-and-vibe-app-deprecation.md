@@ -10,6 +10,7 @@ replacement package while retiring `packages/vibe-app` from active ownership.
 ### Active Wave 9 planning inputs
 
 - `projects/vibe-app-tauri.md`
+- `docs/plans/rebuild/shared/ui-visual-parity.md`
 - `docs/plans/rebuild/vibe-app-tauri-wave9-migration-and-release-plan.md`
 - `docs/plans/rebuild/vibe-app-tauri-wave9-route-and-capability-matrix.md`
 
@@ -78,3 +79,5 @@ active Wave 9 cross-platform gate or expand it implicitly.
 
 - production promotion is an explicit act, not an accidental drift
 - `packages/vibe-app` remains a documented fallback until this module signs off the switch
+- promotion sign-off must treat violations of `docs/plans/rebuild/shared/ui-visual-parity.md` as
+  parity gaps unless an approved exception is already recorded

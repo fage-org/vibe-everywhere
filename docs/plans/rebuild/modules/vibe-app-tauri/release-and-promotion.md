@@ -15,6 +15,7 @@ Define release packaging, validation, rollout, and promotion criteria for `vibe-
 ## Source Of Truth
 
 - `projects/vibe-app-tauri.md`
+- `docs/plans/rebuild/shared/ui-visual-parity.md`
 - `docs/plans/rebuild/vibe-app-tauri-parity-checklist.md`
 - `docs/plans/rebuild/vibe-app-tauri-coexistence-matrix.md`
 - `docs/plans/rebuild/vibe-app-tauri-promotion-baseline.md`
@@ -104,3 +105,5 @@ Define release packaging, validation, rollout, and promotion criteria for `vibe-
 
 - `packages/vibe-app` remains the default shipping path until explicit promotion
 - release/promotion is gated on parity review, not package existence alone
+- parity review includes compliance with `docs/plans/rebuild/shared/ui-visual-parity.md` for any
+  user-visible surface or packaged asset set

@@ -15,6 +15,7 @@ web-native frontend bootstrap, without destabilizing `packages/vibe-app`.
 ## Source Of Truth
 
 - `projects/vibe-app-tauri.md`
+- `docs/plans/rebuild/shared/ui-visual-parity.md`
 - `docs/plans/rebuild/vibe-app-tauri-coexistence-matrix.md`
 - `packages/vibe-app`
 - `packages/vibe-app/src-tauri/*`
@@ -78,3 +79,5 @@ web-native frontend bootstrap, without destabilizing `packages/vibe-app`.
 
 - create a new package; do not split or rename `packages/vibe-app`
 - optimize for isolated bootstrap first, not shared abstractions
+- package bootstrap must preserve the Happy-aligned visual baseline defined in
+  `docs/plans/rebuild/shared/ui-visual-parity.md` for any user-visible shell, asset, or theme input

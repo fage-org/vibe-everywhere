@@ -15,6 +15,7 @@ logic package-local to `packages/vibe-app-tauri` during early phases.
 ## Source Of Truth
 
 - `projects/vibe-app-tauri.md`
+- `docs/plans/rebuild/shared/ui-visual-parity.md`
 - `docs/plans/rebuild/vibe-app-tauri-extraction-inventory.md`
 - `packages/vibe-app/sources/sync/**`
 - `packages/vibe-app/sources/auth/**`
@@ -78,3 +79,5 @@ logic package-local to `packages/vibe-app-tauri` during early phases.
 
 - default extraction destination is `packages/vibe-app-tauri`
 - no shared-core package in early phases
+- shared-core extraction must not redefine UI tokens, branding assets, or presentation defaults in a
+  way that conflicts with `docs/plans/rebuild/shared/ui-visual-parity.md`

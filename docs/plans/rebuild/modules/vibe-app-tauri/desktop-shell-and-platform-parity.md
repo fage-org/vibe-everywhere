@@ -13,6 +13,7 @@ work. Historical Wave 8 module plans remain continuity references only.
 - `projects/vibe-app-tauri.md`
 - `docs/plans/rebuild/vibe-app-tauri-wave9-unified-replacement-plan.md`
 - `docs/plans/rebuild/vibe-app-tauri-wave9-route-and-capability-matrix.md`
+- `docs/plans/rebuild/shared/ui-visual-parity.md`
 - `/root/happy/packages/happy-app/src-tauri/**`
 - `/root/happy/packages/happy-app/sources/app/_layout.tsx`
 - `/root/happy/packages/happy-app/sources/app/(app)/_layout.tsx`
@@ -43,6 +44,10 @@ continuity question is not already answered by Happy or the active Wave 9 docs.
 ## Responsibilities
 
 - desktop route shell, header/sidebar chrome, and top-level navigation behavior
+- desktop visual hierarchy, typography, and brand asset usage must stay recognizably aligned with
+  Happy's sessions-first shell instead of drifting toward planning/demo-only chrome
+- desktop implementation must follow `docs/plans/rebuild/shared/ui-visual-parity.md` unless this
+  module plan records a narrower written exception first
 - desktop modal, overlay, focus, and keyboard interaction semantics
 - desktop clipboard and copy/export handoff
 - desktop file open/save dialog ownership where required for parity
@@ -67,15 +72,19 @@ continuity question is not already answered by Happy or the active Wave 9 docs.
 ## Implementation Steps
 
 1. Recreate the desktop shell structure and top-level route chrome from Happy/Tauri references.
-2. Keep keyboard, focus, modal, and overlay behavior explicit rather than implied by framework defaults.
-3. Recreate the required desktop adapter seams for clipboard, file dialogs, and notifications.
-4. Hand off route-specific shared state concerns back to the active Wave 9 state/rendering modules while
+2. Reuse Happy typography, theme values, and brand assets for the desktop shell before adding any
+   Vibe-specific chrome so side-by-side UI review starts from the same visual language.
+3. Keep keyboard, focus, modal, and overlay behavior explicit rather than implied by framework defaults.
+4. Recreate the required desktop adapter seams for clipboard, file dialogs, and notifications.
+5. Hand off route-specific shared state concerns back to the active Wave 9 state/rendering modules while
    keeping desktop host behavior owned here.
-5. Record any remaining desktop-only gaps as explicit deferrals in the Wave 9 matrix before promotion.
+6. Record any remaining desktop-only gaps as explicit deferrals in the Wave 9 matrix before promotion.
 
 ## Edge Cases And Failure Modes
 
 - desktop shell parity drifting while mobile/browser work advances
+- desktop-only planning/debug panels overwhelming the user-facing shell and making the app look
+  unrelated to Happy even when route coverage is improving
 - keyboard or focus regressions that do not show up in touch-first testing
 - clipboard or save/export flows working on one desktop OS but not others
 - route ownership becoming split ambiguously between this module and the session/secondary modules
@@ -100,3 +109,5 @@ continuity question is not already answered by Happy or the active Wave 9 docs.
   execution owner
 - maintainable desktop-web/Tauri implementation is acceptable only when route and interaction
   semantics stay Happy-aligned
+- desktop shell visuals must continue to follow `docs/plans/rebuild/shared/ui-visual-parity.md`
+  unless this module plan records a narrower exception first

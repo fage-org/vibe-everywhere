@@ -464,6 +464,8 @@ browser export ownership.
 ### Planning Prerequisites
 
 - `projects/vibe-app-tauri.md` records the Wave 9 project boundary
+- `shared/ui-visual-parity.md` exists and is treated as a required cross-cutting rule for any
+  user-visible app work
 - `vibe-app-tauri-wave9-unified-replacement-plan.md` exists and records the Wave 9 batch layout
 - `vibe-app-tauri-wave9-route-and-capability-matrix.md` exists and records route and capability
   priorities directly from `/root/happy/packages/happy-app`
@@ -494,6 +496,8 @@ browser export ownership.
 - shared core should be extracted before route-level screen migration broadens
 - mobile shell, retained static browser export, desktop shell parity, and identity flows define the
   first usable replacement slice
+- Happy-aligned style correction starts with the first shell modules and remains in scope for every
+  later user-visible Wave 9 module; it is not deferred to a final polish pass
 - session runtime must exist before rendering-heavy parity work starts
 - native capabilities should harden after the main session flow proves which platform seams are
   required in practice
@@ -506,6 +510,8 @@ browser export ownership.
 
 - `packages/vibe-app-tauri` can act as the active Wave 9 replacement package
 - desktop and mobile shells share package-local core modules without protocol forks
+- Happy-aligned UI and visual parity correction is treated as part of Wave 9 completion for shell,
+  session, and promotion-critical secondary surfaces
 - release, OTA, and store ownership can move to the new package by explicit promotion
 
 ### Gate To Finish

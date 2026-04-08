@@ -8,6 +8,7 @@ app to load real data.
 ## Source Of Truth
 
 - `projects/vibe-app-tauri.md`
+- `docs/plans/rebuild/shared/ui-visual-parity.md`
 - `docs/plans/rebuild/vibe-app-tauri-wave9-route-and-capability-matrix.md`
 - `/root/happy/packages/happy-app/sources/sync/**`
 - `/root/happy/packages/happy-app/sources/realtime/**`
@@ -69,3 +70,5 @@ app to load real data.
 
 - shared runtime state lives below the UI shells
 - storage and realtime changes must not fork protocol rules away from `vibe-wire`
+- runtime/state work must preserve the Happy-aligned UI expectations defined in
+  `docs/plans/rebuild/shared/ui-visual-parity.md` rather than forcing alternate shell structures
