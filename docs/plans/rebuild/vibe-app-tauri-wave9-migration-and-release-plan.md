@@ -96,10 +96,13 @@ Do not move release ownership just because the new package builds. Ownership mov
 
 - package-local browser/native build config
 - package-local Tauri desktop/mobile config
+- `release.config.json`
 - Android native project and signing config
 - `release.cjs`
 - `release-dev.sh`
 - `release-production.sh`
+- `scripts/write-release-tauri-properties.mjs`
+- `scripts/package-release-artifacts.mjs`
 - any required app icons, splash assets, and notification assets
 - any required browser build metadata, favicon, and browser asset hooks
 - any required store / updater / native signing config hooks
@@ -112,20 +115,55 @@ Do not move release ownership just because the new package builds. Ownership mov
   explicit
 - artifact naming must distinguish preview versus default-production ownership during the transition
 
+## Release Validation Artifacts
+
+- `packages/vibe-app-tauri/release/preview/release-manifest.json`
+- `packages/vibe-app-tauri/release/production-candidate/release-manifest.json`
+- `.github/workflows/app-release.yml`
+- `yarn --cwd scripts validate:vibe-app-tauri-release`
+- `artifacts/vibe-app-tauri/promotion-baseline.md`
+
 ## Data Migration Review Table
 
 | Continuity area | Platforms | Storage or continuity seam to review explicitly | Owning Wave 9 module | Validation artifact required before switch |
 | --- | --- | --- | --- | --- |
-| auth credential persistence and token restore | desktop, Android | secure-storage backend, token namespace, resume behavior after upgrade | `auth-and-identity-flows` | upgrade/reinstall restore notes plus restart validation |
-| local settings and preference keys | desktop, Android, static export where applicable | settings key namespace, preference defaults, account-backed preference sync | `session-runtime-and-storage`, `secondary-routes-and-social` | settings continuity checklist with before/after key review |
-| draft state and compose buffers | desktop, Android | draft storage namespace, unsent composer state, active-session restore semantics | `session-runtime-and-storage`, `session-rendering-and-composer` | draft continuity smoke validation |
-| changelog seen-state and onboarding markers | desktop, Android, static export | local seen markers and onboarding flags | `shared-core-from-happy`, `secondary-routes-and-social` | changelog/onboarding continuity review |
-| notification permissions and route restoration | Android, desktop where applicable | permission state, notification payload routing, deep-link/session restoration | `mobile-native-capabilities` | real-device notification routing evidence |
-| purchase entitlement refresh after upgrade | Android, web where applicable | entitlement cache, restore semantics, post-upgrade refresh timing | `mobile-native-capabilities` | purchase continuity validation notes |
-| device-link or QR continuation behavior | desktop, Android, static export where applicable | in-flight auth attempts, callback ownership, QR wait/start state | `auth-and-identity-flows` | auth/link continuity validation notes |
-| desktop local state, caches, logs, and app-owned directories | desktop | Tauri/app-owned directories, cache retention, log continuity, file-export locations | `desktop-shell-and-platform-parity`, `release-ota-and-store-migration` | per-OS directory review and smoke validation |
-| Android local state, app-owned directories, and signed artifact continuity | Android | Android native project paths, app-owned directories, signing inputs, APK naming, install/upgrade continuity | `universal-bootstrap-and-runtime`, `release-ota-and-store-migration` | Android install/upgrade validation notes plus artifact review |
-| analytics opt-in/out state, tracking identity continuity, and review-prompt throttling state | desktop, Android, static export where applicable | analytics preference keys, anonymous/known identity continuity, prompt throttling or suppression state | `release-ota-and-store-migration`, `mobile-native-capabilities` | analytics continuity decision and validation note |
+| auth credential persistence and token restore | desktop, Android | secure-storage backend, token namespace, resume behavior after upgrade | `auth-and-identity-flows` | `packages/vibe-app-tauri/release/production-candidate/release-manifest.json` plus reinstall/restore notes in `artifacts/vibe-app-tauri/promotion-baseline.md` |
+| local settings and preference keys | desktop, Android, static export where applicable | settings key namespace, preference defaults, account-backed preference sync | `session-runtime-and-storage`, `secondary-routes-and-social` | settings continuity checklist recorded in `artifacts/vibe-app-tauri/promotion-baseline.md` against the production-candidate manifest |
+| draft state and compose buffers | desktop, Android | draft storage namespace, unsent composer state, active-session restore semantics | `session-runtime-and-storage`, `session-rendering-and-composer` | draft continuity smoke validation recorded in `artifacts/vibe-app-tauri/promotion-baseline.md` |
+| changelog seen-state and onboarding markers | desktop, Android, static export | local seen markers and onboarding flags | `shared-core-from-happy`, `secondary-routes-and-social` | changelog/onboarding continuity review recorded in `artifacts/vibe-app-tauri/promotion-baseline.md` |
+| notification permissions and route restoration | Android, desktop where applicable | permission state, notification payload routing, deep-link/session restoration | `mobile-native-capabilities` | B23 defer decision in this file plus runtime gating evidence in `packages/vibe-app-tauri/src/native-capabilities.ts` |
+| purchase entitlement refresh after upgrade | Android, web where applicable | entitlement cache, restore semantics, post-upgrade refresh timing | `mobile-native-capabilities` | B23 defer decision in this file plus production-candidate release manifest |
+| device-link or QR continuation behavior | desktop, Android, static export where applicable | in-flight auth attempts, callback ownership, QR wait/start state | `auth-and-identity-flows` | auth/link continuity notes in `artifacts/vibe-app-tauri/promotion-baseline.md` plus `yarn workspace vibe-app-tauri tauri:test` |
+| desktop local state, caches, logs, and app-owned directories | desktop | Tauri/app-owned directories, cache retention, log continuity, file-export locations | `desktop-shell-and-platform-parity`, `release-ota-and-store-migration` | desktop archive entries in both release manifests plus per-OS review in `artifacts/vibe-app-tauri/promotion-baseline.md` |
+| Android local state, app-owned directories, and signed artifact continuity | Android | Android native project paths, app-owned directories, signing inputs, APK naming, install/upgrade continuity | `universal-bootstrap-and-runtime`, `release-ota-and-store-migration` | Android APK entries in both release manifests plus install/upgrade notes in `artifacts/vibe-app-tauri/promotion-baseline.md` |
+| analytics opt-in/out state, tracking identity continuity, and review-prompt throttling state | desktop, Android, static export where applicable | analytics preference keys, anonymous/known identity continuity, prompt throttling or suppression state | `release-ota-and-store-migration`, `mobile-native-capabilities` | analytics/tracking continuity decision in this file plus release-input validation from `yarn --cwd scripts validate:vibe-app-tauri-release` |
+
+## B23 Capability Decisions
+
+- notification routing and push registration stay deferred on Android for the current Wave 9
+  promotion candidate; desktop/browser local notifications remain informational only and are not a
+  route-restoration contract
+- purchases and entitlement refresh stay deferred until a purchase-gated route is promoted into the
+  active Wave 9 surface set
+- camera and QR scan stay deferred; the current candidate relies on QR display plus fallback
+  link/manual restore flows instead of in-app scanning
+- voice and microphone capture stay deferred; persisted voice settings ship, but native capture and
+  permission handling do not
+- Android file import/export/share stay deferred; desktop/browser remain the supported import/export
+  owners and Android keeps paste/copy fallback behavior where parity requires a recovery path
+- desktop/browser clipboard, dialog, and local-notification seams remain explicit keep decisions and
+  continue to own the current promotion-critical copy/export flows
+
+## Analytics / Tracking Continuity Decision
+
+- `packages/vibe-app-tauri` currently ships no active analytics provider bootstrap, no screen
+  tracking pipeline, and no release-lane telemetry handoff
+- the shared settings schema still carries `analyticsOptOut` for continuity, but it is presently a
+  no-op in the Wave 9 replacement package rather than an active provider toggle
+- review-prompt telemetry implications remain deferred with the broader analytics decision; no
+  tracking-based review prompt loop is reactivated during B25
+- any future analytics or screen-tracking reactivation must be recorded as a new plan decision
+  before release ownership moves beyond production-candidate validation
 
 ## Rollback Rules
 
@@ -135,6 +173,18 @@ If a production switch candidate regresses:
 - keep the broken candidate artifacts distinguishable and non-default
 - record the failure mode in this file and in the promotion module plan
 - do not reattempt the switch until the parity or migration gap is closed in planning first
+
+## Exact Rollback Mechanics
+
+1. Identify the last known-good Wave 9 asset set using the relevant
+   `packages/vibe-app-tauri/release/<profile>/release-manifest.json`.
+2. Rebuild or republish that exact desktop archive, browser export archive, and Android APK from the
+   matching `packages/vibe-app-tauri` revision; do not reopen `packages/vibe-app` as a fallback
+   validation lane.
+3. Restore GitHub Release assets from that manifest and keep the failed candidate assets
+   distinguishable and non-default.
+4. Re-run `yarn --cwd scripts validate:vibe-app-tauri-release` and the package promotion validation
+   steps before any new candidate is published.
 
 ## Validation Required Before Production Switch
 
@@ -146,7 +196,9 @@ If a production switch candidate regresses:
 
 ### Mobile
 
-- Android real-device auth / restore / session / notification / QR / purchase pass
+- Android real-device auth / restore / session pass for the current candidate
+- Android notification / QR / purchase / voice validation becomes required again only if the
+  corresponding B23 defer decisions are reopened
 
 ### Release
 

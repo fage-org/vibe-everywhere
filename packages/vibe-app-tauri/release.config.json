@@ -1,0 +1,28 @@
+{
+  "profiles": {
+    "preview": {
+      "label": "preview",
+      "desktopProductName": "Vibe Desktop Next Preview",
+      "desktopIdentifier": "engineering.vibe.app.next.preview",
+      "androidApplicationId": "engineering.vibe.app.next.preview",
+      "androidAppName": "Vibe Next Preview",
+      "androidVersionCode": 1001,
+      "androidVersionNameSuffix": "-preview",
+      "deepLinkScheme": "vibe-next-preview",
+      "updaterChannel": "preview",
+      "githubReleaseName": "vibe-app-tauri-preview"
+    },
+    "production-candidate": {
+      "label": "production-candidate",
+      "desktopProductName": "Vibe Desktop Next Candidate",
+      "desktopIdentifier": "engineering.vibe.app.next.candidate",
+      "androidApplicationId": "engineering.vibe.app.next.candidate",
+      "androidAppName": "Vibe Next Candidate",
+      "androidVersionCode": 2001,
+      "androidVersionNameSuffix": "-candidate",
+      "deepLinkScheme": "vibe-next-candidate",
+      "updaterChannel": "production-candidate",
+      "githubReleaseName": "vibe-app-tauri-production-candidate"
+    }
+  }
+}

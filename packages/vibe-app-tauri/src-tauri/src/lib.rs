@@ -1,5 +1,4 @@
 use std::{
-    fs,
     net::TcpListener,
     sync::{
         Arc, Mutex,
@@ -9,14 +8,20 @@ use std::{
     time::{Duration, Instant},
 };
 
+#[cfg(not(target_os = "android"))]
+use std::fs;
+#[cfg(not(target_os = "android"))]
 use keyring::{Entry, Error as KeyringError};
 use rand::{RngCore, rngs::OsRng};
+#[cfg(not(target_os = "android"))]
 use rfd::FileDialog;
 use serde::{Deserialize, Serialize};
 use tauri_plugin_notification::NotificationExt;
 use tiny_http::{Header, Method, Request, Response, Server};
 
+#[cfg(not(target_os = "android"))]
 const KEYRING_SERVICE: &str = "engineering.vibe.app.next";
+#[cfg(not(target_os = "android"))]
 const KEYRING_USER: &str = "desktop-credentials";
 const LOOPBACK_TIMEOUT: Duration = Duration::from_secs(300);
 const LOOPBACK_BIND: &str = "127.0.0.1:0";
@@ -74,6 +79,7 @@ struct BrowserPageConfig<'a> {
 }
 
 #[tauri::command]
+#[cfg(not(target_os = "android"))]
 fn secure_store_get_credentials() -> Result<Option<String>, String> {
     let entry = credentials_entry()?;
     match entry.get_password() {
@@ -84,18 +90,38 @@ fn secure_store_get_credentials() -> Result<Option<String>, String> {
 }
 
 #[tauri::command]
+#[cfg(target_os = "android")]
+fn secure_store_get_credentials() -> Result<Option<String>, String> {
+    Err("Secure desktop credential storage is not available on Android yet.".to_string())
+}
+
+#[tauri::command]
+#[cfg(not(target_os = "android"))]
 fn secure_store_set_credentials(value: String) -> Result<(), String> {
     let entry = credentials_entry()?;
     entry.set_password(&value).map_err(|error| error.to_string())
 }
 
 #[tauri::command]
+#[cfg(target_os = "android")]
+fn secure_store_set_credentials(_value: String) -> Result<(), String> {
+    Err("Secure desktop credential storage is not available on Android yet.".to_string())
+}
+
+#[tauri::command]
+#[cfg(not(target_os = "android"))]
 fn secure_store_clear_credentials() -> Result<(), String> {
     let entry = credentials_entry()?;
     match entry.delete_credential() {
         Ok(()) | Err(KeyringError::NoEntry) => Ok(()),
         Err(error) => Err(error.to_string()),
     }
+}
+
+#[tauri::command]
+#[cfg(target_os = "android")]
+fn secure_store_clear_credentials() -> Result<(), String> {
+    Err("Secure desktop credential storage is not available on Android yet.".to_string())
 }
 
 #[tauri::command]
@@ -106,6 +132,7 @@ fn open_external_url(url: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+#[cfg(not(target_os = "android"))]
 fn open_text_file_dialog(title: String) -> Result<Option<String>, String> {
     let path = FileDialog::new()
         .set_title(title)
@@ -122,6 +149,13 @@ fn open_text_file_dialog(title: String) -> Result<Option<String>, String> {
 }
 
 #[tauri::command]
+#[cfg(target_os = "android")]
+fn open_text_file_dialog(_title: String) -> Result<Option<String>, String> {
+    Err("Desktop file-open dialogs are not available on Android.".to_string())
+}
+
+#[tauri::command]
+#[cfg(not(target_os = "android"))]
 fn save_text_file_dialog(
     title: String,
     suggested_name: String,
@@ -140,6 +174,16 @@ fn save_text_file_dialog(
     fs::write(&path, contents)
         .map_err(|error| format!("Failed to write {}: {error}", path.display()))?;
     Ok(Some(path.display().to_string()))
+}
+
+#[tauri::command]
+#[cfg(target_os = "android")]
+fn save_text_file_dialog(
+    _title: String,
+    _suggested_name: String,
+    _contents: String,
+) -> Result<Option<String>, String> {
+    Err("Desktop file-save dialogs are not available on Android.".to_string())
 }
 
 #[tauri::command]
@@ -214,6 +258,7 @@ pub fn run() {
         .expect("error while running vibe-app-tauri desktop shell");
 }
 
+#[cfg(not(target_os = "android"))]
 fn credentials_entry() -> Result<Entry, String> {
     Entry::new(KEYRING_SERVICE, KEYRING_USER).map_err(|error| error.to_string())
 }

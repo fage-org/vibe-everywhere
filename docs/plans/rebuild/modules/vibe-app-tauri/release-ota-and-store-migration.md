@@ -1,5 +1,12 @@
 # Module Plan: vibe-app-tauri/release-ota-and-store-migration
 
+## Status
+
+- completed on 2026-04-09 after package-local release profiles, desktop preview/candidate bundle
+  configs, Android release-property overrides, browser/desktop/APK artifact packaging, workflow
+  packaging updates, analytics/tracking defer decisions, and rollback-safe release manifests all
+  landed under `packages/vibe-app-tauri`
+
 ## Purpose
 
 Finalize desktop, Android, retained browser build/export, updater, and store-release ownership
@@ -22,6 +29,8 @@ inside `packages/vibe-app-tauri`.
 ## Wave 9 Canonical Inputs
 
 - package-local release scripts and artifact naming rules
+- package-local `release.config.json`
+- package-local desktop preview and production-candidate Tauri config overrides
 - repository-owned Android native project, signing inputs, and APK packaging config
 - GitHub Release workflow inputs and artifact publication rules
 - package-local retained static browser export config

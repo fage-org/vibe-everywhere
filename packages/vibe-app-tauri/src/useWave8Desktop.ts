@@ -28,6 +28,7 @@ import {
   type SessionRpcAck,
   type SessionAgentStateUpdate,
   type SessionMetadataUpdate,
+  type SendMessageOptions,
   type Settings,
   type StoredCredentials,
   type UsageBucket,
@@ -62,6 +63,7 @@ export type SessionUiState = {
   items: UiMessage[];
   loading: boolean;
   sending: boolean;
+  aborting: boolean;
   error: string | null;
   loadedAt: number | null;
   lastSeq: number | null;
@@ -80,6 +82,7 @@ const defaultSessionUiState: SessionUiState = {
   items: [],
   loading: false,
   sending: false,
+  aborting: false,
   error: null,
   loadedAt: null,
   lastSeq: null,
@@ -726,7 +729,7 @@ export function useWave8Desktop(activeSessionId?: string | null) {
   }, []);
 
   const sendMessage = useCallback(
-    async (sessionId: string, text: string) => {
+    async (sessionId: string, text: string, options?: SendMessageOptions) => {
       const trimmed = text.trim();
       if (!trimmed) {
         return;
@@ -744,7 +747,7 @@ export function useWave8Desktop(activeSessionId?: string | null) {
 
       applySessionState(sessionId, { sending: true, error: null });
       try {
-        await client.sendMessage(sessionId, trimmed, session.dataEncryptionKey);
+        await client.sendMessage(sessionId, trimmed, session.dataEncryptionKey, options);
         await Promise.all([refreshSessions(), loadMessages(sessionId, true)]);
         applySessionState(sessionId, { sending: false });
       } catch (error) {
@@ -798,6 +801,32 @@ export function useWave8Desktop(activeSessionId?: string | null) {
       return parser(decrypted);
     },
     [],
+  );
+
+  const abortSession = useCallback(
+    async (sessionId: string) => {
+      applySessionState(sessionId, { aborting: true, error: null });
+
+      try {
+        await sessionRpc<{ reason: string }, unknown>(
+          sessionId,
+          "abort",
+          {
+            reason:
+              "The user canceled the current turn. Stop the in-flight work and wait for the next instruction.",
+          },
+          (value) => value,
+        );
+        applySessionState(sessionId, { aborting: false });
+      } catch (error) {
+        applySessionState(sessionId, {
+          aborting: false,
+          error: error instanceof Error ? error.message : "Failed to abort session turn",
+        });
+        throw error;
+      }
+    },
+    [applySessionState, sessionRpc],
   );
 
   const loadSessionFiles = useCallback(
@@ -1178,6 +1207,7 @@ export function useWave8Desktop(activeSessionId?: string | null) {
     updateArtifact,
     deleteArtifact,
     sendMessage,
+    abortSession,
     logout,
     updateServerUrl,
     updateAccountSettings,

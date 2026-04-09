@@ -6,10 +6,29 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0"
     />
+    <meta
+      name="color-scheme"
+      content="dark light"
+    />
     <title>Vibe Desktop Next</title>
   </head>
   <body>
+    <div
+      id="bootstrap-splash"
+      data-state="idle"
+      aria-hidden="true"
+    >
+      <img
+        class="bootstrap-splash-mark"
+        src="/splash.svg"
+        alt=""
+      />
+      <div class="bootstrap-splash-copy">
+        <strong>Vibe Runtime</strong>
+        <span>Bootstrapping desktop, Android, and browser surfaces</span>
+      </div>
+    </div>
     <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <script type="module" src="/sources/app/entry/browser.tsx"></script>
   </body>
-  </html>
+</html>

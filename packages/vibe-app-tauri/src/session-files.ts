@@ -1,11 +1,11 @@
 import {
   createDiffStatsMap,
   parseNumStat,
-} from "../../vibe-app/sources/sync/git-parsers/parseDiff";
+} from "../sources/shared/sync/git";
 import {
   getCurrentBranchV2,
   parseStatusSummaryV2,
-} from "../../vibe-app/sources/sync/git-parsers/parseStatusV2";
+} from "../sources/shared/sync/git";
 
 export type SessionWorkspaceFile = {
   fileName: string;

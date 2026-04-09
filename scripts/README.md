@@ -31,3 +31,8 @@ Current validation helpers:
     `docs/plans/rebuild/vibe-app-tauri-promotion-plan.md` must exist
   - strict command: `yarn --cwd scripts validate:vibe-app-tauri-promotion:ready`
   - root alias: `yarn app:promotion-ready`
+- `validate-vibe-app-tauri-release.mjs`
+  - owner: `vibe-app-tauri/release-ota-and-store-migration`
+  - role: verify package-local Wave 9 release inputs exist and that `.github/workflows/app-release.yml`
+    still packages from `packages/vibe-app-tauri`
+  - command: `yarn --cwd scripts validate:vibe-app-tauri-release`

@@ -2,6 +2,15 @@ name: App Release
 
 on:
   workflow_dispatch:
+    inputs:
+      profile:
+        description: Release profile to package
+        required: true
+        default: preview
+        type: choice
+        options:
+          - preview
+          - production-candidate
   push:
     tags:
       - "app-v*"
@@ -17,8 +26,45 @@ env:
   APP_DIR: packages/vibe-app-tauri
 
 jobs:
+  metadata:
+    name: Resolve App Release Metadata
+    runs-on: ubuntu-latest
+    outputs:
+      profile: ${{ steps.meta.outputs.profile }}
+      label: ${{ steps.meta.outputs.label }}
+      browser_dir: ${{ steps.meta.outputs.browser_dir }}
+      android_variant: ${{ steps.meta.outputs.android_variant }}
+
+    steps:
+      - name: Resolve profile and labels
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            profile="production-candidate"
+            label="${GITHUB_REF_NAME}"
+          else
+            profile="${{ inputs.profile }}"
+            label="manual-${profile}-${GITHUB_RUN_NUMBER}"
+          fi
+
+          if [[ "${profile}" == "preview" ]]; then
+            browser_dir="preview"
+            android_variant="debug"
+          else
+            browser_dir="production"
+            android_variant="release"
+          fi
+
+          echo "profile=${profile}" >> "${GITHUB_OUTPUT}"
+          echo "label=${label}" >> "${GITHUB_OUTPUT}"
+          echo "browser_dir=${browser_dir}" >> "${GITHUB_OUTPUT}"
+          echo "android_variant=${android_variant}" >> "${GITHUB_OUTPUT}"
+
   validate:
     name: Validate vibe-app-tauri
+    needs: metadata
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
@@ -67,11 +113,15 @@ jobs:
           done
 
       - name: Validate vibe-app-tauri
-        run: yarn workspace vibe-app-tauri validate:promotion
+        run: |
+          yarn workspace vibe-app-tauri validate:promotion
+          yarn --cwd scripts validate:vibe-app-tauri-release
 
   desktop:
     name: Package vibe-app-tauri desktop
-    needs: validate
+    needs:
+      - metadata
+      - validate
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     strategy:
@@ -137,20 +187,15 @@ jobs:
             sleep 15
           done
 
-      - name: Resolve release label
-        id: meta
+      - name: Build desktop bundles
         shell: bash
         run: |
           set -euo pipefail
-          if [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
-            label="${GITHUB_REF_NAME}"
+          if [[ "${{ needs.metadata.outputs.profile }}" == "preview" ]]; then
+            yarn workspace vibe-app-tauri tauri:build:preview
           else
-            label="manual-${GITHUB_RUN_NUMBER}"
+            yarn workspace vibe-app-tauri tauri:build:production-candidate
           fi
-          echo "label=${label}" >> "${GITHUB_OUTPUT}"
-
-      - name: Build desktop bundles
-        run: yarn workspace vibe-app-tauri tauri:build
 
       - name: Archive desktop bundles
         id: archive
@@ -164,7 +209,7 @@ jobs:
           fi
 
           mkdir -p dist
-          archive="dist/vibe-app-tauri-desktop-${{ matrix.target_label }}-${{ steps.meta.outputs.label }}.tar.gz"
+          archive="dist/vibe-app-tauri-desktop-${{ needs.metadata.outputs.profile }}-${{ matrix.target_label }}-${{ needs.metadata.outputs.label }}.tar.gz"
           tar -czf "${archive}" -C "${APP_DIR}/src-tauri/target/release" bundle
           echo "archive=${archive}" >> "${GITHUB_OUTPUT}"
 
@@ -175,9 +220,150 @@ jobs:
           path: ${{ steps.archive.outputs.archive }}
           if-no-files-found: error
 
+  browser:
+    name: Package vibe-app-tauri browser export
+    needs:
+      - metadata
+      - validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: yarn
+          cache-dependency-path: yarn.lock
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          yarn install --frozen-lockfile --network-timeout 600000
+
+      - name: Build retained browser export
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ needs.metadata.outputs.profile }}" == "preview" ]]; then
+            yarn workspace vibe-app-tauri browser:build:preview
+          else
+            yarn workspace vibe-app-tauri browser:build
+          fi
+
+      - name: Archive browser export
+        id: archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          browser_dir="${APP_DIR}/dist/browser/${{ needs.metadata.outputs.browser_dir }}"
+          if [[ ! -d "${browser_dir}" ]]; then
+            echo "Expected browser export directory not found: ${browser_dir}" >&2
+            exit 1
+          fi
+
+          mkdir -p dist
+          archive="dist/vibe-app-tauri-browser-${{ needs.metadata.outputs.profile }}-${{ needs.metadata.outputs.label }}.tar.gz"
+          tar -czf "${archive}" -C "${APP_DIR}/dist/browser" "${{ needs.metadata.outputs.browser_dir }}"
+          echo "archive=${archive}" >> "${GITHUB_OUTPUT}"
+
+      - name: Upload browser artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-browser
+          path: ${{ steps.archive.outputs.archive }}
+          if-no-files-found: error
+
+  android:
+    name: Package vibe-app-tauri Android APK
+    needs:
+      - metadata
+      - validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: yarn
+          cache-dependency-path: yarn.lock
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          yarn install --frozen-lockfile --network-timeout 600000
+
+      - name: Prepare Android release properties
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ needs.metadata.outputs.profile }}" == "preview" ]]; then
+            yarn workspace vibe-app-tauri release:prepare:preview
+          else
+            yarn workspace vibe-app-tauri release:prepare:production-candidate
+          fi
+
+      - name: Build Android APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ needs.metadata.outputs.profile }}" == "preview" ]]; then
+            yarn workspace vibe-app-tauri mobile:android:preview:apk
+          else
+            yarn workspace vibe-app-tauri mobile:android:production-candidate:apk
+          fi
+
+      - name: Archive Android APK
+        id: archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk_path="${APP_DIR}/android/app/build/outputs/apk/universal/${{ needs.metadata.outputs.android_variant }}/app-universal-${{ needs.metadata.outputs.android_variant }}.apk"
+          if [[ ! -f "${apk_path}" ]]; then
+            echo "Expected APK not found: ${apk_path}" >&2
+            exit 1
+          fi
+
+          mkdir -p dist
+          archive="dist/vibe-app-tauri-android-${{ needs.metadata.outputs.profile }}-${{ needs.metadata.outputs.label }}.apk"
+          cp "${apk_path}" "${archive}"
+          echo "archive=${archive}" >> "${GITHUB_OUTPUT}"
+
+      - name: Upload Android artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-android
+          path: ${{ steps.archive.outputs.archive }}
+          if-no-files-found: error
+
   publish:
     name: Publish App Release
     needs:
+      - metadata
+      - browser
+      - android
       - desktop
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -185,7 +371,9 @@ jobs:
       ${{
         always() &&
         github.event_name == 'push' &&
-        needs.desktop.result == 'success'
+        needs.desktop.result == 'success' &&
+        needs.browser.result == 'success' &&
+        needs.android.result == 'success'
       }}
 
     steps:

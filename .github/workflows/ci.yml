@@ -83,5 +83,8 @@ jobs:
       - name: Validate vibe-app-tauri promotion docs
         run: yarn --cwd scripts validate:vibe-app-tauri-promotion
 
+      - name: Validate vibe-app-tauri release inputs
+        run: yarn --cwd scripts validate:vibe-app-tauri-release
+
       - name: Smoke bundle vibe-app-tauri
         run: yarn workspace vibe-app-tauri tauri:smoke

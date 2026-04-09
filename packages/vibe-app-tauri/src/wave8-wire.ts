@@ -5,17 +5,17 @@ import {
   ApiUpdateContainerSchema,
   ApiUpdateMachineStateSchema,
   ApiUpdateNewSessionSchema,
-} from "../../vibe-app/sources/sync/apiTypes";
-import { ApiMessageSchema } from "../../vibe-app/sources/sync/vibeWireCompat";
+  ApiMessageSchema,
+} from "../sources/shared/sync/types";
 import {
   AgentStateSchema,
   MachineMetadataSchema,
   MetadataSchema,
-} from "../../vibe-app/sources/sync/storageTypes";
+} from "../sources/shared/sync/types";
 import {
   UserProfileSchema,
   UserResponseSchema,
-} from "../../vibe-app/sources/sync/friendTypes";
+} from "../sources/shared/sync/types";
 
 export const StoredCredentialsSchema = z.object({
   token: z.string(),

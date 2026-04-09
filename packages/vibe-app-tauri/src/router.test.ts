@@ -44,12 +44,21 @@ describe("desktop router", () => {
     expect(resolved.searchParams.get("path")).toBe("src/main.ts");
   });
 
+  it("resolves deep-linkable session message routes", () => {
+    const resolved = resolveRoute("/(app)/session/demo-ship-review/message/msg-1");
+
+    expect(resolved.definition.key).toBe("session-message");
+    expect(resolved.params.id).toBe("demo-ship-review");
+    expect(resolved.params.messageId).toBe("msg-1");
+  });
+
   it("keeps promotion route counts explicit", () => {
     expect(routeInventoryByClass.P0).toHaveLength(8);
     expect(routeInventoryByClass.P1.length).toBeGreaterThan(routeInventoryByClass.P2.length);
   });
 
   it("marks desktop-backed P1 routes as wired once they gain real state or command flows", () => {
+    expect(routeInventoryByClass.P1.every((route) => route.status === "wired")).toBe(true);
     expect(resolveRoute("/(app)/artifacts/index").definition.status).toBe("wired");
     expect(resolveRoute("/(app)/settings/account").definition.status).toBe("wired");
     expect(resolveRoute("/(app)/settings/appearance").definition.status).toBe("wired");
@@ -64,5 +73,13 @@ describe("desktop router", () => {
     expect(resolveRoute("/(app)/terminal/index").definition.status).toBe("wired");
     expect(resolveRoute("/(app)/terminal/connect").definition.status).toBe("wired");
     expect(resolveRoute("/(app)/session/demo-ship-review/files").definition.status).toBe("wired");
+    expect(resolveRoute("/(app)/session/demo-ship-review/message/msg-1").definition.status).toBe("wired");
+  });
+
+  it("keeps deferred social and developer routes explicit as P2 planned surfaces", () => {
+    expect(resolveRoute("/(app)/friends/index").definition.promotionClass).toBe("P2");
+    expect(resolveRoute("/(app)/friends/index").definition.status).toBe("planned");
+    expect(resolveRoute("/(app)/friends/search").definition.status).toBe("planned");
+    expect(resolveRoute("/(app)/dev/index").definition.status).toBe("planned");
   });
 });

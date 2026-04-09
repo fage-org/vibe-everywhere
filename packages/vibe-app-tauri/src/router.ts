@@ -145,6 +145,18 @@ export const desktopRoutes: RouteDefinition[] = [
     status: "wired",
   },
   {
+    key: "session-message",
+    label: "Message Detail",
+    title: "Session Message",
+    pattern: "/(app)/session/[id]/message/[messageId]",
+    examplePath: "/(app)/session/demo-ship-review/message/msg-1",
+    summary: "Deep-linkable session message detail route for text, tool, and renderer inspection.",
+    promotionClass: "P1",
+    ownerModule: "session-ui-parity",
+    section: "Session",
+    status: "wired",
+  },
+  {
     key: "session-files",
     label: "Session Files",
     title: "Session Files",
@@ -402,7 +414,8 @@ export const desktopRoutes: RouteDefinition[] = [
     title: "Friends",
     pattern: "/(app)/friends/index",
     examplePath: "/(app)/friends/index",
-    summary: "Social surface kept as optional or late desktop scope until value is confirmed.",
+    summary:
+      "Social surface explicitly deferred from the current promotion gate until desktop value is confirmed.",
     promotionClass: "P2",
     ownerModule: "secondary-surfaces",
     section: "Social",
@@ -414,7 +427,8 @@ export const desktopRoutes: RouteDefinition[] = [
     title: "Friend Search",
     pattern: "/(app)/friends/search",
     examplePath: "/(app)/friends/search",
-    summary: "Optional search surface tied to the social route set.",
+    summary:
+      "Friend search remains deferred with the broader social surface set until desktop value is confirmed.",
     promotionClass: "P2",
     ownerModule: "secondary-surfaces",
     section: "Social",
@@ -426,7 +440,8 @@ export const desktopRoutes: RouteDefinition[] = [
     title: "Developer Tools",
     pattern: "/(app)/dev/index",
     examplePath: "/(app)/dev/index",
-    summary: "Developer-only route family reviewed route by route before promotion.",
+    summary:
+      "Developer-only route family remains explicitly deferred from the promotion gate unless a route is promoted later.",
     promotionClass: "P2",
     ownerModule: "secondary-surfaces",
     section: "Developer",

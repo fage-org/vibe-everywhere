@@ -1,0 +1,12 @@
+{
+  "$schema": "../../../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "Vibe Desktop Next Preview",
+  "identifier": "engineering.vibe.app.next.preview",
+  "app": {
+    "windows": [
+      {
+        "title": "Vibe Desktop Next Preview"
+      }
+    ]
+  }
+}

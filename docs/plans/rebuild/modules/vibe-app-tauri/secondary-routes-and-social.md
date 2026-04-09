@@ -1,5 +1,11 @@
 # Module Plan: vibe-app-tauri/secondary-routes-and-social
 
+## Status
+
+- completed on 2026-04-09 after all promotion-critical `P1` route families were wired in
+  `packages/vibe-app-tauri`, route smoke coverage was added for the migrated surfaces, and the
+  remaining social/developer routes were kept as explicit `P2` deferrals instead of implicit gaps
+
 ## Purpose
 
 Port the remaining user-visible `P1` routes and surface families needed for the active Wave 9
@@ -76,3 +82,9 @@ replacement package.
 - route semantics follow Happy first, even if the internal implementation differs
 - secondary-route visuals and information density must remain governed by
   `docs/plans/rebuild/shared/ui-visual-parity.md` unless a narrower exception is recorded first
+
+## Explicit Wave 9 Deferrals
+
+- `/(app)/friends/index` and `/(app)/friends/search` stay `P2` until desktop value is confirmed;
+  they do not block the current promotion gate
+- `/(app)/dev/**` stays `P2` and does not block promotion unless a route is explicitly promoted

@@ -1,0 +1,9 @@
+{
+  "$schema": "../../../node_modules/@tauri-apps/cli/config.schema.json",
+  "build": {
+    "frontendDist": "../dist/mobile",
+    "devUrl": "http://0.0.0.0:1420",
+    "beforeDevCommand": "yarn mobile:android:dev-server",
+    "beforeBuildCommand": "yarn mobile:android:frontend"
+  }
+}

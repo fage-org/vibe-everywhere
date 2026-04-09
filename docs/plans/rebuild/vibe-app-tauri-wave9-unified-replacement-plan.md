@@ -112,8 +112,6 @@ summary is for execution readability only and must be kept in sync with the matr
 - `/(app)/artifacts/new`
 - `/(app)/artifacts/[id]`
 - `/(app)/artifacts/edit/[id]`
-- `/(app)/friends/index`
-- `/(app)/friends/search`
 - `/(app)/user/[id]`
 - `/(app)/machine/[id]`
 - `/(app)/server`
@@ -122,6 +120,8 @@ summary is for execution readability only and must be kept in sync with the matr
 
 ### `P2 late or optional`
 
+- `/(app)/friends/index`
+- `/(app)/friends/search`
 - `dev/**`
 - other developer-only or low-value diagnostics surfaces
 

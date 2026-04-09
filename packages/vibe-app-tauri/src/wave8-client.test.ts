@@ -91,6 +91,45 @@ describe("wave8 client helpers", () => {
     expect(messages[1].text).toContain("file contents");
   });
 
+  it("parses session file events into system file artifacts", () => {
+    const messages = parseRawRecordToUiMessages("m4", null, 4, {
+      role: "session",
+      content: {
+        data: {
+          role: "agent",
+          ev: {
+            t: "file",
+            name: "src/App.tsx",
+            size: 128,
+          },
+        },
+      },
+    });
+
+    expect(messages).toHaveLength(1);
+    expect(messages[0].role).toBe("system");
+    expect(messages[0].title).toBe("File");
+    expect(messages[0].text).toContain("src/App.tsx");
+  });
+
+  it("parses codex terminal output into system timeline entries", () => {
+    const messages = parseRawRecordToUiMessages("m5", null, 5, {
+      role: "agent",
+      content: {
+        type: "codex",
+        data: {
+          type: "terminal-output",
+          data: "cargo test --workspace",
+        },
+      },
+    });
+
+    expect(messages).toHaveLength(1);
+    expect(messages[0].role).toBe("system");
+    expect(messages[0].title).toBe("Terminal output");
+    expect(messages[0].text).toContain("cargo test --workspace");
+  });
+
   it("allows https backends and loopback http backends only", () => {
     expect(normalizeServerUrl("https://api.cluster-fluster.com/")).toBe(
       "https://api.cluster-fluster.com",

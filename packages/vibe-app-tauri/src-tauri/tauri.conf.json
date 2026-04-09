@@ -4,10 +4,10 @@
   "version": "0.1.0",
   "identifier": "engineering.vibe.app.next",
   "build": {
-    "frontendDist": "../dist",
+    "frontendDist": "../dist/desktop",
     "devUrl": "http://127.0.0.1:1420",
-    "beforeDevCommand": "yarn dev",
-    "beforeBuildCommand": "yarn build"
+    "beforeDevCommand": "yarn desktop:dev",
+    "beforeBuildCommand": "yarn desktop:build"
   },
   "app": {
     "windows": [

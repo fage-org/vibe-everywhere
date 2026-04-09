@@ -1,4 +1,12 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { RuntimeTarget } from "../sources/shared/bootstrap-config";
+import {
+  buildRuntimeDocumentTitle,
+  buildRuntimeMetaDescription,
+  resolveRuntimeShellCopy,
+  type RuntimeShellCopy,
+} from "../sources/app/runtime-shell";
+import { useRuntimeBootstrapProfile } from "../sources/app/providers/RuntimeBootstrapProvider";
 import {
   firstUsableSlice,
   formatFeatureCount,
@@ -42,7 +50,7 @@ import {
 import {
   DEFAULT_LANGUAGE,
   SUPPORTED_LANGUAGES,
-} from "../../vibe-app/sources/text/_all";
+} from "../sources/shared/text/_all";
 import {
   DEFAULT_PATH,
   desktopRoutes,
@@ -55,8 +63,8 @@ import {
   useDesktopRouter,
 } from "./router";
 import { useWave8Desktop } from "./useWave8Desktop";
-import changelogData from "../../vibe-app/sources/changelog/changelog.json";
-import { buildResumeCommand } from "../../vibe-app/sources/utils/resumeCommand";
+import changelogData from "../sources/shared/changelog/changelog.json";
+import { buildResumeCommand } from "../sources/shared/utils/resumeCommand";
 import {
   approveTerminalConnection,
   calculateUsageTotals,
@@ -80,10 +88,41 @@ import {
   normalizeTerminalPublicKeyInput,
   readTerminalConnectKey,
 } from "./terminal-connect";
-import logoBlack from "../../vibe-app/sources/assets/images/logo-black.png";
-import logoWhite from "../../vibe-app/sources/assets/images/logo-white.png";
-import logotypeDark from "../../vibe-app/sources/assets/images/logotype-dark.png";
-import logotypeLight from "../../vibe-app/sources/assets/images/logotype-light.png";
+import {
+  clearSessionDraft,
+  loadSessionDraft,
+  saveSessionDraft,
+} from "./session-drafts";
+import {
+  applyComposerSuggestion,
+  buildComposerSuggestions,
+  findActiveComposerToken,
+  type ComposerSuggestion,
+} from "./session-composer-autocomplete";
+import {
+  clearNewSessionDraft,
+  loadNewSessionDraft,
+  saveNewSessionDraft,
+  type NewSessionDraft,
+} from "./new-session-draft";
+import {
+  getSessionModelOptions,
+  getSessionPermissionOptions,
+  resolveSessionModeSelection,
+} from "./session-mode-options";
+import {
+  loadSessionPreferences,
+  saveSessionPreferences,
+  type SessionComposerPreferences,
+} from "./session-preferences";
+import {
+  resolveRuntimeNativeCapabilities,
+  type RuntimeNativeCapabilities,
+} from "./native-capabilities";
+import logoBlack from "../sources/app/assets/images/logo-black.png";
+import logoWhite from "../sources/app/assets/images/logo-white.png";
+import logotypeDark from "../sources/app/assets/images/logotype-dark.png";
+import logotypeLight from "../sources/app/assets/images/logotype-light.png";
 
 const RichTimelineMessageBody = lazy(() =>
   import("./rich-message-renderers").then((module) => ({
@@ -91,97 +130,15 @@ const RichTimelineMessageBody = lazy(() =>
   })),
 );
 
-const keyboardShortcuts = [
-  { keys: "Ctrl/Cmd+K", description: "Open the desktop route palette" },
-  { keys: "?", description: "Open overlay help from the shell" },
-  { keys: "Alt+1", description: "Jump to the desktop entry route" },
-  { keys: "Alt+2", description: "Jump to Inbox" },
-  { keys: "Alt+3", description: "Jump to New Session" },
-  { keys: "Alt+4", description: "Jump to Recent Sessions" },
-  { keys: "Alt+5", description: "Jump to Settings" },
-  { keys: "Alt+6", description: "Jump to Restore" },
-  { keys: "Esc", description: "Dismiss the command palette" },
-] as const;
-
 type MainViewTab = "sessions" | "inbox" | "settings";
 
-const mainViewTabs: Array<{
-  key: MainViewTab;
-  label: string;
-  eyebrow: string;
-}> = [
-  { key: "sessions", label: "Sessions", eyebrow: "Live work" },
-  { key: "inbox", label: "Inbox", eyebrow: "Updates" },
-  { key: "settings", label: "Settings", eyebrow: "Desktop" },
-];
-
-const settingsFeatureLinks = [
-  {
-    title: "Account",
-    subtitle: "Identity, subscription, restore history, and connected service status.",
-    route: "/(app)/settings/account",
-    badge: "Profile",
-  },
-  {
-    title: "Appearance",
-    subtitle: "Theme, layout density, and desktop chrome preferences.",
-    route: "/(app)/settings/appearance",
-    badge: "Theme",
-  },
-  {
-    title: "Voice Assistant",
-    subtitle: "Voice controls, language, and desktop microphone preferences.",
-    route: "/(app)/settings/voice",
-    badge: "Audio",
-  },
-  {
-    title: "Features",
-    subtitle: "Feature flags and staged rollout controls for the desktop rewrite.",
-    route: "/(app)/settings/features",
-    badge: "Labs",
-  },
-  {
-    title: "Usage",
-    subtitle: "Plan, limits, and usage review surfaces used before promotion.",
-    route: "/(app)/settings/usage",
-    badge: "Quota",
-  },
-] as const;
-
-const aboutLinks = [
-  {
-    title: "What's New",
-    subtitle: "Release notes and migration progress for the desktop rewrite.",
-    action: "route" as const,
-    value: "/(app)/changelog",
-  },
-  {
-    title: "GitHub",
-    subtitle: "fage-org/vibe-everywhere",
-    action: "external" as const,
-    value: "https://github.com/fage-org/vibe-everywhere",
-  },
-  {
-    title: "Report Issue",
-    subtitle: "Open a bug report for desktop rewrite regressions.",
-    action: "external" as const,
-    value: "https://github.com/fage-org/vibe-everywhere/issues",
-  },
-  {
-    title: "Privacy Policy",
-    subtitle: "Review the current Vibe privacy policy.",
-    action: "external" as const,
-    value: "https://app.vibe.engineering",
-  },
-  {
-    title: "Terms of Service",
-    subtitle: "Repository-hosted terms used by the current app.",
-    action: "external" as const,
-    value: "https://github.com/fage-org/vibe-everywhere/blob/main/TERMS.md",
-  },
-] as const;
-
 const DESKTOP_PREVIEW_VERSION = "0.1.0-preview";
+const NEW_SESSION_DEFAULT_DRAFT: NewSessionDraft = {
+  workspace: "/root/vibe-remote",
+  model: "gpt-5.4",
+  title: "Wave 8 Desktop Session",
+  prompt: "Continue the Wave 8 desktop rewrite and report what changed.",
+};
 
 type SecondarySurfaceState = {
   artifacts: DesktopArtifact[];
@@ -226,6 +183,7 @@ type DesktopShellProps = {
   onNavigate: (path: string) => void;
   onCommandOpen: () => void;
   onCommandClose: () => void;
+  runtimeTarget?: RuntimeTarget;
 };
 
 type DesktopPreferencesState = {
@@ -255,12 +213,114 @@ type DesktopPreferencesState = {
   commitLanguagePatch: (patch: Partial<DesktopLanguageSettings>) => Promise<void>;
 };
 
+type MainViewTabConfig = {
+  key: MainViewTab;
+  label: string;
+  eyebrow: string;
+};
+
+function buildSettingsFeatureLinks(runtimeCopy: RuntimeShellCopy) {
+  return [
+    {
+      title: "Account",
+      subtitle: "Identity, subscription, restore history, and connected service status.",
+      route: "/(app)/settings/account",
+      badge: "Profile",
+    },
+    {
+      title: "Appearance",
+      subtitle: `Theme, layout density, and ${runtimeCopy.surfaceLabel} shell preferences.`,
+      route: "/(app)/settings/appearance",
+      badge: "Theme",
+    },
+    {
+      title: "Voice Assistant",
+      subtitle: `Voice controls, language, and ${runtimeCopy.surfaceLabel} microphone preferences.`,
+      route: "/(app)/settings/voice",
+      badge: "Audio",
+    },
+    {
+      title: "Features",
+      subtitle: `Feature flags and staged rollout controls for the ${runtimeCopy.surfaceLabel} shell.`,
+      route: "/(app)/settings/features",
+      badge: "Labs",
+    },
+    {
+      title: "Usage",
+      subtitle: "Plan, limits, and usage review surfaces used before promotion.",
+      route: "/(app)/settings/usage",
+      badge: "Quota",
+    },
+  ] as const;
+}
+
+function buildAboutLinks(runtimeCopy: RuntimeShellCopy) {
+  return [
+    {
+      title: "What's New",
+      subtitle: `Release notes and migration progress for the ${runtimeCopy.surfaceLabel} shell rebuild.`,
+      action: "route" as const,
+      value: "/(app)/changelog",
+    },
+    {
+      title: "GitHub",
+      subtitle: "fage-org/vibe-everywhere",
+      action: "external" as const,
+      value: "https://github.com/fage-org/vibe-everywhere",
+    },
+    {
+      title: "Report Issue",
+      subtitle: `Open a bug report for ${runtimeCopy.surfaceLabel} shell regressions.`,
+      action: "external" as const,
+      value: "https://github.com/fage-org/vibe-everywhere/issues",
+    },
+    {
+      title: "Privacy Policy",
+      subtitle: "Review the current Vibe privacy policy.",
+      action: "external" as const,
+      value: "https://app.vibe.engineering",
+    },
+    {
+      title: "Terms of Service",
+      subtitle: "Repository-hosted terms used by the current app.",
+      action: "external" as const,
+      value: "https://github.com/fage-org/vibe-everywhere/blob/main/TERMS.md",
+    },
+  ] as const;
+}
+
+function describeRuntimeLinkRoute(runtimeTarget: RuntimeTarget): string {
+  if (runtimeTarget === "desktop") {
+    return "Reuse the locked localhost loopback flow to link another desktop.";
+  }
+  if (runtimeTarget === "mobile") {
+    return "Use the shared device-link flow to connect another signed-in device.";
+  }
+  return "Keep the retained browser export on the same shared create, link, and restore flow.";
+}
+
+function buildKeyboardShortcuts(runtimeCopy: RuntimeShellCopy) {
+  return [
+    { keys: "Ctrl/Cmd+K", description: `Open the ${runtimeCopy.surfaceLabel} route palette` },
+    { keys: "?", description: "Open overlay help from the shell" },
+    { keys: "Alt+1", description: `Jump to the ${runtimeCopy.surfaceLabel} entry route` },
+    { keys: "Alt+2", description: "Jump to Inbox" },
+    { keys: "Alt+3", description: "Jump to New Session" },
+    { keys: "Alt+4", description: "Jump to Recent Sessions" },
+    { keys: "Alt+5", description: "Jump to Settings" },
+    { keys: "Alt+6", description: "Jump to Restore" },
+    { keys: "Esc", description: "Dismiss the command palette" },
+  ] as const;
+}
+
 export function App() {
   const { path, navigate } = useDesktopRouter();
+  const runtimeProfile = useRuntimeBootstrapProfile();
+  const runtimeTarget = runtimeProfile?.runtimeTarget ?? "desktop";
   const [commandOpen, setCommandOpen] = useState(false);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
+    if (typeof window === "undefined" || runtimeTarget === "mobile") {
       return undefined;
     }
 
@@ -298,7 +358,7 @@ export function App() {
     return () => {
       window.removeEventListener("keydown", handleKeydown);
     };
-  }, [navigate]);
+  }, [navigate, runtimeTarget]);
 
   useEffect(() => {
     setCommandOpen(false);
@@ -311,6 +371,7 @@ export function App() {
       onNavigate={navigate}
       onCommandOpen={() => setCommandOpen(true)}
       onCommandClose={() => setCommandOpen(false)}
+      runtimeTarget={runtimeTarget}
     />
   );
 }
@@ -321,9 +382,15 @@ export function DesktopShell({
   onNavigate,
   onCommandOpen,
   onCommandClose,
+  runtimeTarget = "desktop",
 }: DesktopShellProps) {
   const resolved = useMemo(() => resolveRoute(path), [path]);
   const activeRoute = resolved.definition;
+  const runtimeCopy = useMemo(
+    () => resolveRuntimeShellCopy(runtimeTarget),
+    [runtimeTarget],
+  );
+  const supportsKeyboardShortcuts = runtimeTarget !== "mobile";
   const liveSessionId =
     activeRoute.key === "session-detail" ? resolved.params.id ?? null : null;
   const desktop = useWave8Desktop(liveSessionId);
@@ -356,6 +423,22 @@ export function DesktopShell({
   }, [appearanceSettings.themePreference]);
   const brandLogo = resolvedTheme === "light" ? logoBlack : logoWhite;
   const brandLogotype = resolvedTheme === "light" ? logotypeDark : logotypeLight;
+  const mainViewTabs = useMemo<ReadonlyArray<MainViewTabConfig>>(
+    () => [
+      { key: "sessions" as const, label: "Sessions", eyebrow: "Live work" },
+      { key: "inbox" as const, label: "Inbox", eyebrow: "Updates" },
+      { key: "settings" as const, label: "Settings", eyebrow: runtimeCopy.settingsEyebrow },
+    ],
+    [runtimeCopy.settingsEyebrow],
+  );
+  const keyboardShortcuts = useMemo(
+    () => buildKeyboardShortcuts(runtimeCopy),
+    [runtimeCopy],
+  );
+  const nativeCapabilities = useMemo(
+    () => resolveRuntimeNativeCapabilities(runtimeTarget),
+    [runtimeTarget],
+  );
 
   const syncOptimisticPreference = useCallback(
     async <T,>(
@@ -482,6 +565,11 @@ export function DesktopShell({
     getSelectedSessionFilePath,
     selectSessionFilePath,
   };
+  const settingsFeatureLinks = useMemo(
+    () => buildSettingsFeatureLinks(runtimeCopy),
+    [runtimeCopy],
+  );
+  const aboutLinks = useMemo(() => buildAboutLinks(runtimeCopy), [runtimeCopy]);
 
   const sessionRoutes = useMemo(
     () =>
@@ -581,6 +669,30 @@ export function DesktopShell({
     };
   }, [appearanceSettings.density, languageSettings.appLanguage, resolvedTheme]);
 
+  useEffect(() => {
+    if (typeof document === "undefined") {
+      return undefined;
+    }
+
+    document.title = buildRuntimeDocumentTitle(runtimeTarget, activeRoute.title);
+
+    let meta = document.querySelector('meta[name="description"]');
+    let created = false;
+    if (!meta) {
+      meta = document.createElement("meta");
+      meta.setAttribute("name", "description");
+      document.head.appendChild(meta);
+      created = true;
+    }
+    meta.setAttribute("content", buildRuntimeMetaDescription(runtimeTarget));
+
+    return () => {
+      if (created) {
+        meta?.remove();
+      }
+    };
+  }, [activeRoute.title, runtimeTarget]);
+
   return (
     <div
       className={`desktop-app-shell ${
@@ -599,12 +711,11 @@ export function DesktopShell({
             <img className="brand-mark" src={brandLogo} alt="" aria-hidden="true" />
             <div className="brand-copy-block">
               <img className="brand-logotype" src={brandLogotype} alt="Vibe" />
-              <p className="eyebrow">Happy-aligned desktop shell</p>
+              <p className="eyebrow">{runtimeCopy.shellEyebrow}</p>
             </div>
           </div>
           <p className="brand-copy">
-            Sessions, inbox, settings, and deep links now share one desktop shell backed by
-            live Vibe data instead of a standalone preview layout.
+            {runtimeCopy.shellSummary}
           </p>
           <div className="pill-row shell-status-row">
             <span className="pill pill-accent">{statusLabel(desktop.status)}</span>
@@ -613,7 +724,7 @@ export function DesktopShell({
           </div>
         </div>
 
-        <nav className="nav-block" aria-label="Primary desktop routes">
+        <nav className="nav-block" aria-label={runtimeCopy.primaryNavLabel}>
           <div className="section-heading">
             <span>Navigate</span>
             <small>Sessions first</small>
@@ -661,7 +772,7 @@ export function DesktopShell({
         <section className="nav-block meta-block">
           <div className="section-heading">
             <span>Connection</span>
-            <small>Current desktop state</small>
+            <small>{`Current ${runtimeCopy.surfaceTitle} state`}</small>
           </div>
           <div className="mini-card status-summary-card">
             <div className="mini-card-header">
@@ -698,8 +809,8 @@ export function DesktopShell({
               <span className="pill pill-outline">{activeRoute.ownerModule}</span>
             </div>
             <button className="command-trigger" type="button" onClick={onCommandOpen}>
-              Open Palette
-              <span>Ctrl/Cmd+K</span>
+              {supportsKeyboardShortcuts ? "Open Palette" : "Open Routes"}
+              {supportsKeyboardShortcuts ? <span>Ctrl/Cmd+K</span> : null}
             </button>
           </div>
         </header>
@@ -727,6 +838,12 @@ export function DesktopShell({
               onNavigate={onNavigate}
               brandLogoSrc={brandLogo}
               brandLogotypeSrc={brandLogotype}
+              runtimeTarget={runtimeTarget}
+              runtimeCopy={runtimeCopy}
+              nativeCapabilities={nativeCapabilities}
+              mainViewTabs={mainViewTabs}
+              settingsFeatureLinks={settingsFeatureLinks}
+              aboutLinks={aboutLinks}
             />
           </main>
 
@@ -824,20 +941,22 @@ export function DesktopShell({
               </div>
             </section>
 
-            <section className="panel-card">
-              <div className="card-header">
-                <h3>Keyboard shortcuts</h3>
-                <span className="pill pill-outline">Focus-safe</span>
-              </div>
-              <ul className="shortcut-list">
-                {keyboardShortcuts.map((shortcut) => (
-                  <li key={shortcut.keys}>
-                    <kbd>{shortcut.keys}</kbd>
-                    <span>{shortcut.description}</span>
-                  </li>
-                ))}
-              </ul>
-            </section>
+            {supportsKeyboardShortcuts ? (
+              <section className="panel-card">
+                <div className="card-header">
+                  <h3>Keyboard shortcuts</h3>
+                  <span className="pill pill-outline">Focus-safe</span>
+                </div>
+                <ul className="shortcut-list">
+                  {keyboardShortcuts.map((shortcut) => (
+                    <li key={shortcut.keys}>
+                      <kbd>{shortcut.keys}</kbd>
+                      <span>{shortcut.description}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
           </aside>
         </div>
       </div>
@@ -913,6 +1032,12 @@ type RouteSurfaceProps = {
   onNavigate: (path: string) => void;
   brandLogoSrc: string;
   brandLogotypeSrc: string;
+  runtimeTarget: RuntimeTarget;
+  runtimeCopy: RuntimeShellCopy;
+  nativeCapabilities: RuntimeNativeCapabilities;
+  mainViewTabs: ReadonlyArray<MainViewTabConfig>;
+  settingsFeatureLinks: ReturnType<typeof buildSettingsFeatureLinks>;
+  aboutLinks: ReturnType<typeof buildAboutLinks>;
 };
 
 function RouteSurface({
@@ -923,6 +1048,12 @@ function RouteSurface({
   onNavigate,
   brandLogoSrc,
   brandLogotypeSrc,
+  runtimeTarget,
+  runtimeCopy,
+  nativeCapabilities,
+  mainViewTabs,
+  settingsFeatureLinks,
+  aboutLinks,
 }: RouteSurfaceProps) {
   const { definition } = resolved;
 
@@ -934,12 +1065,29 @@ function RouteSurface({
           onNavigate={onNavigate}
           brandLogoSrc={brandLogoSrc}
           brandLogotypeSrc={brandLogotypeSrc}
+          runtimeCopy={runtimeCopy}
+          mainViewTabs={mainViewTabs}
+          settingsFeatureLinks={settingsFeatureLinks}
         />
       );
     case "restore-index":
-      return <RestoreSurface desktop={desktop} onNavigate={onNavigate} />;
+      return (
+        <RestoreSurface
+          desktop={desktop}
+          onNavigate={onNavigate}
+          runtimeTarget={runtimeTarget}
+          runtimeCopy={runtimeCopy}
+        />
+      );
     case "restore-manual":
-      return <ManualRestoreSurface desktop={desktop} onNavigate={onNavigate} />;
+      return (
+        <ManualRestoreSurface
+          desktop={desktop}
+          onNavigate={onNavigate}
+          runtimeCopy={runtimeCopy}
+          nativeCapabilities={nativeCapabilities}
+        />
+      );
     case "inbox":
       return <InboxSurface desktop={desktop} onNavigate={onNavigate} />;
     case "new-session":
@@ -947,6 +1095,7 @@ function RouteSurface({
     case "session-detail":
       return (
         <SessionSurface
+          key={resolved.params.id ?? ""}
           desktop={desktop}
           preferences={preferences}
           sessionId={resolved.params.id ?? ""}
@@ -958,6 +1107,16 @@ function RouteSurface({
         <SessionInfoSurface
           sessionId={resolved.params.id ?? ""}
           desktop={desktop}
+          onNavigate={onNavigate}
+        />
+      );
+    case "session-message":
+      return (
+        <SessionMessageSurface
+          sessionId={resolved.params.id ?? ""}
+          messageId={resolved.params.messageId ?? ""}
+          desktop={desktop}
+          preferences={preferences}
           onNavigate={onNavigate}
         />
       );
@@ -984,19 +1143,45 @@ function RouteSurface({
     case "session-recent":
       return <RecentSurface desktop={desktop} onNavigate={onNavigate} />;
     case "settings-index":
-      return <SettingsSurface desktop={desktop} onNavigate={onNavigate} />;
+      return (
+        <SettingsSurface
+          desktop={desktop}
+          onNavigate={onNavigate}
+          runtimeTarget={runtimeTarget}
+          runtimeCopy={runtimeCopy}
+          settingsFeatureLinks={settingsFeatureLinks}
+          aboutLinks={aboutLinks}
+        />
+      );
     case "settings-account":
-      return <AccountSettingsSurface desktop={desktop} onNavigate={onNavigate} />;
+      return (
+        <AccountSettingsSurface
+          desktop={desktop}
+          onNavigate={onNavigate}
+          runtimeCopy={runtimeCopy}
+        />
+      );
     case "settings-appearance":
       return <AppearanceSettingsSurface preferences={preferences} />;
     case "settings-features":
       return <FeatureSettingsSurface preferences={preferences} />;
     case "settings-language":
-      return <LanguageSettingsSurface preferences={preferences} />;
+      return (
+        <LanguageSettingsSurface
+          preferences={preferences}
+          runtimeCopy={runtimeCopy}
+        />
+      );
     case "settings-usage":
       return <UsageSettingsSurface desktop={desktop} onNavigate={onNavigate} />;
     case "settings-voice":
-      return <VoiceSettingsSurface preferences={preferences} onNavigate={onNavigate} />;
+      return (
+        <VoiceSettingsSurface
+          preferences={preferences}
+          onNavigate={onNavigate}
+          nativeCapabilities={nativeCapabilities}
+        />
+      );
     case "settings-voice-language":
       return <VoiceLanguageSurface preferences={preferences} />;
     case "settings-connect-claude":
@@ -1015,6 +1200,7 @@ function RouteSurface({
           desktop={desktop}
           createArtifact={secondarySurfaces.createArtifact}
           onNavigate={onNavigate}
+          nativeCapabilities={nativeCapabilities}
         />
       );
     case "artifacts-detail":
@@ -1026,6 +1212,7 @@ function RouteSurface({
           deleteArtifact={secondarySurfaces.deleteArtifact}
           loadArtifact={secondarySurfaces.loadArtifact}
           onNavigate={onNavigate}
+          nativeCapabilities={nativeCapabilities}
         />
       );
     case "artifacts-edit":
@@ -1037,6 +1224,7 @@ function RouteSurface({
           updateArtifact={secondarySurfaces.updateArtifact}
           loadArtifact={secondarySurfaces.loadArtifact}
           onNavigate={onNavigate}
+          nativeCapabilities={nativeCapabilities}
         />
       );
     case "user-detail":
@@ -1057,6 +1245,7 @@ function RouteSurface({
           desktop={desktop}
           searchParams={resolved.searchParams}
           onNavigate={onNavigate}
+          nativeCapabilities={nativeCapabilities}
         />
       );
     case "server":
@@ -1070,7 +1259,7 @@ function RouteSurface({
         />
       );
     case "text-selection":
-      return <TextSelectionSurface />;
+      return <TextSelectionSurface nativeCapabilities={nativeCapabilities} />;
     default:
       return (
         <PlannedSurface
@@ -1092,11 +1281,17 @@ function HomeSurface({
   onNavigate,
   brandLogoSrc,
   brandLogotypeSrc,
+  runtimeCopy,
+  mainViewTabs,
+  settingsFeatureLinks,
 }: {
   desktop: DesktopState;
   onNavigate: (path: string) => void;
   brandLogoSrc: string;
   brandLogotypeSrc: string;
+  runtimeCopy: RuntimeShellCopy;
+  mainViewTabs: ReadonlyArray<MainViewTabConfig>;
+  settingsFeatureLinks: ReturnType<typeof buildSettingsFeatureLinks>;
 }) {
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<MainViewTab>("sessions");
@@ -1125,12 +1320,9 @@ function HomeSurface({
             <img className="hero-brand-logotype" src={brandLogotypeSrc} alt="Vibe" />
           </div>
           <div>
-            <p className="eyebrow">Desktop entry</p>
-            <h3>Create or restore a Vibe desktop account</h3>
-            <p className="hero-copy">
-              Sign in with a fresh account, restore from a backup key, or link an
-              existing mobile account to reach the live session flow.
-            </p>
+            <p className="eyebrow">{runtimeCopy.entryEyebrow}</p>
+            <h3>{runtimeCopy.createRestoreHeading}</h3>
+            <p className="hero-copy">{runtimeCopy.createRestoreCopy}</p>
           </div>
           <div className="hero-actions">
             <button
@@ -1153,7 +1345,7 @@ function HomeSurface({
         <section className="surface-grid two-up">
           <article className="panel-card">
             <div className="card-header">
-              <h3>Desktop essentials</h3>
+              <h3>{runtimeCopy.essentialsTitle}</h3>
               <span className="pill pill-accent">Core flow</span>
             </div>
             <ul className="bullet-list">
@@ -1165,7 +1357,7 @@ function HomeSurface({
 
           <article className="panel-card">
             <div className="card-header">
-              <h3>Available in this desktop slice</h3>
+              <h3>{`Available in this ${runtimeCopy.surfaceLabel} slice`}</h3>
               <span className="pill pill-outline">Current coverage</span>
             </div>
             <ul className="bullet-list">
@@ -1196,12 +1388,9 @@ function HomeSurface({
             <img className="hero-brand-logotype" src={brandLogotypeSrc} alt="Vibe" />
           </div>
           <div>
-            <p className="eyebrow">Desktop entry</p>
-            <h3>Continue with your desktop sessions</h3>
-            <p className="hero-copy">
-              Sessions stay front and center, with inbox and settings one step away in the
-              same shell hierarchy Happy uses today.
-            </p>
+            <p className="eyebrow">{runtimeCopy.entryEyebrow}</p>
+            <h3>{runtimeCopy.continueHeading}</h3>
+            <p className="hero-copy">{runtimeCopy.continueCopy}</p>
           </div>
         </div>
         <div className="hero-actions profile-summary-row">
@@ -1231,7 +1420,7 @@ function HomeSurface({
             <span className="pill pill-outline">Keep safe</span>
           </div>
           <p className="panel-copy">
-            This backup key restores the desktop app without relying on the current machine.
+            {runtimeCopy.backupCopy}
           </p>
           <code className="backup-code">{desktop.backupKey}</code>
           <div className="button-row">
@@ -1244,7 +1433,11 @@ function HomeSurface({
       ) : null}
 
       <section className="panel-card mainview-panel">
-        <div className="mainview-tabbar" role="tablist" aria-label="Desktop main view tabs">
+        <div
+          className="mainview-tabbar"
+          role="tablist"
+          aria-label={`${runtimeCopy.surfaceTitle} main view tabs`}
+        >
           {mainViewTabs.map((tab) => (
             <button
               key={tab.key}
@@ -1297,7 +1490,7 @@ function HomeSurface({
             ) : (
               <EmptyState
                 title="No sessions yet"
-                body="Create the first desktop session to verify the live backend path end to end."
+                body={`Create the first ${runtimeCopy.surfaceLabel} session to verify the live backend path end to end.`}
                 actionLabel="Create session"
                 onAction={() => onNavigate("/(app)/new/index")}
               />
@@ -1334,7 +1527,7 @@ function HomeSurface({
                     <div key={service} className="settings-row static">
                       <div className="settings-row-copy">
                         <strong>{formatServiceLabel(service)}</strong>
-                        <p>Connected on the current desktop account.</p>
+                        <p>{`Connected on the current ${runtimeCopy.surfaceLabel} account.`}</p>
                       </div>
                       <span className="settings-row-badge connected">Connected</span>
                     </div>
@@ -1374,8 +1567,7 @@ function HomeSurface({
                 </div>
               ) : (
                 <p className="panel-copy">
-                  Session activity will appear here as soon as the desktop account has
-                  at least one live session.
+                  {`Session activity will appear here as soon as the ${runtimeCopy.surfaceLabel} account has at least one live session.`}
                 </p>
               )}
             </article>
@@ -1405,7 +1597,7 @@ function HomeSurface({
             >
               <div className="settings-row-copy">
                 <strong>Open full settings</strong>
-                <p>Review connected accounts, feature routes, desktop configuration, and about links.</p>
+                <p>{runtimeCopy.settingsHubCopy}</p>
               </div>
               <span className="settings-row-badge">Hub</span>
             </button>
@@ -1420,9 +1612,13 @@ function HomeSurface({
 function RestoreSurface({
   desktop,
   onNavigate,
+  runtimeTarget,
+  runtimeCopy,
 }: {
   desktop: DesktopState;
   onNavigate: (path: string) => void;
+  runtimeTarget: RuntimeTarget;
+  runtimeCopy: RuntimeShellCopy;
 }) {
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const autoStartedLinkRef = useRef(false);
@@ -1471,11 +1667,7 @@ function RestoreSurface({
         <div>
           <p className="eyebrow">Auth and session state</p>
           <h3>Restore and account-link flow</h3>
-          <p className="hero-copy">
-            The route immediately starts the mobile-link request, just like the current
-            desktop restore entry. You can still create a fresh account or restore from
-            the backup secret key instead.
-          </p>
+          <p className="hero-copy">{runtimeCopy.restoreFlowCopy}</p>
         </div>
         <div className="hero-actions">
           <button type="button" className="primary-button" onClick={() => void desktop.createFreshAccount()}>
@@ -1490,11 +1682,13 @@ function RestoreSurface({
       <section className="surface-grid two-up">
         <article className="panel-card">
           <div className="card-header">
-            <h3>Mobile link request</h3>
+            <h3>{runtimeTarget === "desktop" ? "Mobile link request" : "Device link request"}</h3>
             <span className="pill pill-p0">Live link</span>
           </div>
           <p className="panel-copy">
-            Start a request, then scan the QR code with the current Vibe mobile app and approve the device link.
+            {runtimeTarget === "desktop"
+              ? "Start a request, then scan the QR code with the current Vibe mobile app and approve the device link."
+              : "Start a request, then continue from another signed-in device or fallback link to approve the account link."}
           </p>
           <div className="button-row">
             <button type="button" className="primary-button" onClick={() => void desktop.startMobileLink()}>
@@ -1558,9 +1752,13 @@ function RestoreSurface({
 function ManualRestoreSurface({
   desktop,
   onNavigate,
+  runtimeCopy,
+  nativeCapabilities,
 }: {
   desktop: DesktopState;
   onNavigate: (path: string) => void;
+  runtimeCopy: RuntimeShellCopy;
+  nativeCapabilities: RuntimeNativeCapabilities;
 }) {
   const [secret, setSecret] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -1571,7 +1769,7 @@ function ManualRestoreSurface({
     setLoadingFile(true);
     setError(null);
     try {
-      const nextSecret = await openTextFileDialog("Load desktop backup key");
+      const nextSecret = await openTextFileDialog(`Load ${runtimeCopy.surfaceLabel} backup key`);
       if (nextSecret) {
         setSecret(nextSecret.trim());
       }
@@ -1616,18 +1814,23 @@ function ManualRestoreSurface({
           <button type="button" className="primary-button" onClick={() => void handleSubmit()} disabled={submitting}>
             {submitting ? "Restoring..." : "Restore account"}
           </button>
-          <button
-            type="button"
-            className="secondary-button"
-            onClick={() => void handleLoadKeyFile()}
-            disabled={loadingFile}
-          >
-            {loadingFile ? "Loading key..." : "Load key file"}
-          </button>
+          {nativeCapabilities.fileImport.available ? (
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => void handleLoadKeyFile()}
+              disabled={loadingFile}
+            >
+              {loadingFile ? "Loading key..." : "Load key file"}
+            </button>
+          ) : null}
           <button type="button" className="secondary-button" onClick={() => onNavigate("/(app)/restore/index")}>
             Back to restore
           </button>
         </div>
+        {!nativeCapabilities.fileImport.available ? (
+          <p className="panel-copy small-copy">{nativeCapabilities.fileImport.summary}</p>
+        ) : null}
       </article>
 
       <article className="panel-card">
@@ -1638,7 +1841,7 @@ function ManualRestoreSurface({
         <ul className="bullet-list dense-list">
           <li>Challenge auth returns a real bearer token from the current Vibe backend.</li>
           <li>Encrypted session metadata and message content can be decrypted with the restored secret.</li>
-          <li>The same secret key works across fresh installs and desktop rebuilds.</li>
+          <li>The same secret key works across fresh installs and other Vibe runtime shells.</li>
         </ul>
       </article>
     </div>
@@ -1729,12 +1932,26 @@ function NewSessionSurface({
   desktop: DesktopState;
   onNavigate: (path: string) => void;
 }) {
-  const [workspace, setWorkspace] = useState("/root/vibe-remote");
-  const [model, setModel] = useState("gpt-5.4");
-  const [title, setTitle] = useState("Wave 8 Desktop Session");
-  const [prompt, setPrompt] = useState("Continue the Wave 8 desktop rewrite and report what changed.");
+  const initialDraftRef = useRef<NewSessionDraft | null>(null);
+  if (!initialDraftRef.current) {
+    initialDraftRef.current = loadNewSessionDraft(NEW_SESSION_DEFAULT_DRAFT);
+  }
+
+  const [workspace, setWorkspace] = useState(initialDraftRef.current.workspace);
+  const [model, setModel] = useState(initialDraftRef.current.model);
+  const [title, setTitle] = useState(initialDraftRef.current.title);
+  const [prompt, setPrompt] = useState(initialDraftRef.current.prompt);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    saveNewSessionDraft({
+      workspace,
+      model,
+      title,
+      prompt,
+    });
+  }, [workspace, model, title, prompt]);
 
   if (!desktop.credentials) {
     return <SignedOutState onNavigate={onNavigate} />;
@@ -1745,6 +1962,7 @@ function NewSessionSurface({
     setError(null);
     try {
       const session = await desktop.createSession({ workspace, model, prompt, title });
+      clearNewSessionDraft();
       onNavigate(`/(app)/session/${session.id}`);
     } catch (createError) {
       setError(createError instanceof Error ? createError.message : "Failed to create session");
@@ -1813,15 +2031,100 @@ function SessionSurface({
   sessionId: string;
   onNavigate: (path: string) => void;
 }) {
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = useState(() => loadSessionDraft(sessionId));
   const session = desktop.sessions.find((item) => item.id === sessionId) ?? null;
   const messageState = desktop.sessionState[sessionId];
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const [selectionRange, setSelectionRange] = useState<{ start: number; end: number }>({
+    start: draft.length,
+    end: draft.length,
+  });
+  const [sessionFileSuggestions, setSessionFileSuggestions] = useState<string[] | null>(null);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const permissionOptions = useMemo(
+    () => getSessionPermissionOptions(session?.metadata ?? null),
+    [session?.metadata],
+  );
+  const modelOptions = useMemo(
+    () => getSessionModelOptions(session?.metadata ?? null),
+    [session?.metadata],
+  );
+  const defaultComposerPreferences = useMemo(
+    () => ({
+      permissionMode: resolveSessionModeSelection(permissionOptions, [
+        session?.metadata?.currentOperatingModeCode,
+        "default",
+      ]),
+      model: resolveSessionModeSelection(modelOptions, [
+        session?.metadata?.currentModelCode,
+        "default",
+      ]),
+    } satisfies SessionComposerPreferences),
+    [modelOptions, permissionOptions, session?.metadata?.currentModelCode, session?.metadata?.currentOperatingModeCode],
+  );
+  const [composerPreferences, setComposerPreferences] = useState<SessionComposerPreferences>(() =>
+    loadSessionPreferences(sessionId, defaultComposerPreferences),
+  );
+  const activeComposerToken = useMemo(
+    () => findActiveComposerToken(draft, selectionRange.start, selectionRange.end),
+    [draft, selectionRange.end, selectionRange.start],
+  );
+  const composerSuggestions = useMemo(
+    () =>
+      buildComposerSuggestions(
+        activeComposerToken?.activeWord ?? null,
+        sessionFileSuggestions ?? [],
+      ),
+    [activeComposerToken?.activeWord, sessionFileSuggestions],
+  );
 
   useEffect(() => {
     if (session) {
       void desktop.loadMessages(session.id);
     }
   }, [desktop.loadMessages, session?.id]);
+
+  useEffect(() => {
+    setComposerPreferences(loadSessionPreferences(sessionId, defaultComposerPreferences));
+  }, [defaultComposerPreferences, sessionId]);
+
+  useEffect(() => {
+    if (!sessionId) {
+      return;
+    }
+
+    if (draft) {
+      saveSessionDraft(sessionId, draft);
+      return;
+    }
+
+    clearSessionDraft(sessionId);
+  }, [draft, sessionId]);
+
+  useEffect(() => {
+    saveSessionPreferences(sessionId, composerPreferences);
+  }, [composerPreferences, sessionId]);
+
+  useEffect(() => {
+    setSessionFileSuggestions(null);
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (activeComposerToken?.activeWord.startsWith("@") && sessionFileSuggestions === null && session) {
+      setSuggestionsLoading(true);
+      void desktop
+        .loadSessionFiles(session.id)
+        .then((inventory) => {
+          setSessionFileSuggestions(inventory.files.map((file) => file.relativePath));
+        })
+        .catch(() => {
+          setSessionFileSuggestions([]);
+        })
+        .finally(() => {
+          setSuggestionsLoading(false);
+        });
+    }
+  }, [activeComposerToken?.activeWord, desktop.loadSessionFiles, session, sessionFileSuggestions]);
 
   if (!desktop.credentials) {
     return <SignedOutState onNavigate={onNavigate} />;
@@ -1844,8 +2147,31 @@ function SessionSurface({
     if (!draft.trim()) {
       return;
     }
-    await desktop.sendMessage(session.id, draft);
+    await desktop.sendMessage(session.id, draft, {
+      permissionMode:
+        composerPreferences.permissionMode === "default"
+          ? undefined
+          : composerPreferences.permissionMode,
+      model: composerPreferences.model === "default" ? null : composerPreferences.model,
+    });
     setDraft("");
+  };
+
+  const handleSuggestionSelect = (suggestion: ComposerSuggestion) => {
+    const next = applyComposerSuggestion(
+      draft,
+      selectionRange.start,
+      selectionRange.end,
+      suggestion,
+    );
+    setDraft(next.text);
+    setSelectionRange({ start: next.cursorPosition, end: next.cursorPosition });
+    if (typeof window !== "undefined") {
+      window.requestAnimationFrame(() => {
+        textareaRef.current?.focus();
+        textareaRef.current?.setSelectionRange(next.cursorPosition, next.cursorPosition);
+      });
+    }
   };
 
   return (
@@ -1888,6 +2214,15 @@ function SessionSurface({
                     message={message}
                     appearanceSettings={preferences.appearanceSettings}
                   />
+                  <div className="button-row compact-actions">
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => onNavigate(`/(app)/session/${session.id}/message/${message.id}`)}
+                    >
+                      Open message
+                    </button>
+                  </div>
                 </article>
               ))}
             </div>
@@ -1901,23 +2236,113 @@ function SessionSurface({
             <h3>Composer</h3>
             <span className="pill pill-p0">Live send</span>
           </div>
+          <div className="composer-settings-row">
+            <label className="field-block compact-field">
+              <span>Permission</span>
+              <select
+                value={composerPreferences.permissionMode}
+                onChange={(event) =>
+                  setComposerPreferences((current) => ({
+                    ...current,
+                    permissionMode: event.target.value,
+                  }))
+                }
+              >
+                {permissionOptions.map((option) => (
+                  <option key={option.key} value={option.key}>
+                    {option.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field-block compact-field">
+              <span>Model</span>
+              <select
+                value={composerPreferences.model}
+                onChange={(event) =>
+                  setComposerPreferences((current) => ({
+                    ...current,
+                    model: event.target.value,
+                  }))
+                }
+              >
+                {modelOptions.map((option) => (
+                  <option key={option.key} value={option.key}>
+                    {option.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
           <label className="field-block">
             <span>Prompt the agent</span>
             <textarea
+              ref={textareaRef}
               rows={8}
               value={draft}
-              onChange={(event) => setDraft(event.target.value)}
+              onChange={(event) => {
+                setDraft(event.target.value);
+                setSelectionRange({
+                  start: event.currentTarget.selectionStart ?? event.target.value.length,
+                  end: event.currentTarget.selectionEnd ?? event.target.value.length,
+                });
+              }}
+              onSelect={(event) =>
+                setSelectionRange({
+                  start: event.currentTarget.selectionStart ?? draft.length,
+                  end: event.currentTarget.selectionEnd ?? draft.length,
+                })
+              }
               placeholder="Send a real message to the session"
             />
           </label>
+          {activeComposerToken ? (
+            <div className="composer-hint-row">
+              <span className="pill pill-outline">
+                {activeComposerToken.activeWord.startsWith("@")
+                  ? "File mention autocomplete"
+                  : "Slash command autocomplete"}
+              </span>
+              <span className="panel-copy compact-copy">
+                {activeComposerToken.activeWord.startsWith("@")
+                  ? "Reference workspace files directly in the next turn."
+                  : "Queue a common session command without retyping it."}
+              </span>
+            </div>
+          ) : null}
+          {suggestionsLoading ? (
+            <p className="panel-copy compact-copy">Loading live workspace file suggestions...</p>
+          ) : composerSuggestions.length > 0 ? (
+            <div className="composer-suggestion-list">
+              {composerSuggestions.map((suggestion) => (
+                <button
+                  key={suggestion.key}
+                  type="button"
+                  className="composer-suggestion-button"
+                  onClick={() => handleSuggestionSelect(suggestion)}
+                >
+                  <strong>{suggestion.label}</strong>
+                  <span>{suggestion.description}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
           <div className="button-row">
             <button
               type="button"
               className="primary-button"
               onClick={() => void handleSend()}
-              disabled={messageState?.sending}
+              disabled={messageState?.sending || messageState?.aborting}
             >
               {messageState?.sending ? "Sending..." : "Send live message"}
+            </button>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => void desktop.abortSession(session.id)}
+              disabled={messageState?.aborting}
+            >
+              {messageState?.aborting ? "Aborting..." : "Abort turn"}
             </button>
             <button type="button" className="secondary-button" onClick={() => onNavigate("/(app)/session/recent")}>
               Recent sessions
@@ -1928,8 +2353,136 @@ function SessionSurface({
             <ul className="bullet-list dense-list">
               <li>Messages are encrypted locally before `/v3/sessions/:id/messages` receives them.</li>
               <li>Timeline entries are decrypted in the desktop app using the restored secret key.</li>
-              <li>Rich markdown and tool rendering still remain part of the session-parity follow-up.</li>
+              <li>Selected model and permission mode persist locally and apply to the next message turn.</li>
+              <li>Rich markdown, diff, tool, and file rendering now reuse the package-local parity renderers.</li>
             </ul>
+          </div>
+        </article>
+      </section>
+    </div>
+  );
+}
+
+function SessionMessageSurface({
+  sessionId,
+  messageId,
+  desktop,
+  preferences,
+  onNavigate,
+}: {
+  sessionId: string;
+  messageId: string;
+  desktop: DesktopState;
+  preferences: DesktopPreferencesState;
+  onNavigate: (path: string) => void;
+}) {
+  const session = desktop.sessions.find((item) => item.id === sessionId) ?? null;
+  const messageState = desktop.sessionState[sessionId];
+
+  useEffect(() => {
+    if (session) {
+      void desktop.loadMessages(session.id);
+    }
+  }, [desktop.loadMessages, session?.id]);
+
+  if (!desktop.credentials) {
+    return <SignedOutState onNavigate={onNavigate} />;
+  }
+
+  if (!session) {
+    return (
+      <EmptyState
+        title="Session not found"
+        body="Reload the session list before opening a deep-linked message route."
+        actionLabel="Back to inbox"
+        onAction={() => onNavigate("/(app)/inbox/index")}
+      />
+    );
+  }
+
+  const message = messageState?.items.find((item) => item.id === messageId) ?? null;
+  if (messageState?.loading && !message) {
+    return (
+      <div className="panel-card empty-state-card">
+        <h3>Loading message</h3>
+        <p className="panel-copy">Decrypting the requested message from the live session history.</p>
+      </div>
+    );
+  }
+
+  if (!message) {
+    return (
+      <EmptyState
+        title="Message not found"
+        body="Refresh the session timeline and reopen the deep link once the message history is loaded."
+        actionLabel="Back to session"
+        onAction={() => onNavigate(`/(app)/session/${sessionId}`)}
+      />
+    );
+  }
+
+  return (
+    <div className="surface-stack">
+      <section className="hero-panel compact-hero">
+        <div>
+          <p className="eyebrow">Session message</p>
+          <h3>{message.title}</h3>
+          <p className="hero-copy">{new Date(message.createdAt).toLocaleString()}</p>
+        </div>
+        <div className="hero-meta">
+          <span className="pill pill-outline">{message.role}</span>
+          <span className="pill pill-outline">{message.rawType}</span>
+        </div>
+      </section>
+      <section className="surface-grid two-up">
+        <article className="panel-card">
+          <div className="card-header">
+            <h3>Rendered message</h3>
+            <span className="pill pill-accent">Deep link</span>
+          </div>
+          <TimelineMessageBody
+            message={message}
+            appearanceSettings={preferences.appearanceSettings}
+          />
+        </article>
+        <article className="panel-card">
+          <div className="card-header">
+            <h3>Message metadata</h3>
+            <span className="pill pill-outline">P1 route</span>
+          </div>
+          <dl className="meta-grid compact-meta-grid">
+            <div>
+              <dt>Message ID</dt>
+              <dd>{message.id}</dd>
+            </div>
+            <div>
+              <dt>Role</dt>
+              <dd>{message.role}</dd>
+            </div>
+            <div>
+              <dt>Rendered as</dt>
+              <dd>{message.rawType}</dd>
+            </div>
+            <div>
+              <dt>Session</dt>
+              <dd>{sessionId}</dd>
+            </div>
+          </dl>
+          <div className="button-row">
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => onNavigate(`/(app)/session/${sessionId}`)}
+            >
+              Back to session
+            </button>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => onNavigate(`/(app)/session/${sessionId}/files`)}
+            >
+              Open session files
+            </button>
           </div>
         </article>
       </section>
@@ -2399,9 +2952,17 @@ function RecentSurface({
 function SettingsSurface({
   desktop,
   onNavigate,
+  runtimeTarget,
+  runtimeCopy,
+  settingsFeatureLinks,
+  aboutLinks,
 }: {
   desktop: DesktopState;
   onNavigate: (path: string) => void;
+  runtimeTarget: RuntimeTarget;
+  runtimeCopy: RuntimeShellCopy;
+  settingsFeatureLinks: ReturnType<typeof buildSettingsFeatureLinks>;
+  aboutLinks: ReturnType<typeof buildAboutLinks>;
 }) {
   const [serverUrlDraft, setServerUrlDraft] = useState(desktop.serverUrl);
   const [updating, setUpdating] = useState(false);
@@ -2417,7 +2978,7 @@ function SettingsSurface({
     setError(null);
     try {
       await desktop.updateServerUrl(serverUrlDraft);
-      setFeedback("Desktop server endpoint updated.");
+      setFeedback(`${runtimeCopy.surfaceTitle} server endpoint updated.`);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Failed to update server URL");
     } finally {
@@ -2429,7 +2990,7 @@ function SettingsSurface({
     desktop.profile?.firstName,
     desktop.profile?.lastName,
     desktop.profile?.username,
-    desktop.profile?.id ?? "Desktop account",
+    desktop.profile?.id ?? `${runtimeCopy.surfaceTitle} account`,
   );
 
   const handleCopyBackupKey = async () => {
@@ -2473,11 +3034,7 @@ function SettingsSurface({
           <div className="profile-summary-copy">
             <p className="eyebrow">Settings</p>
             <h3>{profileName}</h3>
-            <p className="hero-copy">
-              The settings hub now tracks the current app more closely: connected
-              accounts, feature routes, desktop configuration, and about links all stay
-              grouped under one route.
-            </p>
+            <p className="hero-copy">{runtimeCopy.settingsHubCopy}</p>
           </div>
         </div>
         <div className="hero-actions">
@@ -2528,7 +3085,7 @@ function SettingsSurface({
                 <p>
                   {(desktop.profile?.connectedServices ?? []).includes("anthropic")
                     ? "Connected on this account."
-                    : "Open the desktop connect flow for command handoff and setup guidance."}
+                    : `Open the ${runtimeCopy.surfaceLabel} connect flow for command handoff and setup guidance.`}
                 </p>
               </div>
               <span
@@ -2550,7 +3107,7 @@ function SettingsSurface({
             >
               <div className="settings-row-copy">
                 <strong>Restore or Link Device</strong>
-                <p>Reuse the locked localhost loopback flow to link another desktop.</p>
+                <p>{describeRuntimeLinkRoute(runtimeTarget)}</p>
               </div>
               <span className="settings-row-badge">Auth</span>
             </button>
@@ -2559,7 +3116,7 @@ function SettingsSurface({
 
         <article className="panel-card settings-group-card">
           <div className="card-header">
-            <h3>Desktop Configuration</h3>
+            <h3>{runtimeCopy.configTitle}</h3>
             <span className="pill pill-outline">Live endpoint</span>
           </div>
           <label className="field-block">
@@ -2641,7 +3198,7 @@ function SettingsSurface({
             <div className="settings-row static">
               <div className="settings-row-copy">
                 <strong>Version</strong>
-                <p>Desktop rewrite preview build</p>
+                <p>{`${runtimeCopy.surfaceTitle} shell preview build`}</p>
               </div>
               <span className="settings-row-badge">{DESKTOP_PREVIEW_VERSION}</span>
             </div>
@@ -2655,9 +3212,11 @@ function SettingsSurface({
 function AccountSettingsSurface({
   desktop,
   onNavigate,
+  runtimeCopy,
 }: {
   desktop: DesktopState;
   onNavigate: (path: string) => void;
+  runtimeCopy: RuntimeShellCopy;
 }) {
   const [feedback, setFeedback] = useState<string | null>(null);
 
@@ -2669,7 +3228,7 @@ function AccountSettingsSurface({
     desktop.profile?.firstName,
     desktop.profile?.lastName,
     desktop.profile?.username,
-    desktop.profile?.id ?? "Desktop account",
+    desktop.profile?.id ?? `${runtimeCopy.surfaceTitle} account`,
   );
 
   const handleCopyBackupKey = async () => {
@@ -2691,10 +3250,7 @@ function AccountSettingsSurface({
         <div>
           <p className="eyebrow">Account</p>
           <h3>{profileName}</h3>
-          <p className="hero-copy">
-            Identity, linked services, restore material, and logout controls now stay reachable on
-            a dedicated desktop settings route backed by the current desktop account state.
-          </p>
+          <p className="hero-copy">{runtimeCopy.accountRouteCopy}</p>
         </div>
         <div className="hero-actions">
           <button type="button" className="secondary-button" onClick={() => void handleCopyBackupKey()}>
@@ -2726,7 +3282,7 @@ function AccountSettingsSurface({
               <dd>{desktop.profile?.connectedServices.length ?? 0}</dd>
             </div>
             <div>
-              <dt>Desktop status</dt>
+              <dt>{`${runtimeCopy.surfaceTitle} status`}</dt>
               <dd>{statusLabel(desktop.status)}</dd>
             </div>
           </dl>
@@ -2751,7 +3307,7 @@ function AccountSettingsSurface({
               <div className="settings-row static">
                 <div className="settings-row-copy">
                   <strong>No connected services</strong>
-                  <p>Open the vendor route to connect a supported desktop integration.</p>
+                  <p>Open the vendor route to connect a supported integration.</p>
                 </div>
                 <button
                   type="button"
@@ -3031,8 +3587,10 @@ function FeatureSettingsSurface({
 
 function LanguageSettingsSurface({
   preferences,
+  runtimeCopy,
 }: {
   preferences: DesktopPreferencesState;
+  runtimeCopy: RuntimeShellCopy;
 }) {
   const { languageSettings, commitLanguagePatch } = preferences;
   const runtimeLanguage =
@@ -3050,10 +3608,7 @@ function LanguageSettingsSurface({
           <h3>Language</h3>
           <span className="pill pill-accent">{languageSettings.appLanguage}</span>
         </div>
-        <p className="panel-copy">
-          Desktop language support now persists the preferred app language locally and applies it to
-          the desktop document state, even though full translated copy switching remains a later step.
-        </p>
+        <p className="panel-copy">{runtimeCopy.languageCopy}</p>
         <div className="settings-list">
           {supportedLanguages.map((language) => (
             <button
@@ -3070,7 +3625,7 @@ function LanguageSettingsSurface({
                 <p>
                   {language.englishName !== language.nativeName
                     ? language.englishName
-                    : "Preferred desktop language"}
+                    : `Preferred ${runtimeCopy.surfaceTitle} language`}
                 </p>
               </div>
               <span className="settings-row-badge">
@@ -3086,9 +3641,9 @@ function LanguageSettingsSurface({
           <span className="pill pill-outline">{DEFAULT_LANGUAGE}</span>
         </div>
         <ul className="bullet-list dense-list">
-          <li>Current browser language: {runtimeLanguage}</li>
+          <li>{`${runtimeCopy.runtimeLanguageLabel}: ${runtimeLanguage}`}</li>
           <li>Preferred languages: {preferredLanguages.join(", ")}</li>
-          <li>Current stored desktop preference: {languageSettings.appLanguage}</li>
+          <li>{`${runtimeCopy.storedPreferenceLabel}: ${languageSettings.appLanguage}`}</li>
           <li>Full translated copy switching remains a later promotion step.</li>
         </ul>
         <div className="button-row">
@@ -3279,12 +3834,26 @@ function UsageSettingsSurface({
 function VoiceSettingsSurface({
   preferences,
   onNavigate,
+  nativeCapabilities,
 }: {
   preferences: DesktopPreferencesState;
   onNavigate: (path: string) => void;
+  nativeCapabilities: RuntimeNativeCapabilities;
 }) {
   const { voiceSettings, commitVoicePatch } = preferences;
   const [customAgentDraft, setCustomAgentDraft] = useState(voiceSettings.customAgentId ?? "");
+  const runtimeLabel =
+    nativeCapabilities.runtimeTarget === "mobile"
+      ? "Android shell"
+      : nativeCapabilities.runtimeTarget === "browser"
+        ? "browser shell"
+        : "desktop shell";
+  const capabilityBadge =
+    nativeCapabilities.runtimeTarget === "mobile"
+      ? "Android-backed"
+      : nativeCapabilities.runtimeTarget === "browser"
+        ? "Browser-backed"
+        : "Desktop-backed";
 
   useEffect(() => {
     setCustomAgentDraft(voiceSettings.customAgentId ?? "");
@@ -3304,7 +3873,7 @@ function VoiceSettingsSurface({
           <span className="pill pill-accent">Persisted</span>
         </div>
         <p className="panel-copy">
-          Voice preferences now persist in the desktop shell so language and bring-your-own-agent
+          Voice preferences now persist in the {runtimeLabel} so language and bring-your-own-agent
           review no longer depend on throwaway local preview state.
         </p>
         <label className="field-block">
@@ -3358,11 +3927,11 @@ function VoiceSettingsSurface({
       <article className="panel-card">
         <div className="card-header">
           <h3>Status</h3>
-          <span className="pill pill-outline">Desktop-backed</span>
+          <span className="pill pill-outline">{capabilityBadge}</span>
         </div>
         <ul className="bullet-list dense-list">
           <li>Preferred language and custom agent settings are now persisted locally.</li>
-          <li>Microphone capture and realtime device behavior remain a later promotion decision.</li>
+          <li>{nativeCapabilities.voiceCapture.summary}</li>
           <li>Language review can proceed independently from live voice transport or capture APIs.</li>
         </ul>
         <div className="button-row">
@@ -3638,10 +4207,12 @@ function TerminalConnectSurface({
   desktop,
   searchParams,
   onNavigate,
+  nativeCapabilities,
 }: {
   desktop: DesktopState;
   searchParams: URLSearchParams;
   onNavigate: (path: string) => void;
+  nativeCapabilities: RuntimeNativeCapabilities;
 }) {
   const seededKey = readTerminalConnectKey(searchParams) ?? "";
   const [keyInput, setKeyInput] = useState(seededKey);
@@ -3669,10 +4240,12 @@ function TerminalConnectSurface({
     try {
       await approveTerminalConnection(desktop.serverUrl, desktop.credentials, publicKey);
       setFeedback("Terminal connection approved.");
-      void showDesktopNotification(
-        "Terminal connected",
-        "The desktop shell approved the terminal connection request.",
-      ).catch(() => undefined);
+      if (nativeCapabilities.notificationRouting.available) {
+        void showDesktopNotification(
+          "Terminal connected",
+          "The desktop shell approved the terminal connection request.",
+        ).catch(() => undefined);
+      }
     } catch (error) {
       setFeedback(
         error instanceof Error ? error.message : "Failed to approve terminal connection",
@@ -3810,7 +4383,11 @@ function ServerConfigSurface({
   );
 }
 
-function TextSelectionSurface() {
+function TextSelectionSurface({
+  nativeCapabilities,
+}: {
+  nativeCapabilities: RuntimeNativeCapabilities;
+}) {
   const [text, setText] = useState(
     "Paste or draft text here, then copy the normalized selection for desktop workflows.",
   );
@@ -3859,16 +4436,21 @@ function TextSelectionSurface() {
           <button type="button" className="primary-button" onClick={() => void handleCopy()}>
             Copy selection
           </button>
-          <button
-            type="button"
-            className="secondary-button"
-            onClick={() => void handleSave()}
-            disabled={saving}
-          >
-            {saving ? "Saving..." : "Save selection to file"}
-          </button>
+          {nativeCapabilities.fileExport.available ? (
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => void handleSave()}
+              disabled={saving}
+            >
+              {saving ? "Saving..." : "Save selection to file"}
+            </button>
+          ) : null}
         </div>
         {feedback ? <div className="compact-feedback">{feedback}</div> : null}
+        {!nativeCapabilities.fileExport.available ? (
+          <p className="panel-copy small-copy">{nativeCapabilities.fileExport.summary}</p>
+        ) : null}
       </article>
       <article className="panel-card">
         <div className="card-header">
@@ -3969,6 +4551,7 @@ function ArtifactCreateSurface({
   desktop,
   createArtifact,
   onNavigate,
+  nativeCapabilities,
 }: {
   desktop: DesktopState;
   createArtifact: (input: {
@@ -3978,6 +4561,7 @@ function ArtifactCreateSurface({
     draft?: boolean;
   }) => Promise<DesktopArtifact>;
   onNavigate: (path: string) => void;
+  nativeCapabilities: RuntimeNativeCapabilities;
 }) {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -3997,10 +4581,12 @@ function ArtifactCreateSurface({
         body: body.trim() || null,
         sessions: desktop.sessionSummaries.slice(0, 1).map(({ session }) => session.id),
       });
-      void showDesktopNotification(
-        "Artifact created",
-        `${created.title || "Untitled artifact"} is now available in the desktop library.`,
-      ).catch(() => undefined);
+      if (nativeCapabilities.notificationRouting.available) {
+        void showDesktopNotification(
+          "Artifact created",
+          `${created.title || "Untitled artifact"} is now available in the desktop library.`,
+        ).catch(() => undefined);
+      }
       onNavigate(`/(app)/artifacts/${created.id}`);
     } catch (createError) {
       setError(createError instanceof Error ? createError.message : "Failed to create artifact");
@@ -4060,6 +4646,7 @@ function ArtifactDetailSurface({
   deleteArtifact,
   loadArtifact,
   onNavigate,
+  nativeCapabilities,
 }: {
   artifactId: string;
   desktop: DesktopState;
@@ -4067,6 +4654,7 @@ function ArtifactDetailSurface({
   deleteArtifact: (artifactId: string) => Promise<void>;
   loadArtifact: (artifactId: string) => Promise<DesktopArtifact | null>;
   onNavigate: (path: string) => void;
+  nativeCapabilities: RuntimeNativeCapabilities;
 }) {
   const artifact = artifacts.find((item) => item.id === artifactId) ?? null;
   const [deleting, setDeleting] = useState(false);
@@ -4168,12 +4756,14 @@ function ArtifactDetailSurface({
             type="button"
             className="secondary-button"
             onClick={() => void handleSaveBodyToFile()}
-            disabled={savingFile || artifactBodyUnavailable}
+            disabled={savingFile || artifactBodyUnavailable || !nativeCapabilities.fileExport.available}
           >
             {artifactBodyLoading
               ? "Loading body..."
               : artifactBodyEncrypted
                 ? "Encrypted body"
+                : !nativeCapabilities.fileExport.available
+                  ? "Export unavailable"
                 : savingFile
                   ? "Saving file..."
                   : "Save body to file"}
@@ -4187,10 +4777,12 @@ function ArtifactDetailSurface({
                 setFeedback(null);
                 try {
                   await deleteArtifact(artifact.id);
-                  void showDesktopNotification(
-                    "Artifact deleted",
-                    `${artifact.title || "Untitled artifact"} was removed from the desktop library.`,
-                  ).catch(() => undefined);
+                  if (nativeCapabilities.notificationRouting.available) {
+                    void showDesktopNotification(
+                      "Artifact deleted",
+                      `${artifact.title || "Untitled artifact"} was removed from the desktop library.`,
+                    ).catch(() => undefined);
+                  }
                   onNavigate("/(app)/artifacts/index");
                 } catch (error) {
                   setFeedback(error instanceof Error ? error.message : "Failed to delete artifact");
@@ -4238,6 +4830,9 @@ function ArtifactDetailSurface({
               <li key={sessionId}>{sessionId}</li>
             ))}
           </ul>
+          {!nativeCapabilities.fileExport.available ? (
+            <p className="panel-copy small-copy">{nativeCapabilities.fileExport.summary}</p>
+          ) : null}
         </article>
       </section>
     </div>
@@ -4251,6 +4846,7 @@ function ArtifactEditSurface({
   updateArtifact,
   loadArtifact,
   onNavigate,
+  nativeCapabilities,
 }: {
   artifactId: string;
   desktop: DesktopState;
@@ -4266,6 +4862,7 @@ function ArtifactEditSurface({
   ) => Promise<DesktopArtifact>;
   loadArtifact: (artifactId: string) => Promise<DesktopArtifact | null>;
   onNavigate: (path: string) => void;
+  nativeCapabilities: RuntimeNativeCapabilities;
 }) {
   const artifact = artifacts.find((item) => item.id === artifactId) ?? null;
   const [title, setTitle] = useState(artifact?.title ?? "");
@@ -4325,10 +4922,12 @@ function ArtifactEditSurface({
         sessions: artifact.sessions,
         draft: artifact.draft,
       });
-      void showDesktopNotification(
-        "Artifact updated",
-        `${updated.title || "Untitled artifact"} was saved from the desktop editor.`,
-      ).catch(() => undefined);
+      if (nativeCapabilities.notificationRouting.available) {
+        void showDesktopNotification(
+          "Artifact updated",
+          `${updated.title || "Untitled artifact"} was saved from the desktop editor.`,
+        ).catch(() => undefined);
+      }
       onNavigate(`/(app)/artifacts/${artifactId}`);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Failed to update artifact");
@@ -4764,10 +5363,13 @@ function PlannedSurface({
 }
 
 function SignedOutState({ onNavigate }: { onNavigate: (path: string) => void }) {
+  const runtimeProfile = useRuntimeBootstrapProfile();
+  const runtimeCopy = resolveRuntimeShellCopy(runtimeProfile?.runtimeTarget ?? "desktop");
+
   return (
     <EmptyState
       title="Sign in required"
-      body="Create or restore an account first, then return to the desktop shell to load real sessions and messages."
+      body={`Create or restore an account first, then return to the ${runtimeCopy.surfaceLabel} shell to load real sessions and messages.`}
       actionLabel="Restore or link account"
       onAction={() => onNavigate("/(app)/restore/index")}
     />

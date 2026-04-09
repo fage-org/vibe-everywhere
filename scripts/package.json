@@ -5,6 +5,7 @@
   "scripts": {
     "validate:vibe-wire-fixtures": "node ./validate-vibe-wire-fixtures.mjs",
     "metrics:vibe-app-tauri": "node ./record-vibe-app-tauri-promotion-baseline.mjs",
+    "validate:vibe-app-tauri-release": "node ./validate-vibe-app-tauri-release.mjs",
     "validate:vibe-app-tauri-promotion": "node ./validate-vibe-app-tauri-promotion.mjs",
     "validate:vibe-app-tauri-promotion:ready": "node ./validate-vibe-app-tauri-promotion.mjs --promotion-ready"
   },

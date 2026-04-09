@@ -1,41 +1,55 @@
 @font-face {
-  font-family: "IBM Plex Sans";
-  src: url("../../vibe-app/sources/assets/fonts/IBMPlexSans-Regular.ttf") format("truetype");
+  font-family: "Bricolage Grotesque";
+  src: url("../sources/app/assets/fonts/BricolageGrotesque-Bold.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 700;
+}
+
+@font-face {
+  font-family: "Space Mono";
+  src: url("../sources/app/assets/fonts/SpaceMono-Regular.ttf") format("truetype");
   font-style: normal;
   font-weight: 400;
 }
 
 @font-face {
   font-family: "IBM Plex Sans";
-  src: url("../../vibe-app/sources/assets/fonts/IBMPlexSans-Italic.ttf") format("truetype");
+  src: url("../sources/app/assets/fonts/IBMPlexSans-Regular.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: "IBM Plex Sans";
+  src: url("../sources/app/assets/fonts/IBMPlexSans-Italic.ttf") format("truetype");
   font-style: italic;
   font-weight: 400;
 }
 
 @font-face {
   font-family: "IBM Plex Sans";
-  src: url("../../vibe-app/sources/assets/fonts/IBMPlexSans-SemiBold.ttf") format("truetype");
+  src: url("../sources/app/assets/fonts/IBMPlexSans-SemiBold.ttf") format("truetype");
   font-style: normal;
   font-weight: 600;
 }
 
 @font-face {
   font-family: "IBM Plex Mono";
-  src: url("../../vibe-app/sources/assets/fonts/IBMPlexMono-Regular.ttf") format("truetype");
+  src: url("../sources/app/assets/fonts/IBMPlexMono-Regular.ttf") format("truetype");
   font-style: normal;
   font-weight: 400;
 }
 
 @font-face {
   font-family: "IBM Plex Mono";
-  src: url("../../vibe-app/sources/assets/fonts/IBMPlexMono-Italic.ttf") format("truetype");
+  src: url("../sources/app/assets/fonts/IBMPlexMono-Italic.ttf") format("truetype");
   font-style: italic;
   font-weight: 400;
 }
 
 @font-face {
   font-family: "IBM Plex Mono";
-  src: url("../../vibe-app/sources/assets/fonts/IBMPlexMono-SemiBold.ttf") format("truetype");
+  src: url("../sources/app/assets/fonts/IBMPlexMono-SemiBold.ttf") format("truetype");
   font-style: normal;
   font-weight: 600;
 }
@@ -141,6 +155,52 @@ dd,
 
 #root {
   min-height: 100vh;
+}
+
+#bootstrap-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  gap: 18px;
+  background:
+    radial-gradient(circle at top, rgba(10, 132, 255, 0.18), transparent 42%),
+    linear-gradient(180deg, #17171b 0%, #111214 100%);
+  color: #ffffff;
+  transition:
+    opacity 180ms ease,
+    visibility 180ms ease;
+}
+
+#bootstrap-splash[data-state="ready"] {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.bootstrap-splash-mark {
+  width: 84px;
+  height: 84px;
+  border-radius: 24px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.24);
+}
+
+.bootstrap-splash-copy {
+  display: grid;
+  gap: 6px;
+  text-align: center;
+}
+
+.bootstrap-splash-copy strong {
+  font-family: "Bricolage Grotesque", "IBM Plex Sans", sans-serif;
+  font-size: 1.15rem;
+  letter-spacing: -0.04em;
+}
+
+.bootstrap-splash-copy span {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.95rem;
 }
 
 .skip-link {
@@ -711,6 +771,7 @@ kbd {
 
 .palette-search input,
 .field-block input,
+.field-block select,
 .field-block textarea {
   width: 100%;
   border-radius: var(--radius-sm);
@@ -723,6 +784,7 @@ kbd {
 
 .palette-search input:focus,
 .field-block input:focus,
+.field-block select:focus,
 .field-block textarea:focus,
 .command-trigger:focus-visible,
 .primary-button:focus-visible,
@@ -731,6 +793,7 @@ kbd {
 .sidebar-link:focus-visible,
 .inventory-link:focus-visible,
 .palette-result:focus-visible,
+.composer-suggestion-button:focus-visible,
 .settings-row:focus-visible,
 .settings-feature-card:focus-visible,
 .mainview-tab:focus-visible {
@@ -1064,6 +1127,58 @@ kbd {
   gap: 14px;
 }
 
+.composer-settings-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.compact-field {
+  gap: 8px;
+}
+
+.composer-hint-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.compact-copy {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.composer-suggestion-list {
+  display: grid;
+  gap: 10px;
+}
+
+.composer-suggestion-button {
+  width: 100%;
+  display: grid;
+  gap: 4px;
+  text-align: left;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-muted);
+  color: inherit;
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: border-color 160ms ease, transform 160ms ease, background 160ms ease;
+}
+
+.composer-suggestion-button:hover {
+  border-color: rgba(123, 226, 196, 0.32);
+  background: rgba(255, 255, 255, 0.06);
+  transform: translateY(-1px);
+}
+
+.composer-suggestion-button span {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
 @media (max-width: 1280px) {
   .desktop-app-shell {
     grid-template-columns: 1fr;
@@ -1091,6 +1206,7 @@ kbd {
   .compact-hero,
   .workspace-grid,
   .session-layout,
+  .composer-settings-row,
   .two-up,
   .three-up,
   .feature-grid,

@@ -1,5 +1,12 @@
 # Module Plan: vibe-app-tauri/mobile-native-capabilities
 
+## Status
+
+- completed on 2026-04-09 after the Wave 9 capability inventory was turned into an explicit
+  implementation/waiver register, desktop/browser parity-critical capability seams stayed wired in
+  code, Android-only native blockers were deferred in writing, and the release migration plan now
+  records the keep/defer decisions that unblock promotion planning
+
 ## Purpose
 
 Implement or explicitly defer the Tauri-mobile-native and cross-platform capabilities required for
@@ -92,3 +99,17 @@ Wave 9 promotion.
 - real-device validation is required for promotion-critical mobile capabilities
 - capability-driven UI affordances must stay aligned with
   `docs/plans/rebuild/shared/ui-visual-parity.md` unless a narrower exception is recorded first
+
+## Wave 9 Promotion Decision Register
+
+| Capability | Wave 9 decision | Scope note | Validation or evidence |
+| --- | --- | --- | --- |
+| notification routing | deferred on Android; informational on desktop/browser | no notification-driven route restoration ships in the current candidate | package-local capability matrix plus migration-plan waiver |
+| push registration | deferred on Android | the current candidate does not register device tokens | migration-plan waiver |
+| purchases / entitlement refresh | deferred | no current Wave 9 route depends on purchase-gated state | migration-plan waiver |
+| camera and QR scan | deferred | current auth/link flows use QR display plus fallback link/manual restore, not in-app scanning | migration-plan waiver |
+| voice / microphone capture | deferred | settings continuity remains live, but capture/permission flows are not part of the promotion candidate | package-local capability matrix plus migration-plan waiver |
+| file import/export/share on desktop/browser | implemented | restore, artifact export, and utility save flows stay available where the runtime supports them | `packages/vibe-app-tauri/src/native-capabilities.ts` plus route tests |
+| file import/export/share on Android | deferred | Android keeps paste/copy fallback paths instead of native file/share ownership | package-local capability matrix plus route tests |
+| desktop clipboard / dialog / notification semantics | implemented | desktop parity still depends on these non-mobile seams | existing Tauri commands plus route coverage |
+| review prompts and haptics | waived for current promotion gate | non-blocking polish flows remain outside the current replacement slice | explicit waiver only |

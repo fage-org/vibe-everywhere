@@ -2,6 +2,41 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { DesktopShell } from "./App";
 import { DEFAULT_PATH } from "./router";
+import { RuntimeBootstrapProvider } from "../sources/app/providers/RuntimeBootstrapProvider";
+
+function renderWithRuntimeTarget(
+  runtimeTarget: "desktop" | "mobile" | "browser",
+  path: string,
+) {
+  const surfaceKey =
+    runtimeTarget === "mobile"
+      ? "mobileAndroid"
+      : runtimeTarget === "browser"
+        ? "browser"
+        : "desktop";
+  return renderToStaticMarkup(
+    <RuntimeBootstrapProvider
+      profile={{
+        appEnv: "development",
+        devHost: runtimeTarget === "mobile" ? "0.0.0.0" : "127.0.0.1",
+        devPort: 1420,
+        mode: `test-${runtimeTarget}`,
+        outDir: `dist/${runtimeTarget}`,
+        runtimeTarget,
+        surfaceKey,
+      }}
+    >
+      <DesktopShell
+        path={path}
+        commandOpen={false}
+        onNavigate={() => undefined}
+        onCommandOpen={() => undefined}
+        onCommandClose={() => undefined}
+        runtimeTarget={runtimeTarget}
+      />
+    </RuntimeBootstrapProvider>,
+  );
+}
 
 describe("DesktopShell", () => {
   it("renders the desktop entry surface on the home route", () => {
@@ -51,6 +86,35 @@ describe("DesktopShell", () => {
     expect(html).toContain("About");
   });
 
+  it("renders Android-specific entry copy and hides keyboard-only chrome on the mobile home route", () => {
+    const html = renderWithRuntimeTarget("mobile", DEFAULT_PATH);
+
+    expect(html).toContain("Android entry");
+    expect(html).toContain("Create or restore a Vibe account");
+    expect(html).toContain("Android essentials");
+    expect(html).toContain("Open Routes");
+    expect(html).not.toContain("Keyboard shortcuts");
+    expect(html).not.toContain("Create or restore a Vibe desktop account");
+  });
+
+  it("renders browser-specific restore copy on the retained browser route", () => {
+    const html = renderWithRuntimeTarget("browser", "/(app)/restore/index");
+
+    expect(html).toContain("Happy-aligned browser export shell");
+    expect(html).toContain("retained browser route keeps the same create, link, and restore semantics");
+    expect(html).toContain("Device link request");
+    expect(html).not.toContain("desktop restore entry");
+  });
+
+  it("renders browser-specific settings configuration labels", () => {
+    const html = renderWithRuntimeTarget("browser", "/(app)/settings/index");
+
+    expect(html).toContain("Browser Configuration");
+    expect(html).toContain("browser configuration");
+    expect(html).toContain("Browser shell preview build");
+    expect(html).not.toContain("Desktop Configuration");
+  });
+
   it("renders the manual restore route with the desktop file-load action", () => {
     const html = renderToStaticMarkup(
       <DesktopShell
@@ -64,6 +128,14 @@ describe("DesktopShell", () => {
 
     expect(html).toContain("Manual restore");
     expect(html).toContain("Load key file");
+  });
+
+  it("hides desktop-only file import affordances on the Android manual restore route", () => {
+    const html = renderWithRuntimeTarget("mobile", "/(app)/restore/manual");
+
+    expect(html).toContain("Manual restore");
+    expect(html).not.toContain("Load key file");
+    expect(html).toContain("Android file import is deferred");
   });
 
   it("renders the retained changelog route instead of the planned placeholder", () => {
@@ -110,6 +182,22 @@ describe("DesktopShell", () => {
     expect(html).toContain("Text selection utility");
     expect(html).toContain("Selection stats");
     expect(html).toContain("Save selection to file");
+  });
+
+  it("renders deferred friends routes as explicit planned surfaces instead of silently dropping them", () => {
+    const html = renderToStaticMarkup(
+      <DesktopShell
+        path="/(app)/friends/index"
+        commandOpen={false}
+        onNavigate={() => undefined}
+        onCommandOpen={() => undefined}
+        onCommandClose={() => undefined}
+      />,
+    );
+
+    expect(html).toContain("Friends");
+    expect(html).toContain("Social surface explicitly deferred from the current promotion gate");
+    expect(html).toContain("Planned surface");
   });
 
   it("renders the artifacts index route with retained artifact actions", () => {
@@ -238,5 +326,13 @@ describe("DesktopShell", () => {
     expect(html).toContain("Reset language preference");
     expect(html).toContain("Current stored desktop preference");
     expect(html).toContain("English");
+  });
+
+  it("renders runtime-specific language preference labels for Android", () => {
+    const html = renderWithRuntimeTarget("mobile", "/(app)/settings/language");
+
+    expect(html).toContain("Current stored Android preference");
+    expect(html).toContain("Preferred Android language");
+    expect(html).not.toContain("Current stored desktop preference");
   });
 });

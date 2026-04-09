@@ -46,13 +46,13 @@ Use this file when you want to assign work in grouped waves such as:
 | `[done] B16` | optional sidecar | app-log sidecar parity if still needed |
 | `[done] B17` | historical desktop-preview planning freeze and first usable slice | historical Wave 8 baseline for the desktop preview path |
 | `[done] B18` | historical desktop promotion planning | historical Wave 8 parity and promotion baseline |
-| `B19` | unified runtime bootstrap | `vibe-app-tauri` can host desktop, Android Tauri-mobile, and retained static browser export in one package |
-| `B20` | shared core import from Happy | replacement package owns reusable auth/sync/realtime/core modules |
-| `B21` | shell surfaces, static browser export, and identity | desktop/Android/static-export `P0` entry flows and create/link/restore flows work |
-| `B22` | session runtime and rendering | desktop and mobile reach a real end-to-end session chain |
-| `B23` | promotion-critical native capabilities | mobile and cross-platform capability blockers are closed or explicitly waived |
-| `B24` | secondary route migration | promotion-critical `P1` routes are wired |
-| `B25` | release and store migration | `vibe-app-tauri` can produce the full app artifact set |
+| `[done] B19` | unified runtime bootstrap | `vibe-app-tauri` can host desktop, Android Tauri-mobile, and retained static browser export in one package |
+| `[done] B20` | shared core import from Happy | replacement package owns reusable auth/sync/realtime/core modules |
+| `[done] B21` | shell surfaces, static browser export, and identity | desktop/Android/static-export `P0` entry flows and create/link/restore flows work |
+| `[done] B22` | session runtime and rendering | desktop and mobile reach a real end-to-end session chain |
+| `[done] B23` | promotion-critical native capabilities | mobile and cross-platform capability blockers are closed or explicitly waived |
+| `[done] B24` | secondary route migration | promotion-critical `P1` routes are wired |
+| `[done] B25` | release and store migration | `vibe-app-tauri` can produce the full app artifact set |
 | `B26` | promotion and legacy archival | `packages/vibe-app-tauri` is confirmed as the default app path |
 
 ## [done] B00: Planning Freeze
@@ -712,7 +712,12 @@ Use this file when you want to assign work in grouped waves such as:
 - historical parity-checklist sign-off review where continuity notes still matter
 
 
-## B19: `vibe-app-tauri` Unified Runtime Bootstrap
+## [done] B19: `vibe-app-tauri` Unified Runtime Bootstrap
+
+### Status
+
+- completed on 2026-04-09 after package-local desktop/mobile/browser bootstrap ownership,
+  canonical `packages/vibe-app-tauri/android/**` ownership, and B19 validation gates all passed
 
 ### Prerequisites
 
@@ -724,7 +729,7 @@ Use this file when you want to assign work in grouped waves such as:
 
 ### Module Order
 
-1. `modules/vibe-app-tauri/universal-bootstrap-and-runtime.md`
+1. `[done]` `modules/vibe-app-tauri/universal-bootstrap-and-runtime.md`
 
 ### Implementation Tasks
 
@@ -758,7 +763,13 @@ Use this file when you want to assign work in grouped waves such as:
 - Android mobile-path validation
 - retained static browser export validation
 
-## B20: Shared Core Import From Happy
+## [done] B20: Shared Core Import From Happy
+
+### Status
+
+- completed on 2026-04-09 after package-local shared auth, encryption, sync, realtime, text,
+  changelog, and utility modules replaced the remaining runtime imports from `packages/vibe-app`
+  and passed B20 validation gates
 
 ### Prerequisites
 
@@ -766,7 +777,7 @@ Use this file when you want to assign work in grouped waves such as:
 
 ### Module Order
 
-1. `modules/vibe-app-tauri/shared-core-from-happy.md`
+1. `[done]` `modules/vibe-app-tauri/shared-core-from-happy.md`
 
 ### Implementation Tasks
 
@@ -795,7 +806,13 @@ Use this file when you want to assign work in grouped waves such as:
 - parser/reducer/auth/realtime checks
 - import-boundary checks
 
-## B21: Shell Surfaces, Static Browser Export, And Identity
+## [done] B21: Shell Surfaces, Static Browser Export, And Identity
+
+### Status
+
+- completed on 2026-04-09 after runtime-aware desktop/Android/browser shell copy, retained browser
+  metadata/document handling, runtime-specific route smoke coverage, and B21 validation gates all
+  passed
 
 ### Prerequisites
 
@@ -803,10 +820,10 @@ Use this file when you want to assign work in grouped waves such as:
 
 ### Module Order
 
-1. `modules/vibe-app-tauri/mobile-shell-and-navigation.md`
-2. `modules/vibe-app-tauri/web-export-and-browser-runtime.md`
-3. `modules/vibe-app-tauri/desktop-shell-and-platform-parity.md`
-4. `modules/vibe-app-tauri/auth-and-identity-flows.md`
+1. `[done]` `modules/vibe-app-tauri/mobile-shell-and-navigation.md`
+2. `[done]` `modules/vibe-app-tauri/web-export-and-browser-runtime.md`
+3. `[done]` `modules/vibe-app-tauri/desktop-shell-and-platform-parity.md`
+4. `[done]` `modules/vibe-app-tauri/auth-and-identity-flows.md`
 
 ### Implementation Tasks
 
@@ -842,7 +859,13 @@ Use this file when you want to assign work in grouped waves such as:
 - retained static browser export checks
 - create-account, device-link, and secret-key restore checks
 
-## B22: Session Runtime And Rendering
+## [done] B22: Session Runtime And Rendering
+
+### Status
+
+- completed on 2026-04-09 after live session bootstrap/realtime tests, package-local session and
+  new-session draft persistence, composer mode persistence plus abort/autocomplete wiring, deep-link
+  message/file surfaces, and desktop/mobile production build validation all passed
 
 ### Prerequisites
 
@@ -850,8 +873,8 @@ Use this file when you want to assign work in grouped waves such as:
 
 ### Module Order
 
-1. `modules/vibe-app-tauri/session-runtime-and-storage.md`
-2. `modules/vibe-app-tauri/session-rendering-and-composer.md`
+1. `[done]` `modules/vibe-app-tauri/session-runtime-and-storage.md`
+2. `[done]` `modules/vibe-app-tauri/session-rendering-and-composer.md`
 
 ### Implementation Tasks
 
@@ -879,7 +902,13 @@ Use this file when you want to assign work in grouped waves such as:
 - realtime update checks
 - message/composer/tool rendering checks
 
-## B23: Promotion-Critical Native Capabilities
+## [done] B23: Promotion-Critical Native Capabilities
+
+### Status
+
+- completed on 2026-04-09 after the Wave 9 native capability inventory was classified explicitly,
+  runtime capability gating landed for desktop/browser versus Android-only seams, and the migration
+  plan recorded the promotion-scope keep/defer decisions that close hidden native blockers
 
 ### Prerequisites
 
@@ -887,7 +916,7 @@ Use this file when you want to assign work in grouped waves such as:
 
 ### Module Order
 
-1. `modules/vibe-app-tauri/mobile-native-capabilities.md`
+1. `[done]` `modules/vibe-app-tauri/mobile-native-capabilities.md`
 
 ### Implementation Tasks
 
@@ -920,7 +949,13 @@ Use this file when you want to assign work in grouped waves such as:
 - voice/microphone
 - file/share flows where required
 
-## B24: Secondary Route Migration
+## [done] B24: Secondary Route Migration
+
+### Status
+
+- completed on 2026-04-09 after all promotion-critical `P1` secondary routes were wired, smoke
+  coverage covered the migrated settings/artifacts/session/message/detail surfaces, and remaining
+  social/developer routes were documented as explicit `P2` deferrals
 
 ### Prerequisites
 
@@ -928,7 +963,7 @@ Use this file when you want to assign work in grouped waves such as:
 
 ### Module Order
 
-1. `modules/vibe-app-tauri/secondary-routes-and-social.md`
+1. `[done]` `modules/vibe-app-tauri/secondary-routes-and-social.md`
 
 ### Implementation Tasks
 
@@ -956,7 +991,14 @@ Use this file when you want to assign work in grouped waves such as:
 - route smoke tests for `P1` surfaces
 - targeted artifacts/settings/friends checks
 
-## B25: Release And Store Migration
+## [done] B25: Release And Store Migration
+
+### Status
+
+- completed on 2026-04-09 after package-local release scripts and profile configs were recreated,
+  preview and production-candidate manifests were generated for desktop/browser/Android APK assets,
+  workflow packaging was pointed at `packages/vibe-app-tauri`, and rollback/analytics decisions were
+  recorded explicitly
 
 ### Prerequisites
 
@@ -964,7 +1006,7 @@ Use this file when you want to assign work in grouped waves such as:
 
 ### Module Order
 
-1. `modules/vibe-app-tauri/release-ota-and-store-migration.md`
+1. `[done]` `modules/vibe-app-tauri/release-ota-and-store-migration.md`
 
 ### Implementation Tasks
 

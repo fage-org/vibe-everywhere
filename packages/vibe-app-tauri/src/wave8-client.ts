@@ -5,7 +5,19 @@ import {
   settingsDefaults,
   settingsParse,
   type Settings,
-} from "../../vibe-app/sources/sync/settings";
+} from "../sources/shared/sync/settings";
+import {
+  decodeBase64 as decodeBase64Shared,
+  encodeBase64 as encodeBase64Shared,
+} from "../sources/shared/encryption/base64";
+import {
+  formatSecretKeyForBackup as formatSecretKeyForBackupShared,
+  normalizeSecretKey as normalizeSecretKeyShared,
+} from "../sources/shared/auth/secret-key-backup";
+import {
+  buildOutgoingUserMessageRecord,
+  type OutgoingSessionMessageOptions,
+} from "./session-message-meta";
 import {
   AccountLinkRequestResponseSchema,
   AccountProfileSchema,
@@ -78,13 +90,13 @@ export type {
   UsageBucket,
   UserProfile,
 } from "./wave8-wire";
-export type { Settings } from "../../vibe-app/sources/sync/settings";
+export type { Settings } from "../sources/shared/sync/settings";
+
+export type SendMessageOptions = Omit<OutgoingSessionMessageOptions, "sentFrom">;
 
 const DEFAULT_SERVER_URL = "https://api.cluster-fluster.com";
 const SERVER_URL_KEY = "vibe-app-tauri.server-url";
 const CREDENTIALS_KEY = "vibe-app-tauri.credentials";
-
-const BASE32_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 
 export type DesktopSession = {
   id: string;
@@ -447,42 +459,8 @@ export async function showDesktopNotification(title: string, body: string): Prom
   }
 }
 
-export function encodeBase64(
-  buffer: Uint8Array,
-  encoding: "base64" | "base64url" = "base64",
-): string {
-  let binary = "";
-  for (const byte of buffer) {
-    binary += String.fromCharCode(byte);
-  }
-
-  const base64 = btoa(binary);
-  if (encoding === "base64url") {
-    return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
-  }
-  return base64;
-}
-
-export function decodeBase64(
-  value: string,
-  encoding: "base64" | "base64url" = "base64",
-): Uint8Array {
-  let normalized = value;
-  if (encoding === "base64url") {
-    normalized = normalized.replace(/-/g, "+").replace(/_/g, "/");
-    const padding = normalized.length % 4;
-    if (padding) {
-      normalized += "=".repeat(4 - padding);
-    }
-  }
-
-  const binary = atob(normalized);
-  const output = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) {
-    output[index] = binary.charCodeAt(index);
-  }
-  return output;
-}
+export const encodeBase64 = encodeBase64Shared;
+export const decodeBase64 = decodeBase64Shared;
 
 function randomBytes(size: number): Uint8Array {
   const bytes = new Uint8Array(size);
@@ -532,88 +510,8 @@ async function deriveKey(
   return key;
 }
 
-function bytesToBase32(bytes: Uint8Array): string {
-  let result = "";
-  let buffer = 0;
-  let bufferLength = 0;
-
-  for (const byte of bytes) {
-    buffer = (buffer << 8) | byte;
-    bufferLength += 8;
-
-    while (bufferLength >= 5) {
-      bufferLength -= 5;
-      result += BASE32_ALPHABET[(buffer >> bufferLength) & 0x1f];
-    }
-  }
-
-  if (bufferLength > 0) {
-    result += BASE32_ALPHABET[(buffer << (5 - bufferLength)) & 0x1f];
-  }
-
-  return result;
-}
-
-function base32ToBytes(base32: string): Uint8Array {
-  const normalized = base32
-    .toUpperCase()
-    .replace(/0/g, "O")
-    .replace(/1/g, "I")
-    .replace(/8/g, "B")
-    .replace(/9/g, "G")
-    .replace(/[^A-Z2-7]/g, "");
-
-  if (!normalized) {
-    throw new Error("No valid characters found");
-  }
-
-  const bytes: number[] = [];
-  let buffer = 0;
-  let bufferLength = 0;
-
-  for (const char of normalized) {
-    const value = BASE32_ALPHABET.indexOf(char);
-    if (value < 0) {
-      throw new Error("Invalid base32 character");
-    }
-
-    buffer = (buffer << 5) | value;
-    bufferLength += 5;
-
-    if (bufferLength >= 8) {
-      bufferLength -= 8;
-      bytes.push((buffer >> bufferLength) & 0xff);
-    }
-  }
-
-  return new Uint8Array(bytes);
-}
-
-export function formatSecretKeyForBackup(secretKey: string): string {
-  const bytes = decodeBase64(secretKey, "base64url");
-  return bytesToBase32(bytes).match(/.{1,5}/g)?.join("-") ?? "";
-}
-
-export function normalizeSecretKey(secretKey: string): string {
-  const trimmed = secretKey.trim();
-  if (!trimmed) {
-    throw new Error("Secret key cannot be empty");
-  }
-
-  if (/[\s-]/.test(trimmed) || trimmed.length > 50) {
-    const bytes = base32ToBytes(trimmed);
-    if (bytes.length !== 32) {
-      throw new Error(`Invalid key length: expected 32 bytes, got ${bytes.length}`);
-    }
-    return encodeBase64(bytes, "base64url");
-  }
-
-  const bytes = decodeBase64(trimmed, "base64url");
-  if (bytes.length !== 32) {
-    throw new Error(`Invalid key length: expected 32 bytes, got ${bytes.length}`);
-  }
-  return trimmed;
-}
+export const formatSecretKeyForBackup = formatSecretKeyForBackupShared;
+export const normalizeSecretKey = normalizeSecretKeyShared;
 
 async function encryptBox(
   plaintext: Uint8Array,
@@ -863,17 +761,34 @@ function artifactCipherFromKey(dataKey: Uint8Array) {
   };
 }
 
-function buildUserMessageRecord(text: string): Record<string, unknown> {
-  return {
-    role: "user",
-    content: {
-      type: "text",
-      text,
-    },
-    meta: {
-      sentFrom: "desktop-tauri",
-    },
-  };
+function resolveSentFromPlatform(): string {
+  if (typeof navigator === "undefined") {
+    return "desktop-tauri";
+  }
+
+  const userAgent = navigator.userAgent.toLowerCase();
+  if (userAgent.includes("android")) {
+    return "android";
+  }
+  if (userAgent.includes("iphone") || userAgent.includes("ipad")) {
+    return "ios";
+  }
+  if (isTauri()) {
+    return "desktop-tauri";
+  }
+  return "web";
+}
+
+function buildUserMessageRecord(
+  text: string,
+  options: SendMessageOptions | undefined,
+): Record<string, unknown> {
+  return buildOutgoingUserMessageRecord(text, {
+    sentFrom: resolveSentFromPlatform(),
+    permissionMode: options?.permissionMode ?? undefined,
+    model: options?.model ?? null,
+    displayText: options?.displayText ?? null,
+  });
 }
 
 function summarizeUnknown(value: unknown): string {
@@ -2261,9 +2176,10 @@ export class Wave8Client {
     sessionId: string,
     text: string,
     dataEncryptionKey?: string | null,
+    options?: SendMessageOptions,
   ): Promise<void> {
     const cipher = await this.getSessionCipher(sessionId, dataEncryptionKey ?? null);
-    const content = buildUserMessageRecord(text);
+    const content = buildUserMessageRecord(text, options);
     const encryptedContent = await cipher.encryptRecord(content);
 
     await fetchJson<void>(

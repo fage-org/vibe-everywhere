@@ -149,9 +149,9 @@ Historical Wave 8 rule: `packages/vibe-app-tauri` did not become the default des
 
 ### Social / Collaboration
 
-- status: `not started`
-- feed/social/friends parity is evaluated
-- desktop-only value is confirmed before implementation
+- status: `deferred`
+- feed/social/friends parity was reviewed and remains outside the current promotion gate
+- desktop-only value must be confirmed before these routes move out of `P2`
 
 ### Developer / Diagnostic Extras
 
@@ -162,8 +162,9 @@ Historical Wave 8 rule: `packages/vibe-app-tauri` did not become the default des
 
 Use this section to record approved desktop deferrals.
 
-- `none approved yet`; remaining Wave 8 gaps stay `in progress` unless an owning plan records a
-  deliberate deferral with rationale
+- `/(app)/friends/index` and `/(app)/friends/search` stay deferred as `P2` social routes until
+  desktop/social value is confirmed
+- `/(app)/dev/**` stays deferred as `P2` developer scope unless a specific route is promoted later
 
 ## Pixel Parity Audit
 
