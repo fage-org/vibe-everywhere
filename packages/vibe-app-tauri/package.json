@@ -36,7 +36,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:bootstrap": "vitest run sources/shared/bootstrap-config.test.ts src/bootstrap-runtime.test.ts",
-    "validate:promotion": "yarn typecheck && yarn test && yarn tauri:test && yarn desktop:build && yarn browser:smoke && yarn mobile:android:smoke && yarn --cwd ../../scripts validate:vibe-app-tauri-promotion && yarn desktop:smoke",
+    "validate:promotion": "yarn typecheck && yarn test && yarn tauri:test && yarn desktop:build && yarn browser:smoke && yarn mobile:android:smoke && yarn --cwd ../../scripts metrics:vibe-app-tauri && yarn --cwd ../../scripts validate:vibe-app-tauri-promotion && yarn desktop:smoke",
     "tauri:test": "cargo test --manifest-path src-tauri/Cargo.toml",
     "tauri:dev": "tauri dev",
     "tauri:smoke": "yarn desktop:smoke",
