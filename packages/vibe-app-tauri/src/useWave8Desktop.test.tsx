@@ -195,6 +195,8 @@ function createMockClient() {
       listSessions: vi.fn(async () => [buildSession()]),
       listArtifacts: vi.fn(async () => []),
       listMachines: vi.fn(async () => []),
+      listFriends: vi.fn(async () => []),
+      listFeed: vi.fn(async () => []),
       fetchMachine: vi.fn(async () => null),
       fetchUserProfile: vi.fn(async () => null),
       fetchArtifact: vi.fn(async () => null),

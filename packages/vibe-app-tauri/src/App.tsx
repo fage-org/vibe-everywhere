@@ -2161,12 +2161,34 @@ function RouteSurface({
       if (runtimeTarget === "mobile") {
         return <MobileFriendsIndexSurface desktop={desktop} onNavigate={onNavigate} />;
       }
-      break;
+      return (
+        <PlannedSurface
+          title={definition.title}
+          canonicalPath={resolved.canonicalPath}
+          summary={definition.summary}
+          ownerArea={wave8FeatureAreas.find(
+            (area) => area.ownerModule === definition.ownerModule,
+          )}
+          promotionClass={definition.promotionClass}
+          onNavigate={onNavigate}
+        />
+      );
     case "friends-search":
       if (runtimeTarget === "mobile") {
         return <MobileFriendsSearchSurface desktop={desktop} onNavigate={onNavigate} />;
       }
-      break;
+      return (
+        <PlannedSurface
+          title={definition.title}
+          canonicalPath={resolved.canonicalPath}
+          summary={definition.summary}
+          ownerArea={wave8FeatureAreas.find(
+            (area) => area.ownerModule === definition.ownerModule,
+          )}
+          promotionClass={definition.promotionClass}
+          onNavigate={onNavigate}
+        />
+      );
     case "changelog":
       return <ChangelogSurface />;
     case "terminal-index":
