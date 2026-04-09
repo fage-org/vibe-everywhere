@@ -266,7 +266,8 @@ git push origin app-vX.Y.Z
 App workflow notes:
 
 - the active workflow currently packages `packages/vibe-app-tauri` desktop bundles on Linux, macOS,
-  and Windows plus retained browser-export and Android APK artifacts
+  and Windows as direct installer assets, plus a retained browser-export archive and Android APK
+  artifacts
 - the deprecated `packages/vibe-app` web/desktop/android lanes are not built in CI anymore
 - Android APK, retained browser export, and release-oriented desktop ownership now sit on `packages/vibe-app-tauri`
 - if `packages/vibe-app` must be inspected, treat it as a legacy Vibe-specific reference only when Happy is insufficient

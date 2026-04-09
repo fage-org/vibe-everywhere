@@ -34,6 +34,7 @@ jobs:
       label: ${{ steps.meta.outputs.label }}
       browser_dir: ${{ steps.meta.outputs.browser_dir }}
       android_variant: ${{ steps.meta.outputs.android_variant }}
+      desktop_product_name: ${{ steps.meta.outputs.desktop_product_name }}
 
     steps:
       - name: Resolve profile and labels
@@ -52,15 +53,18 @@ jobs:
           if [[ "${profile}" == "preview" ]]; then
             browser_dir="preview"
             android_variant="debug"
+            desktop_product_name="Vibe Desktop Next Preview"
           else
             browser_dir="production"
             android_variant="release"
+            desktop_product_name="Vibe Desktop Next Candidate"
           fi
 
           echo "profile=${profile}" >> "${GITHUB_OUTPUT}"
           echo "label=${label}" >> "${GITHUB_OUTPUT}"
           echo "browser_dir=${browser_dir}" >> "${GITHUB_OUTPUT}"
           echo "android_variant=${android_variant}" >> "${GITHUB_OUTPUT}"
+          echo "desktop_product_name=${desktop_product_name}" >> "${GITHUB_OUTPUT}"
 
   validate:
     name: Validate vibe-app-tauri
@@ -197,8 +201,8 @@ jobs:
             yarn workspace vibe-app-tauri tauri:build:production-candidate
           fi
 
-      - name: Archive desktop bundles
-        id: archive
+      - name: Collect desktop installer assets
+        id: collect
         shell: bash
         run: |
           set -euo pipefail
@@ -209,15 +213,28 @@ jobs:
           fi
 
           mkdir -p dist
-          archive="dist/vibe-app-tauri-desktop-${{ needs.metadata.outputs.profile }}-${{ matrix.target_label }}-${{ needs.metadata.outputs.label }}.tar.gz"
-          tar -czf "${archive}" -C "${APP_DIR}/src-tauri/target/release" bundle
-          echo "archive=${archive}" >> "${GITHUB_OUTPUT}"
+          find "${bundle_dir}" -type f \
+            \( -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' -o -name '*.dmg' -o -name '*.msi' -o -name '*.exe' \) \
+            -print0 | while IFS= read -r -d '' file; do
+              base_name="$(basename "${file}")"
+              if [[ "${base_name}" != *"${{ needs.metadata.outputs.desktop_product_name }}"* ]]; then
+                continue
+              fi
+              cp "${file}" "dist/$(basename "${file}")"
+            done
+
+          if ! find dist -maxdepth 1 -type f | grep -q .; then
+            echo "No desktop installer assets were collected from ${bundle_dir}" >&2
+            exit 1
+          fi
+
+          echo "asset_dir=dist" >> "${GITHUB_OUTPUT}"
 
       - name: Upload desktop artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-release-desktop-${{ matrix.target_label }}
-          path: ${{ steps.archive.outputs.archive }}
+          path: ${{ steps.collect.outputs.asset_dir }}/*
           if-no-files-found: error
 
   browser:
@@ -390,9 +407,16 @@ jobs:
           set -euo pipefail
           mkdir -p release-assets
 
-          find dist -type f -name '*.tar.gz' -print0 | while IFS= read -r -d '' file; do
+          find dist -type f \
+            \( -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' -o -name '*.dmg' -o -name '*.msi' -o -name '*.exe' -o -name '*.apk' -o -name 'vibe-app-tauri-browser-*.tar.gz' \) \
+            -print0 | while IFS= read -r -d '' file; do
             cp "${file}" "release-assets/$(basename "${file}")"
           done
+
+          if ! find release-assets -maxdepth 1 -type f | grep -q .; then
+            echo "No publishable release assets were collected." >&2
+            exit 1
+          fi
 
           echo "Release assets:"
           find release-assets -maxdepth 1 -type f | sort

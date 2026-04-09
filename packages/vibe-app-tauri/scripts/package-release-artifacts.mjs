@@ -56,6 +56,36 @@ async function createTarArchive(sourcePath, archivePath, sourceParent, sourceNam
   await execFileAsync("tar", ["-czf", archivePath, "-C", sourceParent, sourceName]);
 }
 
+async function collectFiles(rootDir) {
+  const entries = await fs.readdir(rootDir, { withFileTypes: true });
+  const files = [];
+
+  for (const entry of entries) {
+    const entryPath = path.join(rootDir, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...(await collectFiles(entryPath)));
+      continue;
+    }
+    if (entry.isFile()) {
+      files.push(entryPath);
+    }
+  }
+
+  return files;
+}
+
+function isDesktopInstallerAsset(filePath) {
+  const lowerName = path.basename(filePath).toLowerCase();
+  return (
+    lowerName.endsWith(".appimage")
+    || lowerName.endsWith(".deb")
+    || lowerName.endsWith(".rpm")
+    || lowerName.endsWith(".dmg")
+    || lowerName.endsWith(".msi")
+    || lowerName.endsWith(".exe")
+  );
+}
+
 await assertPathExists(browserSourceDir, "browser export output");
 await assertPathExists(desktopBundleDir, "desktop bundle output");
 await assertPathExists(androidApkDir, "Android APK output directory");
@@ -71,16 +101,39 @@ await createTarArchive(
   path.basename(browserSourceDir),
 );
 
-const desktopArchive = path.join(
-  releaseRoot,
-  `vibe-app-tauri-desktop-${profile.label}-${packageVersion}.tar.gz`,
-);
-await createTarArchive(
-  desktopBundleDir,
-  desktopArchive,
-  path.dirname(desktopBundleDir),
-  path.basename(desktopBundleDir),
-);
+const desktopBundleFiles = (await collectFiles(desktopBundleDir))
+  .filter((filePath) => isDesktopInstallerAsset(filePath) && path.basename(filePath).includes(profile.desktopProductName))
+  .sort();
+
+if (desktopBundleFiles.length === 0) {
+  throw new Error(`Missing desktop installer assets in ${desktopBundleDir}`);
+}
+
+const desktopInstallers = [];
+for (const desktopBundleFile of desktopBundleFiles) {
+  const installerTarget = path.join(releaseRoot, path.basename(desktopBundleFile));
+  await fs.copyFile(desktopBundleFile, installerTarget);
+  desktopInstallers.push(installerTarget);
+}
+
+const releaseRootDesktopInstallers = (await collectFiles(releaseRoot))
+  .filter(isDesktopInstallerAsset)
+  .sort();
+
+for (const installerPath of releaseRootDesktopInstallers) {
+  if (!path.basename(installerPath).includes(profile.desktopProductName)) {
+    await fs.rm(installerPath, { force: true });
+  }
+}
+
+const finalDesktopInstallers = (await collectFiles(releaseRoot))
+  .filter(isDesktopInstallerAsset)
+  .filter((installerPath) => path.basename(installerPath).includes(profile.desktopProductName))
+  .sort();
+
+if (finalDesktopInstallers.length === 0) {
+  throw new Error(`Missing filtered desktop installer assets in ${releaseRoot}`);
+}
 
 const apkTarget = path.join(
   releaseRoot,
@@ -109,7 +162,7 @@ const manifest = {
   updaterChannel: profile.updaterChannel,
   artifacts: {
     browserArchive: path.relative(config.packageRoot, browserArchive),
-    desktopArchive: path.relative(config.packageRoot, desktopArchive),
+    desktopInstallers: finalDesktopInstallers.map((installerPath) => path.relative(config.packageRoot, installerPath)),
     androidApk: path.relative(config.packageRoot, apkTarget),
   },
 };
