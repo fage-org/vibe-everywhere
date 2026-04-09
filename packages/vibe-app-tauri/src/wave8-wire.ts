@@ -15,6 +15,7 @@ import {
 import {
   UserProfileSchema,
   UserResponseSchema,
+  FeedBodySchema,
 } from "../sources/shared/sync/types";
 
 export const StoredCredentialsSchema = z.object({
@@ -33,8 +34,29 @@ export const AccountProfileSchema = z.object({
 export type AccountProfile = z.infer<typeof AccountProfileSchema>;
 export type MachineMetadata = z.infer<typeof MachineMetadataSchema>;
 export type UserProfile = z.infer<typeof UserProfileSchema>;
+export type FeedBody = z.infer<typeof FeedBodySchema>;
 
-export { MachineMetadataSchema, UserResponseSchema, UserProfileSchema };
+export { MachineMetadataSchema, UserResponseSchema, UserProfileSchema, FeedBodySchema };
+
+export const FriendsListResponseSchema = z.object({
+  friends: z.array(UserProfileSchema),
+});
+export type FriendsListResponse = z.infer<typeof FriendsListResponseSchema>;
+
+export const FeedPostResponseSchema = z.object({
+  id: z.string(),
+  body: FeedBodySchema,
+  repeatKey: z.string().nullable(),
+  cursor: z.string(),
+  createdAt: z.number(),
+});
+export type FeedPostResponse = z.infer<typeof FeedPostResponseSchema>;
+
+export const FeedListResponseSchema = z.object({
+  items: z.array(FeedPostResponseSchema),
+  hasMore: z.boolean(),
+});
+export type FeedListResponse = z.infer<typeof FeedListResponseSchema>;
 
 export const RemoteSessionRecordSchema = z.object({
   id: z.string(),
@@ -254,6 +276,22 @@ export const SessionsRealtimeUpdateSchema = ApiUpdateContainerSchema.extend({
     ApiUpdateNewSessionSchema,
     ApiDeleteSessionSchema,
     ApiUpdateAccountSchema,
+    z.object({
+      t: z.literal("relationship-updated"),
+      fromUserId: z.string(),
+      toUserId: z.string(),
+      status: z.enum(["none", "requested", "pending", "friend", "rejected"]),
+      action: z.enum(["created", "updated", "deleted"]),
+      timestamp: z.number(),
+    }),
+    z.object({
+      t: z.literal("new-feed-post"),
+      id: z.string(),
+      body: FeedBodySchema,
+      cursor: z.string(),
+      createdAt: z.number(),
+      repeatKey: z.string().nullable(),
+    }),
     z.object({
       t: z.literal("new-message"),
       sid: z.string(),

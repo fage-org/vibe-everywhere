@@ -520,6 +520,140 @@ dd,
   background: var(--surface-strong);
 }
 
+.mobile-app-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 14px;
+  padding: 14px;
+  background: var(--bg);
+}
+
+.mobile-topbar,
+.mobile-main-panel,
+.mobile-tabbar {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.mobile-topbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 16px 18px;
+  border-radius: var(--radius-lg);
+  background: var(--surface-strong);
+}
+
+.mobile-topbar-copy {
+  display: grid;
+  gap: 6px;
+}
+
+.mobile-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.mobile-topbar-copy h2 {
+  margin: 0;
+  font-size: clamp(1.2rem, 6vw, 1.45rem);
+  letter-spacing: -0.03em;
+}
+
+.mobile-main-panel {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border-radius: var(--radius-lg);
+}
+
+.mobile-tabbar {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  padding: 8px;
+  border-radius: 999px;
+  position: sticky;
+  bottom: 10px;
+}
+
+.mobile-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 10px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.mobile-tab.active {
+  color: var(--text);
+  border-color: var(--border-strong);
+  background: var(--surface-hover);
+}
+
+.mobile-back-button {
+  padding-inline: 0;
+  justify-content: flex-start;
+}
+
+.mobile-hero-card {
+  gap: 14px;
+}
+
+.mobile-entry-card {
+  align-items: stretch;
+}
+
+.mobile-session-header,
+.mobile-session-section {
+  display: grid;
+  gap: 14px;
+}
+
+.mobile-empty-messages {
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  text-align: center;
+  padding: 18px 12px;
+}
+
+.mobile-empty-messages strong {
+  font-size: 1rem;
+}
+
+.mobile-empty-messages span {
+  color: var(--muted);
+  font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
+  font-size: 0.85rem;
+  word-break: break-word;
+}
+
+.mobile-empty-messages h4 {
+  margin: 8px 0 0;
+  font-size: 1.05rem;
+  letter-spacing: -0.02em;
+}
+
+.mobile-brand-lockup {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.mobile-button-column {
+  flex-direction: column;
+}
+
 .topbar h2 {
   font-size: clamp(1.45rem, 2.4vw, 2rem);
   margin-top: 2px;

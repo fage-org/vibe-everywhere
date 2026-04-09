@@ -112,6 +112,42 @@ function createDesktopState() {
       },
     ],
     userProfiles: {},
+    friends: [
+      {
+        id: "friend-1",
+        firstName: "Sam",
+        lastName: null,
+        username: "sam",
+        avatar: null,
+        bio: null,
+        status: "friend",
+      },
+      {
+        id: "friend-2",
+        firstName: "Nina",
+        lastName: null,
+        username: "nina",
+        avatar: null,
+        bio: null,
+        status: "pending",
+      },
+    ],
+    feedItems: [
+      {
+        id: "feed-1",
+        body: { kind: "friend_request", uid: "friend-2" },
+        repeatKey: "friend_request_friend-2",
+        cursor: "0-2",
+        createdAt: 2,
+      },
+      {
+        id: "feed-2",
+        body: { kind: "text", text: "hello feed" },
+        repeatKey: null,
+        cursor: "0-1",
+        createdAt: 1,
+      },
+    ],
     sessionSummaries: [
       {
         session: {
@@ -166,6 +202,8 @@ function createDesktopState() {
     refreshSessions: vi.fn(async () => []),
     refreshArtifacts: vi.fn(async () => []),
     refreshMachines: vi.fn(async () => []),
+    refreshFriends: vi.fn(async () => []),
+    refreshFeed: vi.fn(async () => []),
     loadMachine: vi.fn(async () => null),
     loadUserProfile: vi.fn(async () => null),
     loadArtifact: vi.fn(async () => null),
@@ -239,6 +277,7 @@ function renderAuthenticatedWithRuntimeTarget(
         onCommandOpen={() => undefined}
         onCommandClose={() => undefined}
         runtimeTarget={runtimeTarget}
+        hostMode={runtimeTarget === "mobile" ? "mobile" : "desktop"}
       />
     </RuntimeBootstrapProvider>,
   );
@@ -485,10 +524,117 @@ describe("DesktopShell authenticated routes", () => {
   it("renders the authenticated live session route on the mobile runtime shell", () => {
     const html = renderAuthenticatedWithRuntimeTarget("mobile", "/(app)/session/session-1");
 
-    expect(html).toContain("Live session");
-    expect(html).toContain("Composer");
+    expect(html).toContain("Session");
+    expect(html).toContain("Session info");
+    expect(html).toContain("No messages yet");
+    expect(html).toContain("/root/vibe-remote");
     expect(html).toContain("Abort turn");
-    expect(html).not.toContain("Keyboard shortcuts");
+    expect(html).not.toContain("Desktop review notes");
+    expect(html).not.toContain('class="sidebar"');
+  });
+
+  it("renders the mobile sessions main view with quick actions and status blocks", () => {
+    const html = renderAuthenticatedWithRuntimeTarget("mobile", "/(app)/index");
+
+    expect(html).toContain("Quick actions");
+    expect(html).toContain("Recent sessions");
+    expect(html).toContain("Link another device");
+    expect(html).toContain("Connected services");
+    expect(html).toContain("Endpoint");
+  });
+
+  it("shows the mobile resume hint for an inactive session with resume metadata", () => {
+    const state = createDesktopState();
+    state.sessions = [
+      {
+        ...state.sessions[0],
+        active: false,
+        metadata: {
+          ...state.sessions[0].metadata,
+          codexThreadId: "thread-123",
+          lifecycleState: "archived",
+        } as any,
+      },
+    ];
+    state.sessionSummaries = [
+      {
+        ...state.sessionSummaries[0],
+        session: state.sessions[0],
+      },
+    ];
+    mockDesktopState.value = state;
+
+    const html = renderAuthenticatedWithRuntimeTarget("mobile", "/(app)/session/session-1");
+
+    expect(html).toContain("Archived session");
+    expect(html).toContain("Copy resume command");
+    expect(html).toContain("happy codex --resume thread-123");
+  });
+
+  it("renders the authenticated mobile session info route without desktop review notes", () => {
+    const html = renderAuthenticatedWithRuntimeTarget("mobile", "/(app)/session/session-1/info");
+
+    expect(html).toContain("Session info");
+    expect(html).toContain("Workspace");
+    expect(html).toContain("vibe-remote");
+    expect(html).not.toContain("Desktop review notes");
+  });
+
+  it("renders the authenticated mobile session files route as a mobile list", () => {
+    const html = renderAuthenticatedWithRuntimeTarget("mobile", "/(app)/session/session-1/files");
+
+    expect(html).toContain("Session files");
+    expect(html).toContain("Loading files");
+    expect(html).toContain("vibe-remote");
+    expect(html).not.toContain("retained review fixtures");
+    expect(html).not.toContain('class="sidebar"');
+  });
+
+  it("renders the authenticated mobile message route with shared session context", () => {
+    const state = createDesktopState();
+    state.sessionState = {
+      "session-1": {
+        items: [
+          {
+            id: "message-1",
+            localId: null,
+            createdAt: 1,
+            role: "assistant",
+            title: "Assistant",
+            text: "Inspect the live diff",
+            rawType: "agent:assistant",
+          },
+        ],
+        loading: false,
+        sending: false,
+        aborting: false,
+        error: null,
+        loadedAt: 1,
+        lastSeq: 1,
+      },
+    };
+    mockDesktopState.value = state;
+
+    const html = renderAuthenticatedWithRuntimeTarget("mobile", "/(app)/session/session-1/message/message-1");
+
+    expect(html).toContain("Inspect the live diff");
+    expect(html).toContain("Session Message");
+    expect(html).toContain("Message content");
+    expect(html).toContain(">Back<");
+    expect(html).toContain(">Session<");
+    expect(html).toContain("vibe-remote");
+    expect(html).toContain("Back to session");
+    expect(html).not.toContain('class="sidebar"');
+  });
+
+  it("renders the authenticated mobile session file route with compact file detail sections", () => {
+    const html = renderAuthenticatedWithRuntimeTarget("mobile", "/(app)/session/session-1/file?path=src%2FApp.tsx");
+
+    expect(html).toContain("Session file");
+    expect(html).toContain("Session File Viewer");
+    expect(html).toContain("App.tsx");
+    expect(html).toContain("src/App.tsx");
+    expect(html).toContain("Back to files");
   });
 
   it("hides mobile file-export affordances on authenticated utility routes", () => {
@@ -505,6 +651,91 @@ describe("DesktopShell authenticated routes", () => {
 
     expect(html).toContain("Voice");
     expect(html).toContain("Android live voice capture and microphone permissions are deferred");
+    expect(html).not.toContain("Desktop-backed");
+  });
+
+  it("renders the authenticated mobile account route without desktop review framing", () => {
+    const html = renderAuthenticatedWithRuntimeTarget("mobile", "/(app)/settings/account");
+
+    expect(html).toContain("Account");
+    expect(html).toContain("Connected services");
+    expect(html).not.toContain("Desktop review notes");
+    expect(html).not.toContain('class="sidebar"');
+  });
+
+  it("renders the mobile settings hub with explicit friends entry points", () => {
+    const html = renderAuthenticatedWithRuntimeTarget("mobile", "/(app)/settings/index");
+
+    expect(html).toContain("Social");
+    expect(html).toContain("Friends");
+    expect(html).toContain("Find friends");
+    expect(html).toContain("Support");
+    expect(html).toContain("Report issue");
+  });
+
+  it("renders the authenticated mobile inbox route with feed and friend sections", () => {
+    const html = renderAuthenticatedWithRuntimeTarget("mobile", "/(app)/inbox/index");
+
+    expect(html).toContain("Updates");
+    expect(html).toContain("Pending requests");
+    expect(html).toContain("My friends");
+    expect(html).toContain("Find friends");
+    expect(html).toContain("Open friends");
+    expect(html).toContain("updates");
+    expect(html).toContain("hello feed");
+    expect(html).toContain("Friend request from Nina");
+    expect(html).toContain("Sam");
+    expect(html).not.toContain("Session inventory is loaded from `/v1/sessions`");
+    expect(html).not.toContain('class="sidebar"');
+  });
+
+  it("renders the authenticated mobile friend search route with search scaffolding", () => {
+    const html = renderAuthenticatedWithRuntimeTarget("mobile", "/(app)/friends/search");
+
+    expect(html).toContain("Friend search");
+    expect(html).toContain("Find people by username");
+    expect(html).toContain("Search by username");
+    expect(html).not.toContain('class="sidebar"');
+  });
+
+  it("renders the authenticated mobile user detail route with friend action controls", () => {
+    mockDesktopState.value.userProfiles = {
+      "friend-1": {
+        id: "friend-1",
+        firstName: "Sam",
+        lastName: null,
+        username: "sam",
+        avatar: null,
+        bio: null,
+        status: "friend",
+      },
+    };
+    const html = renderAuthenticatedWithRuntimeTarget("mobile", "/(app)/user/friend-1");
+
+    expect(html).toContain("Profile");
+    expect(html).toContain("@sam");
+    expect(html).toContain("Remove friend");
+    expect(html).toContain("friend");
+    expect(html).toContain("Open GitHub profile");
+    expect(html).not.toContain('class="sidebar"');
+  });
+
+  it("renders the authenticated mobile inbox route with Happy-style section grouping", () => {
+    const html = renderAuthenticatedWithRuntimeTarget("mobile", "/(app)/inbox/index");
+
+    expect(html).toContain("Updates");
+    expect(html).toContain("Pending requests");
+    expect(html).toContain("My friends");
+    expect(html).not.toContain("Session inventory is loaded from `/v1/sessions`");
+    expect(html).not.toContain('class="sidebar"');
+  });
+
+  it("renders the authenticated mobile appearance route with mobile wording", () => {
+    const html = renderAuthenticatedWithRuntimeTarget("mobile", "/(app)/settings/appearance");
+
+    expect(html).toContain("Appearance");
+    expect(html).toContain("Theme preference for the Android shell");
+    expect(html).not.toContain("shipping desktop view");
   });
 
   it("renders the Claude connect route with an explicit terminal handoff command", () => {

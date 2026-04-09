@@ -41,6 +41,17 @@ Port the Happy session detail experience, message timeline, composer, and tool r
 - `mobile-shell-and-navigation`
 - existing Wave 8 desktop session parity work where still relevant
 
+## Current Refactor Constraint
+
+- confirmed on 2026-04-09:
+  - Android session routes currently inherit a desktop-first host shell and desktop review framing
+    from `packages/vibe-app-tauri/src/App.tsx`
+- required before session parity can be considered healthy again:
+  - mobile session detail must compose under the dedicated mobile host shell introduced by
+    `mobile-shell-and-navigation.md`
+  - route-level session wiring is not sufficient if the host interaction model still behaves like the
+    desktop review shell
+
 ## Implementation Steps
 
 1. Port session-shell ownership from Happy's session view.

@@ -476,6 +476,8 @@ No single implementation task should attempt the full migration.
 - drifting from Happy route semantics while trying to "clean up" the app structure
 - breaking store, OTA, secure-storage, or purchase continuity during release migration
 - broad AI prompts that rewrite shared core, mobile shell, and release scripts all at once
+- mistaking route coverage and style similarity for true Android interaction parity while the mobile
+  runtime still boots through the desktop-first host shell
 
 ## Acceptance Criteria
 

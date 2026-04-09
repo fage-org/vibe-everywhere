@@ -59,10 +59,11 @@ import {
   promotionNavigation,
   resolveRoute,
   routeInventoryByClass,
+  type RouteDefinition,
   type ResolvedRoute,
   useDesktopRouter,
 } from "./router";
-import { useWave8Desktop } from "./useWave8Desktop";
+import { useAppShellState, type AppShellState } from "./useAppShellState";
 import changelogData from "../sources/shared/changelog/changelog.json";
 import { buildResumeCommand } from "../sources/shared/utils/resumeCommand";
 import {
@@ -72,6 +73,8 @@ import {
   type UsagePeriod,
   copyTextToClipboard,
   type DesktopArtifact,
+  type DesktopSession,
+  type UserProfile,
   describeSession,
   openExternalUrl,
   openTextFileDialog,
@@ -184,6 +187,7 @@ type DesktopShellProps = {
   onCommandOpen: () => void;
   onCommandClose: () => void;
   runtimeTarget?: RuntimeTarget;
+  hostMode?: "desktop" | "mobile";
 };
 
 type DesktopPreferencesState = {
@@ -372,6 +376,7 @@ export function App() {
       onCommandOpen={() => setCommandOpen(true)}
       onCommandClose={() => setCommandOpen(false)}
       runtimeTarget={runtimeTarget}
+      hostMode={runtimeTarget === "mobile" ? "mobile" : "desktop"}
     />
   );
 }
@@ -383,6 +388,7 @@ export function DesktopShell({
   onCommandOpen,
   onCommandClose,
   runtimeTarget = "desktop",
+  hostMode = "desktop",
 }: DesktopShellProps) {
   const resolved = useMemo(() => resolveRoute(path), [path]);
   const activeRoute = resolved.definition;
@@ -393,7 +399,8 @@ export function DesktopShell({
   const supportsKeyboardShortcuts = runtimeTarget !== "mobile";
   const liveSessionId =
     activeRoute.key === "session-detail" ? resolved.params.id ?? null : null;
-  const desktop = useWave8Desktop(liveSessionId);
+  const appState = useAppShellState(liveSessionId);
+  const desktop = appState;
   const ownerArea = wave8FeatureAreas.find(
     (area) => area.ownerModule === activeRoute.ownerModule,
   );
@@ -692,6 +699,24 @@ export function DesktopShell({
       }
     };
   }, [activeRoute.title, runtimeTarget]);
+
+  if (hostMode === "mobile") {
+    return (
+      <MobileShellLayout
+        resolved={resolved}
+        appState={appState}
+        preferences={desktopPreferences}
+        secondarySurfaces={secondarySurfaces}
+        onNavigate={onNavigate}
+        runtimeTarget={runtimeTarget}
+        runtimeCopy={runtimeCopy}
+        nativeCapabilities={nativeCapabilities}
+        settingsFeatureLinks={settingsFeatureLinks}
+        aboutLinks={aboutLinks}
+        brandLogoSrc={brandLogo}
+      />
+    );
+  }
 
   return (
     <div
@@ -1022,7 +1047,785 @@ export function DesktopShell({
   );
 }
 
-type DesktopState = ReturnType<typeof useWave8Desktop>;
+function resolveMobilePrimaryTab(route: RouteDefinition): MainViewTab | null {
+  if (route.key === "home") {
+    return "sessions";
+  }
+  if (route.key === "inbox") {
+    return "inbox";
+  }
+  if (route.key === "settings-index") {
+    return "settings";
+  }
+  if (route.section === "Session") {
+    return "sessions";
+  }
+  return null;
+}
+
+function pathForMobilePrimaryTab(tab: MainViewTab): string {
+  switch (tab) {
+    case "inbox":
+      return "/(app)/inbox/index";
+    case "settings":
+      return "/(app)/settings/index";
+    case "sessions":
+    default:
+      return "/(app)/index";
+  }
+}
+
+function buildMobileBackPath(route: RouteDefinition): string {
+  if (route.section === "Settings") {
+    return "/(app)/settings/index";
+  }
+  if (route.section === "Auth") {
+    return "/(app)/restore/index";
+  }
+  return "/(app)/index";
+}
+
+type MobileShellLayoutProps = {
+  resolved: ResolvedRoute;
+  appState: AppShellState;
+  preferences: DesktopPreferencesState;
+  secondarySurfaces: SecondarySurfaceState;
+  onNavigate: (path: string) => void;
+  runtimeTarget: RuntimeTarget;
+  runtimeCopy: RuntimeShellCopy;
+  nativeCapabilities: RuntimeNativeCapabilities;
+  settingsFeatureLinks: ReturnType<typeof buildSettingsFeatureLinks>;
+  aboutLinks: ReturnType<typeof buildAboutLinks>;
+  brandLogoSrc: string;
+};
+
+function MobileShellLayout({
+  resolved,
+  appState,
+  preferences,
+  secondarySurfaces,
+  onNavigate,
+  runtimeTarget,
+  runtimeCopy,
+  nativeCapabilities,
+  settingsFeatureLinks,
+  aboutLinks,
+  brandLogoSrc,
+}: MobileShellLayoutProps) {
+  const activePrimaryTab = resolveMobilePrimaryTab(resolved.definition);
+  const signedIn = !!appState.credentials && !!appState.profile;
+  let content: React.ReactNode;
+  const isTopLevelSessionsRoute = resolved.definition.key === "home";
+  const isTopLevelInboxRoute = resolved.definition.key === "inbox";
+  const isTopLevelSettingsRoute = resolved.definition.key === "settings-index";
+  const isTopLevelPrimaryRoute =
+    isTopLevelSessionsRoute || isTopLevelInboxRoute || isTopLevelSettingsRoute;
+  const mobileRouteAction =
+    resolved.definition.key === "session-detail"
+      ? { label: "Info", path: `/(app)/session/${resolved.params.id ?? ""}/info` }
+      : resolved.definition.key === "session-message"
+        ? { label: "Session", path: `/(app)/session/${resolved.params.id ?? ""}` }
+        : resolved.definition.key === "session-info"
+          ? { label: "Files", path: `/(app)/session/${resolved.params.id ?? ""}/files` }
+          : resolved.definition.key === "session-files"
+            ? { label: "Session", path: `/(app)/session/${resolved.params.id ?? ""}` }
+            : resolved.definition.key === "session-file"
+              ? { label: "Files", path: `/(app)/session/${resolved.params.id ?? ""}/files` }
+              : null;
+  const routeTitle =
+    !isTopLevelPrimaryRoute
+      ? resolved.definition.title
+      : activePrimaryTab === "sessions"
+        ? "Sessions"
+        : activePrimaryTab === "inbox"
+          ? "Inbox"
+          : activePrimaryTab === "settings"
+            ? "Settings"
+            : resolved.definition.title;
+
+  if (!signedIn && activePrimaryTab && (isTopLevelSessionsRoute || isTopLevelInboxRoute || isTopLevelSettingsRoute)) {
+    content = (
+      <MobileHomeSurface
+        appState={appState}
+        onNavigate={onNavigate}
+        brandLogoSrc={brandLogoSrc}
+        runtimeCopy={runtimeCopy}
+      />
+    );
+  } else if (signedIn && activePrimaryTab === "sessions" && isTopLevelSessionsRoute) {
+    content = <MobileSessionsSurface appState={appState} onNavigate={onNavigate} runtimeCopy={runtimeCopy} />;
+  } else if (signedIn && activePrimaryTab === "inbox" && isTopLevelInboxRoute) {
+    content = <MobileInboxSurface appState={appState} onNavigate={onNavigate} runtimeCopy={runtimeCopy} />;
+  } else if (signedIn && activePrimaryTab === "settings" && isTopLevelSettingsRoute) {
+    content = (
+      <MobileSettingsSurface
+        appState={appState}
+        onNavigate={onNavigate}
+        runtimeCopy={runtimeCopy}
+        settingsFeatureLinks={settingsFeatureLinks}
+        aboutLinks={aboutLinks}
+      />
+    );
+  } else {
+    content = (
+      <RouteSurface
+        resolved={resolved}
+        desktop={appState}
+        preferences={preferences}
+        secondarySurfaces={secondarySurfaces}
+        onNavigate={onNavigate}
+        brandLogoSrc={brandLogoSrc}
+        brandLogotypeSrc={brandLogoSrc}
+        runtimeTarget={runtimeTarget}
+        runtimeCopy={runtimeCopy}
+        nativeCapabilities={nativeCapabilities}
+        mainViewTabs={[
+          { key: "sessions", label: "Sessions", eyebrow: "Live work" },
+          { key: "inbox", label: "Inbox", eyebrow: "Updates" },
+          { key: "settings", label: "Settings", eyebrow: runtimeCopy.settingsEyebrow },
+        ]}
+        settingsFeatureLinks={settingsFeatureLinks}
+        aboutLinks={aboutLinks}
+      />
+    );
+  }
+
+  return (
+    <div className="mobile-app-shell">
+      <header className="mobile-topbar">
+        <div className="mobile-topbar-copy">
+          {activePrimaryTab && isTopLevelPrimaryRoute ? (
+            <>
+              <p className="eyebrow">{runtimeCopy.shellEyebrow}</p>
+              <h2>{routeTitle}</h2>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="ghost-button mobile-back-button"
+                onClick={() => onNavigate(buildMobileBackPath(resolved.definition))}
+              >
+                Back
+              </button>
+              <div>
+                <p className="eyebrow">{runtimeCopy.surfaceTitle}</p>
+                <h2>{routeTitle}</h2>
+              </div>
+            </>
+          )}
+        </div>
+        <div className="mobile-topbar-actions">
+          <span className="pill pill-accent">{statusLabel(appState.status)}</span>
+          {!isTopLevelPrimaryRoute && mobileRouteAction ? (
+            <button
+              type="button"
+              className="ghost-button mobile-topbar-button"
+              onClick={() => onNavigate(mobileRouteAction.path)}
+            >
+              {mobileRouteAction.label}
+            </button>
+          ) : null}
+          {signedIn && activePrimaryTab === "sessions" && isTopLevelPrimaryRoute ? (
+            <button type="button" className="ghost-button mobile-topbar-button" onClick={() => onNavigate("/(app)/new/index")}>
+              New
+            </button>
+          ) : null}
+          {signedIn && activePrimaryTab === "inbox" && isTopLevelPrimaryRoute ? (
+            <button type="button" className="ghost-button mobile-topbar-button" onClick={() => onNavigate("/(app)/friends/search")}>
+              Add friend
+            </button>
+          ) : null}
+        </div>
+      </header>
+
+      <main className="mobile-main-panel">{content}</main>
+
+      {signedIn && activePrimaryTab && isTopLevelPrimaryRoute ? (
+        <nav className="mobile-tabbar" aria-label={`${runtimeCopy.surfaceTitle} primary navigation`}>
+          {(["inbox", "sessions", "settings"] as const).map((tab) => {
+            const active = activePrimaryTab === tab;
+            return (
+              <a
+                key={tab}
+                href={hrefForPath(pathForMobilePrimaryTab(tab))}
+                className={active ? "mobile-tab active" : "mobile-tab"}
+                aria-current={active ? "page" : undefined}
+                onClick={(event) => handleNavigation(event, pathForMobilePrimaryTab(tab), onNavigate)}
+              >
+                <span>
+                  {tab === "sessions" ? "Sessions" : tab === "inbox" ? "Inbox" : "Settings"}
+                </span>
+              </a>
+            );
+          })}
+        </nav>
+      ) : null}
+    </div>
+  );
+}
+
+function MobileHomeSurface({
+  appState,
+  onNavigate,
+  brandLogoSrc,
+  runtimeCopy,
+}: {
+  appState: AppShellState;
+  onNavigate: (path: string) => void;
+  brandLogoSrc: string;
+  runtimeCopy: RuntimeShellCopy;
+}) {
+  return (
+    <div className="surface-stack">
+      <section className="panel-card mobile-hero-card mobile-entry-card">
+        <div className="mobile-brand-lockup">
+          <img className="hero-brand-mark" src={brandLogoSrc} alt="" aria-hidden="true" />
+          <div>
+            <p className="eyebrow">{runtimeCopy.entryEyebrow}</p>
+            <h3>{runtimeCopy.createRestoreHeading}</h3>
+          </div>
+        </div>
+        <p className="panel-copy">{runtimeCopy.createRestoreCopy}</p>
+        <div className="button-row mobile-button-column">
+          <button
+            type="button"
+            className="primary-button full-width"
+            onClick={() => void appState.createFreshAccount()}
+          >
+            Create account
+          </button>
+          <button
+            type="button"
+            className="secondary-button full-width"
+            onClick={() => onNavigate("/(app)/restore/index")}
+          >
+            Restore or link account
+          </button>
+        </div>
+      </section>
+
+      <section className="panel-card">
+        <div className="card-header">
+          <h3>{runtimeCopy.essentialsTitle}</h3>
+          <span className="pill pill-accent">Phone-first</span>
+        </div>
+        <ul className="bullet-list">
+          <li>Primary navigation stays on inbox, sessions, and settings.</li>
+          <li>Create and restore stay available from the Android entry flow.</li>
+          <li>The mobile host no longer depends on the desktop sidebar shell.</li>
+        </ul>
+      </section>
+    </div>
+  );
+}
+
+function MobileSessionsSurface({
+  appState,
+  onNavigate,
+  runtimeCopy,
+}: {
+  appState: AppShellState;
+  onNavigate: (path: string) => void;
+  runtimeCopy: RuntimeShellCopy;
+}) {
+  if (!appState.credentials || !appState.profile) {
+    return <SignedOutState onNavigate={onNavigate} />;
+  }
+
+  const topSessions = appState.sessionSummaries.slice(0, 8);
+  const isLoadingSessions = appState.status === "checking" || appState.status === "loading";
+  return (
+    <div className="surface-stack">
+      <section className="panel-card mobile-hero-card">
+        <p className="eyebrow">{runtimeCopy.entryEyebrow}</p>
+        <h3>{runtimeCopy.continueHeading}</h3>
+        <p className="panel-copy">{runtimeCopy.continueCopy}</p>
+        <div className="button-row">
+          <button type="button" className="primary-button full-width" onClick={() => onNavigate("/(app)/new/index")}>
+            Create session
+          </button>
+        </div>
+      </section>
+
+      <section className="panel-card mobile-settings-section">
+        <div className="card-header">
+          <h3>Quick actions</h3>
+          <span className="pill pill-outline">Main view</span>
+        </div>
+        <div className="settings-list">
+          <button
+            type="button"
+            className="settings-row"
+            onClick={() => onNavigate("/(app)/session/recent")}
+          >
+            <div className="settings-row-copy">
+              <strong>Recent sessions</strong>
+              <p>Review the latest session inventory and resume flows.</p>
+            </div>
+            <span className="settings-row-badge">Open</span>
+          </button>
+          <button
+            type="button"
+            className="settings-row"
+            onClick={() => onNavigate("/(app)/restore/index")}
+          >
+            <div className="settings-row-copy">
+              <strong>Link another device</strong>
+              <p>Restore or link another shell without leaving the mobile main view.</p>
+            </div>
+            <span className="settings-row-badge">Auth</span>
+          </button>
+        </div>
+      </section>
+
+      <section className="panel-card mobile-settings-section">
+        <div className="card-header">
+          <h3>Status</h3>
+          <span className="pill pill-accent">Live</span>
+        </div>
+        <dl className="meta-grid compact-meta-grid">
+          <div>
+            <dt>Account</dt>
+            <dd>{appState.profile.firstName || appState.profile.username || appState.profile.id}</dd>
+          </div>
+          <div>
+            <dt>Connected services</dt>
+            <dd>{appState.profile.connectedServices.length}</dd>
+          </div>
+          <div>
+            <dt>Sessions</dt>
+            <dd>{appState.sessions.length}</dd>
+          </div>
+          <div>
+            <dt>Endpoint</dt>
+            <dd>{appState.serverUrl}</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section className="panel-card">
+        <div className="card-header">
+          <h3>Recent sessions</h3>
+          <span className="pill pill-accent">{appState.sessions.length} loaded</span>
+        </div>
+        {isLoadingSessions ? (
+          <div className="empty-state compact-empty">
+            <h4>Loading sessions</h4>
+            <p className="panel-copy">Fetching the latest Android session inventory.</p>
+          </div>
+        ) : topSessions.length > 0 ? (
+          <div className="settings-list">
+            {topSessions.map(({ session, title, detail }) => (
+              <button
+                key={session.id}
+                type="button"
+                className="settings-row"
+                onClick={() => onNavigate(`/(app)/session/${session.id}`)}
+              >
+                <div className="settings-row-copy">
+                  <strong>{title}</strong>
+                  <p>{detail}</p>
+                </div>
+                <span className="settings-row-badge">{session.active ? "Active" : "Open"}</span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="empty-state compact-empty">
+            <h4>No sessions yet</h4>
+            <p className="panel-copy">
+              {`Create the first ${runtimeCopy.surfaceLabel} session to verify the live backend path end to end.`}
+            </p>
+            <div className="button-row mobile-button-column">
+              <button type="button" className="primary-button full-width" onClick={() => onNavigate("/(app)/new/index")}>
+                Create session
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function MobileInboxSurface({
+  appState,
+  onNavigate,
+  runtimeCopy,
+}: {
+  appState: AppShellState;
+  onNavigate: (path: string) => void;
+  runtimeCopy: RuntimeShellCopy;
+}) {
+  if (!appState.credentials) {
+    return <SignedOutState onNavigate={onNavigate} />;
+  }
+
+  const updateItems = appState.feedItems.map((item) => {
+    const body = item.body;
+    if (body.kind === "text") {
+      return {
+        key: item.id,
+        title: body.text,
+        subtitle: new Date(item.createdAt).toLocaleString(),
+        actionPath: "/(app)/inbox/index",
+        badge: "Update",
+      };
+    }
+
+    const relatedUser = appState.friends.find((friend) => friend.id === body.uid);
+    return {
+      key: item.id,
+      title:
+        body.kind === "friend_request"
+          ? `Friend request from ${relatedUser?.firstName || relatedUser?.username || body.uid}`
+          : `Friend accepted: ${relatedUser?.firstName || relatedUser?.username || body.uid}`,
+      subtitle: new Date(item.createdAt).toLocaleString(),
+      actionPath: `/(app)/user/${body.uid}`,
+      badge: body.kind === "friend_request" ? "Request" : "Friend",
+    };
+  });
+
+  const pendingFriends = appState.friends.filter((friend) => friend.status === "pending");
+  const requestedFriends = appState.friends.filter((friend) => friend.status === "requested");
+  const acceptedFriends = appState.friends.filter((friend) => friend.status === "friend");
+
+  return (
+    <div className="surface-stack">
+      <section className="panel-card mobile-hero-card">
+        <p className="eyebrow">Inbox</p>
+        <h3>Updates and account activity</h3>
+        <p className="panel-copy">
+          Review updates, friend activity, and account-linked events in the {runtimeCopy.surfaceLabel} shell.
+        </p>
+        <div className="pill-row">
+          <span className="pill pill-outline">{`${updateItems.length} updates`}</span>
+          <span className="pill pill-outline">{`${pendingFriends.length + requestedFriends.length} requests`}</span>
+          <span className="pill pill-accent">{`${acceptedFriends.length} friends`}</span>
+        </div>
+      </section>
+
+      <section className="panel-card">
+        <div className="card-header">
+          <h3>Updates</h3>
+          <span className="pill pill-outline">Feed</span>
+        </div>
+        {updateItems.length > 0 ? (
+          <div className="settings-list">
+            {updateItems.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                className="settings-row"
+                onClick={() => onNavigate(item.actionPath)}
+              >
+                <div className="settings-row-copy">
+                  <strong>{item.title}</strong>
+                  <p>{item.subtitle}</p>
+                </div>
+                <span className="settings-row-badge">{item.badge}</span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <EmptyState
+            title="No updates yet"
+            body={`Create a session or update an artifact to populate the ${runtimeCopy.surfaceLabel} inbox feed.`}
+            actionLabel="Create session"
+            onAction={() => onNavigate("/(app)/new/index")}
+          />
+        )}
+      </section>
+
+      <section className="panel-card">
+        <div className="card-header">
+          <h3>Pending requests</h3>
+          <span className="pill pill-outline">Social</span>
+        </div>
+        {pendingFriends.length > 0 || requestedFriends.length > 0 ? (
+          <div className="settings-list">
+            {pendingFriends.map((friend) => (
+              <button
+                key={`pending-${friend.id}`}
+                type="button"
+                className="settings-row"
+                onClick={() => onNavigate(`/(app)/user/${friend.id}`)}
+              >
+                <div className="settings-row-copy">
+                  <strong>{friend.firstName || friend.username}</strong>
+                  <p>@{friend.username}</p>
+                </div>
+                <span className="settings-row-badge">Pending</span>
+              </button>
+            ))}
+            {requestedFriends.map((friend) => (
+              <button
+                key={`requested-${friend.id}`}
+                type="button"
+                className="settings-row"
+                onClick={() => onNavigate(`/(app)/user/${friend.id}`)}
+              >
+                <div className="settings-row-copy">
+                  <strong>{friend.firstName || friend.username}</strong>
+                  <p>@{friend.username}</p>
+                </div>
+                <span className="settings-row-badge">Requested</span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="settings-list">
+            <div className="settings-row static">
+              <div className="settings-row-copy">
+                <strong>No pending friend requests</strong>
+                <p>Friend requests will appear here when social updates are available.</p>
+              </div>
+              <span className="settings-row-badge">Empty</span>
+            </div>
+          </div>
+        )}
+        <div className="button-row mobile-button-column">
+          <button
+            type="button"
+            className="secondary-button full-width"
+            onClick={() => onNavigate("/(app)/friends/search")}
+          >
+            Find friends
+          </button>
+        </div>
+      </section>
+
+      <section className="panel-card">
+        <div className="card-header">
+          <h3>My friends</h3>
+          <span className="pill pill-accent">Account</span>
+        </div>
+        <div className="settings-list">
+          {acceptedFriends.length > 0 ? (
+            acceptedFriends.map((friend) => (
+              <button
+                key={friend.id}
+                type="button"
+                className="settings-row"
+                onClick={() => onNavigate(`/(app)/user/${friend.id}`)}
+              >
+                <div className="settings-row-copy">
+                  <strong>{friend.firstName || friend.username}</strong>
+                  <p>@{friend.username}</p>
+                </div>
+                <span className="settings-row-badge connected">Friend</span>
+              </button>
+            ))
+          ) : (
+            <div className="settings-row static">
+              <div className="settings-row-copy">
+                <strong>No friends yet</strong>
+                <p>Accepted friends will appear here once the social graph is populated.</p>
+              </div>
+              <span className="settings-row-badge">Empty</span>
+            </div>
+          )}
+        </div>
+        <div className="button-row mobile-button-column">
+          <button
+            type="button"
+            className="secondary-button full-width"
+            onClick={() => onNavigate("/(app)/friends/index")}
+          >
+            Open friends
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function MobileSettingsSurface({
+  appState,
+  onNavigate,
+  runtimeCopy,
+  settingsFeatureLinks,
+  aboutLinks,
+}: {
+  appState: AppShellState;
+  onNavigate: (path: string) => void;
+  runtimeCopy: RuntimeShellCopy;
+  settingsFeatureLinks: ReturnType<typeof buildSettingsFeatureLinks>;
+  aboutLinks: ReturnType<typeof buildAboutLinks>;
+}) {
+  if (!appState.credentials) {
+    return <SignedOutState onNavigate={onNavigate} />;
+  }
+
+  return (
+    <div className="surface-stack">
+      <section className="panel-card mobile-hero-card">
+        <p className="eyebrow">{runtimeCopy.settingsEyebrow}</p>
+        <h3>{runtimeCopy.settingsHubTitle}</h3>
+        <p className="panel-copy">{runtimeCopy.settingsHubCopy}</p>
+      </section>
+
+      <section className="panel-card">
+        <div className="card-header">
+          <h3>Account</h3>
+          <span className="pill pill-accent">Profile</span>
+        </div>
+        <div className="settings-list">
+          <button
+            type="button"
+            className="settings-row"
+            onClick={() => onNavigate("/(app)/settings/account")}
+          >
+            <div className="settings-row-copy">
+              <strong>Vibe account</strong>
+              <p>{appState.profile?.id ?? "Signed out"}</p>
+            </div>
+            <span className="settings-row-badge">Open</span>
+          </button>
+          <button
+            type="button"
+            className="settings-row"
+            onClick={() => onNavigate("/(app)/restore/index")}
+          >
+            <div className="settings-row-copy">
+              <strong>Restore or link device</strong>
+              <p>{describeRuntimeLinkRoute("mobile")}</p>
+            </div>
+            <span className="settings-row-badge">Auth</span>
+          </button>
+        </div>
+      </section>
+
+      <section className="panel-card">
+        <div className="card-header">
+          <h3>Social</h3>
+          <span className="pill pill-outline">Friends</span>
+        </div>
+        <div className="settings-list">
+          <button
+            type="button"
+            className="settings-row"
+            onClick={() => onNavigate("/(app)/friends/index")}
+          >
+            <div className="settings-row-copy">
+              <strong>Friends</strong>
+              <p>Manage pending requests, sent requests, and accepted friends.</p>
+            </div>
+            <span className="settings-row-badge">Open</span>
+          </button>
+          <button
+            type="button"
+            className="settings-row"
+            onClick={() => onNavigate("/(app)/friends/search")}
+          >
+            <div className="settings-row-copy">
+              <strong>Find friends</strong>
+              <p>Search by username and send or accept requests.</p>
+            </div>
+            <span className="settings-row-badge">Search</span>
+          </button>
+        </div>
+      </section>
+
+      <section className="panel-card">
+        <div className="card-header">
+          <h3>Features</h3>
+          <span className="pill pill-outline">Routes</span>
+        </div>
+        <div className="settings-list">
+          {settingsFeatureLinks.map((item) => (
+            <button
+              key={item.title}
+              type="button"
+              className="settings-row"
+              onClick={() => onNavigate(item.route)}
+            >
+              <div className="settings-row-copy">
+                <strong>{item.title}</strong>
+                <p>{item.subtitle}</p>
+              </div>
+              <span className="settings-row-badge">{item.badge}</span>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="panel-card">
+        <div className="card-header">
+          <h3>Support</h3>
+          <span className="pill pill-outline">Help</span>
+        </div>
+        <div className="settings-list">
+          <button
+            type="button"
+            className="settings-row"
+            onClick={() => onNavigate("/(app)/changelog")}
+          >
+            <div className="settings-row-copy">
+              <strong>What&apos;s new</strong>
+              <p>Review the latest mobile shell changes and migration progress.</p>
+            </div>
+            <span className="settings-row-badge">Route</span>
+          </button>
+          <button
+            type="button"
+            className="settings-row"
+            onClick={() => void openExternalUrl("https://github.com/fage-org/vibe-everywhere")}
+          >
+            <div className="settings-row-copy">
+              <strong>GitHub</strong>
+              <p>fage-org/vibe-everywhere</p>
+            </div>
+            <span className="settings-row-badge">External</span>
+          </button>
+          <button
+            type="button"
+            className="settings-row"
+            onClick={() => void openExternalUrl("https://github.com/fage-org/vibe-everywhere/issues")}
+          >
+            <div className="settings-row-copy">
+              <strong>Report issue</strong>
+              <p>Open a bug report for Android shell regressions.</p>
+            </div>
+            <span className="settings-row-badge">External</span>
+          </button>
+        </div>
+      </section>
+
+      <section className="panel-card">
+        <div className="card-header">
+          <h3>About</h3>
+          <span className="pill pill-muted">{DESKTOP_PREVIEW_VERSION}</span>
+        </div>
+        <div className="settings-list">
+          {aboutLinks.slice(0, 3).map((item) => (
+            <button
+              key={item.title}
+              type="button"
+              className="settings-row"
+              onClick={() => {
+                if (item.action === "route") {
+                  onNavigate(item.value);
+                }
+              }}
+            >
+              <div className="settings-row-copy">
+                <strong>{item.title}</strong>
+                <p>{item.subtitle}</p>
+              </div>
+              <span className="settings-row-badge">
+                {item.action === "route" ? "Route" : "External"}
+              </span>
+            </button>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+type DesktopState = AppShellState;
 
 type RouteSurfaceProps = {
   resolved: ResolvedRoute;
@@ -1071,6 +1874,14 @@ function RouteSurface({
         />
       );
     case "restore-index":
+      if (runtimeTarget === "mobile") {
+        return (
+          <MobileRestoreSurface
+            desktop={desktop}
+            onNavigate={onNavigate}
+          />
+        );
+      }
       return (
         <RestoreSurface
           desktop={desktop}
@@ -1080,6 +1891,14 @@ function RouteSurface({
         />
       );
     case "restore-manual":
+      if (runtimeTarget === "mobile") {
+        return (
+          <MobileManualRestoreSurface
+            desktop={desktop}
+            onNavigate={onNavigate}
+          />
+        );
+      }
       return (
         <ManualRestoreSurface
           desktop={desktop}
@@ -1093,6 +1912,17 @@ function RouteSurface({
     case "new-session":
       return <NewSessionSurface desktop={desktop} onNavigate={onNavigate} />;
     case "session-detail":
+      if (runtimeTarget === "mobile") {
+        return (
+          <MobileSessionSurface
+            key={resolved.params.id ?? ""}
+            desktop={desktop}
+            preferences={preferences}
+            sessionId={resolved.params.id ?? ""}
+            onNavigate={onNavigate}
+          />
+        );
+      }
       return (
         <SessionSurface
           key={resolved.params.id ?? ""}
@@ -1103,6 +1933,15 @@ function RouteSurface({
         />
       );
     case "session-info":
+      if (runtimeTarget === "mobile") {
+        return (
+          <MobileSessionInfoSurface
+            sessionId={resolved.params.id ?? ""}
+            desktop={desktop}
+            onNavigate={onNavigate}
+          />
+        );
+      }
       return (
         <SessionInfoSurface
           sessionId={resolved.params.id ?? ""}
@@ -1111,6 +1950,17 @@ function RouteSurface({
         />
       );
     case "session-message":
+      if (runtimeTarget === "mobile") {
+        return (
+          <MobileSessionMessageSurface
+            sessionId={resolved.params.id ?? ""}
+            messageId={resolved.params.messageId ?? ""}
+            desktop={desktop}
+            preferences={preferences}
+            onNavigate={onNavigate}
+          />
+        );
+      }
       return (
         <SessionMessageSurface
           sessionId={resolved.params.id ?? ""}
@@ -1121,6 +1971,16 @@ function RouteSurface({
         />
       );
     case "session-files":
+      if (runtimeTarget === "mobile") {
+        return (
+          <MobileSessionFilesSurface
+            sessionId={resolved.params.id ?? ""}
+            desktop={desktop}
+            secondarySurfaces={secondarySurfaces}
+            onNavigate={onNavigate}
+          />
+        );
+      }
       return (
         <SessionFilesSurface
           sessionId={resolved.params.id ?? ""}
@@ -1130,6 +1990,18 @@ function RouteSurface({
         />
       );
     case "session-file":
+      if (runtimeTarget === "mobile") {
+        return (
+          <MobileSessionFileSurface
+            sessionId={resolved.params.id ?? ""}
+            routeFilePath={resolved.searchParams.get("path")}
+            desktop={desktop}
+            preferences={preferences}
+            secondarySurfaces={secondarySurfaces}
+            onNavigate={onNavigate}
+          />
+        );
+      }
       return (
         <SessionFileSurface
           sessionId={resolved.params.id ?? ""}
@@ -1154,6 +2026,15 @@ function RouteSurface({
         />
       );
     case "settings-account":
+      if (runtimeTarget === "mobile") {
+        return (
+          <MobileAccountSettingsSurface
+            desktop={desktop}
+            onNavigate={onNavigate}
+            runtimeCopy={runtimeCopy}
+          />
+        );
+      }
       return (
         <AccountSettingsSurface
           desktop={desktop}
@@ -1162,10 +2043,24 @@ function RouteSurface({
         />
       );
     case "settings-appearance":
+      if (runtimeTarget === "mobile") {
+        return <MobileAppearanceSettingsSurface preferences={preferences} />;
+      }
       return <AppearanceSettingsSurface preferences={preferences} />;
     case "settings-features":
+      if (runtimeTarget === "mobile") {
+        return <MobileFeatureSettingsSurface preferences={preferences} />;
+      }
       return <FeatureSettingsSurface preferences={preferences} />;
     case "settings-language":
+      if (runtimeTarget === "mobile") {
+        return (
+          <MobileLanguageSettingsSurface
+            preferences={preferences}
+            runtimeCopy={runtimeCopy}
+          />
+        );
+      }
       return (
         <LanguageSettingsSurface
           preferences={preferences}
@@ -1173,8 +2068,20 @@ function RouteSurface({
         />
       );
     case "settings-usage":
+      if (runtimeTarget === "mobile") {
+        return <MobileUsageSettingsSurface desktop={desktop} onNavigate={onNavigate} />;
+      }
       return <UsageSettingsSurface desktop={desktop} onNavigate={onNavigate} />;
     case "settings-voice":
+      if (runtimeTarget === "mobile") {
+        return (
+          <MobileVoiceSettingsSurface
+            preferences={preferences}
+            onNavigate={onNavigate}
+            nativeCapabilities={nativeCapabilities}
+          />
+        );
+      }
       return (
         <VoiceSettingsSurface
           preferences={preferences}
@@ -1183,8 +2090,14 @@ function RouteSurface({
         />
       );
     case "settings-voice-language":
+      if (runtimeTarget === "mobile") {
+        return <MobileVoiceLanguageSurface preferences={preferences} />;
+      }
       return <VoiceLanguageSurface preferences={preferences} />;
     case "settings-connect-claude":
+      if (runtimeTarget === "mobile") {
+        return <MobileConnectClaudeSurface desktop={desktop} onNavigate={onNavigate} />;
+      }
       return <ConnectClaudeSurface desktop={desktop} onNavigate={onNavigate} />;
     case "artifacts-index":
       return (
@@ -1228,6 +2141,15 @@ function RouteSurface({
         />
       );
     case "user-detail":
+      if (runtimeTarget === "mobile") {
+        return (
+          <MobileUserDetailSurface
+            userId={resolved.params.id ?? ""}
+            desktop={desktop}
+            onNavigate={onNavigate}
+          />
+        );
+      }
       return (
         <UserDetailSurface
           userId={resolved.params.id ?? ""}
@@ -1235,6 +2157,16 @@ function RouteSurface({
           onNavigate={onNavigate}
         />
       );
+    case "friends-index":
+      if (runtimeTarget === "mobile") {
+        return <MobileFriendsIndexSurface desktop={desktop} onNavigate={onNavigate} />;
+      }
+      break;
+    case "friends-search":
+      if (runtimeTarget === "mobile") {
+        return <MobileFriendsSearchSurface desktop={desktop} onNavigate={onNavigate} />;
+      }
+      break;
     case "changelog":
       return <ChangelogSurface />;
     case "terminal-index":
@@ -1848,6 +2780,129 @@ function ManualRestoreSurface({
   );
 }
 
+function MobileRestoreSurface({
+  desktop,
+  onNavigate,
+}: {
+  desktop: DesktopState;
+  onNavigate: (path: string) => void;
+}) {
+  useEffect(() => {
+    if (desktop.credentials || desktop.linkState.status !== "idle") {
+      return;
+    }
+    void desktop.startMobileLink();
+  }, [desktop.credentials, desktop.linkState.status, desktop.startMobileLink]);
+
+  return (
+    <div className="surface-stack">
+      <section className="panel-card mobile-settings-section">
+        <p className="eyebrow">Restore</p>
+        <h3>Link this Android device</h3>
+        <p className="panel-copy">
+          Open Happy on another signed-in device, go to account settings, and scan the QR code to
+          approve this Android shell.
+        </p>
+      </section>
+
+      <section className="panel-card mobile-settings-section mobile-qr-card">
+        {desktop.linkState.qrSvg ? (
+          <div
+            className="qr-frame"
+            aria-label="Device link QR code"
+            dangerouslySetInnerHTML={{ __html: desktop.linkState.qrSvg }}
+          />
+        ) : (
+          <div className="empty-state compact-empty">
+            <h4>Preparing QR code</h4>
+            <p className="panel-copy">Starting the live device-link request.</p>
+          </div>
+        )}
+        <div className="button-row mobile-button-column">
+          <button
+            type="button"
+            className="secondary-button full-width"
+            onClick={() => void desktop.startMobileLink()}
+          >
+            Refresh QR code
+          </button>
+          <button
+            type="button"
+            className="secondary-button full-width"
+            onClick={() => onNavigate("/(app)/restore/manual")}
+          >
+            Restore with secret key instead
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function MobileManualRestoreSurface({
+  desktop,
+  onNavigate,
+}: {
+  desktop: DesktopState;
+  onNavigate: (path: string) => void;
+}) {
+  const [secret, setSecret] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    setError(null);
+    try {
+      await desktop.restoreWithSecret(secret);
+      onNavigate("/(app)/index");
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : "Failed to restore account");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="surface-stack">
+      <section className="panel-card mobile-settings-section">
+        <p className="eyebrow">Manual restore</p>
+        <h3>Restore with your secret key</h3>
+        <p className="panel-copy">
+          Enter your backup secret key to restore access to this account on Android.
+        </p>
+        <label className="field-block">
+          <span>Secret key</span>
+          <textarea
+            rows={5}
+            placeholder="XXXXX-XXXXX-XXXXX..."
+            value={secret}
+            onChange={(event) => setSecret(event.target.value)}
+          />
+        </label>
+        {error ? <ErrorBanner message={error} /> : null}
+        <div className="button-row mobile-button-column">
+          <button
+            type="button"
+            className="primary-button full-width"
+            onClick={() => void handleSubmit()}
+            disabled={submitting}
+          >
+            {submitting ? "Restoring..." : "Restore account"}
+          </button>
+          <button
+            type="button"
+            className="secondary-button full-width"
+            onClick={() => onNavigate("/(app)/restore/index")}
+          >
+            Back to QR restore
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function InboxSurface({
   desktop,
   onNavigate,
@@ -2142,6 +3197,9 @@ function SessionSurface({
   }
 
   const description = describeSession(session);
+  const resumeCommand = buildResumeCommand(session.metadata ?? {});
+  const isArchived = session.metadata?.lifecycleState === "archived";
+  const showResumeHint = !session.active && !!resumeCommand;
 
   const handleSend = async () => {
     if (!draft.trim()) {
@@ -2359,6 +3417,915 @@ function SessionSurface({
           </div>
         </article>
       </section>
+    </div>
+  );
+}
+
+function MobileSessionSurface({
+  desktop,
+  preferences,
+  sessionId,
+  onNavigate,
+}: {
+  desktop: DesktopState;
+  preferences: DesktopPreferencesState;
+  sessionId: string;
+  onNavigate: (path: string) => void;
+}) {
+  const [draft, setDraft] = useState(() => loadSessionDraft(sessionId));
+  const session = desktop.sessions.find((item) => item.id === sessionId) ?? null;
+  const messageState = desktop.sessionState[sessionId];
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const [selectionRange, setSelectionRange] = useState<{ start: number; end: number }>({
+    start: draft.length,
+    end: draft.length,
+  });
+  const [sessionFileSuggestions, setSessionFileSuggestions] = useState<string[] | null>(null);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const permissionOptions = useMemo(
+    () => getSessionPermissionOptions(session?.metadata ?? null),
+    [session?.metadata],
+  );
+  const modelOptions = useMemo(
+    () => getSessionModelOptions(session?.metadata ?? null),
+    [session?.metadata],
+  );
+  const defaultComposerPreferences = useMemo(
+    () => ({
+      permissionMode: resolveSessionModeSelection(permissionOptions, [
+        session?.metadata?.currentOperatingModeCode,
+        "default",
+      ]),
+      model: resolveSessionModeSelection(modelOptions, [
+        session?.metadata?.currentModelCode,
+        "default",
+      ]),
+    } satisfies SessionComposerPreferences),
+    [modelOptions, permissionOptions, session?.metadata?.currentModelCode, session?.metadata?.currentOperatingModeCode],
+  );
+  const [composerPreferences, setComposerPreferences] = useState<SessionComposerPreferences>(() =>
+    loadSessionPreferences(sessionId, defaultComposerPreferences),
+  );
+  const activeComposerToken = useMemo(
+    () => findActiveComposerToken(draft, selectionRange.start, selectionRange.end),
+    [draft, selectionRange.end, selectionRange.start],
+  );
+  const composerSuggestions = useMemo(
+    () =>
+      buildComposerSuggestions(
+        activeComposerToken?.activeWord ?? null,
+        sessionFileSuggestions ?? [],
+      ),
+    [activeComposerToken?.activeWord, sessionFileSuggestions],
+  );
+
+  useEffect(() => {
+    if (session) {
+      void desktop.loadMessages(session.id);
+    }
+  }, [desktop.loadMessages, session?.id]);
+
+  useEffect(() => {
+    setComposerPreferences(loadSessionPreferences(sessionId, defaultComposerPreferences));
+  }, [defaultComposerPreferences, sessionId]);
+
+  useEffect(() => {
+    if (!sessionId) {
+      return;
+    }
+    if (draft) {
+      saveSessionDraft(sessionId, draft);
+      return;
+    }
+    clearSessionDraft(sessionId);
+  }, [draft, sessionId]);
+
+  useEffect(() => {
+    saveSessionPreferences(sessionId, composerPreferences);
+  }, [composerPreferences, sessionId]);
+
+  useEffect(() => {
+    setSessionFileSuggestions(null);
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (activeComposerToken?.activeWord.startsWith("@") && sessionFileSuggestions === null && session) {
+      setSuggestionsLoading(true);
+      void desktop
+        .loadSessionFiles(session.id)
+        .then((inventory) => {
+          setSessionFileSuggestions(inventory.files.map((file) => file.relativePath));
+        })
+        .catch(() => {
+          setSessionFileSuggestions([]);
+        })
+        .finally(() => {
+          setSuggestionsLoading(false);
+        });
+    }
+  }, [activeComposerToken?.activeWord, desktop.loadSessionFiles, session, sessionFileSuggestions]);
+
+  if (!desktop.credentials) {
+    return <SignedOutState onNavigate={onNavigate} />;
+  }
+
+  if (!session) {
+    return (
+      <EmptyState
+        title="Session not found"
+        body="Refresh the session inventory or return to sessions to pick a different session."
+        actionLabel="Back to sessions"
+        onAction={() => onNavigate("/(app)/index")}
+      />
+    );
+  }
+
+  const description = describeSession(session);
+  const resumeCommand = buildResumeCommand(session.metadata ?? {});
+  const isArchived = session.metadata?.lifecycleState === "archived";
+  const showResumeHint = !session.active && !!resumeCommand;
+
+  const handleSend = async () => {
+    if (!draft.trim()) {
+      return;
+    }
+    await desktop.sendMessage(session.id, draft, {
+      permissionMode:
+        composerPreferences.permissionMode === "default"
+          ? undefined
+          : composerPreferences.permissionMode,
+      model: composerPreferences.model === "default" ? null : composerPreferences.model,
+    });
+    setDraft("");
+  };
+
+  const handleSuggestionSelect = (suggestion: ComposerSuggestion) => {
+    const next = applyComposerSuggestion(
+      draft,
+      selectionRange.start,
+      selectionRange.end,
+      suggestion,
+    );
+    setDraft(next.text);
+    setSelectionRange({ start: next.cursorPosition, end: next.cursorPosition });
+    if (typeof window !== "undefined") {
+      window.requestAnimationFrame(() => {
+        textareaRef.current?.focus();
+        textareaRef.current?.setSelectionRange(next.cursorPosition, next.cursorPosition);
+      });
+    }
+  };
+
+  return (
+    <div className="surface-stack">
+      <section className="panel-card mobile-session-header">
+        <p className="eyebrow">Session</p>
+        <h3>{description.title}</h3>
+        <p className="panel-copy">{description.subtitle}</p>
+        <div className="pill-row">
+          <span className={`status-chip status-${session.active ? "active" : "ready"}`}>
+            {session.active ? "Active" : "Idle"}
+          </span>
+          <span className="pill pill-outline">{description.detail}</span>
+        </div>
+        <div className="button-row mobile-button-column">
+          <button
+            type="button"
+            className="secondary-button full-width"
+            onClick={() => onNavigate(`/(app)/session/${sessionId}/info`)}
+          >
+            Session info
+          </button>
+          <button
+            type="button"
+            className="secondary-button full-width"
+            onClick={() => onNavigate(`/(app)/session/${sessionId}/files`)}
+          >
+            Session files
+          </button>
+        </div>
+      </section>
+
+      {showResumeHint ? (
+        <section className="panel-card mobile-session-section">
+          <div className="card-header">
+            <h3>{isArchived ? "Archived session" : "Resume session"}</h3>
+            <span className="pill pill-outline">Terminal</span>
+          </div>
+          <p className="panel-copy">
+            {isArchived
+              ? "This session is archived. Resume it from the terminal before sending a new turn."
+              : "This session can be resumed directly from the terminal using the current metadata."}
+          </p>
+          <code className="backup-code">{resumeCommand}</code>
+          <div className="button-row mobile-button-column">
+            <button
+              type="button"
+              className="secondary-button full-width"
+              onClick={() =>
+                void copyTextToClipboard(resumeCommand).catch(() => undefined)
+              }
+            >
+              Copy resume command
+            </button>
+          </div>
+        </section>
+      ) : null}
+
+      <section className="panel-card mobile-session-section">
+        <div className="card-header">
+          <h3>Timeline</h3>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => void desktop.loadMessages(session.id, true)}
+          >
+            Refresh
+          </button>
+        </div>
+        {messageState?.error ? <ErrorBanner message={messageState.error} /> : null}
+        {messageState?.loading ? <p className="panel-copy">Loading encrypted message history...</p> : null}
+        {messageState?.items?.length ? (
+          <div className="timeline-list">
+            {messageState.items.map((message) => (
+              <article key={message.id} className={`timeline-entry accent-${timelineAccent(message.role)}`}>
+                <div className="timeline-entry-head">
+                  <strong>{message.title}</strong>
+                  <span>{new Date(message.createdAt).toLocaleTimeString()}</span>
+                </div>
+                <TimelineMessageBody
+                  message={message}
+                  appearanceSettings={preferences.appearanceSettings}
+                />
+                <div className="button-row compact-actions">
+                  <button
+                    type="button"
+                    className="secondary-button full-width"
+                    onClick={() => onNavigate(`/(app)/session/${session.id}/message/${message.id}`)}
+                  >
+                    Open message
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : !messageState?.loading ? (
+          <MobileEmptyMessages session={session} />
+        ) : null}
+      </section>
+
+      <section className="panel-card mobile-session-section">
+        <div className="card-header">
+          <h3>Composer</h3>
+          <span className="pill pill-p0">Live send</span>
+        </div>
+        <div className="composer-settings-row">
+          <label className="field-block compact-field">
+            <span>Permission</span>
+            <select
+              value={composerPreferences.permissionMode}
+              onChange={(event) =>
+                setComposerPreferences((current) => ({
+                  ...current,
+                  permissionMode: event.target.value,
+                }))
+              }
+            >
+              {permissionOptions.map((option) => (
+                <option key={option.key} value={option.key}>
+                  {option.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field-block compact-field">
+            <span>Model</span>
+            <select
+              value={composerPreferences.model}
+              onChange={(event) =>
+                setComposerPreferences((current) => ({
+                  ...current,
+                  model: event.target.value,
+                }))
+              }
+            >
+              {modelOptions.map((option) => (
+                <option key={option.key} value={option.key}>
+                  {option.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <label className="field-block">
+          <span>Prompt the agent</span>
+          <textarea
+            ref={textareaRef}
+            rows={6}
+            value={draft}
+            onChange={(event) => {
+              setDraft(event.target.value);
+              setSelectionRange({
+                start: event.currentTarget.selectionStart ?? event.target.value.length,
+                end: event.currentTarget.selectionEnd ?? event.target.value.length,
+              });
+            }}
+            onSelect={(event) =>
+              setSelectionRange({
+                start: event.currentTarget.selectionStart ?? draft.length,
+                end: event.currentTarget.selectionEnd ?? draft.length,
+              })
+            }
+            placeholder="Send a real message to the session"
+          />
+        </label>
+        {activeComposerToken ? (
+          <div className="composer-hint-row">
+            <span className="pill pill-outline">
+              {activeComposerToken.activeWord.startsWith("@")
+                ? "File mention autocomplete"
+                : "Slash command autocomplete"}
+            </span>
+          </div>
+        ) : null}
+        {suggestionsLoading ? (
+          <p className="panel-copy compact-copy">Loading live workspace file suggestions...</p>
+        ) : composerSuggestions.length > 0 ? (
+          <div className="composer-suggestion-list">
+            {composerSuggestions.map((suggestion) => (
+              <button
+                key={suggestion.key}
+                type="button"
+                className="composer-suggestion-button"
+                onClick={() => handleSuggestionSelect(suggestion)}
+              >
+                <strong>{suggestion.label}</strong>
+                <span>{suggestion.description}</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
+        <div className="button-row mobile-button-column">
+          <button
+            type="button"
+            className="primary-button full-width"
+            onClick={() => void handleSend()}
+            disabled={messageState?.sending || messageState?.aborting}
+          >
+            {messageState?.sending ? "Sending..." : "Send live message"}
+          </button>
+          <button
+            type="button"
+            className="secondary-button full-width"
+            onClick={() => void desktop.abortSession(session.id)}
+            disabled={messageState?.aborting}
+          >
+            {messageState?.aborting ? "Aborting..." : "Abort turn"}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function MobileEmptyMessages({
+  session,
+}: {
+  session: DesktopSession;
+}) {
+  const host = typeof session.metadata?.host === "string" ? session.metadata.host : null;
+  const workspace = typeof session.metadata?.path === "string" ? session.metadata.path : null;
+
+  return (
+    <div className="mobile-empty-messages">
+      {host ? <strong>{host}</strong> : null}
+      {workspace ? <span>{workspace}</span> : null}
+      <h4>No messages yet</h4>
+      <p className="panel-copy">{`Created ${formatRelativeTime(session.createdAt)}`}</p>
+    </div>
+  );
+}
+
+function MobileSessionContextCard({
+  session,
+  onNavigate,
+  primaryAction,
+}: {
+  session: DesktopSession;
+  onNavigate: (path: string) => void;
+  primaryAction?: {
+    label: string;
+    path: string;
+  };
+}) {
+  const description = describeSession(session);
+  const workspace = typeof session.metadata?.path === "string" ? session.metadata.path : null;
+  const host = typeof session.metadata?.host === "string" ? session.metadata.host : null;
+
+  return (
+    <section className="panel-card mobile-session-section">
+      <p className="eyebrow">Session</p>
+      <h3>{description.title}</h3>
+      <p className="panel-copy">{description.subtitle}</p>
+      <div className="pill-row">
+        <span className={`status-chip status-${session.active ? "active" : "ready"}`}>
+          {session.active ? "Active" : "Idle"}
+        </span>
+        <span className="pill pill-outline">{description.detail}</span>
+      </div>
+      {(workspace || host) ? (
+        <dl className="meta-grid compact-meta-grid">
+          {workspace ? (
+            <div>
+              <dt>Workspace</dt>
+              <dd>{workspace}</dd>
+            </div>
+          ) : null}
+          {host ? (
+            <div>
+              <dt>Host</dt>
+              <dd>{host}</dd>
+            </div>
+          ) : null}
+        </dl>
+      ) : null}
+      {primaryAction ? (
+        <div className="button-row mobile-button-column">
+          <button
+            type="button"
+            className="secondary-button full-width"
+            onClick={() => onNavigate(primaryAction.path)}
+          >
+            {primaryAction.label}
+          </button>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function MobileSessionMessageSurface({
+  sessionId,
+  messageId,
+  desktop,
+  preferences,
+  onNavigate,
+}: {
+  sessionId: string;
+  messageId: string;
+  desktop: DesktopState;
+  preferences: DesktopPreferencesState;
+  onNavigate: (path: string) => void;
+}) {
+  const session = desktop.sessions.find((item) => item.id === sessionId) ?? null;
+  const messageState = desktop.sessionState[sessionId];
+
+  useEffect(() => {
+    if (session) {
+      void desktop.loadMessages(session.id);
+    }
+  }, [desktop.loadMessages, session?.id]);
+
+  if (!desktop.credentials) {
+    return <SignedOutState onNavigate={onNavigate} />;
+  }
+
+  const message = messageState?.items.find((item) => item.id === messageId) ?? null;
+  if (!message) {
+    return (
+      <EmptyState
+        title="Message not found"
+        body="Refresh the session timeline and reopen the message once it is available."
+        actionLabel="Back to session"
+        onAction={() => onNavigate(`/(app)/session/${sessionId}`)}
+      />
+    );
+  }
+
+  const sessionData = session!;
+
+  return (
+    <div className="surface-stack">
+      <MobileSessionContextCard
+        session={sessionData}
+        onNavigate={onNavigate}
+        primaryAction={{
+          label: "Back to session",
+          path: `/(app)/session/${sessionId}`,
+        }}
+      />
+      <section className="panel-card mobile-session-section">
+        <p className="eyebrow">Message</p>
+        <h3>{message.title}</h3>
+        <p className="panel-copy">{new Date(message.createdAt).toLocaleString()}</p>
+        <div className="pill-row">
+          <span className="pill pill-outline">{message.role}</span>
+          <span className="pill pill-outline">{message.rawType}</span>
+        </div>
+      </section>
+      <section className="panel-card mobile-session-section">
+        <div className="card-header">
+          <h3>Message content</h3>
+          <span className="pill pill-accent">Deep link</span>
+        </div>
+        <TimelineMessageBody
+          message={message}
+          appearanceSettings={preferences.appearanceSettings}
+        />
+        <div className="button-row mobile-button-column">
+          <button
+            type="button"
+            className="secondary-button full-width"
+            onClick={() => onNavigate(`/(app)/session/${sessionId}`)}
+          >
+            Back to session
+          </button>
+          <button
+            type="button"
+            className="secondary-button full-width"
+            onClick={() => onNavigate(`/(app)/session/${sessionId}/files`)}
+          >
+            Open session files
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function MobileSessionInfoSurface({
+  sessionId,
+  desktop,
+  onNavigate,
+}: {
+  sessionId: string;
+  desktop: DesktopState;
+  onNavigate: (path: string) => void;
+}) {
+  if (!desktop.credentials) {
+    return <SignedOutState onNavigate={onNavigate} />;
+  }
+
+  const session = desktop.sessions.find((item) => item.id === sessionId) ?? null;
+  if (!session) {
+    return (
+      <EmptyState
+        title="Session not found"
+        body="Refresh the session inventory and reopen the session info route."
+        actionLabel="Back to session"
+        onAction={() => onNavigate(`/(app)/session/${sessionId}`)}
+      />
+    );
+  }
+
+  const metadata = session.metadata;
+  const description = describeSession(session);
+
+  return (
+    <div className="surface-stack">
+      <MobileSessionContextCard
+        session={session}
+        onNavigate={onNavigate}
+        primaryAction={{
+          label: "Open session files",
+          path: `/(app)/session/${sessionId}/files`,
+        }}
+      />
+      <section className="panel-card mobile-session-section">
+        <div className="card-header">
+          <h3>Session info</h3>
+          <span className="pill pill-accent">Live</span>
+        </div>
+        <dl className="meta-grid">
+          <div>
+            <dt>Session ID</dt>
+            <dd>{session.id}</dd>
+          </div>
+          <div>
+            <dt>Workspace</dt>
+            <dd>{metadata?.path ?? "Unavailable"}</dd>
+          </div>
+          <div>
+            <dt>Host</dt>
+            <dd>{metadata?.host ?? "Unavailable"}</dd>
+          </div>
+          <div>
+            <dt>Model</dt>
+            <dd>{metadata?.currentModelCode ?? "Unavailable"}</dd>
+          </div>
+        </dl>
+        <div className="button-row mobile-button-column">
+          <button
+            type="button"
+            className="secondary-button full-width"
+            onClick={() => onNavigate(`/(app)/session/${sessionId}/files`)}
+          >
+            Open session files
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function MobileSessionFilesSurface({
+  sessionId,
+  desktop,
+  secondarySurfaces,
+  onNavigate,
+}: {
+  sessionId: string;
+  desktop: DesktopState;
+  secondarySurfaces: SecondarySurfaceState;
+  onNavigate: (path: string) => void;
+}) {
+  if (!desktop.credentials) {
+    return <SignedOutState onNavigate={onNavigate} />;
+  }
+
+  const session = desktop.sessions.find((item) => item.id === sessionId) ?? null;
+  const [inventory, setInventory] = useState<{
+    branch: string | null;
+    files: SessionWorkspaceFile[];
+    totalStaged: number;
+    totalUnstaged: number;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!desktop.credentials) {
+      return;
+    }
+
+    let canceled = false;
+    setLoading(true);
+    setError(null);
+    void desktop
+      .loadSessionFiles(sessionId)
+      .then((nextInventory) => {
+        if (canceled) {
+          return;
+        }
+        setInventory(nextInventory);
+        if (
+          nextInventory.files.length > 0 &&
+          !secondarySurfaces.getSelectedSessionFilePath(sessionId)
+        ) {
+          secondarySurfaces.selectSessionFilePath(sessionId, nextInventory.files[0].relativePath);
+        }
+        setLoading(false);
+      })
+      .catch((loadError) => {
+        if (canceled) {
+          return;
+        }
+        setError(loadError instanceof Error ? loadError.message : "Failed to load session files");
+        setLoading(false);
+      });
+
+    return () => {
+      canceled = true;
+    };
+  }, [desktop.credentials, desktop.loadSessionFiles, secondarySurfaces, sessionId]);
+
+  if (!session) {
+    return (
+      <EmptyState
+        title="Session not found"
+        body="Refresh the session inventory before reviewing session files."
+        actionLabel="Back to sessions"
+        onAction={() => onNavigate("/(app)/index")}
+      />
+    );
+  }
+
+  return (
+    <div className="surface-stack">
+      <MobileSessionContextCard
+        session={session}
+        onNavigate={onNavigate}
+        primaryAction={{
+          label: "Back to session",
+          path: `/(app)/session/${sessionId}`,
+        }}
+      />
+      <section className="panel-card mobile-session-section">
+        <div className="card-header">
+          <h3>Session files</h3>
+          <span className="pill pill-accent">
+            {loading ? "Loading" : `${inventory?.files.length ?? 0} live`}
+          </span>
+        </div>
+        {inventory ? (
+          <dl className="meta-grid compact-meta-grid">
+            <div>
+              <dt>Branch</dt>
+              <dd>{inventory.branch ?? "Detached"}</dd>
+            </div>
+            <div>
+              <dt>Staged</dt>
+              <dd>{inventory.totalStaged}</dd>
+            </div>
+            <div>
+              <dt>Unstaged</dt>
+              <dd>{inventory.totalUnstaged}</dd>
+            </div>
+          </dl>
+        ) : null}
+        <p className="panel-copy">
+          Browse the current session workspace and open a file without leaving the mobile flow.
+        </p>
+      </section>
+      {error ? <ErrorBanner message={error} /> : null}
+      {loading ? (
+        <section className="panel-card empty-state-card">
+          <h3>Loading files</h3>
+          <p className="panel-copy">Inspecting the current session workspace and git status.</p>
+        </section>
+      ) : (inventory?.files.length ?? 0) > 0 ? (
+        <section className="panel-card mobile-session-section">
+          <div className="settings-list">
+            {inventory!.files.map((file) => (
+              <button
+                key={`${file.relativePath}-${file.isStaged ? "staged" : "unstaged"}`}
+                type="button"
+                className="settings-row"
+                onClick={() => {
+                  secondarySurfaces.selectSessionFilePath(sessionId, file.relativePath);
+                  onNavigate(sessionFileRoutePath(sessionId, file.relativePath));
+                }}
+              >
+                <div className="settings-row-copy">
+                  <strong>{file.fileName}</strong>
+                  <p>{file.relativePath}</p>
+                </div>
+                <span className="settings-row-badge">{file.status}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : (
+        <EmptyState
+          title="No live files"
+          body="The session workspace is clean, unavailable, or not under git control."
+          actionLabel="Back to session"
+          onAction={() => onNavigate(`/(app)/session/${sessionId}`)}
+        />
+      )}
+    </div>
+  );
+}
+
+function MobileSessionFileSurface({
+  sessionId,
+  routeFilePath,
+  desktop,
+  preferences,
+  secondarySurfaces,
+  onNavigate,
+}: {
+  sessionId: string;
+  routeFilePath: string | null;
+  desktop: DesktopState;
+  preferences: DesktopPreferencesState;
+  secondarySurfaces: SecondarySurfaceState;
+  onNavigate: (path: string) => void;
+}) {
+  if (!desktop.credentials) {
+    return <SignedOutState onNavigate={onNavigate} />;
+  }
+
+  const session = desktop.sessions.find((item) => item.id === sessionId) ?? null;
+  const selectedPath = routeFilePath ?? secondarySurfaces.getSelectedSessionFilePath(sessionId);
+  const [file, setFile] = useState<SessionWorkspaceFileContent | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (routeFilePath) {
+      secondarySurfaces.selectSessionFilePath(sessionId, routeFilePath);
+    }
+  }, [routeFilePath, secondarySurfaces, sessionId]);
+
+  useEffect(() => {
+    if (!desktop.credentials || !selectedPath) {
+      return;
+    }
+
+    let canceled = false;
+    setLoading(true);
+    setError(null);
+    void desktop
+      .readSessionFile(sessionId, selectedPath)
+      .then((loadedFile) => {
+        if (canceled) {
+          return;
+        }
+        setFile(loadedFile);
+        setLoading(false);
+      })
+      .catch((loadError) => {
+        if (canceled) {
+          return;
+        }
+        setError(loadError instanceof Error ? loadError.message : "Failed to load session file");
+        setLoading(false);
+      });
+
+    return () => {
+      canceled = true;
+    };
+  }, [desktop.credentials, desktop.readSessionFile, selectedPath, sessionId]);
+
+  if (!session || !selectedPath) {
+    return (
+      <EmptyState
+        title="File not found"
+        body="Open the session files route first to select a file."
+        actionLabel="Back to files"
+        onAction={() => onNavigate(`/(app)/session/${sessionId}/files`)}
+      />
+    );
+  }
+
+  return (
+    <div className="surface-stack">
+      <MobileSessionContextCard
+        session={session}
+        onNavigate={onNavigate}
+        primaryAction={{
+          label: "Back to files",
+          path: `/(app)/session/${sessionId}/files`,
+        }}
+      />
+      <section className="panel-card mobile-session-section">
+        <p className="eyebrow">Session file</p>
+        <h3>{selectedPath.split("/").at(-1) ?? selectedPath}</h3>
+        <p className="panel-copy">{selectedPath}</p>
+      </section>
+      {error ? <ErrorBanner message={error} /> : null}
+      {loading ? (
+        <section className="panel-card empty-state-card">
+          <h3>Loading file</h3>
+          <p className="panel-copy">Reading the selected file from the live session workspace.</p>
+        </section>
+      ) : file ? (
+        <section className="panel-card mobile-session-section">
+          <div className="card-header">
+            <h3>File content</h3>
+            <span className="pill pill-accent">{file.isBinary ? "Binary" : "Live view"}</span>
+          </div>
+          <TimelineMessageBody
+            message={{
+              id: `${sessionId}:${selectedPath}`,
+              localId: null,
+              createdAt: Date.now(),
+              role: "tool",
+              title: "File contents",
+              text: file.content,
+              rawType: file.isBinary ? "session:file:binary" : "session:file",
+            }}
+            appearanceSettings={preferences.appearanceSettings}
+          />
+          {file.diff ? (
+            <>
+              <div className="card-header compact-card-header">
+                <h3>Diff preview</h3>
+                <span className="pill pill-outline">Available</span>
+              </div>
+              <TimelineMessageBody
+                message={{
+                  id: `${sessionId}:${selectedPath}:diff`,
+                  localId: null,
+                  createdAt: Date.now(),
+                  role: "assistant",
+                  title: "Diff preview",
+                  text: file.diff,
+                  rawType: "session:file-diff",
+                }}
+                appearanceSettings={preferences.appearanceSettings}
+              />
+            </>
+          ) : null}
+          <div className="button-row mobile-button-column">
+            <button
+              type="button"
+              className="secondary-button full-width"
+              onClick={() => onNavigate(`/(app)/session/${sessionId}/files`)}
+            >
+              Back to files
+            </button>
+            <button
+              type="button"
+              className="secondary-button full-width"
+              onClick={() => onNavigate(`/(app)/session/${sessionId}`)}
+            >
+              Back to session
+            </button>
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }
@@ -3325,6 +5292,90 @@ function AccountSettingsSurface({
   );
 }
 
+function MobileAccountSettingsSurface({
+  desktop,
+  onNavigate,
+  runtimeCopy,
+}: {
+  desktop: DesktopState;
+  onNavigate: (path: string) => void;
+  runtimeCopy: RuntimeShellCopy;
+}) {
+  const [feedback, setFeedback] = useState<string | null>(null);
+
+  if (!desktop.credentials) {
+    return <SignedOutState onNavigate={onNavigate} />;
+  }
+
+  const profileName = formatProfileName(
+    desktop.profile?.firstName,
+    desktop.profile?.lastName,
+    desktop.profile?.username,
+    desktop.profile?.id ?? `${runtimeCopy.surfaceTitle} account`,
+  );
+
+  const handleCopyBackupKey = async () => {
+    if (!desktop.backupKey) {
+      return;
+    }
+
+    try {
+      await copyTextToClipboard(desktop.backupKey);
+      setFeedback("Backup key copied.");
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "Failed to copy backup key");
+    }
+  };
+
+  return (
+    <div className="surface-stack">
+      <section className="panel-card mobile-settings-section">
+        <p className="eyebrow">Account</p>
+        <h3>{profileName}</h3>
+        <p className="panel-copy">{runtimeCopy.accountRouteCopy}</p>
+        <div className="button-row mobile-button-column">
+          <button type="button" className="secondary-button full-width" onClick={() => void handleCopyBackupKey()}>
+            Copy backup key
+          </button>
+          <button type="button" className="secondary-button full-width" onClick={() => void desktop.logout()}>
+            Logout
+          </button>
+        </div>
+      </section>
+      {feedback ? <div className="panel-card compact-feedback">{feedback}</div> : null}
+      <section className="panel-card mobile-settings-section">
+        <div className="settings-list">
+          <div className="settings-row static">
+            <div className="settings-row-copy">
+              <strong>Account ID</strong>
+              <p>{desktop.profile?.id ?? "Unavailable"}</p>
+            </div>
+            <span className="settings-row-badge">Profile</span>
+          </div>
+          <div className="settings-row static">
+            <div className="settings-row-copy">
+              <strong>Username</strong>
+              <p>{desktop.profile?.username ? `@${desktop.profile.username}` : "Unavailable"}</p>
+            </div>
+            <span className="settings-row-badge">Handle</span>
+          </div>
+          <button
+            type="button"
+            className="settings-row"
+            onClick={() => onNavigate("/(app)/settings/connect/claude")}
+          >
+            <div className="settings-row-copy">
+              <strong>Connected services</strong>
+              <p>{desktop.profile?.connectedServices.length ?? 0} linked integrations</p>
+            </div>
+            <span className="settings-row-badge">Open</span>
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function AppearanceSettingsSurface({
   preferences,
 }: {
@@ -3467,6 +5518,67 @@ function AppearanceSettingsSurface({
   );
 }
 
+function MobileAppearanceSettingsSurface({
+  preferences,
+}: {
+  preferences: DesktopPreferencesState;
+}) {
+  const { appearanceSettings, updateAppearanceSettings, commitAppearancePatch } = preferences;
+
+  return (
+    <div className="surface-stack">
+      <section className="panel-card mobile-settings-section">
+        <div className="card-header">
+          <h3>Appearance</h3>
+          <span className="pill pill-accent">Persisted</span>
+        </div>
+        <div className="settings-list">
+          {(["adaptive", "light", "dark"] as const).map((option) => (
+            <button
+              key={option}
+              type="button"
+              className="settings-row"
+              onClick={() => updateAppearanceSettings({ themePreference: option })}
+            >
+              <div className="settings-row-copy">
+                <strong>{option[0].toUpperCase() + option.slice(1)}</strong>
+                <p>Theme preference for the Android shell.</p>
+              </div>
+              <span className="settings-row-badge">
+                {appearanceSettings.themePreference === option ? "Selected" : "Available"}
+              </span>
+            </button>
+          ))}
+          <button
+            type="button"
+            className="settings-row"
+            onClick={() => updateAppearanceSettings({ density: "compact" })}
+          >
+            <div className="settings-row-copy">
+              <strong>Compact session view</strong>
+              <p>Use a tighter mobile layout for session-heavy screens.</p>
+            </div>
+            <span className="settings-row-badge">
+              {appearanceSettings.density === "compact" ? "Active" : "Available"}
+            </span>
+          </button>
+        </div>
+        <div className="button-row mobile-button-column">
+          <button
+            type="button"
+            className="secondary-button full-width"
+            onClick={() => {
+              void commitAppearancePatch(defaultAppearanceSettings);
+            }}
+          >
+            Reset appearance settings
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function FeatureSettingsSurface({
   preferences,
 }: {
@@ -3585,6 +5697,65 @@ function FeatureSettingsSurface({
   );
 }
 
+function MobileFeatureSettingsSurface({
+  preferences,
+}: {
+  preferences: DesktopPreferencesState;
+}) {
+  const { appearanceSettings, commitAppearancePatch, voiceSettings } = preferences;
+
+  return (
+    <div className="surface-stack">
+      <section className="panel-card mobile-settings-section">
+        <div className="card-header">
+          <h3>Features</h3>
+          <span className="pill pill-accent">Mobile route set</span>
+        </div>
+        <div className="settings-list">
+          <div className="settings-row static">
+            <div className="settings-row-copy">
+              <strong>Loopback auth guardrails</strong>
+              <p>Account link and restore still respect the current auth boundary.</p>
+            </div>
+            <span className="settings-row-badge">Enabled</span>
+          </div>
+          <div className="settings-row static">
+            <div className="settings-row-copy">
+              <strong>Shared payload validation</strong>
+              <p>Realtime and session payloads continue to validate through shared schemas.</p>
+            </div>
+            <span className="settings-row-badge">Enabled</span>
+          </div>
+          <button
+            type="button"
+            className="settings-row"
+            onClick={() => {
+              void commitAppearancePatch({ compactSessionView: !appearanceSettings.compactSessionView });
+            }}
+          >
+            <div className="settings-row-copy">
+              <strong>Compact session shell</strong>
+              <p>Keep the Android session host denser on smaller screens.</p>
+            </div>
+            <span className="settings-row-badge">
+              {appearanceSettings.compactSessionView ? "On" : "Off"}
+            </span>
+          </button>
+          <div className="settings-row static">
+            <div className="settings-row-copy">
+              <strong>Voice custom agent</strong>
+              <p>{voiceSettings.customAgentId ? "Configured" : "Default"}</p>
+            </div>
+            <span className="settings-row-badge">
+              {voiceSettings.customAgentId ? "Configured" : "Default"}
+            </span>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function LanguageSettingsSurface({
   preferences,
   runtimeCopy,
@@ -3659,6 +5830,20 @@ function LanguageSettingsSurface({
         </div>
       </article>
       {preferences.accountSettingsError ? <ErrorBanner message={preferences.accountSettingsError} /> : null}
+    </div>
+  );
+}
+
+function MobileLanguageSettingsSurface({
+  preferences,
+  runtimeCopy,
+}: {
+  preferences: DesktopPreferencesState;
+  runtimeCopy: RuntimeShellCopy;
+}) {
+  return (
+    <div className="surface-stack">
+      <LanguageSettingsSurface preferences={preferences} runtimeCopy={runtimeCopy} />
     </div>
   );
 }
@@ -3831,6 +6016,118 @@ function UsageSettingsSurface({
   );
 }
 
+function MobileUsageSettingsSurface({
+  desktop,
+  onNavigate,
+}: {
+  desktop: DesktopState;
+  onNavigate: (path: string) => void;
+}) {
+  if (!desktop.credentials) {
+    return <SignedOutState onNavigate={onNavigate} />;
+  }
+
+  const [period, setPeriod] = useState<UsagePeriod>("7days");
+  const [usageData, setUsageData] = useState<UsageBucket[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let canceled = false;
+    setLoading(true);
+    setError(null);
+
+    void desktop
+      .loadUsage(period)
+      .then((response) => {
+        if (canceled) {
+          return;
+        }
+        setUsageData(response.usage);
+        setLoading(false);
+      })
+      .catch((loadError) => {
+        if (canceled) {
+          return;
+        }
+        setError(loadError instanceof Error ? loadError.message : "Failed to load usage data");
+        setLoading(false);
+      });
+
+    return () => {
+      canceled = true;
+    };
+  }, [desktop, period]);
+
+  const totals = calculateUsageTotals(usageData);
+  const topModels = Object.entries(totals.tokensByModel)
+    .sort((left, right) => right[1] - left[1])
+    .slice(0, 5);
+
+  return (
+    <div className="surface-stack">
+      <section className="panel-card mobile-settings-section">
+        <div className="card-header">
+          <h3>Usage</h3>
+          <span className="pill pill-accent">Live query</span>
+        </div>
+        <div className="button-row">
+          {(["today", "7days", "30days"] as const).map((candidate) => (
+            <button
+              key={candidate}
+              type="button"
+              className="secondary-button"
+              onClick={() => setPeriod(candidate)}
+            >
+              {candidate}
+            </button>
+          ))}
+        </div>
+        {error ? <ErrorBanner message={error} /> : null}
+        {loading ? (
+          <p className="panel-copy">Loading usage data from `/v1/usage/query`...</p>
+        ) : (
+          <dl className="meta-grid">
+            <div>
+              <dt>Total tokens</dt>
+              <dd>{totals.totalTokens.toLocaleString()}</dd>
+            </div>
+            <div>
+              <dt>Total cost</dt>
+              <dd>${totals.totalCost.toFixed(4)}</dd>
+            </div>
+          </dl>
+        )}
+      </section>
+      <section className="panel-card mobile-settings-section">
+        <div className="card-header">
+          <h3>Top models</h3>
+          <span className="pill pill-outline">Usage breakdown</span>
+        </div>
+        {loading ? (
+          <p className="panel-copy">Loading recent usage buckets...</p>
+        ) : topModels.length > 0 ? (
+          <div className="settings-list">
+            {topModels.map(([model, tokens]) => (
+              <div key={model} className="settings-row static">
+                <div className="settings-row-copy">
+                  <strong>{model}</strong>
+                  <p>{tokens.toLocaleString()} tokens</p>
+                </div>
+                <span className="settings-row-badge">
+                  ${(totals.costByModel[model] ?? 0).toFixed(4)}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="panel-copy">No usage reports are available for the selected period yet.</p>
+        )}
+      </section>
+    </div>
+  );
+}
+
 function VoiceSettingsSurface({
   preferences,
   onNavigate,
@@ -3952,6 +6249,93 @@ function VoiceSettingsSurface({
   );
 }
 
+function MobileVoiceSettingsSurface({
+  preferences,
+  onNavigate,
+  nativeCapabilities,
+}: {
+  preferences: DesktopPreferencesState;
+  onNavigate: (path: string) => void;
+  nativeCapabilities: RuntimeNativeCapabilities;
+}) {
+  const { voiceSettings, commitVoicePatch } = preferences;
+  const [customAgentDraft, setCustomAgentDraft] = useState(voiceSettings.customAgentId ?? "");
+
+  useEffect(() => {
+    setCustomAgentDraft(voiceSettings.customAgentId ?? "");
+  }, [voiceSettings.customAgentId]);
+
+  const saveCustomAgentDraft = async () => {
+    await commitVoicePatch({
+      customAgentId: customAgentDraft.trim() || null,
+    });
+  };
+
+  return (
+    <div className="surface-stack">
+      <section className="panel-card mobile-settings-section">
+        <div className="card-header">
+          <h3>Voice</h3>
+          <span className="pill pill-accent">Persisted</span>
+        </div>
+        <label className="field-block">
+          <span>Custom agent ID</span>
+          <input
+            value={customAgentDraft}
+            onChange={(event) => setCustomAgentDraft(event.target.value)}
+            placeholder="Optional Android voice agent ID"
+          />
+        </label>
+        <div className="button-row mobile-button-column">
+          <button
+            type="button"
+            className="secondary-button full-width"
+            onClick={() => void saveCustomAgentDraft()}
+            disabled={preferences.accountSettingsSyncing}
+          >
+            Save custom agent ID
+          </button>
+          <button
+            type="button"
+            className="secondary-button full-width"
+            onClick={() => onNavigate("/(app)/settings/voice/language")}
+          >
+            Voice language
+          </button>
+        </div>
+        <div className="settings-list">
+          <button
+            type="button"
+            className="settings-row"
+            onClick={() => {
+              void commitVoicePatch({ bypassToken: !voiceSettings.bypassToken });
+            }}
+          >
+            <div className="settings-row-copy">
+              <strong>Bypass Vibe voice token</strong>
+              <p>Keep the mobile BYO-agent switch state persisted.</p>
+            </div>
+            <span className="settings-row-badge">
+              {voiceSettings.bypassToken ? "Enabled" : "Disabled"}
+            </span>
+          </button>
+        </div>
+      </section>
+      <section className="panel-card mobile-settings-section">
+        <div className="card-header">
+          <h3>Status</h3>
+          <span className="pill pill-outline">Android-backed</span>
+        </div>
+        <ul className="bullet-list dense-list">
+          <li>Preferred language and custom agent settings are persisted locally.</li>
+          <li>{nativeCapabilities.voiceCapture.summary}</li>
+          <li>Language review can proceed independently from live voice transport or capture APIs.</li>
+        </ul>
+      </section>
+    </div>
+  );
+}
+
 function VoiceLanguageSurface({
   preferences,
 }: {
@@ -4003,6 +6387,60 @@ function VoiceLanguageSurface({
         ))}
       </div>
       {preferences.accountSettingsError ? <ErrorBanner message={preferences.accountSettingsError} /> : null}
+    </div>
+  );
+}
+
+function MobileVoiceLanguageSurface({
+  preferences,
+}: {
+  preferences: DesktopPreferencesState;
+}) {
+  const { voiceSettings, commitVoicePatch } = preferences;
+
+  return (
+    <div className="surface-stack">
+      <section className="panel-card mobile-settings-section">
+        <div className="card-header">
+          <h3>Voice language</h3>
+          <span className="pill pill-accent">Persisted route</span>
+        </div>
+        <div className="settings-list">
+          <button
+            type="button"
+            className="settings-row"
+            onClick={() => {
+              void commitVoicePatch({ assistantLanguage: null });
+            }}
+          >
+            <div className="settings-row-copy">
+              <strong>Auto-detect</strong>
+              <p>Let Android defer to runtime detection when supported.</p>
+            </div>
+            <span className="settings-row-badge">
+              {voiceSettings.assistantLanguage === null ? "Selected" : "Available"}
+            </span>
+          </button>
+          {desktopVoiceLanguages.map((language) => (
+            <button
+              key={language}
+              type="button"
+              className="settings-row"
+              onClick={() => {
+                void commitVoicePatch({ assistantLanguage: language });
+              }}
+            >
+              <div className="settings-row-copy">
+                <strong>{language}</strong>
+                <p>Persist the preferred Android voice locale selection.</p>
+              </div>
+              <span className="settings-row-badge">
+                {voiceSettings.assistantLanguage === language ? "Selected" : "Available"}
+              </span>
+            </button>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }
@@ -4091,6 +6529,445 @@ function ConnectClaudeSurface({
         </article>
       </section>
       {feedback ? <div className="panel-card compact-feedback">{feedback}</div> : null}
+    </div>
+  );
+}
+
+function MobileConnectClaudeSurface({
+  desktop,
+  onNavigate,
+}: {
+  desktop: DesktopState;
+  onNavigate: (path: string) => void;
+}) {
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const isConnected = (desktop.profile?.connectedServices ?? []).includes("anthropic");
+
+  const handleOpenDocs = async () => {
+    try {
+      await openExternalUrl("https://docs.anthropic.com/en/docs/claude-code/overview");
+      setFeedback("Claude Code documentation opened in the external browser.");
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "Failed to open Claude Code docs");
+    }
+  };
+
+  return (
+    <div className="surface-stack">
+      <section className="panel-card mobile-settings-section">
+        <div className="card-header">
+          <h3>Claude Code</h3>
+          <span className={`pill ${isConnected ? "pill-accent" : "pill-outline"}`}>
+            {isConnected ? "Connected" : "Not connected"}
+          </span>
+        </div>
+        <p className="panel-copy">
+          When direct in-app connect is not available, Android still exposes an explicit terminal handoff.
+        </p>
+        <code className="backup-code">vibe connect claude</code>
+        <div className="button-row mobile-button-column">
+          <button
+            type="button"
+            className="secondary-button full-width"
+            onClick={() =>
+              void copyTextToClipboard("vibe connect claude")
+                .then(() => {
+                  setFeedback("Copied: vibe connect claude");
+                })
+                .catch((error) => {
+                  setFeedback(error instanceof Error ? error.message : "Failed to copy command");
+                })
+            }
+          >
+            Copy terminal command
+          </button>
+          <button
+            type="button"
+            className="secondary-button full-width"
+            onClick={() => void handleOpenDocs()}
+          >
+            Open integration docs
+          </button>
+          <button
+            type="button"
+            className="secondary-button full-width"
+            onClick={() => onNavigate("/(app)/settings/account")}
+          >
+            Back to account
+          </button>
+        </div>
+      </section>
+      {feedback ? <div className="panel-card compact-feedback">{feedback}</div> : null}
+    </div>
+  );
+}
+
+function buildFriendAction(user: UserProfile, desktop: DesktopState) {
+  if (user.status === "friend" || user.status === "requested") {
+    return {
+      label: user.status === "friend" ? "Remove friend" : "Cancel request",
+      action: () => desktop.removeFriend(user.id),
+    };
+  }
+  if (user.status === "pending") {
+    return {
+      label: "Accept request",
+      action: () => desktop.addFriend(user.id),
+    };
+  }
+  return {
+    label: "Add friend",
+    action: () => desktop.addFriend(user.id),
+  };
+}
+
+function MobileFriendsIndexSurface({
+  desktop,
+  onNavigate,
+}: {
+  desktop: DesktopState;
+  onNavigate: (path: string) => void;
+}) {
+  if (!desktop.credentials) {
+    return <SignedOutState onNavigate={onNavigate} />;
+  }
+
+  const pendingFriends = desktop.friends.filter((friend) => friend.status === "pending");
+  const requestedFriends = desktop.friends.filter((friend) => friend.status === "requested");
+  const acceptedFriends = desktop.friends.filter((friend) => friend.status === "friend");
+
+  return (
+    <div className="surface-stack">
+      <section className="panel-card mobile-settings-section">
+        <p className="eyebrow">Friends</p>
+        <h3>Manage your social graph</h3>
+        <p className="panel-copy">
+          Review pending requests, sent requests, and accepted friends from the Android shell.
+        </p>
+      </section>
+
+      <section className="panel-card mobile-settings-section">
+        <div className="card-header">
+          <h3>Pending requests</h3>
+          <span className="pill pill-outline">{pendingFriends.length}</span>
+        </div>
+        <div className="settings-list">
+          {pendingFriends.length > 0 ? (
+            pendingFriends.map((friend) => (
+              <button
+                key={friend.id}
+                type="button"
+                className="settings-row"
+                onClick={() => onNavigate(`/(app)/user/${friend.id}`)}
+              >
+                <div className="settings-row-copy">
+                  <strong>{friend.firstName || friend.username}</strong>
+                  <p>@{friend.username}</p>
+                </div>
+                <span className="settings-row-badge">Pending</span>
+              </button>
+            ))
+          ) : (
+            <div className="settings-row static">
+              <div className="settings-row-copy">
+                <strong>No pending requests</strong>
+                <p>Incoming friend requests will appear here.</p>
+              </div>
+              <span className="settings-row-badge">Empty</span>
+            </div>
+          )}
+        </div>
+      </section>
+
+      <section className="panel-card mobile-settings-section">
+        <div className="card-header">
+          <h3>Sent requests</h3>
+          <span className="pill pill-outline">{requestedFriends.length}</span>
+        </div>
+        <div className="settings-list">
+          {requestedFriends.length > 0 ? (
+            requestedFriends.map((friend) => (
+              <button
+                key={friend.id}
+                type="button"
+                className="settings-row"
+                onClick={() => onNavigate(`/(app)/user/${friend.id}`)}
+              >
+                <div className="settings-row-copy">
+                  <strong>{friend.firstName || friend.username}</strong>
+                  <p>@{friend.username}</p>
+                </div>
+                <span className="settings-row-badge">Requested</span>
+              </button>
+            ))
+          ) : (
+            <div className="settings-row static">
+              <div className="settings-row-copy">
+                <strong>No sent requests</strong>
+                <p>Outgoing requests will appear here.</p>
+              </div>
+              <span className="settings-row-badge">Empty</span>
+            </div>
+          )}
+        </div>
+      </section>
+
+      <section className="panel-card mobile-settings-section">
+        <div className="card-header">
+          <h3>My friends</h3>
+          <span className="pill pill-accent">{acceptedFriends.length}</span>
+        </div>
+        <div className="settings-list">
+          {acceptedFriends.length > 0 ? (
+            acceptedFriends.map((friend) => (
+              <button
+                key={friend.id}
+                type="button"
+                className="settings-row"
+                onClick={() => onNavigate(`/(app)/user/${friend.id}`)}
+              >
+                <div className="settings-row-copy">
+                  <strong>{friend.firstName || friend.username}</strong>
+                  <p>@{friend.username}</p>
+                </div>
+                <span className="settings-row-badge connected">Friend</span>
+              </button>
+            ))
+          ) : (
+            <div className="settings-row static">
+              <div className="settings-row-copy">
+                <strong>No friends yet</strong>
+                <p>Accepted friends will appear here.</p>
+              </div>
+              <span className="settings-row-badge">Empty</span>
+            </div>
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function MobileFriendsSearchSurface({
+  desktop,
+  onNavigate,
+}: {
+  desktop: DesktopState;
+  onNavigate: (path: string) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<UserProfile[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (!desktop.credentials) {
+    return <SignedOutState onNavigate={onNavigate} />;
+  }
+
+  const handleSearch = async () => {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      setResults([]);
+      return;
+    }
+
+    setSearching(true);
+    setError(null);
+    try {
+      const users = await desktop.searchUsers(trimmed);
+      setResults(users);
+    } catch (searchError) {
+      setError(searchError instanceof Error ? searchError.message : "Failed to search users");
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  return (
+    <div className="surface-stack">
+      <section className="panel-card mobile-settings-section">
+        <p className="eyebrow">Friend search</p>
+        <h3>Find people by username</h3>
+        <label className="field-block">
+          <span>Search</span>
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search by username"
+          />
+        </label>
+        {error ? <ErrorBanner message={error} /> : null}
+        <div className="button-row mobile-button-column">
+          <button
+            type="button"
+            className="primary-button full-width"
+            onClick={() => void handleSearch()}
+            disabled={searching}
+          >
+            {searching ? "Searching..." : "Search"}
+          </button>
+        </div>
+      </section>
+
+      <section className="panel-card mobile-settings-section">
+        <div className="card-header">
+          <h3>Results</h3>
+          <span className="pill pill-outline">{results.length}</span>
+        </div>
+        {results.length > 0 ? (
+          <div className="settings-list">
+            {results.map((user) => (
+              <button
+                key={user.id}
+                type="button"
+                className="settings-row"
+                onClick={() => onNavigate(`/(app)/user/${user.id}`)}
+              >
+                <div className="settings-row-copy">
+                  <strong>{user.firstName || user.username}</strong>
+                  <p>@{user.username}</p>
+                </div>
+                <span className="settings-row-badge">{user.status}</span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="panel-copy">
+            Search by username to find and connect with other users.
+          </p>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function MobileUserDetailSurface({
+  userId,
+  desktop,
+  onNavigate,
+}: {
+  userId: string;
+  desktop: DesktopState;
+  onNavigate: (path: string) => void;
+}) {
+  const [user, setUser] = useState<UserProfile | null>(desktop.userProfiles[userId] ?? null);
+  const [loading, setLoading] = useState(!desktop.userProfiles[userId]);
+  const [working, setWorking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const cachedUser = desktop.userProfiles[userId] ?? null;
+    if (cachedUser) {
+      setUser(cachedUser);
+      setLoading(false);
+      return;
+    }
+
+    let canceled = false;
+    setLoading(true);
+    void desktop
+      .loadUserProfile(userId)
+      .then((profile) => {
+        if (canceled) {
+          return;
+        }
+        setUser(profile);
+        setLoading(false);
+      })
+      .catch((loadError) => {
+        if (canceled) {
+          return;
+        }
+        setError(loadError instanceof Error ? loadError.message : "Failed to load profile");
+        setLoading(false);
+      });
+
+    return () => {
+      canceled = true;
+    };
+  }, [desktop, userId]);
+
+  if (!desktop.credentials) {
+    return <SignedOutState onNavigate={onNavigate} />;
+  }
+
+  const applyFriendAction = async () => {
+    if (!user) {
+      return;
+    }
+    setWorking(true);
+    setError(null);
+    try {
+      const action = buildFriendAction(user, desktop);
+      const updated = await action.action();
+      if (updated) {
+        setUser(updated);
+      }
+    } catch (actionError) {
+      setError(actionError instanceof Error ? actionError.message : "Failed to update friend state");
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="panel-card empty-state-card">
+        <h3>Loading profile</h3>
+        <p className="panel-copy">Fetching the selected user profile.</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <EmptyState
+        title="Profile not found"
+        body="Return to friend search and try another user."
+        actionLabel="Back to search"
+        onAction={() => onNavigate("/(app)/friends/search")}
+      />
+    );
+  }
+
+  const action = buildFriendAction(user, desktop);
+
+  return (
+    <div className="surface-stack">
+      <section className="panel-card mobile-settings-section">
+        <p className="eyebrow">Profile</p>
+        <h3>{user.firstName || user.username}</h3>
+        <p className="panel-copy">@{user.username}</p>
+        {user.bio ? <p className="panel-copy">{user.bio}</p> : null}
+        <div className="pill-row">
+          <span className="pill pill-outline">{user.status}</span>
+        </div>
+        {error ? <ErrorBanner message={error} /> : null}
+        <div className="button-row mobile-button-column">
+          <button
+            type="button"
+            className="primary-button full-width"
+            onClick={() => void applyFriendAction()}
+            disabled={working}
+          >
+            {working ? "Updating..." : action.label}
+          </button>
+          <button
+            type="button"
+            className="secondary-button full-width"
+            onClick={() => onNavigate("/(app)/friends/search")}
+          >
+            Back to search
+          </button>
+          <button
+            type="button"
+            className="secondary-button full-width"
+            onClick={() => void openExternalUrl(`https://github.com/${user.username}`)}
+          >
+            Open GitHub profile
+          </button>
+        </div>
+      </section>
     </div>
   );
 }
@@ -5506,6 +8383,25 @@ function statusLabel(status: DesktopState["status"]): string {
     default:
       return status;
   }
+}
+
+function formatRelativeTime(timestamp: number): string {
+  const now = Date.now();
+  const diffMs = Math.max(0, now - timestamp);
+  const diffMinutes = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMinutes / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffMinutes < 1) {
+    return "just now";
+  }
+  if (diffMinutes < 60) {
+    return `${diffMinutes} minute${diffMinutes === 1 ? "" : "s"} ago`;
+  }
+  if (diffHours < 24) {
+    return `${diffHours} hour${diffHours === 1 ? "" : "s"} ago`;
+  }
+  return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
 }
 
 function timelineAccent(role: "user" | "assistant" | "system" | "tool"): "amber" | "teal" | "slate" | "neutral" {

@@ -33,6 +33,7 @@ function renderWithRuntimeTarget(
         onCommandOpen={() => undefined}
         onCommandClose={() => undefined}
         runtimeTarget={runtimeTarget}
+        hostMode={runtimeTarget === "mobile" ? "mobile" : "desktop"}
       />
     </RuntimeBootstrapProvider>,
   );
@@ -89,12 +90,31 @@ describe("DesktopShell", () => {
   it("renders Android-specific entry copy and hides keyboard-only chrome on the mobile home route", () => {
     const html = renderWithRuntimeTarget("mobile", DEFAULT_PATH);
 
+    expect(html).toContain("mobile-app-shell");
     expect(html).toContain("Android entry");
     expect(html).toContain("Create or restore a Vibe account");
-    expect(html).toContain("Android essentials");
-    expect(html).toContain("Open Routes");
+    expect(html).not.toContain("Open Palette");
     expect(html).not.toContain("Keyboard shortcuts");
+    expect(html).not.toContain('class="sidebar"');
     expect(html).not.toContain("Create or restore a Vibe desktop account");
+  });
+
+  it("renders Android inbox through the mobile shell instead of the desktop review inbox", () => {
+    const html = renderWithRuntimeTarget("mobile", "/(app)/inbox/index");
+
+    expect(html).toContain("mobile-app-shell");
+    expect(html).toContain("Android entry");
+    expect(html).not.toContain('class="sidebar"');
+    expect(html).not.toContain("Session inventory is loaded from `/v1/sessions`");
+  });
+
+  it("renders Android settings through the mobile shell instead of the desktop settings dashboard", () => {
+    const html = renderWithRuntimeTarget("mobile", "/(app)/settings/index");
+
+    expect(html).toContain("mobile-app-shell");
+    expect(html).toContain("Android entry");
+    expect(html).not.toContain("Desktop Configuration");
+    expect(html).not.toContain('class="sidebar"');
   });
 
   it("renders browser-specific restore copy on the retained browser route", () => {
@@ -134,8 +154,18 @@ describe("DesktopShell", () => {
     const html = renderWithRuntimeTarget("mobile", "/(app)/restore/manual");
 
     expect(html).toContain("Manual restore");
+    expect(html).toContain("Restore with your secret key");
+    expect(html).toContain("Restore account");
     expect(html).not.toContain("Load key file");
-    expect(html).toContain("Android file import is deferred");
+  });
+
+  it("renders Android restore as a QR-first device-link flow", () => {
+    const html = renderWithRuntimeTarget("mobile", "/(app)/restore/index");
+
+    expect(html).toContain("Link this Android device");
+    expect(html).toContain("Preparing QR code");
+    expect(html).toContain("Restore with secret key instead");
+    expect(html).not.toContain("Device link request");
   });
 
   it("renders the retained changelog route instead of the planned placeholder", () => {

@@ -36,6 +36,7 @@ import {
   type UserProfile,
   type UiMessage,
   Wave8Client,
+  type FeedPostResponse,
 } from "./wave8-client";
 import { mergeIncomingSessionMessages } from "./session-live-updates";
 import { removeDeletedSession, upsertRealtimeSession } from "./realtime-state";
@@ -110,6 +111,8 @@ export function useWave8Desktop(activeSessionId?: string | null) {
   const [artifacts, setArtifacts] = useState<DesktopArtifact[]>([]);
   const [machines, setMachines] = useState<DesktopMachine[]>([]);
   const [userProfiles, setUserProfiles] = useState<Record<string, UserProfile>>({});
+  const [friends, setFriends] = useState<UserProfile[]>([]);
+  const [feedItems, setFeedItems] = useState<FeedPostResponse[]>([]);
   const [sessionState, setSessionState] = useState<Record<string, SessionUiState>>({});
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [linkState, setLinkState] = useState<LinkUiState>({
@@ -171,13 +174,15 @@ export function useWave8Desktop(activeSessionId?: string | null) {
       setStatus("loading");
       setGlobalError(null);
       const client = await connectClient(nextCredentials, nextServerUrl);
-      const [nextProfile, nextAccountSettings, nextSessions, nextArtifacts, nextMachines] =
+      const [nextProfile, nextAccountSettings, nextSessions, nextArtifacts, nextMachines, nextFriends, nextFeedItems] =
         await Promise.all([
         client.fetchProfile(),
         client.fetchAccountSettings(),
         client.listSessions(),
         client.listArtifacts(),
         client.listMachines(),
+        client.listFriends(),
+        client.listFeed(),
         ]);
       setCredentials(nextCredentials);
       setProfile(nextProfile);
@@ -186,8 +191,17 @@ export function useWave8Desktop(activeSessionId?: string | null) {
       setSessions(nextSessions);
       setArtifacts(nextArtifacts);
       setMachines(nextMachines);
+      setFriends(nextFriends);
+      setFeedItems(nextFeedItems);
       setStatus("ready");
-      return { client, sessions: nextSessions, artifacts: nextArtifacts, machines: nextMachines };
+      return {
+        client,
+        sessions: nextSessions,
+        artifacts: nextArtifacts,
+        machines: nextMachines,
+        friends: nextFriends,
+        feedItems: nextFeedItems,
+      };
     },
     [connectClient],
   );
@@ -204,6 +218,8 @@ export function useWave8Desktop(activeSessionId?: string | null) {
       setArtifacts([]);
       setMachines([]);
       setUserProfiles({});
+      setFriends([]);
+      setFeedItems([]);
       setSessionState({});
       setStoredSessionAvailable(false);
       setGlobalError(null);
@@ -224,6 +240,8 @@ export function useWave8Desktop(activeSessionId?: string | null) {
       setArtifacts([]);
       setMachines([]);
       setUserProfiles({});
+      setFriends([]);
+      setFeedItems([]);
       setSessionState({});
       setStatus("signed-out");
       setGlobalError(error instanceof Error ? error.message : "Failed to restore desktop session");
@@ -328,6 +346,36 @@ export function useWave8Desktop(activeSessionId?: string | null) {
     }
   }, []);
 
+  const refreshFriends = useCallback(async () => {
+    if (!clientRef.current) {
+      return [];
+    }
+
+    try {
+      const nextFriends = await clientRef.current.listFriends();
+      setFriends(nextFriends);
+      return nextFriends;
+    } catch (error) {
+      setGlobalError(error instanceof Error ? error.message : "Failed to refresh friends");
+      throw error;
+    }
+  }, []);
+
+  const refreshFeed = useCallback(async () => {
+    if (!clientRef.current) {
+      return [];
+    }
+
+    try {
+      const nextFeedItems = await clientRef.current.listFeed();
+      setFeedItems(nextFeedItems);
+      return nextFeedItems;
+    } catch (error) {
+      setGlobalError(error instanceof Error ? error.message : "Failed to refresh feed");
+      throw error;
+    }
+  }, []);
+
   const loadArtifact = useCallback(
     async (artifactId: string) => {
       const client = clientRef.current;
@@ -399,6 +447,57 @@ export function useWave8Desktop(activeSessionId?: string | null) {
     }));
     return profile;
   }, []);
+
+  const searchUsers = useCallback(async (query: string) => {
+    const client = clientRef.current;
+    if (!client) {
+      return [];
+    }
+
+    const users = await client.searchUsers(query);
+    setUserProfiles((current) => {
+      const next = { ...current };
+      for (const user of users) {
+        next[user.id] = user;
+      }
+      return next;
+    });
+    return users;
+  }, []);
+
+  const addFriend = useCallback(async (userId: string) => {
+    const client = clientRef.current;
+    if (!client) {
+      throw new Error("Sign in first");
+    }
+
+    const updated = await client.addFriend(userId);
+    await Promise.all([refreshFriends(), refreshFeed()]);
+    if (updated) {
+      setUserProfiles((current) => ({
+        ...current,
+        [updated.id]: updated,
+      }));
+    }
+    return updated;
+  }, [refreshFeed, refreshFriends]);
+
+  const removeFriend = useCallback(async (userId: string) => {
+    const client = clientRef.current;
+    if (!client) {
+      throw new Error("Sign in first");
+    }
+
+    const updated = await client.removeFriend(userId);
+    await Promise.all([refreshFriends(), refreshFeed()]);
+    if (updated) {
+      setUserProfiles((current) => ({
+        ...current,
+        [updated.id]: updated,
+      }));
+    }
+    return updated;
+  }, [refreshFeed, refreshFriends]);
 
   const loadUsage = useCallback(
     async (period: UsagePeriod, sessionId?: string) => {
@@ -633,6 +732,8 @@ export function useWave8Desktop(activeSessionId?: string | null) {
     setArtifacts([]);
     setMachines([]);
     setUserProfiles({});
+    setFriends([]);
+    setFeedItems([]);
     setSessionState({});
     setBackupKey(null);
     setStoredSessionAvailable(false);
@@ -999,6 +1100,8 @@ export function useWave8Desktop(activeSessionId?: string | null) {
         void refreshArtifacts();
         void refreshProfile();
         void refreshAccountSettings();
+        void refreshFriends();
+        void refreshFeed();
         refreshActiveSession(activeSessionIdRef.current);
       });
 
@@ -1075,6 +1178,16 @@ export function useWave8Desktop(activeSessionId?: string | null) {
 
         if (eventType === "update-machine") {
           void refreshMachines();
+          return;
+        }
+
+        if (eventType === "relationship-updated") {
+          void refreshFriends();
+          return;
+        }
+
+        if (eventType === "new-feed-post") {
+          void refreshFeed();
           return;
         }
 
@@ -1182,6 +1295,8 @@ export function useWave8Desktop(activeSessionId?: string | null) {
     artifacts,
     machines,
     userProfiles,
+    friends,
+    feedItems,
     sessionSummaries,
     sessionState,
     globalError,
@@ -1195,8 +1310,13 @@ export function useWave8Desktop(activeSessionId?: string | null) {
     refreshAccountSettings,
     refreshArtifacts,
     refreshMachines,
+    refreshFriends,
+    refreshFeed,
     loadMachine,
     loadUserProfile,
+    searchUsers,
+    addFriend,
+    removeFriend,
     loadArtifact,
     loadUsage,
     loadMessages,

@@ -69,6 +69,10 @@ import {
   type StoredCredentials,
   type UsageBucket,
   type UserProfile,
+  type FeedPostResponse,
+  FriendsListResponseSchema,
+  FeedListResponseSchema,
+  UserProfileSchema,
 } from "./wave8-wire";
 
 export type {
@@ -91,6 +95,7 @@ export type {
   UserProfile,
 } from "./wave8-wire";
 export type { Settings } from "../sources/shared/sync/settings";
+export type { FeedPostResponse } from "./wave8-wire";
 
 export type SendMessageOptions = Omit<OutgoingSessionMessageOptions, "sentFrom">;
 
@@ -1803,6 +1808,91 @@ export class Wave8Client {
           UserResponseSchema,
           value,
           `User detail response for ${userId}`,
+        );
+        return payload.user;
+      },
+    );
+  }
+
+  async listFriends(): Promise<UserProfile[]> {
+    return fetchJson<UserProfile[]>(
+      `${this.serverUrl}/v1/friends`,
+      {
+        headers: {
+          Authorization: `Bearer ${this.credentials.token}`,
+        },
+      },
+      (value) => parseWithSchema(FriendsListResponseSchema, value, "Friends list response").friends,
+    );
+  }
+
+  async listFeed(): Promise<FeedPostResponse[]> {
+    return fetchJson<FeedPostResponse[]>(
+      `${this.serverUrl}/v1/feed`,
+      {
+        headers: {
+          Authorization: `Bearer ${this.credentials.token}`,
+        },
+      },
+      (value) => parseWithSchema(FeedListResponseSchema, value, "Feed list response").items,
+    );
+  }
+
+  async searchUsers(query: string): Promise<UserProfile[]> {
+    return fetchJson<UserProfile[]>(
+      `${this.serverUrl}/v1/user/search?${new URLSearchParams({ query })}`,
+      {
+        headers: {
+          Authorization: `Bearer ${this.credentials.token}`,
+        },
+      },
+      (value): UserProfile[] =>
+        parseWithSchema(
+          z.object({ users: z.array(UserProfileSchema) }),
+          value,
+          "User search response",
+        ).users,
+    );
+  }
+
+  async addFriend(userId: string): Promise<UserProfile | null> {
+    return fetchJson<UserProfile | null>(
+      `${this.serverUrl}/v1/friends/add`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.credentials.token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ uid: userId }),
+      },
+      (value): UserProfile | null => {
+        const payload = parseWithSchema(
+          UserResponseSchema.extend({ user: UserProfileSchema.nullable() }),
+          value,
+          "Add friend response",
+        );
+        return payload.user;
+      },
+    );
+  }
+
+  async removeFriend(userId: string): Promise<UserProfile | null> {
+    return fetchJson<UserProfile | null>(
+      `${this.serverUrl}/v1/friends/remove`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.credentials.token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ uid: userId }),
+      },
+      (value): UserProfile | null => {
+        const payload = parseWithSchema(
+          UserResponseSchema.extend({ user: UserProfileSchema.nullable() }),
+          value,
+          "Remove friend response",
         );
         return payload.user;
       },
