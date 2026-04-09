@@ -368,7 +368,14 @@ jobs:
               continue
             fi
 
-            candidate_apk="$(find "${apk_dir}" -maxdepth 1 -type f -name '*.apk' | sort | head -n 1)"
+            candidate_apk="$(
+              find "${apk_dir}" -maxdepth 1 -type f -name '*.apk' \
+                ! -name '*-unsigned.apk' \
+                | sort | head -n 1
+            )"
+            if [[ -z "${candidate_apk}" ]]; then
+              candidate_apk="$(find "${apk_dir}" -maxdepth 1 -type f -name '*.apk' | sort | head -n 1)"
+            fi
             if [[ -n "${candidate_apk}" ]]; then
               apk_path="${candidate_apk}"
               break

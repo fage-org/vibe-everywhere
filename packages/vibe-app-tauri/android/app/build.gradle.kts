@@ -18,10 +18,29 @@ val releaseApplicationId =
 val releaseNamespace =
     tauriProperties.getProperty("vibe.release.namespace", releaseApplicationId)
 val releaseAppName = tauriProperties.getProperty("vibe.release.appName", "Vibe Desktop Next")
+val releaseKeystorePath = tauriProperties.getProperty("vibe.release.signing.storeFile")
+val releaseKeystorePassword = tauriProperties.getProperty("vibe.release.signing.storePassword")
+val releaseKeyAlias = tauriProperties.getProperty("vibe.release.signing.keyAlias")
+val releaseKeyPassword = tauriProperties.getProperty("vibe.release.signing.keyPassword")
+val hasCustomReleaseSigning =
+    !releaseKeystorePath.isNullOrBlank()
+        && !releaseKeystorePassword.isNullOrBlank()
+        && !releaseKeyAlias.isNullOrBlank()
+        && !releaseKeyPassword.isNullOrBlank()
 
 android {
     compileSdk = 36
     namespace = releaseNamespace
+    signingConfigs {
+        if (hasCustomReleaseSigning) {
+            create("release") {
+                storeFile = file(releaseKeystorePath!!)
+                storePassword = releaseKeystorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
     defaultConfig {
         manifestPlaceholders["usesCleartextTraffic"] = "false"
         manifestPlaceholders["appLabel"] = releaseAppName
@@ -45,6 +64,12 @@ android {
         }
         getByName("release") {
             isMinifyEnabled = true
+            signingConfig =
+                if (hasCustomReleaseSigning) {
+                    signingConfigs.getByName("release")
+                } else {
+                    signingConfigs.getByName("debug")
+                }
             proguardFiles(
                 *fileTree(".") { include("**/*.pro") }
                     .plus(getDefaultProguardFile("proguard-android-optimize.txt"))
