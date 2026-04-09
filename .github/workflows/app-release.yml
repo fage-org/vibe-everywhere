@@ -357,9 +357,26 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          apk_path="${APP_DIR}/android/app/build/outputs/apk/universal/${{ needs.metadata.outputs.android_variant }}/app-universal-${{ needs.metadata.outputs.android_variant }}.apk"
-          if [[ ! -f "${apk_path}" ]]; then
-            echo "Expected APK not found: ${apk_path}" >&2
+          apk_dir_candidates=(
+            "${APP_DIR}/src-tauri/gen/android/app/build/outputs/apk/universal/${{ needs.metadata.outputs.android_variant }}"
+            "${APP_DIR}/android/app/build/outputs/apk/universal/${{ needs.metadata.outputs.android_variant }}"
+          )
+
+          apk_path=""
+          for apk_dir in "${apk_dir_candidates[@]}"; do
+            if [[ ! -d "${apk_dir}" ]]; then
+              continue
+            fi
+
+            candidate_apk="$(find "${apk_dir}" -maxdepth 1 -type f -name '*.apk' | sort | head -n 1)"
+            if [[ -n "${candidate_apk}" ]]; then
+              apk_path="${candidate_apk}"
+              break
+            fi
+          done
+
+          if [[ -z "${apk_path}" ]]; then
+            echo "Expected APK not found under: ${apk_dir_candidates[*]}" >&2
             exit 1
           fi
 
