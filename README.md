@@ -4,8 +4,8 @@ Happy-aligned remote coding stack rebuilt around Rust services and clients.
 
 `vibe-remote` keeps the Happy product shape, but moves the server, CLI, agent, wire contracts, and
 log sidecar into Rust while treating `packages/vibe-app` as a deprecated legacy import/reference.
-Active app replacement work now centers on `packages/vibe-app-tauri`, and the repository remains
-plan-governed through [PLAN.md](./PLAN.md).
+`packages/vibe-app-tauri` is now the default app path and active release owner, and the repository
+remains plan-governed through [PLAN.md](./PLAN.md).
 
 ## What ships here
 
@@ -14,7 +14,7 @@ plan-governed through [PLAN.md](./PLAN.md).
 - `crates/vibe-agent`: remote-control CLI for machines and sessions
 - `crates/vibe-cli`: local runtime wrapper for `claude`, `codex`, `gemini`, `openclaw`, and `acp`
 - `crates/vibe-app-logs`: optional remote app log receiver
-- `packages/vibe-app-tauri`: active next-iteration app package and replacement target for desktop/mobile ownership
+- `packages/vibe-app-tauri`: default app path and active release owner for desktop, Android APK, and retained browser export
 - `packages/vibe-app`: deprecated legacy import kept only as a Vibe-specific reference when Happy is insufficient
 
 ## Quick Start
@@ -159,7 +159,7 @@ Logs are stored under `${VIBE_HOME_DIR:-~/.vibe}/app-logs`.
 
 ### App package status
 
-Active app replacement work now lives in `packages/vibe-app-tauri`. The legacy `packages/vibe-app`
+Active app ownership now lives in `packages/vibe-app-tauri`. The legacy `packages/vibe-app`
 package is deprecated from active CI and release lanes and should only be consulted when
 `/root/happy/packages/happy-app` cannot answer a Vibe-specific continuity question.
 
@@ -172,7 +172,7 @@ yarn workspace vibe-app-tauri tauri:test
 yarn workspace vibe-app-tauri tauri:smoke
 ```
 
-Primary active app env vars still revolve around the replacement package and its future release
+Primary active app env vars now revolve around the default package and its active release
 ownership:
 
 - `EXPO_PUBLIC_VIBE_SERVER_URL`
@@ -238,8 +238,9 @@ Three workflows are provided:
   - publishes tarballs and `sha256` files to a GitHub Release
 - `.github/workflows/app-release.yml`
   - runs on `app-v*` tags or manual dispatch
-  - validates and packages the active `packages/vibe-app-tauri` desktop lane
-  - the deprecated `packages/vibe-app` web/desktop/android lanes are intentionally disabled
+  - validates and packages the active `packages/vibe-app-tauri` desktop, browser-export, and
+    Android APK lanes
+  - the deprecated `packages/vibe-app` web/desktop/android lanes remain intentionally disabled
   - publishes active app artifacts to a GitHub Release for `app-v*` tags
 
 Release flow:
@@ -264,9 +265,10 @@ git push origin app-vX.Y.Z
 
 App workflow notes:
 
-- the active workflow currently packages `packages/vibe-app-tauri` desktop bundles on Linux, macOS, and Windows
+- the active workflow currently packages `packages/vibe-app-tauri` desktop bundles on Linux, macOS,
+  and Windows plus retained browser-export and Android APK artifacts
 - the deprecated `packages/vibe-app` web/desktop/android lanes are not built in CI anymore
-- mobile, OTA, and store release ownership are planned under Wave 9 for `packages/vibe-app-tauri`
+- Android APK, retained browser export, and release-oriented desktop ownership now sit on `packages/vibe-app-tauri`
 - if `packages/vibe-app` must be inspected, treat it as a legacy Vibe-specific reference only when Happy is insufficient
 
 ## Notes

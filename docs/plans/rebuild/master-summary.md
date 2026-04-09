@@ -34,11 +34,14 @@ scripts/
 ## Current Phase
 
 - phase: the original Happy-aligned rebuild plan is complete through `Wave 7`; Wave 8 is closed as
-  the historical desktop-preview baseline for `packages/vibe-app-tauri`; the active milestone is
-  Wave 9, which turns `packages/vibe-app-tauri` into the active Wave 9 replacement package for
-  desktop, mobile, and retained browser web/export ownership
+  the historical desktop-preview baseline for `packages/vibe-app-tauri`; Wave 9 has recorded the
+  default-owner switch to `packages/vibe-app-tauri` for desktop, Android, and retained browser
+  web/export ownership, while the final promotion evidence gate remains open until the baseline
+  artifact is fully signed off
 - implementation status: `vibe-wire` is implemented and validated; `vibe-server` now ships a single-instance Wave-2 spine plus the Wave-4 support surfaces covering files/images, account/settings/usage, utility APIs, artifacts/access keys, connect/GitHub, social/feed, auxiliary socket APIs, and monitoring; `vibe-agent` now ships the Wave-3 remote-control slice covering auth, HTTP session/machine control, live session socket control, machine RPC, and stable CLI output; `vibe-cli` now ships the Wave-5 local runtime covering auth/connect, command bootstrap, provider execution, daemon control, sandbox policy, persistence/resume, session-protocol mapping, and end-to-end validation across the supported provider paths; `vibe-app` remains only as a deprecated historical reference when Happy is insufficient; `vibe-app-tauri` is the active Wave 9 replacement package; `vibe-app-logs` now ships the Wave-7 minimal sidecar runtime with `POST /logs` ingestion, Vibe home-directory file sinks, root `yarn app-logs` launch support, and startup/ingestion smoke coverage
-- immediate goal: execute the Wave 9 `packages/vibe-app-tauri` replacement plan across desktop, mobile, and retained browser web/export behavior without reopening the deprecated `packages/vibe-app` pipeline, while treating Happy-aligned UI and visual parity correction as a first-class replacement task
+- immediate goal: close the remaining Wave 9 promotion evidence gate, keep `packages/vibe-app-tauri`
+  stable as the switched default path, and honor the documented legacy retention window without
+  reopening the deprecated `packages/vibe-app` pipeline
 - authoritative execution sequence: `docs/plans/rebuild/execution-plan.md`
 - AI dispatch batches: `docs/plans/rebuild/execution-batches.md`
 

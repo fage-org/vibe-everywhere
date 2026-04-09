@@ -24,7 +24,8 @@ Android distribution is APK-first through GitHub Releases in the current Wave 9 
   legacy Vibe-specific reference when `/root/happy/packages/happy-app` cannot answer a continuity question.
 - `packages/vibe-app-tauri` already exists as the historical desktop-preview package from Wave 8.
 - Wave 9 keeps the deprecated legacy package untouched while turning `packages/vibe-app-tauri` into the
-  active Wave 9 replacement package and eventual default app path.
+  active Wave 9 replacement package and the recorded default app path, with final promotion evidence
+  still tracked separately before B26 can close.
 
 ## Wave 9 Terms
 

@@ -2,19 +2,34 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
-const baselinePath = path.join(
+const modulePlanPath = path.join(
   repoRoot,
   "docs",
   "plans",
   "rebuild",
-  "vibe-app-tauri-promotion-baseline.md",
+  "modules",
+  "vibe-app-tauri",
+  "promotion-and-vibe-app-deprecation.md",
 );
-const planPath = path.join(
+const migrationPlanPath = path.join(
   repoRoot,
   "docs",
   "plans",
   "rebuild",
-  "vibe-app-tauri-promotion-plan.md",
+  "vibe-app-tauri-wave9-migration-and-release-plan.md",
+);
+const routeMatrixPath = path.join(
+  repoRoot,
+  "docs",
+  "plans",
+  "rebuild",
+  "vibe-app-tauri-wave9-route-and-capability-matrix.md",
+);
+const promotionBaselineArtifactPath = path.join(
+  repoRoot,
+  "artifacts",
+  "vibe-app-tauri",
+  "promotion-baseline.md",
 );
 
 const strict = process.argv.includes("--promotion-ready");
@@ -35,32 +50,109 @@ function ensureNoPending(content, fileLabel, sectionLabel) {
 }
 
 async function main() {
-  const [baseline, plan] = await Promise.all([
-    readFile(baselinePath, "utf8"),
-    readFile(planPath, "utf8"),
+  const [modulePlan, migrationPlan, routeMatrix, promotionBaselineArtifact] = await Promise.all([
+    readFile(modulePlanPath, "utf8"),
+    readFile(migrationPlanPath, "utf8"),
+    readFile(routeMatrixPath, "utf8"),
+    readFile(promotionBaselineArtifactPath, "utf8"),
   ]);
 
-  ensureIncludes(baseline, "vibe-app-tauri-promotion-baseline.md", "# `vibe-app-tauri` Promotion Baseline");
-  ensureIncludes(baseline, "vibe-app-tauri-promotion-baseline.md", "## Startup Validation");
-  ensureIncludes(baseline, "vibe-app-tauri-promotion-baseline.md", "## Performance Review");
-  ensureIncludes(baseline, "vibe-app-tauri-promotion-baseline.md", "## Memory Review");
-  ensureIncludes(baseline, "vibe-app-tauri-promotion-baseline.md", "## Side-By-Side Parity Review");
-  ensureIncludes(baseline, "vibe-app-tauri-promotion-baseline.md", "## Sign-Off");
+  ensureIncludes(
+    modulePlan,
+    "promotion-and-vibe-app-deprecation.md",
+    "# Module Plan: vibe-app-tauri/promotion-and-vibe-app-deprecation",
+  );
+  ensureIncludes(modulePlan, "promotion-and-vibe-app-deprecation.md", "## Status");
+  ensureIncludes(modulePlan, "promotion-and-vibe-app-deprecation.md", "## Promotion Decision Record");
+  ensureIncludes(
+    modulePlan,
+    "promotion-and-vibe-app-deprecation.md",
+    "## Retention And Retirement Policy",
+  );
+  ensureIncludes(modulePlan, "promotion-and-vibe-app-deprecation.md", "## Current Execution Note");
+  ensureIncludes(modulePlan, "promotion-and-vibe-app-deprecation.md", "default app path: `packages/vibe-app-tauri`");
 
-  ensureIncludes(plan, "vibe-app-tauri-promotion-plan.md", "# `vibe-app-tauri` Promotion And Deprecation Plan");
-  ensureIncludes(plan, "vibe-app-tauri-promotion-plan.md", "## Promotion Gate");
-  ensureIncludes(plan, "vibe-app-tauri-promotion-plan.md", "## Rollout Stages");
-  ensureIncludes(plan, "vibe-app-tauri-promotion-plan.md", "## Fallback Plan");
-  ensureIncludes(plan, "vibe-app-tauri-promotion-plan.md", "## Deprecation Plan");
-  ensureIncludes(plan, "vibe-app-tauri-promotion-plan.md", "## Approval");
+  ensureIncludes(
+    migrationPlan,
+    "vibe-app-tauri-wave9-migration-and-release-plan.md",
+    "# Wave 9 Migration And Release Plan: `vibe-app-tauri`",
+  );
+  ensureIncludes(
+    migrationPlan,
+    "vibe-app-tauri-wave9-migration-and-release-plan.md",
+    "## Exact Rollback Mechanics",
+  );
+  ensureIncludes(
+    migrationPlan,
+    "vibe-app-tauri-wave9-migration-and-release-plan.md",
+    "## Promotion Gate",
+  );
+  ensureIncludes(
+    migrationPlan,
+    "vibe-app-tauri-wave9-migration-and-release-plan.md",
+    "`packages/vibe-app-tauri` becomes the default release owner",
+  );
+
+  ensureIncludes(
+    routeMatrix,
+    "vibe-app-tauri-wave9-route-and-capability-matrix.md",
+    "# Wave 9 Route And Capability Matrix: `vibe-app-tauri`",
+  );
+  ensureIncludes(routeMatrix, "vibe-app-tauri-wave9-route-and-capability-matrix.md", "| `/(app)/session/[id]` | `P0` |");
+  ensureIncludes(routeMatrix, "vibe-app-tauri-wave9-route-and-capability-matrix.md", "| auth credential storage | `C0` |");
+
+  ensureIncludes(
+    promotionBaselineArtifact,
+    "artifacts/vibe-app-tauri/promotion-baseline.md",
+    "# Vibe App Tauri Promotion Baseline",
+  );
+  ensureIncludes(
+    promotionBaselineArtifact,
+    "artifacts/vibe-app-tauri/promotion-baseline.md",
+    "## Automated Snapshot",
+  );
+  ensureIncludes(
+    promotionBaselineArtifact,
+    "artifacts/vibe-app-tauri/promotion-baseline.md",
+    "## Manual Startup Validation",
+  );
+  ensureIncludes(
+    promotionBaselineArtifact,
+    "artifacts/vibe-app-tauri/promotion-baseline.md",
+    "## Manual Performance Review",
+  );
+  ensureIncludes(
+    promotionBaselineArtifact,
+    "artifacts/vibe-app-tauri/promotion-baseline.md",
+    "## Manual Memory Review",
+  );
+  ensureIncludes(
+    promotionBaselineArtifact,
+    "artifacts/vibe-app-tauri/promotion-baseline.md",
+    "## Promotion Notes",
+  );
 
   if (strict) {
-    ensureNoPending(baseline, "vibe-app-tauri-promotion-baseline.md", "baseline review");
-    ensureNoPending(plan, "vibe-app-tauri-promotion-plan.md", "promotion plan");
+    ensureNoPending(modulePlan, "promotion-and-vibe-app-deprecation.md", "promotion module plan");
+    ensureNoPending(
+      migrationPlan,
+      "vibe-app-tauri-wave9-migration-and-release-plan.md",
+      "migration and release plan",
+    );
+    ensureNoPending(
+      routeMatrix,
+      "vibe-app-tauri-wave9-route-and-capability-matrix.md",
+      "route and capability matrix",
+    );
+    ensureNoPending(
+      promotionBaselineArtifact,
+      "artifacts/vibe-app-tauri/promotion-baseline.md",
+      "promotion baseline artifact",
+    );
   }
 
   process.stdout.write(
-    `validated ${path.relative(repoRoot, baselinePath)} and ${path.relative(repoRoot, planPath)}\n`,
+    `validated ${path.relative(repoRoot, modulePlanPath)}, ${path.relative(repoRoot, migrationPlanPath)}, ${path.relative(repoRoot, routeMatrixPath)}, and ${path.relative(repoRoot, promotionBaselineArtifactPath)}\n`,
   );
 }
 

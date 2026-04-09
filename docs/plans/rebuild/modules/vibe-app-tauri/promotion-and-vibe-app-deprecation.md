@@ -1,5 +1,12 @@
 # Module Plan: vibe-app-tauri/promotion-and-vibe-app-deprecation
 
+## Status
+
+- updated on 2026-04-09 after the Wave 9 default-owner switch rules, rollback mechanics,
+  repository defaults, and legacy retention policy were aligned on `packages/vibe-app-tauri`; the
+  final promotion evidence gate remains open until `artifacts/vibe-app-tauri/promotion-baseline.md`
+  is fully signed off
+
 ## Purpose
 
 Define the final switch that makes `packages/vibe-app-tauri` the default app path and active Wave 9
@@ -54,6 +61,53 @@ active Wave 9 cross-platform gate or expand it implicitly.
 3. Record the exact production switch steps and fallback owner.
 4. Update docs and workflow defaults only after sign-off.
 5. Define the retention and eventual retirement policy for `packages/vibe-app`.
+
+## Promotion Decision Record
+
+- default app path: `packages/vibe-app-tauri`
+- default release ownership: `packages/vibe-app-tauri` owns desktop bundles, Android APK
+  packaging, and retained static browser export packaging
+- route and capability gate: all `P0`/`P1` routes and `C0`/`C1` capabilities are either satisfied
+  in the active Wave 9 implementation or explicitly waived in
+  `docs/plans/rebuild/vibe-app-tauri-wave9-migration-and-release-plan.md` and
+  `docs/plans/rebuild/modules/vibe-app-tauri/mobile-native-capabilities.md`
+- rollback owner: the last known-good `packages/vibe-app-tauri` artifact set identified by
+  `packages/vibe-app-tauri/release/<profile>/release-manifest.json`; `packages/vibe-app` does not
+  reopen as a fallback release lane
+- repository defaults: root scripts, CI, release workflow, development docs, and validation docs
+  point to `packages/vibe-app-tauri` as the default app owner
+- legacy package policy: `packages/vibe-app` remains a historical Vibe-specific reference only when
+  Happy is insufficient and must not regain active CI or release ownership without a new plan update
+
+## Retention And Retirement Policy
+
+- retention window: keep `packages/vibe-app` in-repo as reference-only until both of the following
+  are true:
+  1. two consecutive `app-v*` releases have shipped from `packages/vibe-app-tauri` without a
+     rollback
+  2. at least 30 calendar days have elapsed since the default-owner switch recorded in this module
+- during the retention window, `packages/vibe-app` may be read for Vibe-specific continuity
+  questions but must not receive new feature, release, or CI ownership work
+- retirement trigger: once the retention window closes, archival or deletion is allowed only through
+  a new plan update that confirms no active workflow, doc entry point, or rollback drill depends on
+  the legacy package path
+
+## Current Execution Note
+
+- current promotion sign-off:
+  - `packages/vibe-app-tauri` is the explicit default app path and default release owner
+  - `.github/workflows/app-release.yml` packages the active desktop, browser-export, and Android APK
+    lanes from `packages/vibe-app-tauri`
+  - root `package.json`, `README.md`, `DEVELOPMENT.md`, `TESTING.md`, and `scripts/README.md`
+    describe `packages/vibe-app-tauri` as the active default path
+  - hold and rollback mechanics are recorded in
+    `docs/plans/rebuild/vibe-app-tauri-wave9-migration-and-release-plan.md`
+  - `packages/vibe-app` remains reference-only and does not participate in active validation or
+    release ownership
+- final decision:
+  - B26 closes only after the active docs, validators, and
+    `artifacts/vibe-app-tauri/promotion-baseline.md` agree on the Wave 9 promotion state; no
+    additional legacy-owner release lane remains to close
 
 ## Edge Cases And Failure Modes
 

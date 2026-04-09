@@ -11,8 +11,8 @@
 
 ## Current Phase
 
-- phase: the original Happy-aligned rebuild baseline is complete through Wave 7 (`vibe-wire`, `vibe-server`, `vibe-agent`, `vibe-cli`, `vibe-app`, and `vibe-app-logs` are implemented and validated); Wave 8 is closed as the historical desktop-preview baseline for `packages/vibe-app-tauri`; the active planning milestone is Wave 9, which turns `packages/vibe-app-tauri` into the active Wave 9 replacement package for `packages/vibe-app` across desktop, iOS, Android, and retained web/export ownership while keeping `packages/vibe-app` deprecated from active CI and release ownership
-- next milestone: execute the direct `/root/happy/packages/happy-app`-aligned migration into `packages/vibe-app-tauri`, keep `packages/vibe-app` only as a deprecated legacy reference when Happy cannot answer a Vibe-specific continuity question, and keep the old `vibe-app` pipelines disabled
+- phase: the original Happy-aligned rebuild baseline is complete through Wave 7 (`vibe-wire`, `vibe-server`, `vibe-agent`, `vibe-cli`, `vibe-app`, and `vibe-app-logs` are implemented and validated); Wave 8 is closed as the historical desktop-preview baseline for `packages/vibe-app-tauri`; Wave 9 has recorded the default-owner switch to `packages/vibe-app-tauri` for desktop, Android APK, and retained web/export ownership while `packages/vibe-app` stays deprecated from active CI and release ownership, but the final promotion evidence gate remains open until the promotion baseline artifact is fully signed off
+- next milestone: close the remaining Wave 9 promotion evidence gate, keep the switched default package stable, honor the legacy retention window for `packages/vibe-app`, and only consider archival/removal through a later explicit plan update after the documented retirement gate closes
 
 ## Rule
 

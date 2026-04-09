@@ -53,7 +53,7 @@ Use this file when you want to assign work in grouped waves such as:
 | `[done] B23` | promotion-critical native capabilities | mobile and cross-platform capability blockers are closed or explicitly waived |
 | `[done] B24` | secondary route migration | promotion-critical `P1` routes are wired |
 | `[done] B25` | release and store migration | `vibe-app-tauri` can produce the full app artifact set |
-| `B26` | promotion and legacy archival | `packages/vibe-app-tauri` is confirmed as the default app path |
+| `B26` | promotion evidence and legacy archival | `packages/vibe-app-tauri` owner-switch is recorded and the final promotion evidence gate is closed |
 
 ## [done] B00: Planning Freeze
 
@@ -1041,7 +1041,7 @@ Use this file when you want to assign work in grouped waves such as:
 - analytics/tracking continuity review
 - rollback-path review
 
-## B26: Promotion And Legacy Deprecation
+## B26: Promotion Evidence And Legacy Deprecation
 
 ### Prerequisites
 

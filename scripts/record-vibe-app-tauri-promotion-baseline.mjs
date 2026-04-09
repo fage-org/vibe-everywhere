@@ -169,9 +169,9 @@ this file with prose.
 
 ## Promotion Notes
 
-- \`packages/vibe-app\` is now legacy reference-only and must not be restored as the default desktop path without an explicit plan update.
+- \`packages/vibe-app\` is now legacy reference-only and must not be restored as the default app path without an explicit plan update.
 - Attach cross-platform startup evidence and realistic session-load measurements before marking the
-  active release-and-promotion slice complete.
+  active promotion-and-deprecation slice complete.
 `;
 
   await mkdir(path.dirname(outputPath), { recursive: true });

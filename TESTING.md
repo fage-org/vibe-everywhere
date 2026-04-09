@@ -24,6 +24,7 @@
 - `yarn workspace vibe-app-tauri tauri:smoke`
 - `yarn workspace vibe-app-tauri validate:promotion`
 - `yarn app:metrics`
+- `yarn --cwd scripts validate:vibe-app-tauri-release`
 - `yarn --cwd scripts validate:vibe-app-tauri-promotion`
 - `yarn app:promotion-ready`
 - `yarn app-logs --help`

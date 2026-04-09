@@ -6,7 +6,7 @@ The repository is beyond bootstrap mode.
 
 - Waves 0-7 of the Happy-aligned rebuild are implemented and validated.
 - `packages/vibe-app` is retained only as a deprecated historical reference.
-- Active implementation work is Wave 9 for `packages/vibe-app-tauri`.
+- Wave 9 owner-switch work has moved the default app path to `packages/vibe-app-tauri`, with final promotion evidence still tracked in `artifacts/vibe-app-tauri/promotion-baseline.md`.
 - Planning remains authoritative for any scope, ownership, or contract change.
 
 ## Entry Points
