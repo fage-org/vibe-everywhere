@@ -15,7 +15,7 @@ export type MobileTab = {
   badge?: number;
 };
 
-interface MobileShellProps {
+export interface MobileShellProps {
   /** Top header content */
   header?: ReactNode;
   /** Main content */

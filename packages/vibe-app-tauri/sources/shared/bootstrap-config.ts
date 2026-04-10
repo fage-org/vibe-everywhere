@@ -29,18 +29,6 @@ export const rootProviderOrder = [
 ] as const;
 
 export const rootAssetPaths = [
-  "sources/app/assets/fonts/IBMPlexSans-Regular.ttf",
-  "sources/app/assets/fonts/IBMPlexSans-Italic.ttf",
-  "sources/app/assets/fonts/IBMPlexSans-SemiBold.ttf",
-  "sources/app/assets/fonts/IBMPlexMono-Regular.ttf",
-  "sources/app/assets/fonts/IBMPlexMono-Italic.ttf",
-  "sources/app/assets/fonts/IBMPlexMono-SemiBold.ttf",
-  "sources/app/assets/fonts/BricolageGrotesque-Bold.ttf",
-  "sources/app/assets/fonts/SpaceMono-Regular.ttf",
-  "sources/app/assets/images/logo-black.png",
-  "sources/app/assets/images/logo-white.png",
-  "sources/app/assets/images/logotype-dark.png",
-  "sources/app/assets/images/logotype-light.png",
   "public/splash.svg",
 ] as const;
 

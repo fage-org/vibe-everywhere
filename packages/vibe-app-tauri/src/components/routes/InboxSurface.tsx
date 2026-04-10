@@ -29,7 +29,7 @@ export interface Notification {
   icon?: React.ReactNode;
 }
 
-interface InboxSurfaceProps {
+export interface InboxSurfaceProps {
   /** Notifications list */
   notifications: Notification[];
   /** Callback when notification is clicked */

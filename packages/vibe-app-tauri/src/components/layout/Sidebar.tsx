@@ -4,7 +4,7 @@ import { Body, Caption1 } from "../ui/Typography";
 
 export type NavItemState = "default" | "active" | "disabled";
 
-interface NavItem {
+export interface NavItem {
   /** Unique identifier */
   id: string;
   /** Display label */
@@ -21,14 +21,14 @@ interface NavItem {
   badge?: string | number;
 }
 
-interface NavSection {
+export interface NavSection {
   /** Section title */
   title?: string;
   /** Navigation items */
   items: NavItem[];
 }
 
-interface SidebarProps {
+export interface SidebarProps {
   /** Brand/logo element */
   brand?: ReactNode;
   /** Primary navigation sections */

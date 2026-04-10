@@ -3,7 +3,7 @@ import { tokens } from "../../design-system/tokens";
 
 export type CardVariant = "default" | "elevated" | "outlined" | "interactive";
 
-interface CardProps extends HTMLAttributes<HTMLDivElement> {
+export interface CardProps extends HTMLAttributes<HTMLDivElement> {
   /** Visual style variant */
   variant?: CardVariant;
   /** Card content */
@@ -102,7 +102,7 @@ Card.displayName = "Card";
 // Card Subcomponents
 // =============================================================================
 
-interface CardHeaderProps extends HTMLAttributes<HTMLDivElement> {
+export interface CardHeaderProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
 }
 
@@ -127,12 +127,14 @@ export const CardHeader = forwardRef<HTMLDivElement, CardHeaderProps>(
 
 CardHeader.displayName = "CardHeader";
 
-interface CardTitleProps extends HTMLAttributes<HTMLHeadingElement> {
+export interface CardTitleProps extends HTMLAttributes<HTMLHeadingElement> {
   children: ReactNode;
+  /** Whether to truncate text with ellipsis */
+  truncate?: boolean;
 }
 
 export const CardTitle = forwardRef<HTMLHeadingElement, CardTitleProps>(
-  ({ children, style, ...props }, ref) => (
+  ({ children, truncate, style, ...props }, ref) => (
     <h3
       ref={ref}
       style={{
@@ -141,6 +143,9 @@ export const CardTitle = forwardRef<HTMLHeadingElement, CardTitleProps>(
         fontWeight: tokens.typography.fontWeight.semibold,
         color: "var(--text-primary)",
         lineHeight: tokens.typography.lineHeight.snug,
+        overflow: truncate ? "hidden" : undefined,
+        textOverflow: truncate ? "ellipsis" : undefined,
+        whiteSpace: truncate ? "nowrap" : undefined,
         ...style,
       }}
       {...props}
@@ -152,12 +157,14 @@ export const CardTitle = forwardRef<HTMLHeadingElement, CardTitleProps>(
 
 CardTitle.displayName = "CardTitle";
 
-interface CardDescriptionProps extends HTMLAttributes<HTMLParagraphElement> {
+export interface CardDescriptionProps extends HTMLAttributes<HTMLParagraphElement> {
   children: ReactNode;
+  /** Whether to truncate text with ellipsis */
+  truncate?: boolean;
 }
 
 export const CardDescription = forwardRef<HTMLParagraphElement, CardDescriptionProps>(
-  ({ children, style, ...props }, ref) => (
+  ({ children, truncate, style, ...props }, ref) => (
     <p
       ref={ref}
       style={{
@@ -166,6 +173,9 @@ export const CardDescription = forwardRef<HTMLParagraphElement, CardDescriptionP
         fontSize: tokens.typography.fontSize.sm,
         color: "var(--text-tertiary)",
         lineHeight: tokens.typography.lineHeight.normal,
+        overflow: truncate ? "hidden" : undefined,
+        textOverflow: truncate ? "ellipsis" : undefined,
+        whiteSpace: truncate ? "nowrap" : undefined,
         ...style,
       }}
       {...props}
@@ -177,7 +187,7 @@ export const CardDescription = forwardRef<HTMLParagraphElement, CardDescriptionP
 
 CardDescription.displayName = "CardDescription";
 
-interface CardContentProps extends HTMLAttributes<HTMLDivElement> {
+export interface CardContentProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
 }
 
@@ -198,7 +208,7 @@ export const CardContent = forwardRef<HTMLDivElement, CardContentProps>(
 
 CardContent.displayName = "CardContent";
 
-interface CardFooterProps extends HTMLAttributes<HTMLDivElement> {
+export interface CardFooterProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
 }
 

@@ -10,7 +10,7 @@ export interface ComposerSuggestion {
   insertText: string;
 }
 
-interface ComposerProps {
+export interface ComposerProps {
   /** Current input value */
   value: string;
   /** Callback when value changes */

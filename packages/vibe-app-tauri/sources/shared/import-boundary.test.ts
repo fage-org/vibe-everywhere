@@ -36,7 +36,7 @@ describe("shared core import boundaries", () => {
 
     for (const scanRoot of scanRoots) {
       for (const filePath of collectSourceFiles(scanRoot)) {
-        if (filePath.endsWith("sources/shared/import-boundary.test.ts")) {
+        if (filePath.includes("import-boundary.test.ts")) {
           continue;
         }
         const fileContent = fs.readFileSync(filePath, "utf8");

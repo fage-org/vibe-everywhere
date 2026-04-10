@@ -5,7 +5,7 @@ import { tokens } from "../../design-system/tokens";
 // Typography Components
 // =============================================================================
 
-interface TypographyProps extends HTMLAttributes<HTMLElement> {
+export interface TypographyProps extends HTMLAttributes<HTMLElement> {
   children: ReactNode;
   /** Color variant */
   color?: "primary" | "secondary" | "tertiary" | "quaternary";

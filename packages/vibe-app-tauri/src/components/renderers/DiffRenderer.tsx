@@ -41,7 +41,7 @@ export interface DiffFile {
   deletions?: number;
 }
 
-interface DiffRendererProps {
+export interface DiffRendererProps {
   /** Diff files to render */
   files: DiffFile[];
   /** Whether to show line numbers */
@@ -176,12 +176,12 @@ function DiffFileView({ file, showLineNumbers, collapsible, maxHeight }: DiffFil
 
         {totalChanges > 0 && (
           <div style={{ display: "flex", gap: tokens.spacing[2] }}>
-            {file.additions > 0 && (
+            {(file.additions ?? 0) > 0 && (
               <span style={{ color: "var(--color-success)", fontWeight: tokens.typography.fontWeight.medium }}>
                 +{file.additions}
               </span>
             )}
-            {file.deletions > 0 && (
+            {(file.deletions ?? 0) > 0 && (
               <span style={{ color: "var(--color-danger)", fontWeight: tokens.typography.fontWeight.medium }}>
                 −{file.deletions}
               </span>

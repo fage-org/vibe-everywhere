@@ -3,7 +3,7 @@ import { tokens } from "../../design-system/tokens";
 
 export type TextAreaSize = "sm" | "md" | "lg";
 
-interface TextAreaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
+export interface TextAreaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
   /** Size of the textarea */
   size?: TextAreaSize;
   /** Label text */

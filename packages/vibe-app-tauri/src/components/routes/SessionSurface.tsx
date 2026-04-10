@@ -6,7 +6,7 @@ import { Timeline, Composer, type Message, type ComposerSuggestion, type Session
 import { Button, Badge } from "../ui";
 import { Body } from "../ui/Typography";
 
-interface SessionSurfaceProps {
+export interface SessionSurfaceProps {
   /** Current session */
   session: Session;
   /** Session messages */
@@ -222,7 +222,7 @@ export function SessionSurface({
                           color: "var(--text-primary)",
                         }}
                       >
-                        <Body size="sm">{model.name}</Body>
+                        <Body style={{ fontSize: tokens.typography.fontSize.sm }}>{model.name}</Body>
                       </button>
                     ))}
                   </div>

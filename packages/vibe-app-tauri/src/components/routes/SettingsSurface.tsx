@@ -38,7 +38,7 @@ export interface SettingItem {
   experimental?: boolean;
 }
 
-interface SettingsSurfaceProps {
+export interface SettingsSurfaceProps {
   /** Setting sections */
   sections: SettingSection[];
   /** Page title */

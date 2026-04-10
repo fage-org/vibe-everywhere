@@ -14,7 +14,7 @@ export type BadgeVariant =
 
 export type BadgeSize = "sm" | "md";
 
-interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
+export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
   /** Visual style variant */
   variant?: BadgeVariant;
   /** Size of the badge */

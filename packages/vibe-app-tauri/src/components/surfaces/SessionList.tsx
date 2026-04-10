@@ -28,7 +28,7 @@ export interface Session {
   };
 }
 
-interface SessionListProps {
+export interface SessionListProps {
   /** List of sessions to display */
   sessions: Session[];
   /** Currently selected session ID */

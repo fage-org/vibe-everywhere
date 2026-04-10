@@ -35,7 +35,7 @@ export interface Tool {
   category?: string;
 }
 
-interface ToolRendererProps {
+export interface ToolRendererProps {
   /** Tool calls to render */
   toolCalls: ToolCall[];
   /** Available tools metadata */

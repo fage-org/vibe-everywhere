@@ -3,7 +3,7 @@ import { tokens } from "../../design-system/tokens";
 import { Caption1 } from "../ui/Typography";
 import { MessageView, type Message } from "./MessageView";
 
-interface TimelineProps {
+export interface TimelineProps {
   /** Array of messages to display */
   messages: Message[];
   /** Whether messages are being loaded */
@@ -17,7 +17,7 @@ interface TimelineProps {
   /** Custom message renderer */
   renderMessage?: (message: Message, index: number) => ReactNode;
   /** Reference to scroll container */
-  scrollRef?: React.RefObject<HTMLDivElement>;
+  scrollRef?: React.RefObject<HTMLDivElement | null>;
   /** Whether to auto-scroll to bottom on new messages */
   autoScroll?: boolean;
 }
@@ -173,7 +173,7 @@ function groupMessages(messages: Message[]): MessageGroupData[] {
       };
       groups.push(currentGroup);
     } else {
-      currentGroup.messages.push(message);
+      currentGroup!.messages.push(message);
     }
   });
 

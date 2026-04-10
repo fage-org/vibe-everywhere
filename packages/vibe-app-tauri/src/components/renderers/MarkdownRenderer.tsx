@@ -9,7 +9,7 @@ import {
   Footnote,
 } from "../ui/Typography";
 
-interface MarkdownRendererProps {
+export interface MarkdownRendererProps {
   /** Markdown content to render */
   content: string;
   /** Whether to enable soft line breaks */

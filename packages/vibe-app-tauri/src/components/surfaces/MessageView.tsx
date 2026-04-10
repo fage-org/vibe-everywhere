@@ -20,12 +20,12 @@ export interface Message {
   /** Whether message is streaming */
   isStreaming?: boolean;
   /** Tool calls associated with this message */
-  toolCalls?: ToolCall[];
+  toolCalls?: MessageToolCall[];
   /** Attachments */
   attachments?: Attachment[];
 }
 
-export interface ToolCall {
+export interface MessageToolCall {
   id: string;
   name: string;
   arguments: Record<string, unknown>;
@@ -41,7 +41,7 @@ export interface Attachment {
   url?: string;
 }
 
-interface MessageViewProps {
+export interface MessageViewProps {
   /** Message to display */
   message: Message;
   /** Whether to show avatar */
@@ -208,7 +208,7 @@ function StreamingIndicator() {
 }
 
 interface ToolCallViewProps {
-  toolCall: ToolCall;
+  toolCall: MessageToolCall;
 }
 
 function ToolCallView({ toolCall }: ToolCallViewProps) {

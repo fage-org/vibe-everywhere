@@ -1,3 +1,5 @@
+import type { ReactElement } from "react";
+
 /**
  * Feature flag system for gradual migration to Happy-aligned UI
  *
@@ -136,7 +138,7 @@ export function enableHappyUI(): void {
 /**
  * Development helper to show feature flag UI
  */
-export function FeatureFlagPanel(): JSX.Element {
+export function FeatureFlagPanel(): ReactElement {
   const flags = useFeatureFlags();
 
   return (

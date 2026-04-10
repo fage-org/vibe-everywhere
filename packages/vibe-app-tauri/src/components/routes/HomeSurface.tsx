@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, Button } fro
 import { Title1, Title2, Body, Subheadline, Eyebrow } from "../ui/Typography";
 import type { Session } from "../surfaces";
 
-interface HomeSurfaceProps {
+export interface HomeSurfaceProps {
   /** Recent sessions */
   recentSessions?: Session[];
   /** Quick actions */
@@ -287,7 +287,7 @@ function SessionCard({ session, onClick }: SessionCardProps) {
   );
 }
 
-function formatTimeAgo(date: Date, t: (key: string) => string): string {
+function formatTimeAgo(date: Date, t: (key: string, options?: Record<string, unknown>) => string): string {
   const now = new Date();
   const diff = now.getTime() - date.getTime();
   const minutes = Math.floor(diff / 60000);

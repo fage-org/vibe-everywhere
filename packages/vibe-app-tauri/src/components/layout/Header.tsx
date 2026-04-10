@@ -2,7 +2,7 @@ import { type ReactNode } from "react";
 import { tokens } from "../../design-system/tokens";
 import { Eyebrow, Title2, Title3 } from "../ui/Typography";
 
-interface HeaderProps {
+export interface HeaderProps {
   /** Eyebrow text (small label above title) */
   eyebrow?: string;
   /** Main title */

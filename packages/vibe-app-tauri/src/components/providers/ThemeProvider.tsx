@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 
 export type ColorScheme = "light" | "dark" | "system";
 
-interface ThemeContextValue {
+export interface ThemeContextValue {
   /** Current color scheme */
   colorScheme: ColorScheme;
   /** Currently applied theme (resolved from system preference if needed) */

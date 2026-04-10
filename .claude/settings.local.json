@@ -20,7 +20,9 @@
       "Bash(yarn typecheck:*)",
       "Bash(xargs -I {} git diff HEAD -- {})",
       "Bash(git add:*)",
-      "Bash(git commit -m ':*)"
+      "Bash(git commit -m ':*)",
+      "Bash(git checkout:*)",
+      "Bash(yarn workspace:*)"
     ]
   }
 }

@@ -3,7 +3,7 @@ import { tokens } from "../../design-system/tokens";
 
 export type InputSize = "sm" | "md" | "lg";
 
-interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
+export interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "size"> {
   /** Size of the input */
   size?: InputSize;
   /** Label text */

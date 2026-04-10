@@ -12,7 +12,7 @@ export {
   type MessageViewProps,
   type Message,
   type MessageRole,
-  type ToolCall,
+  type MessageToolCall,
   type Attachment,
 } from "./MessageView";
 

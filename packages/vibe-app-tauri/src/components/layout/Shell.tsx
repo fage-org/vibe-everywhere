@@ -1,7 +1,7 @@
 import { type ReactNode } from "react";
 import { tokens } from "../../design-system/tokens";
 
-interface ShellProps {
+export interface ShellProps {
   /** Sidebar navigation component */
   sidebar?: ReactNode;
   /** Header component */
