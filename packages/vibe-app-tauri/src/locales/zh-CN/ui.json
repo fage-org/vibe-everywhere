@@ -1,0 +1,18 @@
+{
+  "badges": {
+    "beta": "测试版",
+    "new": "新功能",
+    "pro": "专业版"
+  },
+  "buttons": {
+    "save": "保存",
+    "cancel": "取消",
+    "confirm": "确认",
+    "delete": "删除"
+  },
+  "connection": {
+    "connected": "已连接",
+    "disconnected": "已断开",
+    "connecting": "连接中..."
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "sessionList": {
+    "status": {
+      "active": "进行中",
+      "idle": "空闲",
+      "completed": "已完成",
+      "error": "错误"
+    },
+    "empty": {
+      "title": "没有会话",
+      "subtitle": "创建新会话开始使用"
+    },
+    "search": {
+      "placeholder": "搜索会话..."
+    }
+  },
+  "timeline": {
+    "date": {
+      "today": "今天",
+      "yesterday": "昨天"
+    }
+  },
+  "composer": {
+    "placeholder": "输入消息...",
+    "charCount": "{{count}} 字符",
+    "send": "发送",
+    "stop": "停止"
+  },
+  "nav": {
+    "home": "首页",
+    "sessions": "会话",
+    "inbox": "收件箱",
+    "settings": "设置"
+  }
+}

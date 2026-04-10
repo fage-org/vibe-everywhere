@@ -1,0 +1,85 @@
+{
+  "home": {
+    "title": "Welcome to Vibe",
+    "subtitle": "Your AI-powered coding companion",
+    "welcome": "Welcome back",
+    "description": "Start a new session or continue where you left off",
+    "actions": {
+      "newSession": "Start New Session",
+      "resume": "Resume Session",
+      "settings": "Settings",
+      "viewAll": "View All"
+    },
+    "sections": {
+      "quickActions": "Quick Actions",
+      "recentSessions": "Recent Sessions",
+      "stats": "Statistics"
+    }
+  },
+  "session": {
+    "header": {
+      "eyebrow": "Session"
+    },
+    "emptyState": {
+      "title": "Select a session to start",
+      "subtitle": "Choose from your recent sessions or create a new one"
+    },
+    "timeline": {
+      "empty": {
+        "title": "No messages yet",
+        "subtitle": "Start the conversation by typing a message below"
+      }
+    },
+    "composer": {
+      "placeholder": "Message...",
+      "hint": "Press Cmd+Enter to send"
+    },
+    "models": {
+      "selectPlaceholder": "Select Model"
+    },
+    "actions": {
+      "share": "Share",
+      "export": "Export",
+      "rename": "Rename",
+      "delete": "Delete"
+    }
+  },
+  "inbox": {
+    "header": {
+      "eyebrow": "Notifications"
+    },
+    "title": "Inbox",
+    "unreadCount": "unread",
+    "actions": {
+      "markAllRead": "Mark all read"
+    },
+    "filters": {
+      "all": "All",
+      "unread": "Unread"
+    },
+    "empty": {
+      "title": "No notifications",
+      "subtitle": "You're all caught up!"
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "sections": {
+      "general": "General",
+      "language": "Language",
+      "appearance": "Appearance",
+      "notifications": "Notifications",
+      "account": "Account",
+      "about": "About"
+    },
+    "actions": {
+      "reset": "Reset",
+      "saveChanges": "Save Changes"
+    },
+    "language": {
+      "title": "Language",
+      "description": "Choose your preferred language",
+      "auto": "Auto-detect"
+    }
+  }
+}

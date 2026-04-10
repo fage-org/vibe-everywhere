@@ -1,0 +1,85 @@
+{
+  "home": {
+    "title": "欢迎使用 Vibe",
+    "subtitle": "你的 AI 编程助手",
+    "welcome": "欢迎回来",
+    "description": "开始新会话或继续之前的对话",
+    "actions": {
+      "newSession": "开始新会话",
+      "resume": "继续会话",
+      "settings": "设置",
+      "viewAll": "查看全部"
+    },
+    "sections": {
+      "quickActions": "快捷操作",
+      "recentSessions": "最近会话",
+      "stats": "统计"
+    }
+  },
+  "session": {
+    "header": {
+      "eyebrow": "会话"
+    },
+    "emptyState": {
+      "title": "选择一个会话开始",
+      "subtitle": "从最近会话中选择或创建新会话"
+    },
+    "timeline": {
+      "empty": {
+        "title": "暂无消息",
+        "subtitle": "在下方输入消息开始对话"
+      }
+    },
+    "composer": {
+      "placeholder": "输入消息...",
+      "hint": "按 Cmd+Enter 发送"
+    },
+    "models": {
+      "selectPlaceholder": "选择模型"
+    },
+    "actions": {
+      "share": "分享",
+      "export": "导出",
+      "rename": "重命名",
+      "delete": "删除"
+    }
+  },
+  "inbox": {
+    "header": {
+      "eyebrow": "通知"
+    },
+    "title": "收件箱",
+    "unreadCount": "未读",
+    "actions": {
+      "markAllRead": "全部标为已读"
+    },
+    "filters": {
+      "all": "全部",
+      "unread": "未读"
+    },
+    "empty": {
+      "title": "没有通知",
+      "subtitle": "你已看完所有通知！"
+    }
+  },
+  "settings": {
+    "title": "设置",
+    "sections": {
+      "general": "通用",
+      "language": "语言",
+      "appearance": "外观",
+      "notifications": "通知",
+      "account": "账户",
+      "about": "关于"
+    },
+    "actions": {
+      "reset": "重置",
+      "saveChanges": "保存更改"
+    },
+    "language": {
+      "title": "语言",
+      "description": "选择你偏好的语言",
+      "auto": "自动检测"
+    }
+  }
+}

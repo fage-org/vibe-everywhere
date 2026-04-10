@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(yarn install:*)",
+      "Bash(pnpm install:*)",
+      "Bash(pnpm dev:*)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:1420/)",
+      "Bash(npx vite:*)",
+      "Bash(npm install:*)",
+      "Bash(pkill -f \"vite\")",
+      "Bash(taskkill /F /IM node.exe)",
+      "Bash(netstat -ano)",
+      "Bash(yarn vite:*)",
+      "Bash(curl -s http://127.0.0.1:3001/)",
+      "Bash(curl -v http://127.0.0.1:3001/)",
+      "Bash(TaskStop bpvhh39pq:*)",
+      "Bash(npx kill-port:*)",
+      "Bash(curl -s http://127.0.0.1:3001/sources/app/entry/browser.tsx)",
+      "Bash(yarn add:*)",
+      "Bash(yarn typecheck:*)",
+      "Bash(xargs -I {} git diff HEAD -- {})",
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)"
+    ]
+  }
+}

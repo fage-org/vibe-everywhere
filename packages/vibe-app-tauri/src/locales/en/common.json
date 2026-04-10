@@ -1,0 +1,28 @@
+{
+  "app": {
+    "name": "Vibe",
+    "tagline": "Your AI-powered coding companion"
+  },
+  "loading": "Loading...",
+  "error": "Something went wrong",
+  "retry": "Retry",
+  "cancel": "Cancel",
+  "save": "Save",
+  "delete": "Delete",
+  "edit": "Edit",
+  "close": "Close",
+  "back": "Back",
+  "next": "Next",
+  "done": "Done",
+  "search": "Search",
+  "filter": "Filter",
+  "sort": "Sort",
+  "empty": "Empty",
+  "noResults": "No results found",
+  "time": {
+    "justNow": "Just now",
+    "minutesAgo": "{{count}}m ago",
+    "hoursAgo": "{{count}}h ago",
+    "daysAgo": "{{count}}d ago"
+  }
+}

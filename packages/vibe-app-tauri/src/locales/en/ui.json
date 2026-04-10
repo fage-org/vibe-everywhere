@@ -1,0 +1,18 @@
+{
+  "badges": {
+    "beta": "Beta",
+    "new": "New",
+    "pro": "Pro"
+  },
+  "buttons": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "delete": "Delete"
+  },
+  "connection": {
+    "connected": "Connected",
+    "disconnected": "Disconnected",
+    "connecting": "Connecting..."
+  }
+}

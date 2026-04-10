@@ -1,0 +1,35 @@
+{
+  "sessionList": {
+    "status": {
+      "active": "active",
+      "idle": "idle",
+      "completed": "completed",
+      "error": "error"
+    },
+    "empty": {
+      "title": "No sessions",
+      "subtitle": "Create a new session to get started"
+    },
+    "search": {
+      "placeholder": "Search sessions..."
+    }
+  },
+  "timeline": {
+    "date": {
+      "today": "Today",
+      "yesterday": "Yesterday"
+    }
+  },
+  "composer": {
+    "placeholder": "Message...",
+    "charCount": "{{count}} chars",
+    "send": "Send",
+    "stop": "Stop"
+  },
+  "nav": {
+    "home": "Home",
+    "sessions": "Sessions",
+    "inbox": "Inbox",
+    "settings": "Settings"
+  }
+}

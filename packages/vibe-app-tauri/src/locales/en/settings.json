@@ -1,0 +1,13 @@
+{
+  "theme": {
+    "title": "Theme",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "desktop": "Desktop notifications",
+    "sound": "Sound effects"
+  }
+}

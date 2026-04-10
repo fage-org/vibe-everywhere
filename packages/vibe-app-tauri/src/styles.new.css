@@ -1,0 +1,326 @@
+/**
+ * Integrated Theme CSS for vibe-app-tauri
+ * Combines legacy styles with new Happy-aligned design system
+ */
+
+/* =============================================================================
+   New Happy-Aligned Design System (Primary)
+   ============================================================================= */
+
+@import "./design-system/theme.css";
+
+/* =============================================================================
+   Legacy Font Face Declarations (Preserved for compatibility)
+   ============================================================================= */
+
+@font-face {
+  font-family: "Bricolage Grotesque";
+  src: url("../sources/app/assets/fonts/BricolageGrotesque-Bold.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 700;
+}
+
+@font-face {
+  font-family: "Space Mono";
+  src: url("../sources/app/assets/fonts/SpaceMono-Regular.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: "IBM Plex Sans";
+  src: url("../sources/app/assets/fonts/IBMPlexSans-Regular.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: "IBM Plex Sans";
+  src: url("../sources/app/assets/fonts/IBMPlexSans-Italic.ttf") format("truetype");
+  font-style: italic;
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: "IBM Plex Sans";
+  src: url("../sources/app/assets/fonts/IBMPlexSans-SemiBold.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 600;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("../sources/app/assets/fonts/IBMPlexMono-Regular.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("../sources/app/assets/fonts/IBMPlexMono-Italic.ttf") format("truetype");
+  font-style: italic;
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("../sources/app/assets/fonts/IBMPlexMono-SemiBold.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 600;
+}
+
+/* =============================================================================
+   Legacy CSS Variables (Mapped to new system for backwards compatibility)
+   ============================================================================= */
+
+:root {
+  /* Legacy variable mappings */
+  --bg: var(--bg-secondary);
+  --bg-soft: var(--surface-glass, rgba(28, 28, 30, 0.92));
+  --surface: var(--surface-primary);
+  --surface-strong: var(--surface-secondary);
+  --surface-muted: var(--surface-tertiary);
+  --surface-hover: var(--surface-secondary);
+  --surface-glass: var(--surface-elevated);
+  --border: var(--border-primary);
+  --border-strong: var(--border-secondary);
+  --text: var(--text-primary);
+  --muted: var(--text-tertiary);
+  --teal: var(--color-success);
+  --teal-strong: var(--color-primary);
+  --sand: var(--color-warning);
+  --amber: var(--color-warning);
+  --rose: var(--color-danger);
+  --button-primary: var(--color-primary);
+  --button-primary-text: #ffffff;
+  --button-secondary-text: var(--text-primary);
+  --shadow: var(--shadow-ios-medium);
+  --radius-lg: var(--radius-3xl);
+  --radius-md: var(--radius-xl);
+  --radius-sm: var(--radius-lg);
+}
+
+/* =============================================================================
+   Legacy Utility Classes (Preserved for backwards compatibility)
+   ============================================================================= */
+
+/* Text utilities */
+.small-copy {
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+}
+
+.panel-copy {
+  font-size: var(--font-size-base);
+  color: var(--text-secondary);
+  line-height: var(--line-height-normal);
+}
+
+/* Card utilities */
+.panel-card {
+  background-color: var(--surface-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+}
+
+.panel-card.compact-feedback {
+  padding: var(--space-3);
+  background-color: var(--surface-secondary);
+}
+
+/* Surface utilities */
+.surface-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.surface-grid {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.surface-grid.two-up {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+/* Pill/Badge utilities */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+}
+
+.pill-accent {
+  background-color: var(--color-primary);
+  color: #ffffff;
+}
+
+.pill-outline {
+  background-color: transparent;
+  border: 1px solid var(--border-primary);
+  color: var(--text-secondary);
+}
+
+/* Button utilities */
+.secondary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-2) var(--space-4);
+  background-color: var(--surface-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--easing-ios);
+}
+
+.secondary-button:hover {
+  background-color: var(--surface-tertiary);
+}
+
+.button-row {
+  display: flex;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+/* List utilities */
+.bullet-list {
+  list-style: disc;
+  padding-left: var(--space-6);
+  margin: var(--space-3) 0;
+}
+
+.bullet-list.dense-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/* Code utilities */
+.backup-code {
+  display: block;
+  padding: var(--space-3);
+  background-color: var(--surface-secondary);
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  margin: var(--space-3) 0;
+  overflow-x: auto;
+}
+
+/* Card header */
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.card-header h3 {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+}
+
+/* =============================================================================
+   Animation Keyframes
+   ============================================================================= */
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes bounce {
+  0%, 80%, 100% {
+    transform: scale(0);
+  }
+  40% {
+    transform: scale(1);
+  }
+}
+
+/* =============================================================================
+   Bootstrap Splash (Preserved from original)
+   ============================================================================= */
+
+#bootstrap-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  gap: 18px;
+  background:
+    radial-gradient(circle at top, rgba(10, 132, 255, 0.18), transparent 42%),
+    linear-gradient(180deg, #17171b 0%, #111214 100%);
+  color: #ffffff;
+  transition:
+    opacity 180ms ease,
+    visibility 180ms ease;
+}
+
+#bootstrap-splash[data-state="ready"] {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.bootstrap-splash-mark {
+  width: 84px;
+  height: 84px;
+  border-radius: 24px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.24);
+}
+
+.bootstrap-splash-copy {
+  display: grid;
+  gap: 6px;
+  text-align: center;
+}
+
+.bootstrap-splash-copy strong {
+  font-family: "Bricolage Grotesque", "IBM Plex Sans", sans-serif;
+  font-size: 1.15rem;
+  letter-spacing: -0.04em;
+}
+
+/* =============================================================================
+   Dialog/Modal Styles
+   ============================================================================= */
+
+body.dialog-open {
+  overflow: hidden;
+}
+
+/* =============================================================================
+   Responsive Utilities
+   ============================================================================= */
+
+@media (max-width: 768px) {
+  .surface-grid.two-up {
+    grid-template-columns: 1fr;
+  }
+}

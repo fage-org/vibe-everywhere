@@ -8,6 +8,8 @@ import {
   type RuntimeTarget,
 } from "../../shared/bootstrap-config";
 import "../theme.css";
+// Import i18n initialization
+import "../../../src/i18n";
 
 type MountApplicationOptions = {
   mode?: string;
