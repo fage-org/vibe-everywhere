@@ -8,6 +8,15 @@
 
 ---
 
+## Documentation Index
+
+| Document | Purpose |
+|----------|---------|
+| **DESIGN_SYSTEM.md** (this file) | Complete UI/UX design system specification |
+| [MIGRATION.md](../src/MIGRATION.md) | Migration guide from legacy architecture |
+
+---
+
 ## Table of Contents
 
 1. [Design Principles & Visual Language](#1-design-principles--visual-language)
@@ -18,6 +27,19 @@
 6. [Content Presentation](#6-content-presentation)
 7. [Accessibility Standards](#7-accessibility-standards)
 8. [AI Agent Development Guidelines](#8-ai-agent-development-guidelines)
+9. [Appendices](#appendix-a-token-reference-table)
+
+---
+
+## Quick Reference
+
+- **Design Tokens:** `src/design-system/tokens.ts`
+- **Theme CSS:** `src/design-system/theme.css`
+- **UI Components:** `src/components/ui/`
+- **Layout Components:** `src/components/layout/`
+- **Surface Components:** `src/components/surfaces/`
+- **Route Surfaces:** `src/components/routes/`
+- **Content Renderers:** `src/components/renderers/`
 
 ---
 

@@ -2,6 +2,8 @@
 
 This guide explains how to migrate from the legacy 282KB App.tsx to the new Happy-aligned component architecture.
 
+> **For complete UI/UX specifications, see [Design System Documentation](../docs/DESIGN_SYSTEM.md).**
+
 ## Overview
 
 The new architecture provides:
@@ -90,124 +92,30 @@ function App() {
 
 ## Component Usage Examples
 
-### Button
+See [Design System Documentation](../docs/DESIGN_SYSTEM.md) for detailed component usage guidelines.
+
+### Quick Examples
 
 ```tsx
+// Button
 <Button variant="primary" size="md" onClick={handleClick}>
   Click Me
 </Button>
 
-<Button variant="secondary" loading={isLoading}>
-  Save
-</Button>
-
-<Button variant="ghost" disabled={!canSubmit}>
-  Cancel
-</Button>
-```
-
-### Card
-
-```tsx
+// Card
 <Card variant="elevated">
   <CardHeader>
     <CardTitle>Card Title</CardTitle>
-    <CardDescription>Card description</CardDescription>
   </CardHeader>
-  <CardContent>
-    Content goes here
-  </CardContent>
-  <CardFooter>
-    <Button variant="primary">Action</Button>
-  </CardFooter>
+  <CardContent>Content</CardContent>
 </Card>
-```
 
-### SessionList
-
-```tsx
+// SessionList
 <SessionList
   sessions={sessions}
   selectedId={selectedSessionId}
   onSelect={(session) => setSelectedSessionId(session.id)}
   loading={isLoading}
-/>
-```
-
-### Timeline + Composer
-
-```tsx
-<div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
-  <Timeline messages={messages} />
-  <Composer
-    value={composerValue}
-    onChange={setComposerValue}
-    onSubmit={handleSend}
-    suggestions={suggestions}
-    isSending={isSending}
-  />
-</div>
-```
-
-### SettingsSurface
-
-```tsx
-<SettingsSurface
-  sections={[
-    {
-      id: "appearance",
-      title: "Appearance",
-      settings: [
-        {
-          id: "theme",
-          label: "Theme",
-          type: "select",
-          value: theme,
-          options: [
-            { label: "Light", value: "light" },
-            { label: "Dark", value: "dark" },
-          ],
-          onChange: setTheme,
-        },
-        {
-          id: "sidebar",
-          label: "Collapsed Sidebar",
-          type: "toggle",
-          value: sidebarCollapsed,
-          onChange: setSidebarCollapsed,
-        },
-      ],
-    },
-  ]}
-  onSave={handleSave}
-  hasChanges={hasChanges}
-/>
-```
-
-### DiffRenderer
-
-```tsx
-<DiffRenderer
-  files={[
-    {
-      path: "src/App.tsx",
-      status: "modified",
-      additions: 10,
-      deletions: 5,
-      hunks: [...],
-    },
-  ]}
-  showLineNumbers={true}
-  collapsible={true}
-/>
-```
-
-### MarkdownRenderer
-
-```tsx
-<MarkdownRenderer
-  content={markdownText}
-  onLinkClick={(url) => openExternal(url)}
 />
 ```
 
@@ -226,11 +134,9 @@ const padding = tokens.spacing[4]; // 1rem
 
 // Typography
 const fontSize = tokens.typography.fontSize.lg;
-const fontWeight = tokens.typography.fontWeight.semibold;
-
-// Border radius
-const radius = tokens.radii.lg;
 ```
+
+For complete token reference, see [Design System - Appendix A](../docs/DESIGN_SYSTEM.md#appendix-a-token-reference-table).
 
 ## CSS Custom Properties
 
@@ -253,10 +159,6 @@ var(--color-primary)
 var(--color-success)
 var(--color-warning)
 var(--color-danger)
-
-/* Spacing */
-var(--space-4)
-var(--radius-lg)
 ```
 
 ## Migration Checklist
@@ -335,6 +237,7 @@ To maintain backwards compatibility during migration:
 
 ## Resources
 
+- [Design System Documentation](../docs/DESIGN_SYSTEM.md) - Complete UI/UX specification
 - `ExampleHappyApp.tsx` - Working example of new components
 - `App.new.tsx` - New App component architecture
 - `src/components/` - All new components with TypeScript types
