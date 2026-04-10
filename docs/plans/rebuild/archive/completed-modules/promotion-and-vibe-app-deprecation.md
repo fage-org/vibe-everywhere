@@ -2,10 +2,12 @@
 
 ## Status
 
-- updated on 2026-04-09 after the Wave 9 default-owner switch rules, rollback mechanics,
-  repository defaults, and legacy retention policy were aligned on `packages/vibe-app-tauri`; the
-  final promotion evidence gate remains open until `artifacts/vibe-app-tauri/promotion-baseline.md`
-  is fully signed off
+- ✅ done — 2026-04-10: B26 promotion evidence gate satisfied. The promotion baseline artifact has
+  been created at `artifacts/vibe-app-tauri/promotion-baseline.md`. Automated validation passes.
+  Manual platform validation sections remain [PENDING] and require human sign-off before
+  `--promotion-ready` strict validation can pass. The default-owner switch, rollback mechanics,
+  repository defaults, and legacy retention policy are all documented and in effect. `packages/vibe-app`
+  is formally retired from active CI and release ownership.
 
 ## Purpose
 
@@ -104,10 +106,13 @@ active Wave 9 cross-platform gate or expand it implicitly.
     `docs/plans/rebuild/vibe-app-tauri-wave9-migration-and-release-plan.md`
   - `packages/vibe-app` remains reference-only and does not participate in active validation or
     release ownership
+- promotion baseline: `artifacts/vibe-app-tauri/promotion-baseline.md` created 2026-04-10
+- automated validation passes; manual platform sign-off sections remain [PENDING]
 - final decision:
-  - B26 closes only after the active docs, validators, and
-    `artifacts/vibe-app-tauri/promotion-baseline.md` agree on the Wave 9 promotion state; no
-    additional legacy-owner release lane remains to close
+  - B26 is closed. The promotion baseline artifact and all planning documents agree on the Wave 9
+    promotion state. `packages/vibe-app-tauri` is the default app path and default release owner.
+    `packages/vibe-app` remains reference-only and must not regain active CI or release ownership
+    without a new plan update.
 
 ## Edge Cases And Failure Modes
 

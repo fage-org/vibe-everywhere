@@ -5,11 +5,12 @@ and where to find every planning document.
 
 ## Current Phase
 
-**Wave 9 — Batch B26 (Promotion Evidence and Legacy Deprecation) pending.**
+**Wave 9 — Complete.** All batches B00–B26 are done. G7 is satisfied with the promotion baseline
+artifact created at `artifacts/vibe-app-tauri/promotion-baseline.md`; manual platform validation
+sections remain [PENDING] until human sign-off.
 
-All Waves 0–8 are complete or historical. The remaining work is closing B26: the promotion baseline
-sign-off for `packages/vibe-app-tauri` and formal deprecation of `packages/vibe-app` from CI/release
-ownership.
+`packages/vibe-app-tauri` is the default app path and active release owner. `packages/vibe-app`
+remains reference-only.
 
 For batch-by-batch and module-level status, see `docs/plans/rebuild/STATUS.md`.
 
@@ -23,7 +24,7 @@ For batch-by-batch and module-level status, see `docs/plans/rebuild/STATUS.md`.
 | vibe-cli | `crates/vibe-cli` | ✅ done (archived) |
 | vibe-app | `packages/vibe-app` | ⚰️ deprecated (archived) |
 | vibe-app-logs | `crates/vibe-app-logs` | ✅ done (archived) |
-| vibe-app-tauri | `packages/vibe-app-tauri` | 🔧 active (Wave 9, B26 pending) |
+| vibe-app-tauri | `packages/vibe-app-tauri` | ✅ done (pending archive) |
 
 ## Document Navigation
 
@@ -34,24 +35,30 @@ For batch-by-batch and module-level status, see `docs/plans/rebuild/STATUS.md`.
 | `docs/plans/rebuild/STATUS.md` | **Start here.** Current phase, batch/module/gate status at a glance |
 | `PLAN.md` (this file) | Top-level status pointer and document index |
 
-### Planning Structure
+### Archived Planning Documents
+
+All active planning has been completed. The following archived directories contain
+historical reference material:
+
+- `docs/plans/rebuild/archive/completed-projects/` — Done project plans
+- `docs/plans/rebuild/archive/completed-modules/` — Done module plans
+- `docs/plans/rebuild/archive/wave8/` — Wave 8 historical plans
+- `docs/plans/rebuild/archive/wave9/` — Wave 9 planning documents
+
+### Archived Plans (Wave 9 — complete)
+
+All Wave 9 planning documents have been archived. See `docs/plans/rebuild/archive/` for details.
 
 | Document | Purpose |
 |----------|---------|
-| `docs/plans/README.md` | Repository-level planning index |
-| `docs/plans/process.md` | Workflow rules, update rules, AI dispatch rules, archival rules |
-| `docs/plans/rebuild/README.md` | Rebuild track index and reading order |
-| `docs/plans/rebuild/master-summary.md` | High-level objectives, milestones, risks |
-| `docs/plans/rebuild/master-details.md` | Architecture, dependency graph, acceptance gates |
-| `docs/plans/rebuild/execution-plan.md` | Module-level sequencing (active waves in detail) |
-| `docs/plans/rebuild/execution-batches.md` | AI dispatch batches (active batches in detail) |
-
-### Active Plans (Wave 9)
-
-| Document | Purpose |
-|----------|---------|
-| `docs/plans/rebuild/projects/vibe-app-tauri.md` | Active project plan |
-| `docs/plans/rebuild/modules/vibe-app-tauri/` | Active module plans (12 remaining after archival) |
+| `archive/wave9/execution-plan.md` | Archived module-level sequencing |
+| `archive/wave9/execution-batches.md` | Archived AI dispatch batches |
+| `archive/wave9/master-summary.md` | Archived high-level objectives, milestones, risks |
+| `archive/wave9/master-details.md` | Archived architecture, dependency graph, acceptance gates |
+| `archive/wave9/vibe-app-tauri-wave9-unified-replacement-plan.md` | Archived Wave 9 execution-facing replacement plan |
+| `archive/wave9/vibe-app-tauri-wave9-migration-and-release-plan.md` | Archived migration and release ownership stages |
+| `archive/wave9/vibe-app-tauri-wave9-route-and-capability-matrix.md` | Archived route families and capability owners |
+| `archive/completed-projects/vibe-app-tauri.md` | Archived project plan |
 
 ### Shared Specs (permanent reference)
 
@@ -72,9 +79,10 @@ For batch-by-batch and module-level status, see `docs/plans/rebuild/STATUS.md`.
 | Document | Purpose |
 |----------|---------|
 | `docs/plans/rebuild/archive/README.md` | Archival policy and directory guide |
-| `archive/completed-projects/` | Done project plans (vibe-wire through vibe-app-logs) |
-| `archive/completed-modules/` | Done module plans (waves 0–7) |
+| `archive/completed-projects/` | Done project plans (vibe-wire through vibe-app-tauri) |
+| `archive/completed-modules/` | Done module plans (waves 0–9) |
 | `archive/wave8/` | Wave 8 historical planning documents |
+| `archive/wave9/` | Wave 9 planning documents |
 | `archive/historical/` | Other superseded documents |
 
 ### Root-Level Documents

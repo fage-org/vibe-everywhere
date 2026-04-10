@@ -40,7 +40,7 @@ async function main() {
     readFile("packages/vibe-app-tauri/package.json"),
     readFile("packages/vibe-app-tauri/release.config.json"),
     readFile(".github/workflows/app-release.yml"),
-    readFile("docs/plans/rebuild/vibe-app-tauri-wave9-migration-and-release-plan.md"),
+    readFile("docs/plans/rebuild/archive/wave9/vibe-app-tauri-wave9-migration-and-release-plan.md"),
   ]);
 
   assertIncludes(packageJson, "\"release\": \"node ./release.cjs\"", "packages/vibe-app-tauri/package.json");
@@ -58,12 +58,12 @@ async function main() {
   assertIncludes(
     migrationPlan,
     "no legacy `packages/vibe-app` upgrade-validation lane remains in scope",
-    "docs/plans/rebuild/vibe-app-tauri-wave9-migration-and-release-plan.md",
+    "docs/plans/rebuild/archive/wave9/vibe-app-tauri-wave9-migration-and-release-plan.md",
   );
   assertIncludes(
     migrationPlan,
     "analytics/tracking continuity decision",
-    "docs/plans/rebuild/vibe-app-tauri-wave9-migration-and-release-plan.md",
+    "docs/plans/rebuild/archive/wave9/vibe-app-tauri-wave9-migration-and-release-plan.md",
   );
 
   console.log("vibe-app-tauri release inputs and workflow references are present.");

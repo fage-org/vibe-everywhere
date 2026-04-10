@@ -1,14 +1,14 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+const repoRoot = path.resolve(import.meta.dirname, "..");
 const modulePlanPath = path.join(
   repoRoot,
   "docs",
   "plans",
   "rebuild",
-  "modules",
-  "vibe-app-tauri",
+  "archive",
+  "completed-modules",
   "promotion-and-vibe-app-deprecation.md",
 );
 const migrationPlanPath = path.join(
@@ -16,6 +16,8 @@ const migrationPlanPath = path.join(
   "docs",
   "plans",
   "rebuild",
+  "archive",
+  "wave9",
   "vibe-app-tauri-wave9-migration-and-release-plan.md",
 );
 const routeMatrixPath = path.join(
@@ -23,6 +25,8 @@ const routeMatrixPath = path.join(
   "docs",
   "plans",
   "rebuild",
+  "archive",
+  "wave9",
   "vibe-app-tauri-wave9-route-and-capability-matrix.md",
 );
 const promotionBaselineArtifactPath = path.join(
