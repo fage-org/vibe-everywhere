@@ -15,8 +15,8 @@ Port the non-core but still user-visible desktop surfaces after the main session
 
 - `projects/vibe-app-tauri.md`
 - `docs/plans/rebuild/shared/ui-visual-parity.md`
-- `docs/plans/rebuild/vibe-app-tauri-route-inventory.md`
-- `docs/plans/rebuild/vibe-app-tauri-parity-checklist.md`
+- `docs/plans/rebuild/archive/wave8/vibe-app-tauri-route-inventory.md`
+- `docs/plans/rebuild/archive/wave8/vibe-app-tauri-parity-checklist.md`
 - `packages/vibe-app/sources/app/**`
 - `packages/vibe-app/sources/components/**`
 

@@ -23,8 +23,8 @@ replacement package while retiring `packages/vibe-app` from active ownership.
 
 ### Historical desktop-only references
 
-- `docs/plans/rebuild/vibe-app-tauri-promotion-plan.md`
-- `docs/plans/rebuild/vibe-app-tauri-parity-checklist.md`
+- `docs/plans/rebuild/archive/wave8/vibe-app-tauri-promotion-plan.md`
+- `docs/plans/rebuild/archive/wave8/vibe-app-tauri-parity-checklist.md`
 - current `packages/vibe-app` release and fallback behavior
 
 Historical Wave 8 desktop-only documents may inform continuity review, but they do not override the

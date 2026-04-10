@@ -7,30 +7,44 @@ This directory is the only active planning tree for the Happy-aligned rebuild of
 The repository is intentionally plan-first. No subsystem implementation is allowed to outrun the
 relevant shared spec, project plan, and module plan.
 
+## Current Status
+
+See `STATUS.md` for the current phase, batch status, module progress, and acceptance gates.
+
 ## Document Tree
 
-- `master-summary.md`: high-signal status, milestones, and next work
-- `final-parity-audit.md`: closing audit for the original Wave 0-7 rebuild baseline
-- `vibe-app-tauri-wave9-unified-replacement-plan.md`: Wave 9 batch plan for turning `vibe-app-tauri` into the active Wave 9 replacement package
-- `vibe-app-tauri-wave9-route-and-capability-matrix.md`: Wave 9 route families, parity classes, and cross-platform capability owners
-- `vibe-app-tauri-wave9-migration-and-release-plan.md`: Wave 9 release, OTA, store, identifier, migration, and rollback plan
-- `vibe-app-tauri-wave8-delivery-plan.md`: historical Wave 8 desktop-preview batch plan
-- `vibe-app-tauri-extraction-inventory.md`: historical Wave 8 reusable-vs-rewrite inventory
-- `vibe-app-tauri-route-inventory.md`: historical Wave 8 desktop route inventory
-- `vibe-app-tauri-capability-matrix.md`: historical Wave 8 desktop capability matrix
-- `vibe-app-tauri-coexistence-matrix.md`: historical Wave 8 coexistence rules before the unified replacement boundary
-- `vibe-app-tauri-promotion-baseline.md`: historical desktop-only evidence template; use only for continuity review where still relevant
-- `vibe-app-tauri-promotion-plan.md`: historical desktop-only promotion/fallback reference
-- `vibe-app-tauri-parity-checklist.md`: historical desktop-only parity checklist
-- `master-details.md`: global architecture, dependency order, and acceptance gates
-- `execution-plan.md`: authoritative module-by-module implementation order
-- `execution-batches.md`: AI dispatch-ready batch list derived from the execution plan
-- `projects/`: one plan per target project
-- `shared/`: cross-cutting source mappings, naming, protocols, data models, and validation rules
-- `shared/ui-visual-parity.md`: cross-cutting UI and visual parity rules for recreating Happy app surfaces
-- `modules/`: execution-grade plans, one module per file
+### Active Planning Documents
 
-The authoritative module-by-module implementation sequence lives in `execution-plan.md`.
+- `STATUS.md`: current phase, batch, module, and gate status at a glance
+- `master-summary.md`: high-signal status, milestones, and next work
+- `master-details.md`: global architecture, dependency order, and acceptance gates
+- `execution-plan.md`: authoritative module-by-module implementation order (active waves only)
+- `execution-batches.md`: AI dispatch-ready batch list (active batches only)
+- `projects/vibe-app-tauri.md`: the only active project plan
+- `modules/vibe-app-tauri/`: active Wave 9 module plans
+- `vibe-app-tauri-wave9-unified-replacement-plan.md`: Wave 9 batch plan
+- `vibe-app-tauri-wave9-route-and-capability-matrix.md`: Wave 9 route families and capability owners
+- `vibe-app-tauri-wave9-migration-and-release-plan.md`: Wave 9 release, OTA, migration, and rollback
+
+### Shared Specs (permanent reference)
+
+- `shared/source-crosswalk.md`: Happy-to-Vibe source mapping
+- `shared/naming.md`: product naming, binary names, env prefixes
+- `shared/data-model.md`: canonical data model
+- `shared/protocol-session.md`: session protocol spec
+- `shared/protocol-auth-crypto.md`: auth and crypto protocol
+- `shared/protocol-api-rpc.md`: API/RPC protocol
+- `shared/validation.md`: per-phase validation requirements
+- `shared/migration-order.md`: stage-level delivery sequence
+- `shared/ui-visual-parity.md`: cross-cutting UI and visual parity rules
+
+### Archived Work (read-only)
+
+- `archive/`: completed project plans, module plans, and historical wave documents
+- `archive/wave8/`: Wave 8 desktop-preview planning artifacts (historical)
+- `archive/completed-projects/`: done project plans (vibe-wire through vibe-app-logs)
+- `archive/completed-modules/`: done module plans (waves 0–7, plus Wave 8 historical modules)
+- `archive/historical/`: other superseded documents (parity audit, pre-Wave-9 release model)
 
 For `vibe-app-tauri`, the active planning set is:
 
@@ -40,8 +54,8 @@ For `vibe-app-tauri`, the active planning set is:
 - `vibe-app-tauri-wave9-migration-and-release-plan.md`
 - `modules/vibe-app-tauri/*`
 
-Wave 8 desktop-only planning artifacts remain as historical references and must not override Wave 9
-route, capability, migration, or promotion rules implicitly.
+Wave 8 desktop-only planning artifacts now live in `archive/wave8/` and must not override Wave 9
+route, capability, migration, or promotion rules.
 
 ## Wave 9 Glossary
 
@@ -66,10 +80,10 @@ route, capability, migration, or promotion rules implicitly.
 - If work changes a project boundary, update the project plan before implementation.
 - If a module plan is missing a decision, fill the plan gap first. Do not let AI improvise.
 
-## Recommended Execution Order
+## Recommended Reading Order
 
-First consult `execution-plan.md` and `execution-batches.md`. The list below is only the coarse reading order for plan
-documents:
+First consult `STATUS.md` for current status, then `execution-plan.md` and `execution-batches.md`
+for active work. The list below is the coarse reading order for still-active plan documents:
 
 1. `shared/source-crosswalk.md`
 2. `shared/naming.md`
@@ -82,31 +96,14 @@ documents:
 9. `shared/migration-order.md`
 10. `execution-plan.md`
 11. `execution-batches.md`
-12. `projects/vibe-wire.md`
-13. `modules/vibe-wire/*`
-14. `projects/vibe-server.md`
-15. `modules/vibe-server/*`
-16. `projects/vibe-agent.md`
-17. `modules/vibe-agent/*`
-18. `projects/vibe-cli.md`
-19. `modules/vibe-cli/*`
-20. `projects/vibe-app.md`
-21. `modules/vibe-app/*`
-22. `projects/vibe-app-logs.md`
-23. `modules/vibe-app-logs/*`
-24. `projects/vibe-app-tauri.md`
-25. `vibe-app-tauri-wave9-unified-replacement-plan.md`
-26. `vibe-app-tauri-wave9-route-and-capability-matrix.md`
-27. `vibe-app-tauri-wave9-migration-and-release-plan.md`
-28. `historical: vibe-app-tauri-wave8-delivery-plan.md`
-29. `historical: vibe-app-tauri-extraction-inventory.md`
-30. `historical: vibe-app-tauri-route-inventory.md`
-31. `historical: vibe-app-tauri-capability-matrix.md`
-32. `historical: vibe-app-tauri-coexistence-matrix.md`
-33. `historical: vibe-app-tauri-promotion-baseline.md`
-34. `historical: vibe-app-tauri-promotion-plan.md`
-35. `historical: vibe-app-tauri-parity-checklist.md`
-36. `modules/vibe-app-tauri/*`
+12. `projects/vibe-app-tauri.md`
+13. `vibe-app-tauri-wave9-unified-replacement-plan.md`
+14. `vibe-app-tauri-wave9-route-and-capability-matrix.md`
+15. `vibe-app-tauri-wave9-migration-and-release-plan.md`
+16. `modules/vibe-app-tauri/*`
+
+Completed project and module plans (waves 0–7) are in `archive/completed-projects/` and
+`archive/completed-modules/`. Wave 8 planning artifacts are in `archive/wave8/`.
 
 ## AI Execution Contract
 
@@ -120,7 +117,8 @@ When dispatching implementation work, always give AI:
 
 Example:
 
-> Implement `docs/plans/rebuild/modules/vibe-wire/session-protocol.md` and follow
-> `docs/plans/rebuild/shared/protocol-session.md`,
-> `docs/plans/rebuild/shared/data-model.md`, and
-> `docs/plans/rebuild/projects/vibe-wire.md`.
+> Implement `docs/plans/rebuild/modules/vibe-app-tauri/promotion-and-vibe-app-deprecation.md` and
+> follow `docs/plans/rebuild/projects/vibe-app-tauri.md`,
+> `docs/plans/rebuild/shared/data-model.md`,
+> `docs/plans/rebuild/shared/protocol-session.md`, and
+> `docs/plans/rebuild/shared/protocol-api-rpc.md`.

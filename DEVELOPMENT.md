@@ -11,24 +11,21 @@ The repository is beyond bootstrap mode.
 
 ## Entry Points
 
-- planning index: `PLAN.md`
+- planning index and status: `PLAN.md`
 - planning tree: `docs/plans/rebuild/README.md`
+- status dashboard: `docs/plans/rebuild/STATUS.md`
 - master summary: `docs/plans/rebuild/master-summary.md`
 - execution order: `docs/plans/rebuild/execution-plan.md`
 - AI dispatch batches: `docs/plans/rebuild/execution-batches.md`
-- dependency order: `docs/plans/rebuild/shared/migration-order.md`
-- validation matrix: `docs/plans/rebuild/shared/validation.md`
+- planning rules: `docs/plans/process.md`
+
+For validation commands, see `TESTING.md`.
 
 ## Repository Baseline
 
-- `cargo fmt --all --check`
-- `cargo check --workspace --locked`
-- `cargo test --workspace --locked`
-- `yarn workspace vibe-app-tauri typecheck`
-- `yarn workspace vibe-app-tauri test`
-- `yarn workspace vibe-app-tauri tauri:test`
-- `yarn workspace vibe-app-tauri tauri:smoke`
-- `yarn --cwd scripts validate:vibe-app-tauri-promotion`
+Quick check: `cargo check --workspace && yarn workspace vibe-app-tauri test`
+
+Full validation: see `TESTING.md`.
 
 ## Change Rules
 

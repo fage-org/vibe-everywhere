@@ -127,4 +127,4 @@ Version is defined in root `Cargo.toml` `[workspace.package].version` and must m
 
 ## Planning
 
-Active planning lives in `docs/plans/rebuild/`. Update plan files before implementing subsystem changes. See `PLAN.md` for current phase and execution order.
+Active planning lives in `docs/plans/rebuild/`. Read `docs/plans/rebuild/STATUS.md` first to confirm current phase and batch. Update plan files before implementing subsystem changes. See `PLAN.md` for the full document index.

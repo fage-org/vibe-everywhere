@@ -64,9 +64,31 @@ A module implementation is not complete until:
 - the required tests in that module plan are run or explicitly reported blocked
 - any affected shared/project plans are updated to reflect scope or contract changes
 
+## Archival Rules
+
+- When all modules in a project reach `[done]`, move the entire `projects/<name>.md` and
+  `modules/<name>/` directory into `archive/completed-projects/` and `archive/completed-modules/`.
+- When a wave is closed, move its wave-level plan files into `archive/wave<N>/`.
+- Every archival move MUST update `STATUS.md` in the same commit.
+- Every archival move MUST update internal references in `execution-plan.md`,
+  `execution-batches.md`, and `master-summary.md` to point to the new `archive/` paths.
+- The `archive/` directory is read-only. No implementation should be dispatched against an archived
+  plan. If an archived module needs revisiting, create a new module plan in the active tree instead.
+
+## Navigation Rules (mandatory for AI agents)
+
+- Before any implementation task, read `docs/plans/rebuild/STATUS.md` to confirm the task belongs to
+  an active module or batch.
+- If the task's target module is not listed in STATUS.md as active, **STOP and ask the user** which
+  wave or phase it belongs to — do not default to the current iteration.
+- After completing any module or batch, update STATUS.md in the same commit.
+
 ## Anti-Patterns
 
 - implementing directly from vague summary files
 - combining unrelated implementation tasks under one module plan
 - letting code define wire contracts before shared specs exist
 - keeping planning instructions only in chat instead of checking them into the repository
+- leaving `[done]` module plans in the active `modules/` tree past the wave's completion
+- leaving historical wave files in the rebuild root directory mixed with active documents
+- referencing archived paths as if they are active implementation targets

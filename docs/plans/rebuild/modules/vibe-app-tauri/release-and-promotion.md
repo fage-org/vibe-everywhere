@@ -16,11 +16,11 @@ Define release packaging, validation, rollout, and promotion criteria for `vibe-
 
 - `projects/vibe-app-tauri.md`
 - `docs/plans/rebuild/shared/ui-visual-parity.md`
-- `docs/plans/rebuild/vibe-app-tauri-parity-checklist.md`
-- `docs/plans/rebuild/vibe-app-tauri-coexistence-matrix.md`
-- `docs/plans/rebuild/vibe-app-tauri-promotion-baseline.md`
-- `docs/plans/rebuild/vibe-app-tauri-promotion-plan.md`
-- `docs/plans/rebuild/shared/repo-release-and-docs.md`
+- `docs/plans/rebuild/archive/wave8/vibe-app-tauri-parity-checklist.md`
+- `docs/plans/rebuild/archive/wave8/vibe-app-tauri-coexistence-matrix.md`
+- `docs/plans/rebuild/archive/wave8/vibe-app-tauri-promotion-baseline.md`
+- `docs/plans/rebuild/archive/wave8/vibe-app-tauri-promotion-plan.md`
+- `docs/plans/rebuild/archive/historical/repo-release-and-docs.md`
 - repository packaging workflows
 - current `packages/vibe-app` desktop release behavior
 
@@ -55,7 +55,7 @@ Define release packaging, validation, rollout, and promotion criteria for `vibe-
 
 1. Define package-local release scripts.
 2. Add desktop package validation and release automation.
-3. Keep `docs/plans/rebuild/vibe-app-tauri-parity-checklist.md` updated as the sign-off artifact
+3. Keep `docs/plans/rebuild/archive/wave8/vibe-app-tauri-parity-checklist.md` updated as the sign-off artifact
    instead of creating a new checklist file.
 4. Record explicit promotion criteria, including Linux, macOS, and Windows startup validation plus
    realistic session-load performance/memory review.

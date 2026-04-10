@@ -87,13 +87,14 @@ Use the following only for Vibe-specific continuity when Happy is insufficient, 
 
 ### Historical Wave 8 Continuity References
 
-- historical: `docs/plans/rebuild/vibe-app-tauri-wave8-delivery-plan.md`
-- historical: `docs/plans/rebuild/vibe-app-tauri-extraction-inventory.md`
-- historical: `docs/plans/rebuild/vibe-app-tauri-route-inventory.md`
-- historical: `docs/plans/rebuild/vibe-app-tauri-capability-matrix.md`
-- historical: `docs/plans/rebuild/vibe-app-tauri-coexistence-matrix.md`
-- historical: `docs/plans/rebuild/vibe-app-tauri-promotion-baseline.md`
-- historical: `docs/plans/rebuild/vibe-app-tauri-promotion-plan.md`
+- historical: `docs/plans/rebuild/archive/wave8/vibe-app-tauri-wave8-delivery-plan.md`
+- historical: `docs/plans/rebuild/archive/wave8/vibe-app-tauri-extraction-inventory.md`
+- historical: `docs/plans/rebuild/archive/wave8/vibe-app-tauri-route-inventory.md`
+- historical: `docs/plans/rebuild/archive/wave8/vibe-app-tauri-capability-matrix.md`
+- historical: `docs/plans/rebuild/archive/wave8/vibe-app-tauri-coexistence-matrix.md`
+- historical: `docs/plans/rebuild/archive/wave8/vibe-app-tauri-promotion-baseline.md`
+- historical: `docs/plans/rebuild/archive/wave8/vibe-app-tauri-promotion-plan.md`
+- historical: `docs/plans/rebuild/archive/wave8/vibe-app-tauri-parity-checklist.md`
 
 These Wave 8 documents are historical reference material only. They may inform continuity checks,
 but they do not define the active Wave 9 boundary, priority classes, or promotion gate.
