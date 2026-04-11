@@ -829,6 +829,21 @@ export function useWave8Desktop(activeSessionId?: string | null) {
     setArtifacts((current) => current.filter((artifact) => artifact.id !== artifactId));
   }, []);
 
+  const deleteSession = useCallback(async (sessionId: string) => {
+    const client = clientRef.current;
+    if (!client) {
+      throw new Error("Sign in first");
+    }
+
+    await client.deleteSession(sessionId);
+    setSessions((current) => current.filter((session) => session.id !== sessionId));
+    setSessionState((current) => {
+      const next = { ...current };
+      delete next[sessionId];
+      return next;
+    });
+  }, []);
+
   const sendMessage = useCallback(
     async (sessionId: string, text: string, options?: SendMessageOptions) => {
       const trimmed = text.trim();
@@ -1326,6 +1341,7 @@ export function useWave8Desktop(activeSessionId?: string | null) {
     createArtifact,
     updateArtifact,
     deleteArtifact,
+    deleteSession,
     sendMessage,
     abortSession,
     logout,

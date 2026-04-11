@@ -3278,6 +3278,19 @@ function SessionSurface({
               <button type="button" className="secondary-button" onClick={() => void desktop.loadMessages(session.id, true)}>
                 Refresh
               </button>
+              <button
+                type="button"
+                className="danger-button"
+                onClick={() => {
+                  if (confirm("Are you sure you want to delete this session? This action cannot be undone.")) {
+                    void desktop.deleteSession(session.id).then(() => {
+                      onNavigate("/(app)/inbox/index");
+                    });
+                  }
+                }}
+              >
+                Delete
+              </button>
             </div>
           </div>
           {messageState?.error ? <ErrorBanner message={messageState.error} /> : null}

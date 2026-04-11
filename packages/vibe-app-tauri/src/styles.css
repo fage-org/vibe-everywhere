@@ -700,6 +700,17 @@ dd,
   color: var(--button-secondary-text);
 }
 
+.danger-button {
+  background: transparent;
+  border-color: var(--color-danger, #ff453a);
+  color: var(--color-danger, #ff453a);
+}
+
+.danger-button:hover {
+  background: var(--color-danger, #ff453a);
+  color: white;
+}
+
 .full-width {
   width: 100%;
 }

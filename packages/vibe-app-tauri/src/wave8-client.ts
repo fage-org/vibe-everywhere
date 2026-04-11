@@ -2161,6 +2161,19 @@ export class Wave8Client {
     return created;
   }
 
+  async deleteSession(sessionId: string): Promise<void> {
+    await fetchJson<void>(
+      `${this.serverUrl}/v1/sessions/${sessionId}`,
+      {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${this.credentials.token}`,
+        },
+      },
+      () => undefined,
+    );
+  }
+
   async listMessages(session: DesktopSession): Promise<SessionMessagesState> {
     const messages: RemoteMessageRecord[] = [];
     let afterSeq = 0;
