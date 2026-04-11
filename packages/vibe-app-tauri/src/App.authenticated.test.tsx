@@ -1,4 +1,5 @@
 import { renderToStaticMarkup } from "react-dom/server";
+import { act, create } from "react-test-renderer";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DesktopArtifact } from "./wave8-client";
 import { RuntimeBootstrapProvider } from "../sources/app/providers/RuntimeBootstrapProvider";
@@ -12,6 +13,12 @@ vi.mock("./useWave8Desktop", () => ({
 }));
 
 import { DesktopShell } from "./App";
+
+(
+  globalThis as typeof globalThis & {
+    IS_REACT_ACT_ENVIRONMENT?: boolean;
+  }
+).IS_REACT_ACT_ENVIRONMENT = true;
 
 function installMockStorage() {
   const store = new Map<string, string>();
@@ -238,6 +245,7 @@ function createDesktopState() {
     createArtifact: vi.fn(),
     updateArtifact: vi.fn(),
     deleteArtifact: vi.fn(),
+    deleteSession: vi.fn(async () => undefined),
     sendMessage: vi.fn(),
     abortSession: vi.fn(),
     logout: vi.fn(),
@@ -408,6 +416,70 @@ describe("DesktopShell authenticated routes", () => {
     expect(html).toContain("Ship the rewrite");
     expect(html).toContain("Composer");
     expect(html).toContain("Send live message");
+  });
+
+  it("deletes a session from the session info route after confirmation", async () => {
+    const state = createDesktopState();
+    state.sessionState = {
+      "session-1": {
+        items: [
+          {
+            id: "message-1",
+            localId: null,
+            createdAt: 1,
+            role: "assistant",
+            title: "Assistant",
+            text: "Ship the rewrite",
+            rawType: "agent:assistant",
+          },
+        ],
+        loading: false,
+        sending: false,
+        aborting: false,
+        error: null,
+        loadedAt: 1,
+        lastSeq: 1,
+      },
+    };
+    mockDesktopState.value = state;
+    const onNavigate = vi.fn();
+    const confirmMock = vi.fn(() => true);
+    let renderer: any = null;
+    vi.stubGlobal("confirm", confirmMock);
+
+    await act(async () => {
+      renderer = create(
+        <DesktopShell
+          path="/(app)/session/session-1"
+          commandOpen={false}
+          onNavigate={onNavigate}
+          onCommandOpen={() => undefined}
+          onCommandClose={() => undefined}
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    const deleteButton = renderer.root.find(
+      (node: any) =>
+        node.type === "button"
+        && node.props.className === "danger-button"
+        && node.props.children === "Delete",
+    );
+
+    await act(async () => {
+      await deleteButton.props.onClick();
+      await Promise.resolve();
+    });
+
+    expect(confirmMock).toHaveBeenCalledWith(
+      "Are you sure you want to delete this session? This action cannot be undone.",
+    );
+    expect(state.deleteSession).toHaveBeenCalledWith("session-1");
+    expect(onNavigate).toHaveBeenCalledWith("/(app)/inbox/index");
+
+    renderer.unmount();
+    vi.unstubAllGlobals();
   });
 
   it("renders the deep-linkable session message route for loaded messages", () => {

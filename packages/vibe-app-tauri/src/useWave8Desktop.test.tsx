@@ -214,6 +214,7 @@ function createMockClient() {
       createArtifact: vi.fn(),
       updateArtifact: vi.fn(),
       deleteArtifact: vi.fn(),
+      deleteSession: vi.fn(async () => undefined),
       sendMessage: vi.fn(async () => undefined),
       decodeMessage: vi.fn(async () => [buildMessage("m3", 103, "Realtime follow-up")]),
       applySessionUpdate: vi.fn(async () => updatedSession),
@@ -547,5 +548,44 @@ describe("useWave8Desktop", () => {
     });
 
     expect(latest?.globalError).toBe("Received an invalid realtime update payload");
+  });
+
+  it("deletes a session and removes its cached state", async () => {
+    const mock = createMockClient();
+    runtimeMocks.connect.mockResolvedValue(mock.client);
+
+    await act(async () => {
+      renderer = create(
+        <HookProbe activeSessionId="session-1" onValue={(value) => { latest = value; }} />,
+      );
+      await flushPromises();
+    });
+
+    await waitFor(
+      () => latest?.status === "ready" && latest?.sessions.length === 1,
+      "authenticated bootstrap",
+    );
+
+    const desktop = latest;
+    if (!desktop) {
+      throw new Error("Hook state did not initialize");
+    }
+
+    await act(async () => {
+      await desktop.loadMessages("session-1");
+      await flushPromises();
+    });
+
+    expect(latest?.sessionState["session-1"]).toBeDefined();
+
+    await act(async () => {
+      await desktop.deleteSession("session-1");
+      await flushPromises();
+    });
+
+    expect(mock.client.deleteSession).toHaveBeenCalledWith("session-1");
+    expect(latest?.sessions).toEqual([]);
+    expect(latest?.sessionSummaries).toEqual([]);
+    expect(latest?.sessionState["session-1"]).toBeUndefined();
   });
 });

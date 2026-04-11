@@ -34,8 +34,11 @@
     "release:build:production-candidate": "sh ./release-production.sh",
     "preview": "vite preview --host 127.0.0.1 --port 4173",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "yarn test:unit",
+    "test:unit": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "test:bootstrap": "vitest run sources/shared/bootstrap-config.test.ts src/bootstrap-runtime.test.ts",
+    "test:e2e": "playwright test",
     "validate:promotion": "yarn typecheck && yarn test && yarn tauri:test && yarn desktop:build && yarn browser:smoke && yarn mobile:android:smoke && yarn --cwd ../../scripts metrics:vibe-app-tauri && yarn --cwd ../../scripts validate:vibe-app-tauri-promotion && yarn desktop:smoke",
     "tauri:test": "cargo test --manifest-path src-tauri/Cargo.toml",
     "tauri:dev": "tauri dev",
@@ -58,16 +61,18 @@
     "zod": "3.25.76"
   },
   "devDependencies": {
+    "@playwright/test": "^1.55.0",
     "@tauri-apps/cli": "2.10.1",
     "@types/libsodium-wrappers": "^0.7.14",
     "@types/qrcode": "^1.5.5",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@types/react-syntax-highlighter": "^15.5.13",
+    "@vitest/coverage-v8": "4.1.4",
     "@vitejs/plugin-react": "^6.0.1",
     "react-test-renderer": "19.2.0",
     "typescript": "5.9.3",
     "vite": "^8.0.5",
-    "vitest": "^4.1.2"
+    "vitest": "4.1.4"
   }
 }
