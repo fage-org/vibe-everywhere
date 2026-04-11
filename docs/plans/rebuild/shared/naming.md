@@ -97,7 +97,7 @@ allowed only inside adapter modules and must be called out there.
 ## Deep Links And URLs
 
 - primary app deep link scheme: `vibe:///`
-- the old `packages/vibe-app` and `packages/vibe-app-tauri` coexistence rule for `vibe:///` is now historical reference only; active ownership decisions belong to the Wave 9 plan set
+- the old `packages/vibe-app` and `packages/vibe-app-tauri` coexistence rule for `vibe:///` is now historical reference only; active ownership decisions belong to the current active planning set under `docs/plans/rebuild/`
 - web/documentation branding: `vibe`
 - server base URL variables and docs must use `vibe` naming
 - public issue/help/documentation links and user-visible prompts must not send users to

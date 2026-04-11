@@ -79,8 +79,8 @@ yarn workspace vibe-app-tauri validate:promotion
 
 ### Validation Scripts
 ```bash
-# Validate promotion baseline (runs all checks)
-yarn app:promotion-ready
+# Validate app promotion and release planning inputs
+yarn --cwd scripts validate:vibe-app-tauri-promotion
 
 # Validate release inputs
 yarn app:release:validate

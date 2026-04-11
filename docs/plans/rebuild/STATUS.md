@@ -4,15 +4,16 @@
 > Read this file first before any implementation task.
 > Update this file whenever a batch, module, or gate changes status.
 
-Last updated: 2026-04-10
+Last updated: 2026-04-11
 
 ## Current Phase
 
-**Wave 9 — Complete.** All batches B00–B26 are done. G7 is satisfied with the promotion baseline
-artifact created; manual platform validation sections remain [PENDING] until human sign-off fills them
-in. After that, `--promotion-ready` strict validation can pass.
+**Wave 10 — Planning Active.** Wave 9 is complete and archived. Wave 10 is the active planning
+track for `packages/vibe-app-tauri` and exists to close the gap between route coverage and
+product-contract completion.
 
-The project has no further batches or open gates. Wave 9 plans have been archived.
+The historical Wave 9 manual platform validation path remains archived and is not part of the
+active repository standard.
 
 ## Project Status
 
@@ -24,7 +25,7 @@ The project has no further batches or open gates. Wave 9 plans have been archive
 | vibe-cli | `crates/vibe-cli` | ✅ done | 4–6 | Yes — `archive/completed-projects/vibe-cli.md` |
 | vibe-app | `packages/vibe-app` | ⚰️ deprecated | 6–7 | Yes — `archive/completed-projects/vibe-app.md` |
 | vibe-app-logs | `crates/vibe-app-logs` | ✅ done | 7 | Yes — `archive/completed-projects/vibe-app-logs.md` |
-| vibe-app-tauri | `packages/vibe-app-tauri` | ✅ done | 9 | Yes — `archive/completed-projects/vibe-app-tauri.md` |
+| vibe-app-tauri | `packages/vibe-app-tauri` | 🔧 Wave 10 planning active | 9–10 | Wave 9 archived; Wave 10 active docs in root |
 
 ## Batch Status
 
@@ -32,6 +33,21 @@ The project has no further batches or open gates. Wave 9 plans have been archive
 |-------|-------------|--------|
 | B00–B25 | Waves 0–8 implementation | ✅ done |
 | B26 | Promotion evidence and legacy deprecation | ✅ done |
+| B27 | Wave 10 planning baseline and capability contract | planned |
+| B28 | Settings and connection-center closure | planned |
+| B29 | Inbox and notification closure | planned |
+| B30 | Remote operations workflow | planned |
+| B31 | Platform parity contract | planned |
+| B32 | Surface disposition and documentation reset | planned |
+
+## Active Wave 10 Modules (`vibe-app-tauri`)
+
+- `modules/vibe-app-tauri/validation-and-customer-capability-contract.md`
+- `modules/vibe-app-tauri/settings-and-connection-center.md`
+- `modules/vibe-app-tauri/inbox-and-notification-closure.md`
+- `modules/vibe-app-tauri/remote-operations-surfaces.md`
+- `modules/vibe-app-tauri/platform-parity-and-browser-contract.md`
+- `modules/vibe-app-tauri/social-and-developer-surface-disposition.md`
 
 ## Archived Module Plans (Wave 9 — `vibe-app-tauri`)
 
@@ -49,12 +65,19 @@ All Wave 9 module plans are complete and archived. See
 | G4 | App renders session feed and composer | ✅ satisfied |
 | G5 | Log sidecar tails and serves recent lines | ✅ satisfied |
 | G6 | All prior crates pass `cargo test` on CI | ✅ satisfied |
-| G7 | `vibe-app-tauri` reaches desktop parity with an explicit promotion/deprecation plan | ✅ satisfied (B26; promotion baseline artifact created; manual platform sign-off [PENDING]) |
+| G7 | `vibe-app-tauri` reaches desktop parity with an explicit promotion/deprecation plan | ✅ satisfied |
+| G8 | Wave 10 planning tree exists and is the active source of truth | planned |
+| G9 | Customer-visible capability claims are backed by code and platform scope | planned |
+| G10 | Settings, notifications, and remote-operations surfaces expose clear product contracts | planned |
+| G11 | Desktop/Android/browser support claims are explicit and evidence-backed | planned |
+| G12 | Social and developer-only surfaces are formally classified | planned |
+| G13 | Active docs and validation commands reflect the Wave 10 standard | planned |
 
 ## Next Actions
 
-1. Complete manual platform validation in `artifacts/vibe-app-tauri/promotion-baseline.md`
-2. Run `node scripts/validate-vibe-app-tauri-promotion.mjs --promotion-ready` after all sections are signed off
+1. Begin Wave 10 from `modules/vibe-app-tauri/validation-and-customer-capability-contract.md`
+2. Keep all Wave 10 implementation work mapped to one active module plan at a time
+3. Preserve Wave 9 archival documents as continuity references only
 
 ## Archived Work
 

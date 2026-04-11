@@ -212,7 +212,7 @@ Additional required checks depend on the touched scope:
 
 - if `crates/vibe-wire` changes, also run `cargo run --example export-fixtures -p vibe-wire` and
   `yarn --cwd scripts validate:vibe-wire-fixtures`
-- if app release, promotion, or rollout docs change, also run `yarn app:promotion-ready`
+- if app release, promotion, or rollout docs change, also run `yarn --cwd scripts validate:vibe-app-tauri-promotion`
 - if a module plan defines extra tests, smoke checks, or release evidence, run them or report the
   block explicitly in the change summary
 

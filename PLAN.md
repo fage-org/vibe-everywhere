@@ -5,9 +5,11 @@ and where to find every planning document.
 
 ## Current Phase
 
-**Wave 9 — Complete.** All batches B00–B26 are done. G7 is satisfied with the promotion baseline
-artifact created at `artifacts/vibe-app-tauri/promotion-baseline.md`; manual platform validation
-sections remain [PENDING] until human sign-off.
+**Wave 10 — Planning Active.** Wave 9 is complete and archived. The active work now focuses on
+turning `packages/vibe-app-tauri` from ownership-complete into product-contract-complete.
+
+Wave 10 does not reopen the historical Wave 9 manual platform validation flow. The historical
+promotion baseline artifact remains archival evidence only.
 
 `packages/vibe-app-tauri` is the default app path and active release owner. `packages/vibe-app`
 remains reference-only.
@@ -24,7 +26,7 @@ For batch-by-batch and module-level status, see `docs/plans/rebuild/STATUS.md`.
 | vibe-cli | `crates/vibe-cli` | ✅ done (archived) |
 | vibe-app | `packages/vibe-app` | ⚰️ deprecated (archived) |
 | vibe-app-logs | `crates/vibe-app-logs` | ✅ done (archived) |
-| vibe-app-tauri | `packages/vibe-app-tauri` | ✅ done (pending archive) |
+| vibe-app-tauri | `packages/vibe-app-tauri` | 🔧 Wave 10 planning active |
 
 ## Document Navigation
 
@@ -35,19 +37,29 @@ For batch-by-batch and module-level status, see `docs/plans/rebuild/STATUS.md`.
 | `docs/plans/rebuild/STATUS.md` | **Start here.** Current phase, batch/module/gate status at a glance |
 | `PLAN.md` (this file) | Top-level status pointer and document index |
 
+### Active Planning Documents
+
+The following files are the active Wave 10 planning set:
+
+- `docs/plans/rebuild/master-summary.md`
+- `docs/plans/rebuild/master-details.md`
+- `docs/plans/rebuild/execution-plan.md`
+- `docs/plans/rebuild/execution-batches.md`
+- `docs/plans/rebuild/projects/vibe-app-tauri.md`
+- `docs/plans/rebuild/modules/vibe-app-tauri/`
+
 ### Archived Planning Documents
 
-All active planning has been completed. The following archived directories contain
-historical reference material:
+The following archived directories contain historical reference material:
 
 - `docs/plans/rebuild/archive/completed-projects/` — Done project plans
 - `docs/plans/rebuild/archive/completed-modules/` — Done module plans
 - `docs/plans/rebuild/archive/wave8/` — Wave 8 historical plans
 - `docs/plans/rebuild/archive/wave9/` — Wave 9 planning documents
 
-### Archived Plans (Wave 9 — complete)
+### Archived Plans
 
-All Wave 9 planning documents have been archived. See `docs/plans/rebuild/archive/` for details.
+Wave 9 planning documents are archived. See `docs/plans/rebuild/archive/` for details.
 
 | Document | Purpose |
 |----------|---------|

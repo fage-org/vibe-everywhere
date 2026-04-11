@@ -222,7 +222,7 @@ export const wave8FeatureAreas: Wave8FeatureArea[] = [
     definitionOfDone: [
       "Release artifacts are produced reliably.",
       "Coexistence rules remain documented.",
-      "Promotion gate is explicit and sign-off ready.",
+      "Promotion gate is explicit and archived in the planning record.",
     ],
   },
 ];

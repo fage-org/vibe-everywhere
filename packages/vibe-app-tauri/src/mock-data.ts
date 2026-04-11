@@ -305,7 +305,7 @@ export const retainedArtifacts: RetainedArtifact[] = [
       "",
       "Rich rendering now loads through smaller lazy chunks.",
       "",
-      "Side-by-side parity review is still required before promotion sign-off.",
+      "Side-by-side parity review notes are still being tracked for historical continuity.",
     ].join("\n"),
     status: "Draft",
     linkedSessionIds: ["demo-session-rendering"],

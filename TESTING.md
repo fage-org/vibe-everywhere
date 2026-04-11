@@ -6,7 +6,7 @@
 
 - Rust workspace sanity
 - `vibe-wire` schema, fixture, and compatibility-vector coverage
-- `vibe-app-tauri` typecheck, test, desktop-shell, and promotion-doc validation
+- `vibe-app-tauri` typecheck, test, desktop-shell, and release-doc validation
 - `vibe-app-logs` startup and ingestion smoke coverage
 
 ## Current Commands
@@ -26,7 +26,6 @@
 - `yarn app:metrics`
 - `yarn --cwd scripts validate:vibe-app-tauri-release`
 - `yarn --cwd scripts validate:vibe-app-tauri-promotion`
-- `yarn app:promotion-ready`
 - `yarn app-logs --help`
 - `yarn --cwd scripts install`
 - `yarn --cwd scripts validate:vibe-wire-fixtures`
