@@ -118,8 +118,9 @@ jobs:
 
       - name: Validate vibe-app-tauri
         run: |
-          yarn workspace vibe-app-tauri validate:promotion
-          yarn --cwd scripts validate:vibe-app-tauri-release
+          yarn workspace vibe-app-tauri typecheck
+          yarn workspace vibe-app-tauri test
+          yarn workspace vibe-app-tauri tauri:test
 
   desktop:
     name: Package vibe-app-tauri desktop
