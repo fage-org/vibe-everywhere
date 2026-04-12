@@ -79,6 +79,8 @@ export type LinkUiState = {
   browserUrl: string | null;
 };
 
+type ErrorScope = "global" | "local";
+
 const defaultSessionUiState: SessionUiState = {
   items: [],
   loading: false,
@@ -88,6 +90,10 @@ const defaultSessionUiState: SessionUiState = {
   loadedAt: null,
   lastSeq: null,
 };
+
+function resolveActionError(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
+}
 
 export function useWave8Desktop(activeSessionId?: string | null) {
   const clientRef = useRef<Wave8Client | null>(null);
@@ -252,7 +258,7 @@ export function useWave8Desktop(activeSessionId?: string | null) {
     void bootFromStorage();
   }, [bootFromStorage]);
 
-  const refreshSessions = useCallback(async () => {
+  const refreshSessions = useCallback(async (scope: ErrorScope = "global") => {
     if (!clientRef.current) {
       return [];
     }
@@ -262,7 +268,9 @@ export function useWave8Desktop(activeSessionId?: string | null) {
       setSessions(nextSessions);
       return nextSessions;
     } catch (error) {
-      setGlobalError(error instanceof Error ? error.message : "Failed to refresh sessions");
+      if (scope === "global") {
+        setGlobalError(error instanceof Error ? error.message : "Failed to refresh sessions");
+      }
       throw error;
     }
   }, []);
@@ -346,7 +354,7 @@ export function useWave8Desktop(activeSessionId?: string | null) {
     }
   }, []);
 
-  const refreshFriends = useCallback(async () => {
+  const refreshFriends = useCallback(async (scope: ErrorScope = "global") => {
     if (!clientRef.current) {
       return [];
     }
@@ -356,12 +364,14 @@ export function useWave8Desktop(activeSessionId?: string | null) {
       setFriends(nextFriends);
       return nextFriends;
     } catch (error) {
-      setGlobalError(error instanceof Error ? error.message : "Failed to refresh friends");
+      if (scope === "global") {
+        setGlobalError(error instanceof Error ? error.message : "Failed to refresh friends");
+      }
       throw error;
     }
   }, []);
 
-  const refreshFeed = useCallback(async () => {
+  const refreshFeed = useCallback(async (scope: ErrorScope = "global") => {
     if (!clientRef.current) {
       return [];
     }
@@ -371,7 +381,9 @@ export function useWave8Desktop(activeSessionId?: string | null) {
       setFeedItems(nextFeedItems);
       return nextFeedItems;
     } catch (error) {
-      setGlobalError(error instanceof Error ? error.message : "Failed to refresh feed");
+      if (scope === "global") {
+        setGlobalError(error instanceof Error ? error.message : "Failed to refresh feed");
+      }
       throw error;
     }
   }, []);
@@ -472,7 +484,7 @@ export function useWave8Desktop(activeSessionId?: string | null) {
     }
 
     const updated = await client.addFriend(userId);
-    await Promise.all([refreshFriends(), refreshFeed()]);
+    await Promise.all([refreshFriends("local"), refreshFeed("local")]);
     if (updated) {
       setUserProfiles((current) => ({
         ...current,
@@ -489,7 +501,7 @@ export function useWave8Desktop(activeSessionId?: string | null) {
     }
 
     const updated = await client.removeFriend(userId);
-    await Promise.all([refreshFriends(), refreshFeed()]);
+    await Promise.all([refreshFriends("local"), refreshFeed("local")]);
     if (updated) {
       setUserProfiles((current) => ({
         ...current,
@@ -525,7 +537,7 @@ export function useWave8Desktop(activeSessionId?: string | null) {
 
       let targetSession = sessions.find((session) => session.id === sessionId) ?? null;
       if (!targetSession) {
-        const nextSessions = await refreshSessions();
+        const nextSessions = await refreshSessions("local");
         targetSession = nextSessions.find((session) => session.id === sessionId) ?? null;
       }
       if (!targetSession) {
@@ -570,22 +582,34 @@ export function useWave8Desktop(activeSessionId?: string | null) {
   );
 
   const createFreshAccount = useCallback(async () => {
-    const created = await createAccount(serverUrl);
-    await loginWithCredentials(created.credentials, created.backupKey);
-    void showDesktopNotification(
-      "Desktop account ready",
-      "A fresh Vibe desktop account was created on this machine.",
-    ).catch(() => undefined);
+    setGlobalError(null);
+    try {
+      const created = await createAccount(serverUrl);
+      await loginWithCredentials(created.credentials, created.backupKey);
+      void showDesktopNotification(
+        "Desktop account ready",
+        "A fresh Vibe desktop account was created on this machine.",
+      ).catch(() => undefined);
+    } catch (error) {
+      setGlobalError(resolveActionError(error, "Failed to create account"));
+      throw error;
+    }
   }, [loginWithCredentials, serverUrl]);
 
   const restoreWithSecret = useCallback(
     async (secret: string) => {
-      const restored = await restoreAccount(serverUrl, secret);
-      await loginWithCredentials(restored);
-      void showDesktopNotification(
-        "Desktop account restored",
-        "The backup key restored this desktop account successfully.",
-      ).catch(() => undefined);
+      setGlobalError(null);
+      try {
+        const restored = await restoreAccount(serverUrl, secret);
+        await loginWithCredentials(restored);
+        void showDesktopNotification(
+          "Desktop account restored",
+          "The backup key restored this desktop account successfully.",
+        ).catch(() => undefined);
+      } catch (error) {
+        setGlobalError(resolveActionError(error, "Failed to restore account"));
+        throw error;
+      }
     },
     [loginWithCredentials, serverUrl],
   );
@@ -609,6 +633,7 @@ export function useWave8Desktop(activeSessionId?: string | null) {
 
   const startMobileLink = useCallback(async () => {
     cancelMobileLink();
+    setGlobalError(null);
     setLinkState({
       status: "requesting",
       linkUrl: null,
@@ -697,14 +722,16 @@ export function useWave8Desktop(activeSessionId?: string | null) {
       if (activeAttemptId) {
         void cancelLoopbackAccountLink(activeAttemptId);
       }
+      const errorMessage = resolveActionError(error, "Failed to link account");
       setLinkState({
         status: "error",
         linkUrl: null,
         qrSvg: null,
-        error: error instanceof Error ? error.message : "Failed to link account",
+        error: errorMessage,
         attemptId: null,
         browserUrl: null,
       });
+      throw error;
     }
   }, [cancelMobileLink, loginWithCredentials, serverUrl]);
 
@@ -716,12 +743,11 @@ export function useWave8Desktop(activeSessionId?: string | null) {
     cancelMobileLink();
     socketRef.current?.disconnect();
     socketRef.current = null;
+    let logoutError: string | null = null;
     try {
       await clearStoredCredentials();
     } catch (error) {
-      setGlobalError(
-        error instanceof Error ? error.message : "Failed to clear stored desktop credentials",
-      );
+      logoutError = resolveActionError(error, "Failed to clear stored desktop credentials");
     }
     clientRef.current = null;
     setCredentials(null);
@@ -737,7 +763,7 @@ export function useWave8Desktop(activeSessionId?: string | null) {
     setSessionState({});
     setBackupKey(null);
     setStoredSessionAvailable(false);
-    setGlobalError(null);
+    setGlobalError(logoutError);
     setStatus("signed-out");
   }, [cancelMobileLink]);
 
@@ -835,13 +861,19 @@ export function useWave8Desktop(activeSessionId?: string | null) {
       throw new Error("Sign in first");
     }
 
-    await client.deleteSession(sessionId);
-    setSessions((current) => current.filter((session) => session.id !== sessionId));
-    setSessionState((current) => {
-      const next = { ...current };
-      delete next[sessionId];
-      return next;
-    });
+    setGlobalError(null);
+    try {
+      await client.deleteSession(sessionId);
+      setSessions((current) => current.filter((session) => session.id !== sessionId));
+      setSessionState((current) => {
+        const next = { ...current };
+        delete next[sessionId];
+        return next;
+      });
+    } catch (error) {
+      setGlobalError(resolveActionError(error, "Failed to delete session"));
+      throw error;
+    }
   }, []);
 
   const sendMessage = useCallback(
@@ -864,7 +896,7 @@ export function useWave8Desktop(activeSessionId?: string | null) {
       applySessionState(sessionId, { sending: true, error: null });
       try {
         await client.sendMessage(sessionId, trimmed, session.dataEncryptionKey, options);
-        await Promise.all([refreshSessions(), loadMessages(sessionId, true)]);
+        await Promise.all([refreshSessions("local"), loadMessages(sessionId, true)]);
         applySessionState(sessionId, { sending: false });
       } catch (error) {
         applySessionState(sessionId, {

@@ -601,6 +601,58 @@ const skeletonStyles = {
 };
 ```
 
+### Error States
+
+All user-triggered actions must surface failures in a visible, durable way.
+
+**Rules:**
+- Never let a tap or click fail silently.
+- If an action can fail because of backend, permissions, network, clipboard, file system, or native bridge availability, the UI must show a visible error state.
+- Error feedback must be rendered inline (`ErrorBanner`, helper text, field error, or persistent feedback card) unless the action is purely informational.
+- Toasts/notifications may supplement errors, but they do **not** replace an on-screen error state.
+- Async actions triggered from buttons must either:
+  - catch and render errors locally, or
+  - update a shared/global error state that is guaranteed to be rendered in the current shell.
+
+**Preferred pattern:**
+```tsx
+const [error, setError] = useState<string | null>(null);
+const [submitting, setSubmitting] = useState(false);
+
+const handleSubmit = async () => {
+  setSubmitting(true);
+  setError(null);
+
+  try {
+    await action();
+  } catch (submitError) {
+    setError(
+      submitError instanceof Error ? submitError.message : "Something went wrong",
+    );
+  } finally {
+    setSubmitting(false);
+  }
+};
+
+return (
+  <>
+    {error ? <ErrorBanner message={error} /> : null}
+    <Button onClick={() => void handleSubmit()} disabled={submitting}>
+      {submitting ? "Saving..." : "Save"}
+    </Button>
+  </>
+);
+```
+
+**Avoid:**
+```tsx
+<Button onClick={() => void doAsyncThing()}>
+  Save
+</Button>
+```
+
+That pattern is only acceptable when `doAsyncThing()` is fully self-contained and guaranteed to write to a rendered error surface on failure.
+
 ---
 
 ## 5. Animation & Transitions
@@ -1108,6 +1160,33 @@ backgroundColor: "#1c1c1e"
 {data && <Content data={data} />}
 ```
 
+✅ **Wrap async button actions with visible failure handling:**
+```tsx
+const [error, setError] = useState<string | null>(null);
+
+const handleRefresh = async () => {
+  try {
+    await refreshSessions();
+  } catch (refreshError) {
+    setError(
+      refreshError instanceof Error ? refreshError.message : "Failed to refresh sessions",
+    );
+  }
+};
+
+{error ? <ErrorBanner message={error} /> : null}
+<Button variant="secondary" onClick={() => void handleRefresh()}>
+  Refresh sessions
+</Button>
+```
+
+✅ **Ensure global async errors are actually rendered in every shell:**
+```tsx
+{appState.globalError ? <ErrorBanner message={appState.globalError} /> : null}
+```
+
+If a mobile shell and desktop shell share the same async state source, both shells must render the same global error surface.
+
 ✅ **Use Typography components for text:**
 ```tsx
 // Good
@@ -1169,6 +1248,16 @@ fontSize: tokens.typography.fontSize.base  // 0.9375rem = 15px
 
 // Instead rely on global :focus-visible or add explicit focus styles
 ```
+
+❌ **Fire-and-forget async actions from interactive controls without error UI:**
+```tsx
+// Avoid unless the callee guarantees rendered feedback
+<button onClick={() => void refreshSessions()}>
+  Refresh
+</button>
+```
+
+If the action can fail, route the error to a visible local or global surface.
 
 ### Code Examples
 

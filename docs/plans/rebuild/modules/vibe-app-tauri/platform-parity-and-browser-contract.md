@@ -48,12 +48,16 @@ contract.
 3. Rewrite active platform wording to match the matrix.
 4. Define browser-export support as a retained contract, not a generic full-web claim unless the
    evidence supports it.
+5. Enforce parity for user-visible failure handling so Android surfaces surface async backend/native
+   failures with the same clarity as desktop instead of failing silently.
 
 ## Edge Cases And Failure Modes
 
 - desktop assumptions leaking into Android/browser claims
 - browser-export availability being mistaken for fully interactive parity
 - Android shell coverage being overstated as route-complete product parity
+- async actions writing only desktop-visible error state while Android routes show no actionable
+  feedback
 
 ## Tests
 
@@ -65,6 +69,7 @@ contract.
 - desktop/Android/browser support claims are explicit by surface
 - active docs no longer use vague "multi-platform complete" wording
 - browser-export support is described in a bounded, testable way
+- desktop and Android shells both expose visible error feedback for backend/native action failures
 
 ## Locked Decisions
 

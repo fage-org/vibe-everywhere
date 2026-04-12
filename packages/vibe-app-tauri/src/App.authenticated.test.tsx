@@ -8,9 +8,23 @@ const mockDesktopState = vi.hoisted(() => ({
   value: null as any,
 }));
 
+const appRuntimeMocks = vi.hoisted(() => ({
+  copyTextToClipboard: vi.fn(async () => undefined),
+  openExternalUrl: vi.fn(async () => undefined),
+}));
+
 vi.mock("./useWave8Desktop", () => ({
   useWave8Desktop: () => mockDesktopState.value,
 }));
+
+vi.mock("./wave8-client", async () => {
+  const actual = await vi.importActual<typeof import("./wave8-client")>("./wave8-client");
+  return {
+    ...actual,
+    copyTextToClipboard: appRuntimeMocks.copyTextToClipboard,
+    openExternalUrl: appRuntimeMocks.openExternalUrl,
+  };
+});
 
 import { DesktopShell } from "./App";
 
@@ -192,7 +206,7 @@ function createDesktopState() {
       },
     ],
     sessionState: {},
-    globalError: null,
+    globalError: null as string | null,
     linkState: {
       status: "idle",
       linkUrl: null,
@@ -295,6 +309,10 @@ describe("DesktopShell authenticated routes", () => {
   beforeEach(() => {
     installMockStorage();
     mockDesktopState.value = createDesktopState();
+    appRuntimeMocks.copyTextToClipboard.mockReset();
+    appRuntimeMocks.copyTextToClipboard.mockResolvedValue(undefined);
+    appRuntimeMocks.openExternalUrl.mockReset();
+    appRuntimeMocks.openExternalUrl.mockResolvedValue(undefined);
   });
 
   it("renders an authenticated artifact detail route with desktop save controls", () => {
@@ -601,6 +619,8 @@ describe("DesktopShell authenticated routes", () => {
     expect(html).toContain("No messages yet");
     expect(html).toContain("/root/vibe-remote");
     expect(html).toContain("Abort turn");
+    expect(html).toContain('href="#/(app)/session/session-1/info"');
+    expect(html).toContain('href="#/(app)/session/session-1/files"');
     expect(html).not.toContain("Desktop review notes");
     expect(html).not.toContain('class="sidebar"');
   });
@@ -613,6 +633,8 @@ describe("DesktopShell authenticated routes", () => {
     expect(html).toContain("Link another device");
     expect(html).toContain("Connected services");
     expect(html).toContain("Endpoint");
+    expect(html).toContain('href="#/(app)/new/index"');
+    expect(html).toContain('href="#/(app)/session/recent"');
   });
 
   it("shows the mobile resume hint for an inactive session with resume metadata", () => {
@@ -641,6 +663,64 @@ describe("DesktopShell authenticated routes", () => {
     expect(html).toContain("Archived session");
     expect(html).toContain("Copy resume command");
     expect(html).toContain("happy codex --resume thread-123");
+  });
+
+  it("shows visible feedback when copying the mobile resume command fails", async () => {
+    const state = createDesktopState();
+    state.sessions = [
+      {
+        ...state.sessions[0],
+        active: false,
+        metadata: {
+          ...state.sessions[0].metadata,
+          codexThreadId: "thread-123",
+          lifecycleState: "archived",
+        } as any,
+      },
+    ];
+    state.sessionSummaries = [
+      {
+        ...state.sessionSummaries[0],
+        session: state.sessions[0],
+      },
+    ];
+    mockDesktopState.value = state;
+    appRuntimeMocks.copyTextToClipboard.mockRejectedValueOnce(new Error("Clipboard unavailable"));
+
+    let renderer: any = null;
+    await act(async () => {
+      renderer = create(
+        <DesktopShell
+          path="/(app)/session/session-1"
+          commandOpen={false}
+          onNavigate={() => undefined}
+          onCommandOpen={() => undefined}
+          onCommandClose={() => undefined}
+          runtimeTarget="mobile"
+          hostMode="mobile"
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    const copyButton = renderer.root.find(
+      (node: any) =>
+        node.type === "button"
+        && node.props.className === "secondary-button full-width"
+        && node.props.children === "Copy resume command",
+    );
+
+    await act(async () => {
+      await copyButton.props.onClick();
+      await Promise.resolve();
+    });
+
+    expect(appRuntimeMocks.copyTextToClipboard).toHaveBeenCalledWith(
+      expect.stringContaining("happy codex --resume thread-123"),
+    );
+    expect(JSON.stringify(renderer.toJSON())).toContain("Clipboard unavailable");
+
+    renderer.unmount();
   });
 
   it("renders the authenticated mobile session info route without desktop review notes", () => {
@@ -699,6 +779,48 @@ describe("DesktopShell authenticated routes", () => {
     expect(html).not.toContain('class="sidebar"');
   });
 
+  it("shows visible feedback when opening a GitHub profile fails on mobile", async () => {
+    const state = createDesktopState();
+    state.userProfiles = {
+      "friend-1": state.friends[0],
+    };
+    mockDesktopState.value = state;
+    appRuntimeMocks.openExternalUrl.mockRejectedValueOnce(new Error("External browser unavailable"));
+
+    let renderer: any = null;
+    await act(async () => {
+      renderer = create(
+        <DesktopShell
+          path="/(app)/user/friend-1"
+          commandOpen={false}
+          onNavigate={() => undefined}
+          onCommandOpen={() => undefined}
+          onCommandClose={() => undefined}
+          runtimeTarget="mobile"
+          hostMode="mobile"
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    const githubButton = renderer.root.find(
+      (node: any) =>
+        node.type === "button"
+        && node.props.className === "secondary-button full-width"
+        && node.props.children === "Open GitHub profile",
+    );
+
+    await act(async () => {
+      await githubButton.props.onClick();
+      await Promise.resolve();
+    });
+
+    expect(appRuntimeMocks.openExternalUrl).toHaveBeenCalledWith("https://github.com/sam");
+    expect(JSON.stringify(renderer.toJSON())).toContain("External browser unavailable");
+
+    renderer.unmount();
+  });
+
   it("renders the authenticated mobile session file route with compact file detail sections", () => {
     const html = renderAuthenticatedWithRuntimeTarget("mobile", "/(app)/session/session-1/file?path=src%2FApp.tsx");
 
@@ -723,6 +845,7 @@ describe("DesktopShell authenticated routes", () => {
 
     expect(html).toContain("Voice");
     expect(html).toContain("Android live voice capture and microphone permissions are deferred");
+    expect(html).toContain('href="#/(app)/settings/voice/language"');
     expect(html).not.toContain("Desktop-backed");
   });
 
@@ -731,8 +854,17 @@ describe("DesktopShell authenticated routes", () => {
 
     expect(html).toContain("Account");
     expect(html).toContain("Connected services");
+    expect(html).toContain('href="#/(app)/settings/connect/claude"');
     expect(html).not.toContain("Desktop review notes");
     expect(html).not.toContain('class="sidebar"');
+  });
+
+  it("renders mobile restore routes with href fallbacks", () => {
+    const restoreHtml = renderAuthenticatedWithRuntimeTarget("mobile", "/(app)/restore/index");
+    const manualHtml = renderAuthenticatedWithRuntimeTarget("mobile", "/(app)/restore/manual");
+
+    expect(restoreHtml).toContain('href="#/(app)/restore/manual"');
+    expect(manualHtml).toContain('href="#/(app)/restore/index"');
   });
 
   it("renders the mobile settings hub with explicit friends entry points", () => {
@@ -743,6 +875,63 @@ describe("DesktopShell authenticated routes", () => {
     expect(html).toContain("Find friends");
     expect(html).toContain("Support");
     expect(html).toContain("Report issue");
+    expect(html).toContain('href="#/(app)/settings/account"');
+    expect(html).toContain('href="#/(app)/friends/index"');
+    expect(html).toContain('href="#/(app)/changelog"');
+  });
+
+  it("shows visible feedback when opening a support link fails on mobile settings", async () => {
+    appRuntimeMocks.openExternalUrl.mockRejectedValueOnce(new Error("External browser unavailable"));
+
+    let renderer: any = null;
+    await act(async () => {
+      renderer = create(
+        <DesktopShell
+          path="/(app)/settings/index"
+          commandOpen={false}
+          onNavigate={() => undefined}
+          onCommandOpen={() => undefined}
+          onCommandClose={() => undefined}
+          runtimeTarget="mobile"
+          hostMode="mobile"
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    const githubButton = renderer.root.findAll(
+      (node: any) => node.type === "button" && node.props.className === "settings-row",
+    ).find((node: any) => {
+      const paragraphChildren = node.findAll(
+        (child: any) => typeof child.type === "string" && child.type === "p",
+      );
+      return paragraphChildren.some((child: any) => child.children.includes("fage-org/vibe-everywhere"));
+    });
+
+    if (!githubButton) {
+      throw new Error("Failed to locate the mobile settings GitHub button");
+    }
+
+    await act(async () => {
+      await githubButton.props.onClick();
+      await Promise.resolve();
+    });
+
+    expect(appRuntimeMocks.openExternalUrl).toHaveBeenCalledWith("https://github.com/fage-org/vibe-everywhere");
+    expect(JSON.stringify(renderer.toJSON())).toContain("External browser unavailable");
+
+    renderer.unmount();
+  });
+
+  it("renders global errors inside the mobile shell", () => {
+    const state = createDesktopState();
+    state.globalError = "Failed to create account";
+    mockDesktopState.value = state;
+
+    const html = renderAuthenticatedWithRuntimeTarget("mobile", "/(app)/index");
+
+    expect(html).toContain("Failed to create account");
+    expect(html).toContain("mobile-app-shell");
   });
 
   it("renders the authenticated mobile inbox route with feed and friend sections", () => {
@@ -757,6 +946,9 @@ describe("DesktopShell authenticated routes", () => {
     expect(html).toContain("hello feed");
     expect(html).toContain("Friend request from Nina");
     expect(html).toContain("Sam");
+    expect(html).toContain('href="#/(app)/user/friend-2"');
+    expect(html).toContain('href="#/(app)/friends/search"');
+    expect(html).toContain('href="#/(app)/friends/index"');
     expect(html).not.toContain("Session inventory is loaded from `/v1/sessions`");
     expect(html).not.toContain('class="sidebar"');
   });
@@ -789,6 +981,7 @@ describe("DesktopShell authenticated routes", () => {
     expect(html).toContain("Remove friend");
     expect(html).toContain("friend");
     expect(html).toContain("Open GitHub profile");
+    expect(html).toContain('href="#/(app)/friends/search"');
     expect(html).not.toContain('class="sidebar"');
   });
 

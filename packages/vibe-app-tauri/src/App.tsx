@@ -1201,13 +1201,13 @@ function MobileShellLayout({
             </>
           ) : (
             <>
-              <button
-                type="button"
+              <RouteLink
+                path={buildMobileBackPath(resolved.definition)}
                 className="ghost-button mobile-back-button"
-                onClick={() => onNavigate(buildMobileBackPath(resolved.definition))}
+                onNavigate={onNavigate}
               >
                 Back
-              </button>
+              </RouteLink>
               <div>
                 <p className="eyebrow">{runtimeCopy.surfaceTitle}</p>
                 <h2>{routeTitle}</h2>
@@ -1218,28 +1218,31 @@ function MobileShellLayout({
         <div className="mobile-topbar-actions">
           <span className="pill pill-accent">{statusLabel(appState.status)}</span>
           {!isTopLevelPrimaryRoute && mobileRouteAction ? (
-            <button
-              type="button"
+            <RouteLink
+              path={mobileRouteAction.path}
               className="ghost-button mobile-topbar-button"
-              onClick={() => onNavigate(mobileRouteAction.path)}
+              onNavigate={onNavigate}
             >
               {mobileRouteAction.label}
-            </button>
+            </RouteLink>
           ) : null}
           {signedIn && activePrimaryTab === "sessions" && isTopLevelPrimaryRoute ? (
-            <button type="button" className="ghost-button mobile-topbar-button" onClick={() => onNavigate("/(app)/new/index")}>
+            <RouteLink path="/(app)/new/index" className="ghost-button mobile-topbar-button" onNavigate={onNavigate}>
               New
-            </button>
+            </RouteLink>
           ) : null}
           {signedIn && activePrimaryTab === "inbox" && isTopLevelPrimaryRoute ? (
-            <button type="button" className="ghost-button mobile-topbar-button" onClick={() => onNavigate("/(app)/friends/search")}>
+            <RouteLink path="/(app)/friends/search" className="ghost-button mobile-topbar-button" onNavigate={onNavigate}>
               Add friend
-            </button>
+            </RouteLink>
           ) : null}
         </div>
       </header>
 
-      <main className="mobile-main-panel">{content}</main>
+      <main className="mobile-main-panel">
+        {appState.globalError ? <ErrorBanner message={appState.globalError} /> : null}
+        {content}
+      </main>
 
       {signedIn && activePrimaryTab && isTopLevelPrimaryRoute ? (
         <nav className="mobile-tabbar" aria-label={`${runtimeCopy.surfaceTitle} primary navigation`}>
@@ -1291,17 +1294,19 @@ function MobileHomeSurface({
           <button
             type="button"
             className="primary-button full-width"
-            onClick={() => void appState.createFreshAccount()}
+            onClick={() => {
+              void appState.createFreshAccount().catch(() => undefined);
+            }}
           >
             Create account
           </button>
-          <button
-            type="button"
+          <RouteLink
+            path="/(app)/restore/index"
             className="secondary-button full-width"
-            onClick={() => onNavigate("/(app)/restore/index")}
+            onNavigate={onNavigate}
           >
             Restore or link account
-          </button>
+          </RouteLink>
         </div>
       </section>
 
@@ -1342,9 +1347,9 @@ function MobileSessionsSurface({
         <h3>{runtimeCopy.continueHeading}</h3>
         <p className="panel-copy">{runtimeCopy.continueCopy}</p>
         <div className="button-row">
-          <button type="button" className="primary-button full-width" onClick={() => onNavigate("/(app)/new/index")}>
+          <RouteLink path="/(app)/new/index" className="primary-button full-width" onNavigate={onNavigate}>
             Create session
-          </button>
+          </RouteLink>
         </div>
       </section>
 
@@ -1354,28 +1359,20 @@ function MobileSessionsSurface({
           <span className="pill pill-outline">Main view</span>
         </div>
         <div className="settings-list">
-          <button
-            type="button"
-            className="settings-row"
-            onClick={() => onNavigate("/(app)/session/recent")}
-          >
+          <RouteLink path="/(app)/session/recent" className="settings-row" onNavigate={onNavigate}>
             <div className="settings-row-copy">
               <strong>Recent sessions</strong>
               <p>Review the latest session inventory and resume flows.</p>
             </div>
             <span className="settings-row-badge">Open</span>
-          </button>
-          <button
-            type="button"
-            className="settings-row"
-            onClick={() => onNavigate("/(app)/restore/index")}
-          >
+          </RouteLink>
+          <RouteLink path="/(app)/restore/index" className="settings-row" onNavigate={onNavigate}>
             <div className="settings-row-copy">
               <strong>Link another device</strong>
               <p>Restore or link another shell without leaving the mobile main view.</p>
             </div>
             <span className="settings-row-badge">Auth</span>
-          </button>
+          </RouteLink>
         </div>
       </section>
 
@@ -1417,18 +1414,18 @@ function MobileSessionsSurface({
         ) : topSessions.length > 0 ? (
           <div className="settings-list">
             {topSessions.map(({ session, title, detail }) => (
-              <button
+              <RouteLink
                 key={session.id}
-                type="button"
+                path={`/(app)/session/${session.id}`}
                 className="settings-row"
-                onClick={() => onNavigate(`/(app)/session/${session.id}`)}
+                onNavigate={onNavigate}
               >
                 <div className="settings-row-copy">
                   <strong>{title}</strong>
                   <p>{detail}</p>
                 </div>
                 <span className="settings-row-badge">{session.active ? "Active" : "Open"}</span>
-              </button>
+              </RouteLink>
             ))}
           </div>
         ) : (
@@ -1438,9 +1435,9 @@ function MobileSessionsSurface({
               {`Create the first ${runtimeCopy.surfaceLabel} session to verify the live backend path end to end.`}
             </p>
             <div className="button-row mobile-button-column">
-              <button type="button" className="primary-button full-width" onClick={() => onNavigate("/(app)/new/index")}>
+              <RouteLink path="/(app)/new/index" className="primary-button full-width" onNavigate={onNavigate}>
                 Create session
-              </button>
+              </RouteLink>
             </div>
           </div>
         )}
@@ -1514,18 +1511,18 @@ function MobileInboxSurface({
         {updateItems.length > 0 ? (
           <div className="settings-list">
             {updateItems.map((item) => (
-              <button
+              <RouteLink
                 key={item.key}
-                type="button"
+                path={item.actionPath}
                 className="settings-row"
-                onClick={() => onNavigate(item.actionPath)}
+                onNavigate={onNavigate}
               >
                 <div className="settings-row-copy">
                   <strong>{item.title}</strong>
                   <p>{item.subtitle}</p>
                 </div>
                 <span className="settings-row-badge">{item.badge}</span>
-              </button>
+              </RouteLink>
             ))}
           </div>
         ) : (
@@ -1546,32 +1543,32 @@ function MobileInboxSurface({
         {pendingFriends.length > 0 || requestedFriends.length > 0 ? (
           <div className="settings-list">
             {pendingFriends.map((friend) => (
-              <button
+              <RouteLink
                 key={`pending-${friend.id}`}
-                type="button"
+                path={`/(app)/user/${friend.id}`}
                 className="settings-row"
-                onClick={() => onNavigate(`/(app)/user/${friend.id}`)}
+                onNavigate={onNavigate}
               >
                 <div className="settings-row-copy">
                   <strong>{friend.firstName || friend.username}</strong>
                   <p>@{friend.username}</p>
                 </div>
                 <span className="settings-row-badge">Pending</span>
-              </button>
+              </RouteLink>
             ))}
             {requestedFriends.map((friend) => (
-              <button
+              <RouteLink
                 key={`requested-${friend.id}`}
-                type="button"
+                path={`/(app)/user/${friend.id}`}
                 className="settings-row"
-                onClick={() => onNavigate(`/(app)/user/${friend.id}`)}
+                onNavigate={onNavigate}
               >
                 <div className="settings-row-copy">
                   <strong>{friend.firstName || friend.username}</strong>
                   <p>@{friend.username}</p>
                 </div>
                 <span className="settings-row-badge">Requested</span>
-              </button>
+              </RouteLink>
             ))}
           </div>
         ) : (
@@ -1586,13 +1583,13 @@ function MobileInboxSurface({
           </div>
         )}
         <div className="button-row mobile-button-column">
-          <button
-            type="button"
+          <RouteLink
+            path="/(app)/friends/search"
             className="secondary-button full-width"
-            onClick={() => onNavigate("/(app)/friends/search")}
+            onNavigate={onNavigate}
           >
             Find friends
-          </button>
+          </RouteLink>
         </div>
       </section>
 
@@ -1604,18 +1601,18 @@ function MobileInboxSurface({
         <div className="settings-list">
           {acceptedFriends.length > 0 ? (
             acceptedFriends.map((friend) => (
-              <button
+              <RouteLink
                 key={friend.id}
-                type="button"
+                path={`/(app)/user/${friend.id}`}
                 className="settings-row"
-                onClick={() => onNavigate(`/(app)/user/${friend.id}`)}
+                onNavigate={onNavigate}
               >
                 <div className="settings-row-copy">
                   <strong>{friend.firstName || friend.username}</strong>
                   <p>@{friend.username}</p>
                 </div>
                 <span className="settings-row-badge connected">Friend</span>
-              </button>
+              </RouteLink>
             ))
           ) : (
             <div className="settings-row static">
@@ -1628,13 +1625,13 @@ function MobileInboxSurface({
           )}
         </div>
         <div className="button-row mobile-button-column">
-          <button
-            type="button"
+          <RouteLink
+            path="/(app)/friends/index"
             className="secondary-button full-width"
-            onClick={() => onNavigate("/(app)/friends/index")}
+            onNavigate={onNavigate}
           >
             Open friends
-          </button>
+          </RouteLink>
         </div>
       </section>
     </div>
@@ -1658,6 +1655,19 @@ function MobileSettingsSurface({
     return <SignedOutState onNavigate={onNavigate} />;
   }
 
+  const [supportFeedback, setSupportFeedback] = useState<string | null>(null);
+
+  const handleSupportLink = async (url: string) => {
+    try {
+      await openExternalUrl(url);
+      setSupportFeedback(null);
+    } catch (error) {
+      setSupportFeedback(
+        error instanceof Error ? error.message : "Failed to open external link",
+      );
+    }
+  };
+
   return (
     <div className="surface-stack">
       <section className="panel-card mobile-hero-card">
@@ -1672,28 +1682,20 @@ function MobileSettingsSurface({
           <span className="pill pill-accent">Profile</span>
         </div>
         <div className="settings-list">
-          <button
-            type="button"
-            className="settings-row"
-            onClick={() => onNavigate("/(app)/settings/account")}
-          >
+          <RouteLink path="/(app)/settings/account" className="settings-row" onNavigate={onNavigate}>
             <div className="settings-row-copy">
               <strong>Vibe account</strong>
               <p>{appState.profile?.id ?? "Signed out"}</p>
             </div>
             <span className="settings-row-badge">Open</span>
-          </button>
-          <button
-            type="button"
-            className="settings-row"
-            onClick={() => onNavigate("/(app)/restore/index")}
-          >
+          </RouteLink>
+          <RouteLink path="/(app)/restore/index" className="settings-row" onNavigate={onNavigate}>
             <div className="settings-row-copy">
               <strong>Restore or link device</strong>
               <p>{describeRuntimeLinkRoute("mobile")}</p>
             </div>
             <span className="settings-row-badge">Auth</span>
-          </button>
+          </RouteLink>
         </div>
       </section>
 
@@ -1703,28 +1705,20 @@ function MobileSettingsSurface({
           <span className="pill pill-outline">Friends</span>
         </div>
         <div className="settings-list">
-          <button
-            type="button"
-            className="settings-row"
-            onClick={() => onNavigate("/(app)/friends/index")}
-          >
+          <RouteLink path="/(app)/friends/index" className="settings-row" onNavigate={onNavigate}>
             <div className="settings-row-copy">
               <strong>Friends</strong>
               <p>Manage pending requests, sent requests, and accepted friends.</p>
             </div>
             <span className="settings-row-badge">Open</span>
-          </button>
-          <button
-            type="button"
-            className="settings-row"
-            onClick={() => onNavigate("/(app)/friends/search")}
-          >
+          </RouteLink>
+          <RouteLink path="/(app)/friends/search" className="settings-row" onNavigate={onNavigate}>
             <div className="settings-row-copy">
               <strong>Find friends</strong>
               <p>Search by username and send or accept requests.</p>
             </div>
             <span className="settings-row-badge">Search</span>
-          </button>
+          </RouteLink>
         </div>
       </section>
 
@@ -1735,18 +1729,18 @@ function MobileSettingsSurface({
         </div>
         <div className="settings-list">
           {settingsFeatureLinks.map((item) => (
-            <button
+            <RouteLink
               key={item.title}
-              type="button"
+              path={item.route}
               className="settings-row"
-              onClick={() => onNavigate(item.route)}
+              onNavigate={onNavigate}
             >
               <div className="settings-row-copy">
                 <strong>{item.title}</strong>
                 <p>{item.subtitle}</p>
               </div>
               <span className="settings-row-badge">{item.badge}</span>
-            </button>
+            </RouteLink>
           ))}
         </div>
       </section>
@@ -1757,21 +1751,17 @@ function MobileSettingsSurface({
           <span className="pill pill-outline">Help</span>
         </div>
         <div className="settings-list">
-          <button
-            type="button"
-            className="settings-row"
-            onClick={() => onNavigate("/(app)/changelog")}
-          >
+          <RouteLink path="/(app)/changelog" className="settings-row" onNavigate={onNavigate}>
             <div className="settings-row-copy">
               <strong>What&apos;s new</strong>
               <p>Review the latest mobile shell changes and migration progress.</p>
             </div>
             <span className="settings-row-badge">Route</span>
-          </button>
+          </RouteLink>
           <button
             type="button"
             className="settings-row"
-            onClick={() => void openExternalUrl("https://github.com/fage-org/vibe-everywhere")}
+            onClick={() => void handleSupportLink("https://github.com/fage-org/vibe-everywhere")}
           >
             <div className="settings-row-copy">
               <strong>GitHub</strong>
@@ -1782,7 +1772,7 @@ function MobileSettingsSurface({
           <button
             type="button"
             className="settings-row"
-            onClick={() => void openExternalUrl("https://github.com/fage-org/vibe-everywhere/issues")}
+            onClick={() => void handleSupportLink("https://github.com/fage-org/vibe-everywhere/issues")}
           >
             <div className="settings-row-copy">
               <strong>Report issue</strong>
@@ -1792,6 +1782,7 @@ function MobileSettingsSurface({
           </button>
         </div>
       </section>
+      {supportFeedback ? <div className="panel-card compact-feedback">{supportFeedback}</div> : null}
 
       <section className="panel-card">
         <div className="card-header">
@@ -2282,7 +2273,9 @@ function HomeSurface({
             <button
               type="button"
               className="primary-button"
-              onClick={() => void desktop.createFreshAccount()}
+                onClick={() => {
+                  void desktop.createFreshAccount().catch(() => undefined);
+                }}
             >
               Create account
             </button>
@@ -2593,7 +2586,7 @@ function RestoreSurface({
     }
 
     autoStartedLinkRef.current = true;
-    void desktop.startMobileLink();
+    void desktop.startMobileLink().catch(() => undefined);
   }, [
     desktop.credentials,
     desktop.linkState.status,
@@ -2624,7 +2617,13 @@ function RestoreSurface({
           <p className="hero-copy">{runtimeCopy.restoreFlowCopy}</p>
         </div>
         <div className="hero-actions">
-          <button type="button" className="primary-button" onClick={() => void desktop.createFreshAccount()}>
+          <button
+            type="button"
+            className="primary-button"
+            onClick={() => {
+              void desktop.createFreshAccount().catch(() => undefined);
+            }}
+          >
             Create account
           </button>
           <button type="button" className="secondary-button" onClick={() => onNavigate("/(app)/restore/manual")}>
@@ -2644,8 +2643,15 @@ function RestoreSurface({
               ? "Start a request, then scan the QR code with the current Vibe mobile app and approve the device link."
               : "Start a request, then continue from another signed-in device or fallback link to approve the account link."}
           </p>
+          {desktop.linkState.error ? <ErrorBanner message={desktop.linkState.error} /> : null}
           <div className="button-row">
-            <button type="button" className="primary-button" onClick={() => void desktop.startMobileLink()}>
+            <button
+              type="button"
+              className="primary-button"
+              onClick={() => {
+                void desktop.startMobileLink().catch(() => undefined);
+              }}
+            >
               {desktop.linkState.status === "requesting" || desktop.linkState.status === "waiting"
                 ? "Restart link request"
                 : "Start link request"}
@@ -2813,7 +2819,7 @@ function MobileRestoreSurface({
     if (desktop.credentials || desktop.linkState.status !== "idle") {
       return;
     }
-    void desktop.startMobileLink();
+    void desktop.startMobileLink().catch(() => undefined);
   }, [desktop.credentials, desktop.linkState.status, desktop.startMobileLink]);
 
   return (
@@ -2828,6 +2834,7 @@ function MobileRestoreSurface({
       </section>
 
       <section className="panel-card mobile-settings-section mobile-qr-card">
+        {desktop.linkState.error ? <ErrorBanner message={desktop.linkState.error} /> : null}
         {desktop.linkState.qrSvg ? (
           <div
             className="qr-frame"
@@ -2844,17 +2851,19 @@ function MobileRestoreSurface({
           <button
             type="button"
             className="secondary-button full-width"
-            onClick={() => void desktop.startMobileLink()}
+            onClick={() => {
+              void desktop.startMobileLink().catch(() => undefined);
+            }}
           >
             Refresh QR code
           </button>
-          <button
-            type="button"
+          <RouteLink
+            path="/(app)/restore/manual"
             className="secondary-button full-width"
-            onClick={() => onNavigate("/(app)/restore/manual")}
+            onNavigate={onNavigate}
           >
             Restore with secret key instead
-          </button>
+          </RouteLink>
         </div>
       </section>
     </div>
@@ -2912,13 +2921,13 @@ function MobileManualRestoreSurface({
           >
             {submitting ? "Restoring..." : "Restore account"}
           </button>
-          <button
-            type="button"
+          <RouteLink
+            path="/(app)/restore/index"
             className="secondary-button full-width"
-            onClick={() => onNavigate("/(app)/restore/index")}
+            onNavigate={onNavigate}
           >
             Back to QR restore
-          </button>
+          </RouteLink>
         </div>
       </section>
     </div>
@@ -2947,7 +2956,13 @@ function InboxSurface({
           Session inventory is loaded from `/v1/sessions`, decrypted locally, and ordered by recent activity.
         </p>
         <div className="button-row">
-          <button type="button" className="secondary-button" onClick={() => void desktop.refreshSessions()}>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => {
+              void desktop.refreshSessions().catch(() => undefined);
+            }}
+          >
             Refresh sessions
           </button>
           <button type="button" className="primary-button" onClick={() => onNavigate("/(app)/new/index")}>
@@ -3275,7 +3290,13 @@ function SessionSurface({
           <div className="card-header">
             <h3>Timeline</h3>
             <div className="button-row compact-actions">
-              <button type="button" className="secondary-button" onClick={() => void desktop.loadMessages(session.id, true)}>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => {
+                  void desktop.loadMessages(session.id, true).catch(() => undefined);
+                }}
+              >
                 Refresh
               </button>
               <button
@@ -3283,9 +3304,12 @@ function SessionSurface({
                 className="danger-button"
                 onClick={() => {
                   if (confirm("Are you sure you want to delete this session? This action cannot be undone.")) {
-                    void desktop.deleteSession(session.id).then(() => {
-                      onNavigate("/(app)/inbox/index");
-                    });
+                    void desktop
+                      .deleteSession(session.id)
+                      .then(() => {
+                        onNavigate("/(app)/inbox/index");
+                      })
+                      .catch(() => undefined);
                   }
                 }}
               >
@@ -3432,7 +3456,9 @@ function SessionSurface({
             <button
               type="button"
               className="secondary-button"
-              onClick={() => void desktop.abortSession(session.id)}
+              onClick={() => {
+                void desktop.abortSession(session.id).catch(() => undefined);
+              }}
               disabled={messageState?.aborting}
             >
               {messageState?.aborting ? "Aborting..." : "Abort turn"}
@@ -3477,6 +3503,7 @@ function MobileSessionSurface({
   });
   const [sessionFileSuggestions, setSessionFileSuggestions] = useState<string[] | null>(null);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [resumeCommandFeedback, setResumeCommandFeedback] = useState<string | null>(null);
   const permissionOptions = useMemo(
     () => getSessionPermissionOptions(session?.metadata ?? null),
     [session?.metadata],
@@ -3611,6 +3638,20 @@ function MobileSessionSurface({
     }
   };
 
+  const handleCopyResumeCommand = async () => {
+    if (!resumeCommand) {
+      return;
+    }
+    try {
+      await copyTextToClipboard(resumeCommand);
+      setResumeCommandFeedback("Resume command copied.");
+    } catch (error) {
+      setResumeCommandFeedback(
+        error instanceof Error ? error.message : "Failed to copy resume command",
+      );
+    }
+  };
+
   return (
     <div className="surface-stack">
       <section className="panel-card mobile-session-header">
@@ -3624,20 +3665,20 @@ function MobileSessionSurface({
           <span className="pill pill-outline">{description.detail}</span>
         </div>
         <div className="button-row mobile-button-column">
-          <button
-            type="button"
+          <RouteLink
+            path={`/(app)/session/${sessionId}/info`}
             className="secondary-button full-width"
-            onClick={() => onNavigate(`/(app)/session/${sessionId}/info`)}
+            onNavigate={onNavigate}
           >
             Session info
-          </button>
-          <button
-            type="button"
+          </RouteLink>
+          <RouteLink
+            path={`/(app)/session/${sessionId}/files`}
             className="secondary-button full-width"
-            onClick={() => onNavigate(`/(app)/session/${sessionId}/files`)}
+            onNavigate={onNavigate}
           >
             Session files
-          </button>
+          </RouteLink>
         </div>
       </section>
 
@@ -3657,13 +3698,12 @@ function MobileSessionSurface({
             <button
               type="button"
               className="secondary-button full-width"
-              onClick={() =>
-                void copyTextToClipboard(resumeCommand).catch(() => undefined)
-              }
+              onClick={() => void handleCopyResumeCommand()}
             >
               Copy resume command
             </button>
           </div>
+          {resumeCommandFeedback ? <div className="panel-card compact-feedback">{resumeCommandFeedback}</div> : null}
         </section>
       ) : null}
 
@@ -3673,7 +3713,9 @@ function MobileSessionSurface({
           <button
             type="button"
             className="secondary-button"
-            onClick={() => void desktop.loadMessages(session.id, true)}
+            onClick={() => {
+              void desktop.loadMessages(session.id, true).catch(() => undefined);
+            }}
           >
             Refresh
           </button>
@@ -3693,13 +3735,13 @@ function MobileSessionSurface({
                   appearanceSettings={preferences.appearanceSettings}
                 />
                 <div className="button-row compact-actions">
-                  <button
-                    type="button"
+                  <RouteLink
+                    path={`/(app)/session/${session.id}/message/${message.id}`}
                     className="secondary-button full-width"
-                    onClick={() => onNavigate(`/(app)/session/${session.id}/message/${message.id}`)}
+                    onNavigate={onNavigate}
                   >
                     Open message
-                  </button>
+                  </RouteLink>
                 </div>
               </article>
             ))}
@@ -3812,7 +3854,9 @@ function MobileSessionSurface({
           <button
             type="button"
             className="secondary-button full-width"
-            onClick={() => void desktop.abortSession(session.id)}
+            onClick={() => {
+              void desktop.abortSession(session.id).catch(() => undefined);
+            }}
             disabled={messageState?.aborting}
           >
             {messageState?.aborting ? "Aborting..." : "Abort turn"}
@@ -3886,13 +3930,13 @@ function MobileSessionContextCard({
       ) : null}
       {primaryAction ? (
         <div className="button-row mobile-button-column">
-          <button
-            type="button"
+          <RouteLink
+            path={primaryAction.path}
             className="secondary-button full-width"
-            onClick={() => onNavigate(primaryAction.path)}
+            onNavigate={onNavigate}
           >
             {primaryAction.label}
-          </button>
+          </RouteLink>
         </div>
       ) : null}
     </section>
@@ -3968,20 +4012,20 @@ function MobileSessionMessageSurface({
           appearanceSettings={preferences.appearanceSettings}
         />
         <div className="button-row mobile-button-column">
-          <button
-            type="button"
+          <RouteLink
+            path={`/(app)/session/${sessionId}`}
             className="secondary-button full-width"
-            onClick={() => onNavigate(`/(app)/session/${sessionId}`)}
+            onNavigate={onNavigate}
           >
             Back to session
-          </button>
-          <button
-            type="button"
+          </RouteLink>
+          <RouteLink
+            path={`/(app)/session/${sessionId}/files`}
             className="secondary-button full-width"
-            onClick={() => onNavigate(`/(app)/session/${sessionId}/files`)}
+            onNavigate={onNavigate}
           >
             Open session files
-          </button>
+          </RouteLink>
         </div>
       </section>
     </div>
@@ -4050,13 +4094,13 @@ function MobileSessionInfoSurface({
           </div>
         </dl>
         <div className="button-row mobile-button-column">
-          <button
-            type="button"
+          <RouteLink
+            path={`/(app)/session/${sessionId}/files`}
             className="secondary-button full-width"
-            onClick={() => onNavigate(`/(app)/session/${sessionId}/files`)}
+            onNavigate={onNavigate}
           >
             Open session files
-          </button>
+          </RouteLink>
         </div>
       </section>
     </div>
@@ -4344,20 +4388,20 @@ function MobileSessionFileSurface({
             </>
           ) : null}
           <div className="button-row mobile-button-column">
-            <button
-              type="button"
+            <RouteLink
+              path={`/(app)/session/${sessionId}/files`}
               className="secondary-button full-width"
-              onClick={() => onNavigate(`/(app)/session/${sessionId}/files`)}
+              onNavigate={onNavigate}
             >
               Back to files
-            </button>
-            <button
-              type="button"
+            </RouteLink>
+            <RouteLink
+              path={`/(app)/session/${sessionId}`}
               className="secondary-button full-width"
-              onClick={() => onNavigate(`/(app)/session/${sessionId}`)}
+              onNavigate={onNavigate}
             >
               Back to session
-            </button>
+            </RouteLink>
           </div>
         </section>
       ) : null}
@@ -5394,17 +5438,17 @@ function MobileAccountSettingsSurface({
             </div>
             <span className="settings-row-badge">Handle</span>
           </div>
-          <button
-            type="button"
+          <RouteLink
+            path="/(app)/settings/connect/claude"
             className="settings-row"
-            onClick={() => onNavigate("/(app)/settings/connect/claude")}
+            onNavigate={onNavigate}
           >
             <div className="settings-row-copy">
               <strong>Connected services</strong>
               <p>{desktop.profile?.connectedServices.length ?? 0} linked integrations</p>
             </div>
             <span className="settings-row-badge">Open</span>
-          </button>
+          </RouteLink>
         </div>
       </section>
     </div>
@@ -6330,13 +6374,13 @@ function MobileVoiceSettingsSurface({
           >
             Save custom agent ID
           </button>
-          <button
-            type="button"
+          <RouteLink
+            path="/(app)/settings/voice/language"
             className="secondary-button full-width"
-            onClick={() => onNavigate("/(app)/settings/voice/language")}
+            onNavigate={onNavigate}
           >
             Voice language
-          </button>
+          </RouteLink>
         </div>
         <div className="settings-list">
           <button
@@ -6623,13 +6667,13 @@ function MobileConnectClaudeSurface({
           >
             Open integration docs
           </button>
-          <button
-            type="button"
+          <RouteLink
+            path="/(app)/settings/account"
             className="secondary-button full-width"
-            onClick={() => onNavigate("/(app)/settings/account")}
+            onNavigate={onNavigate}
           >
             Back to account
-          </button>
+          </RouteLink>
         </div>
       </section>
       {feedback ? <div className="panel-card compact-feedback">{feedback}</div> : null}
@@ -6689,18 +6733,18 @@ function MobileFriendsIndexSurface({
         <div className="settings-list">
           {pendingFriends.length > 0 ? (
             pendingFriends.map((friend) => (
-              <button
+              <RouteLink
                 key={friend.id}
-                type="button"
+                path={`/(app)/user/${friend.id}`}
                 className="settings-row"
-                onClick={() => onNavigate(`/(app)/user/${friend.id}`)}
+                onNavigate={onNavigate}
               >
                 <div className="settings-row-copy">
                   <strong>{friend.firstName || friend.username}</strong>
                   <p>@{friend.username}</p>
                 </div>
                 <span className="settings-row-badge">Pending</span>
-              </button>
+              </RouteLink>
             ))
           ) : (
             <div className="settings-row static">
@@ -6722,18 +6766,18 @@ function MobileFriendsIndexSurface({
         <div className="settings-list">
           {requestedFriends.length > 0 ? (
             requestedFriends.map((friend) => (
-              <button
+              <RouteLink
                 key={friend.id}
-                type="button"
+                path={`/(app)/user/${friend.id}`}
                 className="settings-row"
-                onClick={() => onNavigate(`/(app)/user/${friend.id}`)}
+                onNavigate={onNavigate}
               >
                 <div className="settings-row-copy">
                   <strong>{friend.firstName || friend.username}</strong>
                   <p>@{friend.username}</p>
                 </div>
                 <span className="settings-row-badge">Requested</span>
-              </button>
+              </RouteLink>
             ))
           ) : (
             <div className="settings-row static">
@@ -6755,18 +6799,18 @@ function MobileFriendsIndexSurface({
         <div className="settings-list">
           {acceptedFriends.length > 0 ? (
             acceptedFriends.map((friend) => (
-              <button
+              <RouteLink
                 key={friend.id}
-                type="button"
+                path={`/(app)/user/${friend.id}`}
                 className="settings-row"
-                onClick={() => onNavigate(`/(app)/user/${friend.id}`)}
+                onNavigate={onNavigate}
               >
                 <div className="settings-row-copy">
                   <strong>{friend.firstName || friend.username}</strong>
                   <p>@{friend.username}</p>
                 </div>
                 <span className="settings-row-badge connected">Friend</span>
-              </button>
+              </RouteLink>
             ))
           ) : (
             <div className="settings-row static">
@@ -6852,18 +6896,18 @@ function MobileFriendsSearchSurface({
         {results.length > 0 ? (
           <div className="settings-list">
             {results.map((user) => (
-              <button
+              <RouteLink
                 key={user.id}
-                type="button"
+                path={`/(app)/user/${user.id}`}
                 className="settings-row"
-                onClick={() => onNavigate(`/(app)/user/${user.id}`)}
+                onNavigate={onNavigate}
               >
                 <div className="settings-row-copy">
                   <strong>{user.firstName || user.username}</strong>
                   <p>@{user.username}</p>
                 </div>
                 <span className="settings-row-badge">{user.status}</span>
-              </button>
+              </RouteLink>
             ))}
           </div>
         ) : (
@@ -6966,6 +7010,14 @@ function MobileUserDetailSurface({
   }
 
   const action = buildFriendAction(user, desktop);
+  const handleOpenGitHubProfile = async () => {
+    setError(null);
+    try {
+      await openExternalUrl(`https://github.com/${user.username}`);
+    } catch (openError) {
+      setError(openError instanceof Error ? openError.message : "Failed to open GitHub profile");
+    }
+  };
 
   return (
     <div className="surface-stack">
@@ -6987,17 +7039,17 @@ function MobileUserDetailSurface({
           >
             {working ? "Updating..." : action.label}
           </button>
-          <button
-            type="button"
+          <RouteLink
+            path="/(app)/friends/search"
             className="secondary-button full-width"
-            onClick={() => onNavigate("/(app)/friends/search")}
+            onNavigate={onNavigate}
           >
             Back to search
-          </button>
+          </RouteLink>
           <button
             type="button"
             className="secondary-button full-width"
-            onClick={() => void openExternalUrl(`https://github.com/${user.username}`)}
+            onClick={() => void handleOpenGitHubProfile()}
           >
             Open GitHub profile
           </button>
@@ -8398,6 +8450,28 @@ function handleNavigation(
 ) {
   event.preventDefault();
   onNavigate(path);
+}
+
+function RouteLink({
+  path,
+  onNavigate,
+  className,
+  children,
+}: {
+  path: string;
+  onNavigate: (path: string) => void;
+  className: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <a
+      href={hrefForPath(path)}
+      className={className}
+      onClick={(event) => handleNavigation(event, path, onNavigate)}
+    >
+      {children}
+    </a>
+  );
 }
 
 function shortcutForRoute(path: string): string | undefined {

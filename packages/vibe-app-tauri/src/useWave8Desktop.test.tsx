@@ -13,6 +13,23 @@ const runtimeMocks = vi.hoisted(() => ({
   saveServerUrl: vi.fn((value: string) => value),
   showDesktopNotification: vi.fn(async () => undefined),
   connect: vi.fn(),
+  createAccountLinkRequest: vi.fn(async () => ({
+    linkUrl: "https://example.com/link",
+    secret: "request-secret",
+  })),
+  beginLoopbackAccountLink: vi.fn(async () => ({
+    attemptId: "attempt-1",
+    browserUrl: "https://example.com/browser-link",
+  })),
+  getLoopbackAccountLinkStatus: vi.fn(async () => ({
+    status: "completed",
+  })),
+  completeAccountLink: vi.fn(async () => ({
+    token: "token-1",
+    secret: "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA",
+  })),
+  cancelLoopbackAccountLink: vi.fn(async () => undefined),
+  openExternalUrl: vi.fn(async () => undefined),
 }));
 
 const socketMocks = vi.hoisted(() => {
@@ -50,6 +67,12 @@ vi.mock("./wave8-client", async () => {
     clearStoredCredentials: runtimeMocks.clearStoredCredentials,
     saveServerUrl: runtimeMocks.saveServerUrl,
     showDesktopNotification: runtimeMocks.showDesktopNotification,
+    createAccountLinkRequest: runtimeMocks.createAccountLinkRequest,
+    beginLoopbackAccountLink: runtimeMocks.beginLoopbackAccountLink,
+    getLoopbackAccountLinkStatus: runtimeMocks.getLoopbackAccountLinkStatus,
+    completeAccountLink: runtimeMocks.completeAccountLink,
+    cancelLoopbackAccountLink: runtimeMocks.cancelLoopbackAccountLink,
+    openExternalUrl: runtimeMocks.openExternalUrl,
     Wave8Client: {
       connect: runtimeMocks.connect,
     },
@@ -204,6 +227,24 @@ function createMockClient() {
         settings: buildAccountSettings(),
         version: 2,
       })),
+      addFriend: vi.fn(async (userId: string) => ({
+        id: userId,
+        firstName: "Sam",
+        lastName: null,
+        username: "sam",
+        avatar: null,
+        bio: null,
+        status: "friend",
+      })),
+      removeFriend: vi.fn(async (userId: string) => ({
+        id: userId,
+        firstName: "Sam",
+        lastName: null,
+        username: "sam",
+        avatar: null,
+        bio: null,
+        status: "none",
+      })),
       queryUsage: vi.fn(async () => ({
         usage: [],
         groupBy: "day" as const,
@@ -319,6 +360,27 @@ describe("useWave8Desktop", () => {
     runtimeMocks.clearStoredCredentials.mockClear();
     runtimeMocks.saveServerUrl.mockClear();
     runtimeMocks.showDesktopNotification.mockClear();
+    runtimeMocks.createAccountLinkRequest.mockClear();
+    runtimeMocks.createAccountLinkRequest.mockResolvedValue({
+      linkUrl: "https://example.com/link",
+      secret: "request-secret",
+    });
+    runtimeMocks.beginLoopbackAccountLink.mockClear();
+    runtimeMocks.beginLoopbackAccountLink.mockResolvedValue({
+      attemptId: "attempt-1",
+      browserUrl: "https://example.com/browser-link",
+    });
+    runtimeMocks.getLoopbackAccountLinkStatus.mockClear();
+    runtimeMocks.getLoopbackAccountLinkStatus.mockResolvedValue({
+      status: "completed",
+    });
+    runtimeMocks.completeAccountLink.mockClear();
+    runtimeMocks.completeAccountLink.mockResolvedValue({
+      token: "token-1",
+      secret: "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA",
+    });
+    runtimeMocks.cancelLoopbackAccountLink.mockClear();
+    runtimeMocks.openExternalUrl.mockClear();
   });
 
   afterEach(async () => {
@@ -587,5 +649,214 @@ describe("useWave8Desktop", () => {
     expect(latest?.sessions).toEqual([]);
     expect(latest?.sessionSummaries).toEqual([]);
     expect(latest?.sessionState["session-1"]).toBeUndefined();
+  });
+
+  it("preserves logout errors in global state after clearing local session state", async () => {
+    const mock = createMockClient();
+    runtimeMocks.connect.mockResolvedValue(mock.client);
+    runtimeMocks.clearStoredCredentials.mockRejectedValueOnce(
+      new Error("Failed to clear stored desktop credentials"),
+    );
+
+    await act(async () => {
+      renderer = create(
+        <HookProbe activeSessionId="session-1" onValue={(value) => { latest = value; }} />,
+      );
+      await flushPromises();
+    });
+
+    await waitFor(
+      () => latest?.status === "ready",
+      "authenticated bootstrap",
+    );
+
+    const desktop = latest;
+    if (!desktop) {
+      throw new Error("Hook state did not initialize");
+    }
+
+    await act(async () => {
+      await desktop.logout();
+      await flushPromises();
+    });
+
+    expect(latest?.status).toBe("signed-out");
+    expect(latest?.globalError).toBe("Failed to clear stored desktop credentials");
+  });
+
+  it("keeps usage query failures out of the global banner state", async () => {
+    const mock = createMockClient();
+    mock.client.queryUsage
+      .mockRejectedValueOnce(new Error("Failed to load usage"))
+      .mockResolvedValueOnce({
+        usage: [],
+        groupBy: "day" as const,
+        totalReports: 0,
+      });
+    runtimeMocks.connect.mockResolvedValue(mock.client);
+
+    await act(async () => {
+      renderer = create(
+        <HookProbe activeSessionId="session-1" onValue={(value) => { latest = value; }} />,
+      );
+      await flushPromises();
+    });
+
+    await waitFor(
+      () => latest?.status === "ready",
+      "authenticated bootstrap",
+    );
+
+    const desktop = latest;
+    if (!desktop) {
+      throw new Error("Hook state did not initialize");
+    }
+
+    await act(async () => {
+      await expect(desktop.loadUsage("7days")).rejects.toThrow("Failed to load usage");
+      await flushPromises();
+    });
+    expect(latest?.globalError).toBeNull();
+
+    await act(async () => {
+      await desktop.loadUsage("7days");
+      await flushPromises();
+    });
+
+    expect(latest?.globalError).toBeNull();
+  });
+
+  it("keeps account-link failures scoped to link state instead of the global banner", async () => {
+    const mock = createMockClient();
+    runtimeMocks.connect.mockResolvedValue(mock.client);
+    runtimeMocks.beginLoopbackAccountLink.mockRejectedValueOnce(new Error("Failed to link account"));
+
+    await act(async () => {
+      renderer = create(
+        <HookProbe activeSessionId="session-1" onValue={(value) => { latest = value; }} />,
+      );
+      await flushPromises();
+    });
+
+    await waitFor(
+      () => latest?.status === "ready",
+      "authenticated bootstrap",
+    );
+
+    const desktop = latest;
+    if (!desktop) {
+      throw new Error("Hook state did not initialize");
+    }
+
+    await act(async () => {
+      await expect(desktop.startMobileLink()).rejects.toThrow("Failed to link account");
+      await flushPromises();
+    });
+
+    expect(latest?.linkState.status).toBe("error");
+    expect(latest?.linkState.error).toBe("Failed to link account");
+    expect(latest?.globalError).toBeNull();
+  });
+
+  it("keeps friend action failures out of the global banner state", async () => {
+    const mock = createMockClient();
+    mock.client.addFriend.mockRejectedValueOnce(new Error("Failed to add friend"));
+    runtimeMocks.connect.mockResolvedValue(mock.client);
+
+    await act(async () => {
+      renderer = create(
+        <HookProbe activeSessionId="session-1" onValue={(value) => { latest = value; }} />,
+      );
+      await flushPromises();
+    });
+
+    await waitFor(
+      () => latest?.status === "ready",
+      "authenticated bootstrap",
+    );
+
+    const desktop = latest;
+    if (!desktop) {
+      throw new Error("Hook state did not initialize");
+    }
+
+    await act(async () => {
+      await expect(desktop.addFriend("friend-2")).rejects.toThrow("Failed to add friend");
+      await flushPromises();
+    });
+
+    expect(latest?.globalError).toBeNull();
+  });
+
+  it("does not leak follow-up friend refresh failures into the global banner", async () => {
+    const mock = createMockClient();
+    mock.client.listFriends.mockReset();
+    mock.client.listFriends
+      .mockResolvedValueOnce([])
+      .mockRejectedValueOnce(new Error("Failed to refresh friends"));
+    runtimeMocks.connect.mockResolvedValue(mock.client);
+
+    await act(async () => {
+      renderer = create(
+        <HookProbe activeSessionId="session-1" onValue={(value) => { latest = value; }} />,
+      );
+      await flushPromises();
+    });
+
+    await waitFor(
+      () => latest?.status === "ready",
+      "authenticated bootstrap",
+    );
+
+    const desktop = latest;
+    if (!desktop) {
+      throw new Error("Hook state did not initialize");
+    }
+
+    await act(async () => {
+      await expect(desktop.addFriend("friend-2")).rejects.toThrow("Failed to refresh friends");
+      await flushPromises();
+    });
+
+    expect(latest?.globalError).toBeNull();
+  });
+
+  it("does not leak session refresh failures into the global banner during send", async () => {
+    const mock = createMockClient();
+    mock.client.listSessions.mockReset();
+    mock.client.listSessions
+      .mockResolvedValueOnce([buildSession()])
+      .mockRejectedValueOnce(new Error("Failed to refresh sessions"));
+    runtimeMocks.connect.mockResolvedValue(mock.client);
+
+    await act(async () => {
+      renderer = create(
+        <HookProbe activeSessionId="session-1" onValue={(value) => { latest = value; }} />,
+      );
+      await flushPromises();
+    });
+
+    await waitFor(
+      () => latest?.status === "ready",
+      "authenticated bootstrap",
+    );
+
+    const desktop = latest;
+    if (!desktop) {
+      throw new Error("Hook state did not initialize");
+    }
+
+    await act(async () => {
+      await desktop.loadMessages("session-1");
+      await flushPromises();
+    });
+
+    await act(async () => {
+      await expect(desktop.sendMessage("session-1", "Ship the rewrite")).rejects.toThrow("Failed to refresh sessions");
+      await flushPromises();
+    });
+
+    expect(latest?.globalError).toBeNull();
+    expect(latest?.sessionState["session-1"]?.error).toBe("Failed to refresh sessions");
   });
 });
