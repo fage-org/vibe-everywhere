@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-`vibe-remote` is a Happy-aligned remote coding stack with Rust services/clients and a Tauri-based desktop/mobile app. It replaces the legacy `packages/vibe-app` with `packages/vibe-app-tauri` as the active release owner.
+`vibe-remote` is a Happy-aligned remote coding stack with Rust services/clients and a Tauri-based desktop/mobile app. The project uses **AppV2** as the sole UI shell for the `packages/vibe-app-tauri` package.
 
 **Architecture:**
 - `crates/vibe-wire`: Shared protocol and compatibility fixtures
@@ -13,7 +13,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `crates/vibe-cli`: Local runtime wrapper for AI agents (`claude`, `codex`, `gemini`, `openclaw`, `acp`)
 - `crates/vibe-app-logs`: Optional remote app log receiver
 - `packages/vibe-app-tauri`: Active desktop/Android/browser app (Tauri v2, React, Vite)
-- `packages/vibe-app`: Deprecated legacy reference only
+  - Uses **AppV2** as the sole UI shell
+  - All routes are handled through AppV2RouteOutlet
 
 ## Common Commands
 
@@ -116,6 +117,16 @@ yarn --cwd scripts validate:vibe-wire-fixtures
 - `vibe-agent` is the control-side CLI for remote machines/sessions
 - App has three build modes: `desktop-*`, `mobile-*`, `browser-*` (controlled via Vite modes)
 - Tauri v2 is used with custom Android project preparation scripts
+
+## UI Architecture
+
+**AppV2** is the sole UI shell:
+- `src/AppV2.tsx`: Main app component
+- `src/AppV2RouteOutlet.tsx`: Route dispatcher
+- `src/useDesktopState.ts`: Desktop state management hook
+- `src/desktop-client.ts`: API client
+- `src/components/`: UI components organized by layer (ui, layout, surfaces, renderers, routes)
+- `src/routes/appv2/`: Route-level components
 
 ## CI/Release
 

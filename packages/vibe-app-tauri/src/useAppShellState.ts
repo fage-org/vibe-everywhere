@@ -1,9 +1,9 @@
-import { useWave8Desktop, type LinkUiState, type SessionUiState } from "./useWave8Desktop";
+import { useDesktopState, type LinkUiState, type SessionUiState } from "./useDesktopState";
 
 export type { LinkUiState, SessionUiState };
 
-export type AppShellState = ReturnType<typeof useWave8Desktop>;
+export type AppShellState = ReturnType<typeof useDesktopState>;
 
 export function useAppShellState(activeSessionId?: string | null): AppShellState {
-  return useWave8Desktop(activeSessionId);
+  return useDesktopState(activeSessionId);
 }

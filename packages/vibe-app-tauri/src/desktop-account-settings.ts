@@ -3,7 +3,7 @@ import type {
   DesktopLanguageSettings,
   DesktopVoiceSettings,
 } from "./desktop-preferences";
-import type { Settings } from "./wave8-client";
+import type { Settings } from "./desktop-client";
 
 export function mapAccountSettingsToDesktopPreferences(input: {
   accountSettings: Settings | null;

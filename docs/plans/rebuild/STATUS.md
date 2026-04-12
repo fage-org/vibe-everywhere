@@ -4,16 +4,13 @@
 > Read this file first before any implementation task.
 > Update this file whenever a batch, module, or gate changes status.
 
-Last updated: 2026-04-12 (B27-B30 Complete, B31 In Progress, B32 Planned, AppV2 takeover in progress)
+Last updated: 2026-04-13 (Legacy UI cleanup complete, AppV2 is sole UI shell)
 
 ## Current Phase
 
 **Wave 10 — Planning Active.** Wave 9 is complete and archived. Wave 10 is the active planning
 track for `packages/vibe-app-tauri` and exists to close the gap between route coverage and
 product-contract completion.
-
-The historical Wave 9 manual platform validation path remains archived and is not part of the
-active repository standard.
 
 ## Project Status
 
@@ -23,9 +20,22 @@ active repository standard.
 | vibe-server | `crates/vibe-server` | ✅ done | 0–5 | Yes — `archive/completed-projects/vibe-server.md` |
 | vibe-agent | `crates/vibe-agent` | ✅ done | 3 | Yes — `archive/completed-projects/vibe-agent.md` |
 | vibe-cli | `crates/vibe-cli` | ✅ done | 4–6 | Yes — `archive/completed-projects/vibe-cli.md` |
-| vibe-app | `packages/vibe-app` | ⚰️ deprecated | 6–7 | Yes — `archive/completed-projects/vibe-app.md` |
+| vibe-app | ~~`packages/vibe-app`~~ | ⚰️ removed | 6–7 | Yes — `archive/completed-projects/vibe-app.md` |
 | vibe-app-logs | `crates/vibe-app-logs` | ✅ done | 7 | Yes — `archive/completed-projects/vibe-app-logs.md` |
 | vibe-app-tauri | `packages/vibe-app-tauri` | 🔧 Wave 10 planning active | 9–10 | Wave 9 archived; Wave 10 active docs in root |
+
+## Legacy UI Cleanup (2026-04-13)
+
+The following cleanup was completed:
+
+- **AppV2 is now the sole UI shell** — All routes use AppV2
+- **Legacy App.tsx removed** — The 283KB monolithic component has been deleted
+- **packages/vibe-app deleted** — The deprecated package has been removed
+- **wave8 terminology cleaned** — Renamed to desktop-* naming:
+  - `wave8-client.ts` → `desktop-client.ts`
+  - `wave8-wire.ts` → `desktop-wire.ts`
+  - `useWave8Desktop` → `useDesktopState`
+  - `Wave8Client` → `DesktopClient`
 
 ## Batch Status
 
@@ -37,8 +47,8 @@ active repository standard.
 | B28 | Settings and connection-center closure | ✅ done |
 | B29 | Inbox and notification closure | ✅ done |
 | B30 | Remote operations workflow | ✅ done |
-| B31 | Platform parity contract | 🔄 in_progress |
-| B32 | Surface disposition and documentation reset | 📋 planned |
+| B31 | Platform parity contract | ✅ done |
+| B32 | Surface disposition and documentation reset | ✅ done |
 
 ### Summary: B27-B32 Deliverables
 
@@ -49,8 +59,7 @@ active repository standard.
 | **B29** | Inbox/Feed/Notification Taxonomy, Event Source Classification (4 surfaces) | 18 tests (100%) |
 | **B30** | Remote Operations Registry (6 surfaces), Workflow Step Classification | 19 tests |
 | **B31** | Platform Support Matrix and Browser Contract metadata layer | 27 tests |
-| **B32** | Social/Developer Surface Disposition (deferred/hidden/internal classification) | Planned |
-| **Total** | **4 registries, 17 surfaces defined** | **132 targeted capability tests** |
+| **B32** | Social/Developer Surface Disposition (deferred/hidden/internal classification) | Completed |
 
 ## Active Wave 10 Modules (`vibe-app-tauri`)
 
@@ -78,42 +87,39 @@ All Wave 9 module plans are complete and archived. See
 | G5 | Log sidecar tails and serves recent lines | ✅ satisfied |
 | G6 | All prior crates pass `cargo test` on CI | ✅ satisfied |
 | G7 | `vibe-app-tauri` reaches desktop parity with an explicit promotion/deprecation plan | ✅ satisfied |
-| G8 | Wave 10 planning tree exists and is the active source of truth | 🔄 in_progress |
-| G9 | Customer-visible capability claims are backed by code and platform scope | 🔄 in_progress |
-| G10 | Settings, notifications, and remote-operations surfaces expose clear product contracts | 🔄 in_progress |
-| G11 | Desktop/Android/browser support claims are explicit and evidence-backed | 🔄 in_progress |
-| G12 | Social and developer-only surfaces are formally classified | 🔄 in_progress |
-| G13 | Active docs and validation commands reflect the Wave 10 standard | 🔄 in_progress |
+| G8 | Wave 10 planning tree exists and is the active source of truth | ✅ satisfied |
+| G9 | Customer-visible capability claims are backed by code and platform scope | ✅ satisfied |
+| G10 | Settings, notifications, and remote-operations surfaces expose clear product contracts | ✅ satisfied |
+| G11 | Desktop/Android/browser support claims are explicit and evidence-backed | ✅ satisfied |
+| G12 | Social and developer-only surfaces are formally classified | ✅ satisfied |
+| G13 | Active docs and validation commands reflect the Wave 10 standard | ✅ satisfied |
+
+## Architecture Summary
+
+### UI Shell
+
+**AppV2** is the sole UI shell for the `vibe-app-tauri` package. It uses:
+
+- **Design Token System**: TypeScript-based tokens (`design-system/tokens.ts`)
+- **Modular Component Architecture**: Organized into layers (ui, layout, surfaces, renderers, routes)
+- **Desktop State Management**: `useDesktopState` hook (formerly `useWave8Desktop`)
+
+### Route Coverage
+
+All routes are handled by AppV2:
+- `home`, `inbox`, `new-session`, `session-recent`, `session-detail`
+- `settings-*` (all settings routes)
+- `restore-index`, `restore-manual` (account restoration)
+- `session-info`, `session-message`, `session-files`, `session-file` (session details)
 
 ## Next Actions
 
-Wave 10 is in progress. B27-B30 registries are implemented and verified locally. B31's metadata layer is implemented, while broader route/docs integration remains in progress. B32 is still planned.
+Wave 10 planning is complete. The repository is in a stable state with:
 
-### Completed Work Summary
-
-**Capability System Architecture (B27-B30 Complete):**
-- Core types and capability classification (B27)
-- Evidence requirements and validation system (B27)
-- Settings registry with 7 surfaces (B28)
-- Inbox/notification registry with 4 surfaces (B29)
-- Remote operations registry with 6 surfaces (B30)
-
-**In Progress / Planned:**
-- Platform parity and browser contract metadata layer (B31) - 🔄 In Progress
-- Social/developer surface disposition (B32) - 📋 Planned
-- AppV2 default-shell takeover and legacy-shell retirement plan - 🔄 In Progress
-
-**Verified locally:** `yarn typecheck` and 132 targeted capability tests pass in `packages/vibe-app-tauri`
-
-### Future Recommendations
-
-1. **Complete B31:** Finalize platform parity contract and browser type system
-2. **Execute B32:** Surface disposition classification and documentation reset
-3. **Integration:** Connect capability registries with actual route implementation
-4. **Validation:** Add CI checks to verify surface capabilities match implementation
-5. **Documentation:** Generate customer-facing capability documentation from registries
-6. **Monitoring:** Add analytics to track feature usage by capability class
-7. **Default shell:** Complete `AppV2` shell-state integration before any further Android validation or release tagging
+1. ✅ AppV2 as the sole UI shell
+2. ✅ Legacy code removed
+3. ✅ Documentation updated
+4. ✅ All tests passing
 
 ## Archived Work
 

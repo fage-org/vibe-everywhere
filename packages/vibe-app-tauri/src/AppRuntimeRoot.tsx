@@ -1,52 +1,24 @@
-import { App } from "./App";
 import { AppV2 } from "./AppV2";
 import { useDesktopRouter } from "./router";
-import type { ResolvedRoute } from "./router";
-
-const APP_V2_ROUTE_KEYS = new Set([
-  "home",
-  "inbox",
-  "new-session",
-  "session-recent",
-  "session-detail",
-  "settings-index",
-  "settings-account",
-  "settings-appearance",
-  "settings-features",
-  "settings-language",
-  "settings-usage",
-  "settings-voice",
-  "settings-voice-language",
-  "settings-connect-claude",
-]);
-
-const LEGACY_APP_ROUTE_KEYS = new Set([
-  "restore-index",
-  "restore-manual",
-  "session-info",
-  "session-message",
-  "session-files",
-  "session-file",
-]);
-
-export function shouldUseAppV2Root(resolved: ResolvedRoute): boolean {
-  if (LEGACY_APP_ROUTE_KEYS.has(resolved.definition.key)) {
-    return false;
-  }
-
-  if (APP_V2_ROUTE_KEYS.has(resolved.definition.key)) {
-    return true;
-  }
-
-  return true;
-}
 
 export function AppRuntimeRoot() {
   const router = useDesktopRouter();
 
-  if (!shouldUseAppV2Root(router.resolved)) {
-    return <App />;
-  }
-
+  // AppV2 is now the default shell for all routes
   return <AppV2 />;
 }
+
+/**
+ * Legacy routing logic removed - AppV2 is now the sole UI shell.
+ *
+ * Historical note: Prior to this change, LEGACY_APP_ROUTE_KEYS routed to
+ * the old App.tsx component. All routes now use AppV2.
+ *
+ * Archived route keys:
+ * - restore-index (now handled by RestoreRoute in AppV2)
+ * - restore-manual (now handled by ManualRestoreRoute in AppV2)
+ * - session-info (now handled by SessionInfoRoute in AppV2)
+ * - session-message (now handled by SessionMessageRoute in AppV2)
+ * - session-files (now handled by SessionFilesRoute in AppV2)
+ * - session-file (now handled by SessionFileRoute in AppV2)
+ */

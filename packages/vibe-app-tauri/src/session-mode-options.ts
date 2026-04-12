@@ -1,4 +1,4 @@
-import type { SessionMetadata } from "./wave8-client";
+import type { SessionMetadata } from "./desktop-client";
 
 export type SessionModeOption = {
   key: string;

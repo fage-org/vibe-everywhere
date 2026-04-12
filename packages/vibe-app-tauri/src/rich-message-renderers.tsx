@@ -1,6 +1,6 @@
 import { Suspense, lazy } from "react";
 import { parsePatch } from "diff";
-import type { UiMessage } from "./wave8-client";
+import type { UiMessage } from "./desktop-client";
 
 const LazySyntaxCodeBlock = lazy(() =>
   import("./syntax-code-block").then((module) => ({

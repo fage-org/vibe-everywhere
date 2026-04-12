@@ -1,7 +1,7 @@
 import { SessionSurface } from "../../components/routes";
 import type { ComposerSuggestion, Message } from "../../components/surfaces";
-import type { DesktopSession } from "../../wave8-client";
-import { describeSession } from "../../wave8-client";
+import type { DesktopSession } from "../../desktop-client";
+import { describeSession } from "../../desktop-client";
 
 type SessionRouteProps = {
   currentSession: DesktopSession | null;

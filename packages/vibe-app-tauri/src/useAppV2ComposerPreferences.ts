@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { getSessionModelOptions, resolveSessionModeSelection } from "./session-mode-options";
 import { loadSessionPreferences, saveSessionPreferences } from "./session-preferences";
-import type { DesktopSession, SendMessageOptions } from "./wave8-client";
+import type { DesktopSession, SendMessageOptions } from "./desktop-client";
 
 type SessionModelOption = {
   id: string;

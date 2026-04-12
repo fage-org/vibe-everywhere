@@ -1,8 +1,12 @@
 /**
  * AppV2.tsx - Production-ready Happy-aligned App component
  *
- * This component integrates the new Happy-aligned UI components
- * with the existing wave8-desktop state management and API clients.
+ * This component is the sole UI shell for the Vibe application.
+ * All routes are handled through AppV2RouteOutlet.
+ *
+ * Historical note: This replaces the legacy App.tsx which was a 283KB
+ * monolithic component. The new architecture uses modular components
+ * from the design-system.
  */
 
 import { useState, useCallback, useEffect, useMemo } from "react";
@@ -14,7 +18,7 @@ import { useAppV2Shell } from "./useAppV2Shell";
 
 import { ThemeProvider } from "./components/providers/ThemeProvider";
 import { Shell, Sidebar, Header, MobileShell, MobileNavBar } from "./components/layout";
-import { SessionList, type ComposerSuggestion } from "./components/surfaces";
+import { SessionList, type ComposerSuggestion, type Message } from "./components/surfaces";
 
 import { useLanguage } from "./hooks/useLanguage";
 import {
@@ -32,6 +36,7 @@ import { useCreateSessionAction } from "./useCreateSessionAction";
 import { useAppV2HomeViewModel } from "./useAppV2HomeViewModel";
 import { AppV2RouteOutlet } from "./AppV2RouteOutlet";
 import { useAppV2ComposerPreferences } from "./useAppV2ComposerPreferences";
+import type { SessionWorkspaceFile, SessionWorkspaceFileContent } from "./session-files";
 
 interface AppV2Props {
   runtimeTarget?: RuntimeTarget;
@@ -83,6 +88,33 @@ function AppContentV2({ isMobile }: AppContentV2Props) {
     appShell.activeSessionId,
     appShell.currentSession,
   );
+
+  // Restore state
+  const [restoreQrSvg, setRestoreQrSvg] = useState<string | null>(null);
+  const [restoreError, setRestoreError] = useState<string | null>(null);
+  const [restoreLoading, setRestoreLoading] = useState(false);
+
+  // Session files state
+  const [sessionFiles, setSessionFiles] = useState<SessionWorkspaceFile[]>([]);
+  const [sessionFilesBranch, setSessionFilesBranch] = useState<string | null>(null);
+  const [sessionFilesStaged, setSessionFilesStaged] = useState(0);
+  const [sessionFilesUnstaged, setSessionFilesUnstaged] = useState(0);
+  const [sessionFilesLoading, setSessionFilesLoading] = useState(false);
+  const [sessionFilesError, setSessionFilesError] = useState<string | null>(null);
+
+  // Session file content state
+  const [sessionFileContent, setSessionFileContent] = useState<SessionWorkspaceFileContent | null>(null);
+  const [sessionFileLoading, setSessionFileLoading] = useState(false);
+  const [sessionFileError, setSessionFileError] = useState<string | null>(null);
+
+  // Current message for session-message view
+  const currentMessage = useMemo((): Message | null => {
+    if (appShell.view !== "session-message" || !appShell.messages.length) {
+      return null;
+    }
+    // For now, return the first message - this should be enhanced to find by ID
+    return appShell.messages[0] || null;
+  }, [appShell.view, appShell.messages]);
 
   useEffect(() => {
     const theme = resolveDesktopThemePreference(appearance.themePreference);
@@ -159,11 +191,82 @@ function AppContentV2({ isMobile }: AppContentV2Props) {
   ]);
 
   const handleSessionSelect = useCallback(
-    (session: import("./components/surfaces").Session) => {
+    (session: { id: string }) => {
       appShell.openSession(session.id);
     },
     [appShell],
   );
+
+  // Restore callbacks
+  const handleRefreshQr = useCallback(async () => {
+    setRestoreLoading(true);
+    setRestoreError(null);
+    try {
+      // Trigger QR code generation via shell
+      await shell.startMobileLink?.();
+    } catch (err) {
+      setRestoreError(err instanceof Error ? err.message : "Failed to generate QR code");
+    } finally {
+      setRestoreLoading(false);
+    }
+  }, [shell]);
+
+  const handleManualRestore = useCallback(() => {
+    router.navigate("/(app)/restore/manual");
+  }, [router]);
+
+  const handleSubmitManualRestore = useCallback(async (secret: string) => {
+    setRestoreLoading(true);
+    setRestoreError(null);
+    try {
+      await shell.restoreWithSecret?.(secret);
+      router.navigate("/(app)/index");
+    } catch (err) {
+      setRestoreError(err instanceof Error ? err.message : "Failed to restore account");
+    } finally {
+      setRestoreLoading(false);
+    }
+  }, [shell, router]);
+
+  // Session navigation callbacks
+  const handleNavigateToSession = useCallback((sessionId: string) => {
+    router.navigate(`/(app)/session/${sessionId}`);
+  }, [router]);
+
+  const handleNavigateToSessionFiles = useCallback((sessionId: string) => {
+    router.navigate(`/(app)/session/${sessionId}/files`);
+  }, [router]);
+
+  const handleNavigateToSessionFile = useCallback((sessionId: string, path: string) => {
+    router.navigate(`/(app)/session/${sessionId}/file?path=${encodeURIComponent(path)}`);
+  }, [router]);
+
+  const handleSelectFile = useCallback((path: string) => {
+    if (appShell.activeSessionId) {
+      handleNavigateToSessionFile(appShell.activeSessionId, path);
+    }
+  }, [appShell.activeSessionId, handleNavigateToSessionFile]);
+
+  // Load session files when view changes
+  useEffect(() => {
+    if (appShell.view === "session-files" && appShell.activeSessionId && shell.credentials) {
+      setSessionFilesLoading(true);
+      setSessionFilesError(null);
+      shell.loadSessionFiles?.(appShell.activeSessionId)
+        .then((inventory) => {
+          setSessionFiles(inventory.files);
+          setSessionFilesBranch(inventory.branch);
+          setSessionFilesStaged(inventory.totalStaged);
+          setSessionFilesUnstaged(inventory.totalUnstaged);
+        })
+        .catch((err) => {
+          setSessionFilesError(err instanceof Error ? err.message : "Failed to load files");
+        })
+        .finally(() => {
+          setSessionFilesLoading(false);
+        });
+    }
+  }, [appShell.view, appShell.activeSessionId, shell]);
 
   const navigation = useAppV2Navigation({
     view: appShell.view,
@@ -179,6 +282,7 @@ function AppContentV2({ isMobile }: AppContentV2Props) {
       sessions={appShell.sessions}
       currentSession={appShell.currentSession}
       messages={appShell.messages}
+      currentMessage={currentMessage}
       settingsSections={settingsSections}
       notifications={appShell.notifications}
       inboxFilter={normalizedInboxFilter}
@@ -212,6 +316,27 @@ function AppContentV2({ isMobile }: AppContentV2Props) {
         routeTitle: router.resolved.definition.title,
       })}
       unsupportedTitle={t("routes:unsupported.title")}
+      // Restore props
+      restoreState={{
+        qrSvg: restoreQrSvg,
+        error: restoreError,
+        isLoading: restoreLoading,
+      }}
+      // Session files props
+      sessionFilesState={{
+        files: sessionFiles,
+        branch: sessionFilesBranch,
+        totalStaged: sessionFilesStaged,
+        totalUnstaged: sessionFilesUnstaged,
+        loading: sessionFilesLoading,
+        error: sessionFilesError,
+      }}
+      // Session file props
+      sessionFileState={{
+        file: sessionFileContent,
+        loading: sessionFileLoading,
+        error: sessionFileError,
+      }}
       onSessionSelect={handleSessionSelect}
       onStartNewSession={appShell.startNewSession}
       onViewAllSessions={() => router.navigate("/(app)/session/recent")}
@@ -241,6 +366,16 @@ function AppContentV2({ isMobile }: AppContentV2Props) {
       onModelChange={composerPreferences.setSelectedModel}
       onSendMessage={handleSendMessage}
       onInboxFilterChange={setInboxFilter}
+      // Restore callbacks
+      onRefreshQr={handleRefreshQr}
+      onManualRestore={handleManualRestore}
+      onSubmitManualRestore={handleSubmitManualRestore}
+      // Session navigation callbacks
+      onNavigateToSession={handleNavigateToSession}
+      onNavigateToSessionFiles={handleNavigateToSessionFiles}
+      onNavigateToSessionFile={handleNavigateToSessionFile}
+      // Session files callback
+      onSelectFile={handleSelectFile}
       t={t}
     />
   );

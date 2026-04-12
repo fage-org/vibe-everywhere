@@ -1,7 +1,8 @@
 import type { Notification, QuickAction, SettingSection, StatItem } from "./components/routes";
-import type { ComposerSuggestion, Message, Session } from "./components/surfaces";
-import type { DesktopSession } from "./wave8-client";
+import type { ComposerSuggestion, Message } from "./components/surfaces";
+import type { DesktopSession } from "./desktop-client";
 import type { AppV2View } from "./useAppV2RouteModel";
+import type { SessionWorkspaceFile, SessionWorkspaceFileContent } from "./session-files";
 import {
   HomeRoute,
   InboxRoute,
@@ -10,6 +11,12 @@ import {
   SessionRoute,
   SettingsRoute,
   UnsupportedRoute,
+  RestoreRoute,
+  ManualRestoreRoute,
+  SessionInfoRoute,
+  SessionMessageRoute,
+  SessionFilesRoute,
+  SessionFileRoute,
 } from "./routes/appv2";
 
 type NewSessionErrors = {
@@ -17,11 +24,40 @@ type NewSessionErrors = {
   prompt?: string;
 };
 
+type RestoreState = {
+  qrSvg: string | null;
+  error: string | null;
+  isLoading: boolean;
+};
+
+type SessionFilesState = {
+  files: SessionWorkspaceFile[];
+  branch: string | null;
+  totalStaged: number;
+  totalUnstaged: number;
+  loading: boolean;
+  error: string | null;
+};
+
+type SessionFileState = {
+  file: SessionWorkspaceFileContent | null;
+  loading: boolean;
+  error: string | null;
+};
+
+type SessionItem = {
+  id: string;
+  title: string;
+  subtitle?: string;
+  lastActivityAt: Date;
+};
+
 type AppV2RouteOutletProps = {
   view: AppV2View;
-  sessions: Session[];
+  sessions: SessionItem[];
   currentSession: DesktopSession | null;
   messages: Message[];
+  currentMessage: Message | null;
   settingsSections: SettingSection[];
   notifications: Notification[];
   inboxFilter: "all" | "unread";
@@ -45,7 +81,13 @@ type AppV2RouteOutletProps = {
   emptySessionTitle: string;
   unsupportedDescription: string;
   unsupportedTitle: string;
-  onSessionSelect: (session: Session) => void;
+  // Restore props
+  restoreState: RestoreState;
+  // Session files props
+  sessionFilesState: SessionFilesState;
+  sessionFileState: SessionFileState;
+  // Navigation callbacks
+  onSessionSelect: (session: { id: string }) => void;
   onStartNewSession: () => void;
   onViewAllSessions: () => void;
   onNewSessionWorkspaceChange: (value: string) => void;
@@ -58,6 +100,16 @@ type AppV2RouteOutletProps = {
   onModelChange: (value: string) => void;
   onSendMessage: () => Promise<void> | void;
   onInboxFilterChange: (filter: "all" | "unread") => void;
+  // Restore callbacks
+  onRefreshQr: () => void;
+  onManualRestore: () => void;
+  onSubmitManualRestore: (secret: string) => Promise<void>;
+  // Session navigation callbacks
+  onNavigateToSession: (sessionId: string) => void;
+  onNavigateToSessionFiles: (sessionId: string) => void;
+  onNavigateToSessionFile: (sessionId: string, path: string) => void;
+  // Session files callbacks
+  onSelectFile: (path: string) => void;
   t: (key: string) => string;
 };
 
@@ -66,6 +118,7 @@ export function AppV2RouteOutlet({
   sessions,
   currentSession,
   messages,
+  currentMessage,
   settingsSections,
   notifications,
   inboxFilter,
@@ -89,6 +142,9 @@ export function AppV2RouteOutlet({
   emptySessionTitle,
   unsupportedDescription,
   unsupportedTitle,
+  restoreState,
+  sessionFilesState,
+  sessionFileState,
   onSessionSelect,
   onStartNewSession,
   onViewAllSessions,
@@ -102,6 +158,13 @@ export function AppV2RouteOutlet({
   onModelChange,
   onSendMessage,
   onInboxFilterChange,
+  onRefreshQr,
+  onManualRestore,
+  onSubmitManualRestore,
+  onNavigateToSession,
+  onNavigateToSessionFiles,
+  onNavigateToSessionFile,
+  onSelectFile,
   t,
 }: AppV2RouteOutletProps) {
   switch (view) {
@@ -173,6 +236,72 @@ export function AppV2RouteOutlet({
           supportsUnreadFilter={typeof unreadCount === "number"}
           filter={inboxFilter}
           onFilterChange={onInboxFilterChange}
+        />
+      );
+    case "restore":
+      return (
+        <RestoreRoute
+          qrSvg={restoreState.qrSvg}
+          error={restoreState.error}
+          isLoading={restoreState.isLoading}
+          onRefreshQr={onRefreshQr}
+          onManualRestore={onManualRestore}
+        />
+      );
+    case "restore-manual":
+      return (
+        <ManualRestoreRoute
+          onSubmit={onSubmitManualRestore}
+          isSubmitting={restoreState.isLoading}
+          error={restoreState.error}
+        />
+      );
+    case "session-info":
+      return (
+        <SessionInfoRoute
+          session={currentSession}
+          loading={sessionLoading}
+          error={sessionError}
+          onNavigateToSession={() => onNavigateToSession(currentSession?.id ?? "")}
+          onNavigateToFiles={() => onNavigateToSessionFiles(currentSession?.id ?? "")}
+        />
+      );
+    case "session-message":
+      return (
+        <SessionMessageRoute
+          sessionId={currentSession?.id ?? ""}
+          messageId={""}
+          message={currentMessage}
+          loading={sessionLoading}
+          error={sessionError}
+          onNavigateToSession={() => onNavigateToSession(currentSession?.id ?? "")}
+          onNavigateToFiles={() => onNavigateToSessionFiles(currentSession?.id ?? "")}
+        />
+      );
+    case "session-files":
+      return (
+        <SessionFilesRoute
+          session={currentSession}
+          files={sessionFilesState.files}
+          branch={sessionFilesState.branch}
+          totalStaged={sessionFilesState.totalStaged}
+          totalUnstaged={sessionFilesState.totalUnstaged}
+          loading={sessionFilesState.loading}
+          error={sessionFilesState.error}
+          onSelectFile={onSelectFile}
+          onNavigateToSession={() => onNavigateToSession(currentSession?.id ?? "")}
+        />
+      );
+    case "session-file":
+      return (
+        <SessionFileRoute
+          sessionId={currentSession?.id ?? ""}
+          filePath={null}
+          file={sessionFileState.file}
+          loading={sessionFileState.loading}
+          error={sessionFileState.error}
+          onNavigateToFiles={() => onNavigateToSessionFiles(currentSession?.id ?? "")}
+          onNavigateToSession={() => onNavigateToSession(currentSession?.id ?? "")}
         />
       );
     case "unsupported":

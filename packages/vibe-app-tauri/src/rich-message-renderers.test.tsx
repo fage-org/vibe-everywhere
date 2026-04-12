@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { RichTimelineMessageBody } from "./rich-message-renderers";
-import type { UiMessage } from "./wave8-client";
+import type { UiMessage } from "./desktop-client";
 
 function renderMessage(
   message: UiMessage,
