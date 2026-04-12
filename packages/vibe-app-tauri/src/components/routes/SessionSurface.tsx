@@ -165,9 +165,10 @@ export function SessionSurface({
         suggestions={suggestions}
         onSuggestionSelect={onSuggestionSelect}
         toolbar={
-          <div style={{ display: "flex", gap: tokens.spacing[2] }}>
-            <Button variant="ghost" size="sm">📎</Button>
-            <Button variant="ghost" size="sm">🖼️</Button>
+          <div style={{ display: "flex", gap: tokens.spacing[2], alignItems: "center" }}>
+            <Body color="quaternary" style={{ fontSize: tokens.typography.fontSize.xs }}>
+              {t("routes:session.composer.capabilityNotice")}
+            </Body>
           </div>
         }
         footer={

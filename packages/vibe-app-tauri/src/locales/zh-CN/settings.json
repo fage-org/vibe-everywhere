@@ -3,7 +3,8 @@
     "title": "主题",
     "light": "浅色",
     "dark": "深色",
-    "system": "跟随系统"
+    "system": "跟随系统",
+    "description": "选择你偏好的颜色方案"
   },
   "notifications": {
     "title": "通知",

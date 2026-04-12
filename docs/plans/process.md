@@ -38,6 +38,9 @@ Before implementation begins on a planning track, the following must exist:
 - if a change affects shared contracts, update `shared/*.md` first
 - if a change affects a project boundary or ownership split, update the relevant `projects/*.md`
   before implementation
+- if a change alters the responsibilities of a default UI shell, route host, or adapter seam,
+  update the owning shared/project/module plan before implementation so the structure remains an
+  explicit repository rule rather than an implementation accident
 - if implementation reveals a missing task boundary, create the missing `modules/*.md` file before
   coding
 - if the active track or its entry pointers change, update `PLAN.md` and `docs/plans/README.md`
@@ -55,6 +58,9 @@ Before implementation begins on a planning track, the following must exist:
 - always include any referenced shared spec paths
 - if the assigned module plan lacks a locked decision needed for safe implementation, stop and fill
   the planning gap first
+- for `vibe-app-tauri` default-shell work, the dispatch context must name the shell owner, route
+  container owner, adapter owner, and form/draft state owner explicitly; do not leave those seams
+  to implementation-time interpretation
 
 ## Completion Rules
 
@@ -88,6 +94,8 @@ A module implementation is not complete until:
 - implementing directly from vague summary files
 - combining unrelated implementation tasks under one module plan
 - letting code define wire contracts before shared specs exist
+- letting a top-level UI shell accumulate route mapping, app-adapter logic, persistence logic, and
+  route rendering in one file without an explicit plan update
 - keeping planning instructions only in chat instead of checking them into the repository
 - leaving `[done]` module plans in the active `modules/` tree past the wave's completion
 - leaving historical wave files in the rebuild root directory mixed with active documents

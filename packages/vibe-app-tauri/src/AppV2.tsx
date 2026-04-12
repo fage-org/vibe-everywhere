@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * AppV2.tsx - Production-ready Happy-aligned App component
  *
@@ -7,62 +6,45 @@
  */
 
 import { useState, useCallback, useEffect, useMemo } from "react";
-import { useTranslation } from "react-i18next";
 import type { RuntimeTarget } from "../sources/shared/bootstrap-config";
 import { useRuntimeBootstrapProfile } from "../sources/app/providers/RuntimeBootstrapProvider";
 import { useAppShellState } from "./useAppShellState";
-import { useDesktopRouter, type ResolvedRoute } from "./router";
-import {
-  type DesktopSession,
-  type DesktopArtifact,
-  type UserProfile,
-  type UiMessage,
-  describeSession,
-  calculateUsageTotals,
-} from "./wave8-client";
+import { useDesktopRouter } from "./router";
+import { useAppV2Shell } from "./useAppV2Shell";
 
-// New Happy-aligned components
 import { ThemeProvider } from "./components/providers/ThemeProvider";
 import { Shell, Sidebar, Header, MobileShell, MobileNavBar } from "./components/layout";
-import { Button } from "./components/ui";
-import { SessionList, Timeline, Composer, type Message, type ComposerSuggestion } from "./components/surfaces";
-import { HomeSurface, SessionSurface, SettingsSurface, InboxSurface } from "./components/routes";
-import type { Notification, SettingSection, QuickAction, StatItem } from "./components/routes";
+import { SessionList, type ComposerSuggestion } from "./components/surfaces";
 
 import { useLanguage } from "./hooks/useLanguage";
-import { SUPPORTED_LANGUAGES } from "./i18n/types";
-
-// Import existing hooks and utilities
 import {
   loadAppearanceSettings,
   saveAppearanceSettings,
   resolveDesktopThemePreference,
   type DesktopAppearanceSettings,
 } from "./desktop-preferences";
-
-// =============================================================================
-// Types
-// =============================================================================
+import { clearNewSessionDraft } from "./new-session-draft";
+import { useAppV2SettingsSections } from "./useAppV2SettingsSections";
+import { useAppV2Navigation } from "./useAppV2Navigation";
+import { useSessionComposerDraft } from "./useSessionComposerDraft";
+import { useNewSessionDraftForm } from "./useNewSessionDraftForm";
+import { useCreateSessionAction } from "./useCreateSessionAction";
+import { useAppV2HomeViewModel } from "./useAppV2HomeViewModel";
+import { AppV2RouteOutlet } from "./AppV2RouteOutlet";
+import { useAppV2ComposerPreferences } from "./useAppV2ComposerPreferences";
 
 interface AppV2Props {
   runtimeTarget?: RuntimeTarget;
 }
 
-// =============================================================================
-// Main App Component
-// =============================================================================
-
 export function AppV2({ runtimeTarget }: AppV2Props) {
-  // Get runtime profile
   const profile = useRuntimeBootstrapProfile();
-  const target = runtimeTarget || profile.runtimeTarget;
-
-  // Determine if mobile
+  const target = runtimeTarget || profile?.runtimeTarget || "browser";
   const isMobile = target === "mobile" || window.innerWidth < 768;
 
   return (
     <ThemeProvider defaultScheme="system">
-      <AppContentV2 target={target} isMobile={isMobile} />
+      <AppContentV2 isMobile={isMobile} />
     </ThemeProvider>
   );
 }
@@ -72,386 +54,207 @@ export function AppV2({ runtimeTarget }: AppV2Props) {
 // =============================================================================
 
 interface AppContentV2Props {
-  target: RuntimeTarget;
   isMobile: boolean;
 }
 
-function AppContentV2({ target, isMobile }: AppContentV2Props) {
-  // i18n
+function AppContentV2({ isMobile }: AppContentV2Props) {
   const { t, language, setLanguage } = useLanguage();
-
-  // Use existing state management
-  const shell = useAppShellState();
   const router = useDesktopRouter();
+  const shell = useAppShellState(router.resolved.params.id ?? null);
+  const appShell = useAppV2Shell(shell, router.resolved, router.navigate);
 
-  // Local UI state
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [composerValue, setComposerValue] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [inboxFilter, setInboxFilter] = useState<"all" | "unread">("all");
-
-  // Load appearance settings
   const [appearance, setAppearance] = useState<DesktopAppearanceSettings>(() =>
     loadAppearanceSettings(),
   );
+  const {
+    composerValue,
+    setComposerValue,
+    clearComposerValue,
+  } = useSessionComposerDraft(appShell.activeSessionId);
+  const newSessionForm = useNewSessionDraftForm();
+  const createSessionAction = useCreateSessionAction(shell, router.navigate, () => {
+    clearNewSessionDraft();
+    newSessionForm.reset();
+  });
+  const composerPreferences = useAppV2ComposerPreferences(
+    appShell.activeSessionId,
+    appShell.currentSession,
+  );
 
-  // Handle theme changes
   useEffect(() => {
-    const theme = resolveDesktopThemePreference(appearance);
+    const theme = resolveDesktopThemePreference(appearance.themePreference);
     document.documentElement.setAttribute("data-theme", theme);
-  }, [appearance]);
+  }, [appearance.themePreference]);
 
-  // Convert DesktopSession to Session format
-  const sessions = useMemo(() => {
-    return (shell.sessions || []).map((session): import("./components/surfaces").Session => ({
-      id: session.id,
-      title: describeSession(session).title,
-      subtitle: session.metadata?.workspace || undefined,
-      lastMessage: session.messages[session.messages.length - 1]?.body || undefined,
-      lastActivityAt: new Date(session.updatedAt || session.createdAt),
-      status: session.status === "running" ? "active" : session.status === "error" ? "error" : "idle",
-      unread: session.unreadCount > 0,
-      unreadCount: session.unreadCount,
-    }));
-  }, [shell.sessions]);
+  const settingsSections = useAppV2SettingsSections({
+    appearance,
+    sidebarCollapsed,
+    language,
+    setLanguage,
+    setAppearance,
+    persistAppearance: saveAppearanceSettings,
+    setSidebarCollapsed,
+    t,
+  });
 
-  // Get current session messages
-  const currentSession = useMemo(() => {
-    return (shell.sessions || []).find((s) => s.id === shell.currentSessionId);
-  }, [shell.sessions, shell.currentSessionId]);
-  const messages = useMemo((): Message[] => {
-    if (!currentSession) return [];
-    return currentSession.messages.map((msg): Message => ({
-      id: msg.id,
-      role: msg.role === "user" ? "user" : msg.role === "assistant" ? "assistant" : "system",
-      content: msg.body,
-      timestamp: new Date(msg.createdAt),
-      isStreaming: msg.isStreaming,
-    }));
-  }, [currentSession]);
-
-  // Convert notifications
-  const notifications = useMemo((): Notification[] => {
-    return (shell.notifications || []).map((notif): Notification => ({
-      id: notif.id,
-      title: notif.title,
-      message: notif.body,
-      type: notif.type === "error" ? "error" : notif.type === "success" ? "success" : "info",
-      read: notif.read,
-      createdAt: new Date(notif.createdAt),
-      action: notif.actionUrl
-        ? {
-            label: "View",
-            onClick: () => router.navigate(notif.actionUrl!),
-          }
-        : undefined,
-    }));
-  }, [shell.notifications, router]);
-
-  // Settings sections
-  const settingsSections = useMemo((): SettingSection[] => {
-    return [
-      {
-        id: "language",
-        title: t('routes:settings.language.title'),
-        description: t('routes:settings.language.description'),
-        settings: [
-          {
-            id: "language-select",
-            label: t('routes:settings.language.title'),
-            type: "select",
-            value: language,
-            options: SUPPORTED_LANGUAGES.map(lang => ({
-              label: `${lang.flag} ${lang.nativeName}`,
-              value: lang.code,
-            })),
-            onChange: (value) => setLanguage(value as typeof language),
-          },
-        ],
-      },
-      {
-        id: "appearance",
-        title: t('routes:settings.sections.appearance'),
-        description: "Customize the look and feel of the app",
-        settings: [
-          {
-            id: "theme",
-            label: t('settings:theme.title'),
-            description: "Choose your preferred color scheme",
-            type: "select",
-            value: appearance.theme,
-            options: [
-              { label: t('settings:theme.system'), value: "system" },
-              { label: t('settings:theme.light'), value: "light" },
-              { label: t('settings:theme.dark'), value: "dark" },
-            ],
-            onChange: (value) => {
-              const newAppearance = { ...appearance, theme: value as DesktopAppearanceSettings["theme"] };
-              setAppearance(newAppearance);
-              saveAppearanceSettings(newAppearance);
-            },
-          },
-          {
-            id: "sidebar",
-            label: "Collapsed Sidebar",
-            description: "Show only icons in the sidebar",
-            type: "toggle",
-            value: sidebarCollapsed,
-            onChange: (value) => setSidebarCollapsed(value as boolean),
-          },
-        ],
-      },
-      {
-        id: "notifications",
-        title: t('routes:settings.sections.notifications'),
-        settings: [
-          {
-            id: "desktop",
-            label: t('settings:notifications.desktop'),
-            description: "Show notifications when the app is in the background",
-            type: "toggle",
-            value: appearance.notificationsEnabled ?? true,
-            onChange: (value) => {
-              const newAppearance = { ...appearance, notificationsEnabled: value as boolean };
-              setAppearance(newAppearance);
-              saveAppearanceSettings(newAppearance);
-            },
-          },
-        ],
-      },
-    ];
-  }, [appearance, sidebarCollapsed, language, setLanguage, t]);
-
-  // Quick actions for home
-  const quickActions = useMemo((): QuickAction[] => {
-    return [
-      {
-        id: "new-session",
-        label: t('routes:home.actions.newSession'),
-        description: "Start a new coding session",
-        icon: "💬",
-        onClick: () => shell.createSession(),
-      },
-      {
-        id: "resume",
-        label: t('routes:home.actions.resume'),
-        description: "Continue where you left off",
-        icon: "▶️",
-        onClick: () => {
-          const lastSession = (shell.sessions || [])[0];
-          if (lastSession) {
-            shell.selectSession(lastSession.id);
-          }
-        },
-      },
-      {
-        id: "settings",
-        label: t('routes:home.actions.settings'),
-        description: "Customize your experience",
-        icon: "⚙️",
-        onClick: () => router.navigate("/(app)/settings"),
-      },
-    ];
-  }, [shell, router, t]);
-
-  // Stats for home
-  const stats = useMemo((): StatItem[] => {
-    const usage = calculateUsageTotals(shell.usage || []);
-    return [
-      { label: t('routes:home.sections.recentSessions'), value: (shell.sessions || []).length },
-      { label: t('components:composer.send'), value: usage.messages },
-      { label: "Active", value: (shell.sessions || []).filter((s) => s.status === "running").length },
-    ];
-  }, [shell.sessions, shell.usage]);
-
-  // Composer suggestions
   const suggestions = useMemo((): ComposerSuggestion[] => {
     return [
-      { id: "continue", label: "Continue", insertText: "Continue" },
-      { id: "explain", label: "Explain", insertText: "Can you explain this code?" },
-      { id: "refactor", label: "Refactor", insertText: "Refactor this to be more efficient" },
-      { id: "test", label: "Add Tests", insertText: "Write tests for this code" },
+      {
+        id: "continue",
+        label: t("routes:session.suggestions.continue.label"),
+        insertText: t("routes:session.suggestions.continue.insertText"),
+      },
+      {
+        id: "explain",
+        label: t("routes:session.suggestions.explain.label"),
+        insertText: t("routes:session.suggestions.explain.insertText"),
+      },
+      {
+        id: "refactor",
+        label: t("routes:session.suggestions.refactor.label"),
+        insertText: t("routes:session.suggestions.refactor.insertText"),
+      },
+      {
+        id: "test",
+        label: t("routes:session.suggestions.test.label"),
+        insertText: t("routes:session.suggestions.test.insertText"),
+      },
     ];
-  }, []);
+  }, [t]);
+  const homeViewModel = useAppV2HomeViewModel({
+    t,
+    sessionCount: shell.sessions.length,
+    messageCount: appShell.messages.length,
+    activeSessionCount: shell.sessions.filter((session) => session.active).length,
+    onStartNewSession: appShell.startNewSession,
+    onResumeLatestSession: appShell.resumeLatestSession,
+    onOpenSettings: () => router.navigate("/(app)/settings/index"),
+  });
 
-  // Handlers
   const handleSendMessage = useCallback(async () => {
-    if (!composerValue.trim() || !shell.currentSessionId) return;
+    if (!composerValue.trim() || !appShell.activeSessionId) {
+      return;
+    }
 
     setIsSending(true);
     try {
-      await shell.sendMessage(composerValue);
-      setComposerValue("");
+      await shell.sendMessage(
+        appShell.activeSessionId,
+        composerValue,
+        composerPreferences.sendMessageOptions,
+      );
+      clearComposerValue();
     } finally {
       setIsSending(false);
     }
-  }, [composerValue, shell]);
+  }, [
+    appShell.activeSessionId,
+    clearComposerValue,
+    composerPreferences.sendMessageOptions,
+    composerValue,
+    shell,
+  ]);
 
   const handleSessionSelect = useCallback(
     (session: import("./components/surfaces").Session) => {
-      shell.selectSession(session.id);
+      appShell.openSession(session.id);
     },
-    [shell],
+    [appShell],
   );
 
-  const handleMarkNotificationRead = useCallback(
-    (id: string) => {
-      shell.markNotificationRead(id);
-    },
-    [shell],
-  );
-
-  const handleDismissNotification = useCallback(
-    (id: string) => {
-      shell.dismissNotification(id);
-    },
-    [shell],
-  );
-
-  // Navigation items
-  const unreadCount = notifications.filter((n) => !n.read).length;
-  const unreadSessions = sessions.filter((s) => s.unread).length;
-
-  const primaryNavItems = [
-    {
-      id: "home",
-      label: t('components:nav.home'),
-      icon: "🏠",
-      state: router.path === "/(app)" ? ("active" as const) : ("default" as const),
-      onClick: () => router.navigate("/(app)"),
-    },
-    {
-      id: "sessions",
-      label: t('components:nav.sessions'),
-      icon: "💬",
-      badge: unreadSessions,
-      state: router.path.startsWith("/(app)/session") ? ("active" as const) : ("default" as const),
-      onClick: () => router.navigate("/(app)"),
-    },
-    {
-      id: "inbox",
-      label: t('components:nav.inbox'),
-      icon: "🔔",
-      badge: unreadCount,
-      state: router.path === "/(app)/inbox" ? ("active" as const) : ("default" as const),
-      onClick: () => router.navigate("/(app)/inbox"),
-    },
-  ];
-
-  const secondaryNavItems = [
-    {
-      id: "settings",
-      label: t('components:nav.settings'),
-      icon: "⚙️",
-      state: router.path === "/(app)/settings" ? ("active" as const) : ("default" as const),
-      onClick: () => router.navigate("/(app)/settings"),
-    },
-  ];
-
-  // Determine current view
-  const currentView = useMemo(() => {
-    if (router.path === "/(app)") return "home";
-    if (router.path.startsWith("/(app)/session")) return "session";
-    if (router.path === "/(app)/settings") return "settings";
-    if (router.path === "/(app)/inbox") return "inbox";
-    return "home";
-  }, [router.path]);
-
-  // Render content based on route
-  const renderContent = () => {
-    switch (currentView) {
-      case "home":
-        return (
-          <HomeSurface
-            recentSessions={sessions}
-            onSessionSelect={handleSessionSelect}
-            onNewSession={() => shell.createSession()}
-            quickActions={quickActions}
-            stats={stats}
-          />
-        );
-
-      case "session":
-        if (!currentSession) {
-          return (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                height: "100%",
-                color: "var(--text-tertiary)",
-              }}
-            >
-              {t('routes:session.emptyState.title')}
-            </div>
-          );
+  const navigation = useAppV2Navigation({
+    view: appShell.view,
+    unreadCount: appShell.unreadCount,
+    navigate: router.navigate,
+    t,
+  });
+  const normalizedInboxFilter =
+    inboxFilter === "unread" && typeof appShell.unreadCount !== "number" ? "all" : inboxFilter;
+  const routeContent = (
+    <AppV2RouteOutlet
+      view={appShell.view}
+      sessions={appShell.sessions}
+      currentSession={appShell.currentSession}
+      messages={appShell.messages}
+      settingsSections={settingsSections}
+      notifications={appShell.notifications}
+      inboxFilter={normalizedInboxFilter}
+      unreadCount={appShell.unreadCount}
+      quickActions={homeViewModel.quickActions}
+      stats={homeViewModel.stats}
+      suggestions={suggestions}
+      models={composerPreferences.models}
+      selectedModel={composerPreferences.selectedModel}
+      composerValue={composerValue}
+      isSending={isSending}
+      sessionLoading={
+        appShell.currentSession
+          ? shell.sessionState[appShell.currentSession.id]?.loading
+          : undefined
+      }
+      sessionError={
+        appShell.currentSession
+          ? shell.sessionState[appShell.currentSession.id]?.error ?? appShell.errorMessage ?? undefined
+          : appShell.errorMessage ?? undefined
+      }
+      newSessionWorkspace={newSessionForm.workspace}
+      newSessionModel={newSessionForm.model}
+      newSessionTitle={newSessionForm.title}
+      newSessionPrompt={newSessionForm.prompt}
+      newSessionErrors={newSessionForm.errors}
+      newSessionFormError={createSessionAction.createSessionError}
+      isCreatingSession={createSessionAction.isCreatingSession}
+      emptySessionTitle={t("routes:session.emptyState.title")}
+      unsupportedDescription={t("routes:unsupported.description", {
+        routeTitle: router.resolved.definition.title,
+      })}
+      unsupportedTitle={t("routes:unsupported.title")}
+      onSessionSelect={handleSessionSelect}
+      onStartNewSession={appShell.startNewSession}
+      onViewAllSessions={() => router.navigate("/(app)/session/recent")}
+      onNewSessionWorkspaceChange={(value) => {
+        createSessionAction.setCreateSessionError(null);
+        newSessionForm.setErrors((current) => ({ ...current, workspace: undefined }));
+        newSessionForm.setWorkspace(value);
+      }}
+      onNewSessionModelChange={(value) => {
+        createSessionAction.setCreateSessionError(null);
+        newSessionForm.setModel(value);
+      }}
+      onNewSessionTitleChange={newSessionForm.setTitle}
+      onNewSessionPromptChange={(value) => {
+        createSessionAction.setCreateSessionError(null);
+        newSessionForm.setErrors((current) => ({ ...current, prompt: undefined }));
+        newSessionForm.setPrompt(value);
+      }}
+      onCreateSession={async () => {
+        const input = newSessionForm.validate();
+        if (input) {
+          await createSessionAction.createSession(input);
         }
-        return (
-          <SessionSurface
-            session={{
-              id: currentSession.id,
-              title: describeSession(currentSession).title,
-              subtitle: currentSession.metadata?.workspace || undefined,
-              lastActivityAt: new Date(currentSession.updatedAt || currentSession.createdAt),
-            }}
-            messages={messages}
-            composerValue={composerValue}
-            onComposerChange={setComposerValue}
-            onSendMessage={handleSendMessage}
-            isSending={isSending}
-            suggestions={suggestions}
-            onSuggestionSelect={(s) => setComposerValue(s.insertText)}
-            actions={[
-              { label: t('routes:session.actions.share'), onClick: () => { /* TODO: implement share */ } },
-              { label: t('routes:session.actions.export'), onClick: () => { /* TODO: implement export */ } },
-            ]}
-            models={[
-              { id: "gpt-4", name: "GPT-4" },
-              { id: "gpt-3.5", name: "GPT-3.5" },
-            ]}
-            selectedModel={currentSession.model || "gpt-4"}
-            onModelChange={(id) => shell.updateSession({ model: id })}
-            error={shell.error || undefined}
-          />
-        );
-
-      case "settings":
-        return (
-          <SettingsSurface
-            sections={settingsSections}
-            onSave={() => saveAppearanceSettings(appearance)}
-            hasChanges={true}
-          />
-        );
-
-      case "inbox":
-        return (
-          <InboxSurface
-            notifications={notifications}
-            onMarkAsRead={handleMarkNotificationRead}
-            onDismiss={handleDismissNotification}
-            onMarkAllAsRead={() => shell.markAllNotificationsRead()}
-            filter={inboxFilter}
-            onFilterChange={setInboxFilter}
-          />
-        );
-
-      default:
-        return null;
-    }
-  };
+      }}
+      onBackToHome={() => router.navigate("/(app)/index")}
+      onComposerChange={setComposerValue}
+      onModelChange={composerPreferences.setSelectedModel}
+      onSendMessage={handleSendMessage}
+      onInboxFilterChange={setInboxFilter}
+      t={t}
+    />
+  );
 
   // Mobile layout
   if (isMobile) {
     return (
       <MobileShell
         header={
-          currentView === "session" && currentSession ? (
+          appShell.view === "session" && appShell.currentSession ? (
             <MobileNavBar
-              title={describeSession(currentSession).title}
+              title={appShell.currentSession.metadata?.name || t("routes:session.title")}
               leading={
-                <button onClick={() => router.navigate("/(app)")} style={{ fontSize: "1.5rem" }}>
+                <button onClick={() => router.navigate("/(app)/index")} style={{ fontSize: "1.5rem" }}>
                   ←
                 </button>
               }
@@ -463,18 +266,18 @@ function AppContentV2({ target, isMobile }: AppContentV2Props) {
         tabs={[
           { id: "home", label: t('components:nav.home'), icon: "🏠" },
           { id: "sessions", label: t('components:nav.sessions'), icon: "💬" },
-          { id: "inbox", label: t('components:nav.inbox'), icon: "🔔", badge: unreadCount },
+          { id: "inbox", label: t('components:nav.inbox'), icon: "🔔", badge: appShell.unreadCount },
           { id: "settings", label: t('components:nav.settings'), icon: "⚙️" },
         ]}
-        activeTab={currentView}
+        activeTab={navigation.mobileActiveTab}
         onTabChange={(tab) => {
-          if (tab === "home") router.navigate("/(app)");
-          if (tab === "sessions") router.navigate("/(app)");
-          if (tab === "inbox") router.navigate("/(app)/inbox");
-          if (tab === "settings") router.navigate("/(app)/settings");
+          if (tab === "home") router.navigate("/(app)/index");
+          if (tab === "sessions") router.navigate("/(app)/session/recent");
+          if (tab === "inbox") router.navigate("/(app)/inbox/index");
+          if (tab === "settings") router.navigate("/(app)/settings/index");
         }}
       >
-        {renderContent()}
+        {routeContent}
       </MobileShell>
     );
   }
@@ -498,8 +301,8 @@ function AppContentV2({ target, isMobile }: AppContentV2Props) {
               {!sidebarCollapsed && <span>{t('common:app.name')}</span>}
             </div>
           }
-          primarySections={[{ items: primaryNavItems }]}
-          secondarySections={[{ items: secondaryNavItems }]}
+          primarySections={[{ items: navigation.primaryNavItems }]}
+          secondarySections={[{ items: navigation.secondaryNavItems }]}
           connectionStatus={
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <span
@@ -507,12 +310,12 @@ function AppContentV2({ target, isMobile }: AppContentV2Props) {
                   width: 8,
                   height: 8,
                   borderRadius: "50%",
-                  backgroundColor: shell.connected ? "var(--color-success)" : "var(--color-danger)",
+                  backgroundColor: appShell.isConnected ? "var(--color-success)" : "var(--color-danger)",
                 }}
               />
               {!sidebarCollapsed && (
                 <span style={{ fontSize: "0.8125rem", color: "var(--text-tertiary)" }}>
-                  {shell.connected ? t('ui:connection.connected') : t('ui:connection.disconnected')}
+                  {appShell.isConnected ? t('ui:connection.connected') : t('ui:connection.disconnected')}
                 </span>
               )}
             </div>
@@ -521,25 +324,17 @@ function AppContentV2({ target, isMobile }: AppContentV2Props) {
         />
       }
       header={
-        currentView !== "session" && (
+        appShell.view !== "session" && (
           <Header
-            eyebrow={t(`components:nav.${currentView}`)}
-            title={
-              currentView === "home"
-                ? t('common:app.name')
-                : currentView === "inbox"
-                  ? t('routes:inbox.title')
-                  : currentView === "settings"
-                    ? t('routes:settings.title')
-                    : t('common:app.name')
-            }
+            eyebrow={t(navigation.headerEyebrowKey)}
+            title={navigation.headerTitle}
             size="compact"
           />
         )
       }
       sidebarCollapsed={sidebarCollapsed}
     >
-      {currentView === "home" ? (
+      {appShell.view === "home" ? (
         <div style={{ display: "flex", height: "100%" }}>
           {/* Session List Sidebar */}
           <div
@@ -550,18 +345,17 @@ function AppContentV2({ target, isMobile }: AppContentV2Props) {
             }}
           >
             <SessionList
-              sessions={sessions}
-              selectedId={shell.currentSessionId || undefined}
+              sessions={appShell.sessions}
+              selectedId={appShell.activeSessionId || undefined}
               onSelect={handleSessionSelect}
-              loading={shell.loading}
+              loading={appShell.isLoading}
             />
           </div>
 
-          {/* Main Content */}
-          <div style={{ flex: 1, overflow: "auto" }}>{renderContent()}</div>
+          <div style={{ flex: 1, overflow: "auto" }}>{routeContent}</div>
         </div>
       ) : (
-        renderContent()
+        routeContent
       )}
     </Shell>
   );

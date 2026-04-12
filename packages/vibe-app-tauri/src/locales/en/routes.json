@@ -10,10 +10,43 @@
       "settings": "Settings",
       "viewAll": "View All"
     },
+    "quickActionDescriptions": {
+      "newSession": "Start a new coding session",
+      "resume": "Continue where you left off",
+      "settings": "Customize your experience"
+    },
     "sections": {
       "quickActions": "Quick Actions",
       "recentSessions": "Recent Sessions",
       "stats": "Statistics"
+    },
+    "stats": {
+      "active": "Active"
+    }
+  },
+  "newSession": {
+    "description": "Start a real session against the current backend.",
+    "fields": {
+      "workspace": {
+        "label": "Workspace",
+        "placeholder": "/path/to/workspace"
+      },
+      "model": {
+        "label": "Model",
+        "placeholder": "gpt-5.4"
+      },
+      "title": {
+        "label": "Title",
+        "placeholder": "Optional session title"
+      },
+      "prompt": {
+        "label": "Initial prompt",
+        "placeholder": "Describe what you want the session to do."
+      }
+    },
+    "validation": {
+      "workspaceRequired": "Workspace is required.",
+      "promptRequired": "Initial prompt is required."
     }
   },
   "session": {
@@ -32,10 +65,29 @@
     },
     "composer": {
       "placeholder": "Message...",
-      "hint": "Press Cmd+Enter to send"
+      "hint": "Press Cmd+Enter to send",
+      "capabilityNotice": "Attachments and media insertion are not yet available in the AppV2 session shell."
     },
     "models": {
       "selectPlaceholder": "Select Model"
+    },
+    "suggestions": {
+      "continue": {
+        "label": "Continue",
+        "insertText": "Continue"
+      },
+      "explain": {
+        "label": "Explain",
+        "insertText": "Can you explain this code?"
+      },
+      "refactor": {
+        "label": "Refactor",
+        "insertText": "Refactor this to be more efficient"
+      },
+      "test": {
+        "label": "Add Tests",
+        "insertText": "Write tests for this code"
+      }
     },
     "actions": {
       "share": "Share",
@@ -60,10 +112,24 @@
     "empty": {
       "title": "No notifications",
       "subtitle": "You're all caught up!"
+    },
+    "feed": {
+      "accountActivity": "Account activity",
+      "actionLabel": "Open",
+      "friendRequest": {
+        "title": "Friend request from {{userLabel}}",
+        "message": "Open {{userLabel}} to review the incoming social request."
+      },
+      "friendAccepted": {
+        "title": "Friend accepted: {{userLabel}}",
+        "message": "{{userLabel}} is now part of your current social graph."
+      }
     }
   },
   "settings": {
     "title": "Settings",
+    "appV2Persistence": "Settings in the AppV2 shell persist immediately when changed.",
+    "appearanceDescription": "Customize the look and feel of the app",
     "sections": {
       "general": "General",
       "language": "Language",
@@ -80,6 +146,14 @@
       "title": "Language",
       "description": "Choose your preferred language",
       "auto": "Auto-detect"
+    },
+    "sidebar": {
+      "label": "Collapsed Sidebar",
+      "description": "Show only icons in the sidebar"
     }
+  },
+  "unsupported": {
+    "title": "Route not yet productized",
+    "description": "The AppV2 shell does not currently expose {{routeTitle}} as an active Wave 10 surface."
   }
 }

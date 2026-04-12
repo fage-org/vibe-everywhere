@@ -43,10 +43,25 @@ export interface TranslationKeys {
   'routes.home.actions.newSession': string;
   'routes.home.actions.resume': string;
   'routes.home.actions.settings': string;
+  'routes.home.quickActionDescriptions.newSession': string;
+  'routes.home.quickActionDescriptions.resume': string;
+  'routes.home.quickActionDescriptions.settings': string;
   'routes.home.sections.quickActions': string;
   'routes.home.sections.recentSessions': string;
   'routes.home.sections.stats': string;
+  'routes.home.stats.active': string;
   'routes.home.actions.viewAll': string;
+  'routes.newSession.description': string;
+  'routes.newSession.fields.workspace.label': string;
+  'routes.newSession.fields.workspace.placeholder': string;
+  'routes.newSession.fields.model.label': string;
+  'routes.newSession.fields.model.placeholder': string;
+  'routes.newSession.fields.title.label': string;
+  'routes.newSession.fields.title.placeholder': string;
+  'routes.newSession.fields.prompt.label': string;
+  'routes.newSession.fields.prompt.placeholder': string;
+  'routes.newSession.validation.workspaceRequired': string;
+  'routes.newSession.validation.promptRequired': string;
 
   // Routes - Session
   'routes.session.header.eyebrow': string;
@@ -56,7 +71,16 @@ export interface TranslationKeys {
   'routes.session.timeline.empty.subtitle': string;
   'routes.session.composer.placeholder': string;
   'routes.session.composer.hint': string;
+  'routes.session.composer.capabilityNotice': string;
   'routes.session.models.selectPlaceholder': string;
+  'routes.session.suggestions.continue.label': string;
+  'routes.session.suggestions.continue.insertText': string;
+  'routes.session.suggestions.explain.label': string;
+  'routes.session.suggestions.explain.insertText': string;
+  'routes.session.suggestions.refactor.label': string;
+  'routes.session.suggestions.refactor.insertText': string;
+  'routes.session.suggestions.test.label': string;
+  'routes.session.suggestions.test.insertText': string;
   'routes.session.actions.share': string;
   'routes.session.actions.export': string;
   'routes.session.actions.rename': string;
@@ -71,9 +95,17 @@ export interface TranslationKeys {
   'routes.inbox.filters.unread': string;
   'routes.inbox.empty.title': string;
   'routes.inbox.empty.subtitle': string;
+  'routes.inbox.feed.accountActivity': string;
+  'routes.inbox.feed.actionLabel': string;
+  'routes.inbox.feed.friendRequest.title': string;
+  'routes.inbox.feed.friendRequest.message': string;
+  'routes.inbox.feed.friendAccepted.title': string;
+  'routes.inbox.feed.friendAccepted.message': string;
 
   // Routes - Settings
   'routes.settings.title': string;
+  'routes.settings.appV2Persistence': string;
+  'routes.settings.appearanceDescription': string;
   'routes.settings.sections.general': string;
   'routes.settings.sections.language': string;
   'routes.settings.sections.appearance': string;
@@ -85,6 +117,10 @@ export interface TranslationKeys {
   'routes.settings.language.title': string;
   'routes.settings.language.description': string;
   'routes.settings.language.auto': string;
+  'routes.settings.sidebar.label': string;
+  'routes.settings.sidebar.description': string;
+  'routes.unsupported.title': string;
+  'routes.unsupported.description': string;
 
   // Components - SessionList
   'components.sessionList.status.active': string;
@@ -116,6 +152,7 @@ export interface TranslationKeys {
   'settings.theme.light': string;
   'settings.theme.dark': string;
   'settings.theme.system': string;
+  'settings.theme.description': string;
   'settings.notifications.title': string;
   'settings.notifications.desktop': string;
   'settings.notifications.sound': string;

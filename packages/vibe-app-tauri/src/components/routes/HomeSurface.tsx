@@ -16,6 +16,8 @@ export interface HomeSurfaceProps {
   onSessionSelect?: (session: Session) => void;
   /** Callback for new session */
   onNewSession?: () => void;
+  /** Callback to view all sessions */
+  onViewAllSessions?: () => void;
   /** Hero content */
   hero?: ReactNode;
 }
@@ -50,6 +52,7 @@ export function HomeSurface({
   stats = [],
   onSessionSelect,
   onNewSession,
+  onViewAllSessions,
   hero,
 }: HomeSurfaceProps) {
   const { t } = useTranslation(['routes', 'common']);
@@ -132,7 +135,9 @@ export function HomeSurface({
             }}
           >
             <Eyebrow>{t('routes:home.sections.recentSessions')}</Eyebrow>
-            <Button variant="ghost" size="sm">{t('routes:home.actions.viewAll')}</Button>
+            <Button variant="ghost" size="sm" onClick={onViewAllSessions}>
+              {t('routes:home.actions.viewAll')}
+            </Button>
           </div>
 
           <div

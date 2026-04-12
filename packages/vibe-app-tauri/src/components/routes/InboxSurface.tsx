@@ -16,8 +16,8 @@ export interface Notification {
   message: string;
   /** Notification type */
   type: NotificationType;
-  /** Whether notification is read */
-  read: boolean;
+  /** Whether notification is read when the backend exposes read state */
+  read?: boolean;
   /** Creation timestamp */
   createdAt: Date;
   /** Optional action */
@@ -46,6 +46,10 @@ export interface InboxSurfaceProps {
   filter?: "all" | "unread";
   /** Callback when filter changes */
   onFilterChange?: (filter: "all" | "unread") => void;
+  /** Explicit unread count when supported by the backend contract */
+  unreadCount?: number;
+  /** Whether unread filtering is supported by the adapter contract */
+  supportsUnreadFilter?: boolean;
 }
 
 /**
@@ -67,14 +71,16 @@ export function InboxSurface({
   loading,
   filter = "all",
   onFilterChange,
+  unreadCount,
+  supportsUnreadFilter = true,
 }: InboxSurfaceProps) {
   const { t } = useTranslation(['routes', 'common']);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const filteredNotifications =
-    filter === "unread" ? notifications.filter((n) => !n.read) : notifications;
-
-  const unreadCount = notifications.filter((n) => !n.read).length;
+    filter === "unread" && supportsUnreadFilter
+      ? notifications.filter((notification) => notification.read === false)
+      : notifications;
 
   const typeConfig: Record<NotificationType, { color: string; icon: string }> = {
     info: { color: "var(--color-primary)", icon: "ℹ️" },
@@ -97,10 +103,14 @@ export function InboxSurface({
       <Header
         eyebrow={t('routes:inbox.header.eyebrow')}
         title={t('routes:inbox.title')}
-        subtitle={unreadCount > 0 ? `${unreadCount} ${t('routes:inbox.unreadCount')}` : undefined}
+        subtitle={
+          typeof unreadCount === "number" && unreadCount > 0
+            ? `${unreadCount} ${t('routes:inbox.unreadCount')}`
+            : undefined
+        }
         size="compact"
         actions={
-          unreadCount > 0 && onMarkAllAsRead ? (
+          typeof unreadCount === "number" && unreadCount > 0 && onMarkAllAsRead ? (
             <Button variant="ghost" size="sm" onClick={onMarkAllAsRead}>
               {t('routes:inbox.actions.markAllRead')}
             </Button>
@@ -125,9 +135,14 @@ export function InboxSurface({
         />
         <FilterTab
           label={t('routes:inbox.filters.unread')}
-          count={unreadCount}
-          active={filter === "unread"}
-          onClick={() => onFilterChange?.("unread")}
+          count={supportsUnreadFilter ? unreadCount ?? 0 : undefined}
+          active={supportsUnreadFilter && filter === "unread"}
+          disabled={!supportsUnreadFilter}
+          onClick={() => {
+            if (supportsUnreadFilter) {
+              onFilterChange?.("unread");
+            }
+          }}
         />
       </div>
 
@@ -163,13 +178,13 @@ export function InboxSurface({
                   onClick={() => {
                     setSelectedId(notification.id);
                     onNotificationClick?.(notification);
-                    if (!notification.read) {
+                    if (notification.read === false) {
                       onMarkAsRead?.(notification.id);
                     }
                   }}
                   style={{
                     cursor: "pointer",
-                    borderLeft: notification.read
+                    borderLeft: notification.read !== false
                       ? undefined
                       : `3px solid ${config.color}`,
                   }}
@@ -212,7 +227,7 @@ export function InboxSurface({
                           <Subheadline
                             truncate
                             style={{
-                              fontWeight: notification.read
+                              fontWeight: notification.read !== false
                                 ? tokens.typography.fontWeight.regular
                                 : tokens.typography.fontWeight.semibold,
                             }}
@@ -284,15 +299,17 @@ export function InboxSurface({
 
 interface FilterTabProps {
   label: string;
-  count: number;
+  count?: number;
   active: boolean;
   onClick: () => void;
+  disabled?: boolean;
 }
 
-function FilterTab({ label, count, active, onClick }: FilterTabProps) {
+function FilterTab({ label, count, active, onClick, disabled = false }: FilterTabProps) {
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
       style={{
         display: "flex",
         alignItems: "center",
@@ -306,12 +323,13 @@ function FilterTab({ label, count, active, onClick }: FilterTabProps) {
         fontWeight: active
           ? tokens.typography.fontWeight.semibold
           : tokens.typography.fontWeight.regular,
-        cursor: "pointer",
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.5 : 1,
         transition: `all ${tokens.animation.duration.fast} ${tokens.animation.easing.ios}`,
       }}
     >
       {label}
-      {count > 0 && (
+      {typeof count === "number" && count > 0 && (
         <Badge variant={active ? "primary" : "default"} size="sm">
           {count}
         </Badge>

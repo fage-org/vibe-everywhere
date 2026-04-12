@@ -4,7 +4,7 @@
 > Read this file first before any implementation task.
 > Update this file whenever a batch, module, or gate changes status.
 
-Last updated: 2026-04-11 (B27-B30 Complete, B31 In Progress, B32 Planned)
+Last updated: 2026-04-12 (B27-B30 Complete, B31 In Progress, B32 Planned, AppV2 takeover in progress)
 
 ## Current Phase
 
@@ -101,6 +101,7 @@ Wave 10 is in progress. B27-B30 registries are implemented and verified locally.
 **In Progress / Planned:**
 - Platform parity and browser contract metadata layer (B31) - 🔄 In Progress
 - Social/developer surface disposition (B32) - 📋 Planned
+- AppV2 default-shell takeover and legacy-shell retirement plan - 🔄 In Progress
 
 **Verified locally:** `yarn typecheck` and 132 targeted capability tests pass in `packages/vibe-app-tauri`
 
@@ -112,6 +113,7 @@ Wave 10 is in progress. B27-B30 registries are implemented and verified locally.
 4. **Validation:** Add CI checks to verify surface capabilities match implementation
 5. **Documentation:** Generate customer-facing capability documentation from registries
 6. **Monitoring:** Add analytics to track feature usage by capability class
+7. **Default shell:** Complete `AppV2` shell-state integration before any further Android validation or release tagging
 
 ## Archived Work
 

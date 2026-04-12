@@ -3,7 +3,8 @@
     "title": "Theme",
     "light": "Light",
     "dark": "Dark",
-    "system": "System"
+    "system": "System",
+    "description": "Choose your preferred color scheme"
   },
   "notifications": {
     "title": "Notifications",

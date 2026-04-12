@@ -7,6 +7,7 @@ const packageRoot = path.resolve(import.meta.dirname, "..");
 const ownedBootstrapFiles = [
   "index.html",
   "src/main.tsx",
+  "sources/app/AppRoot.tsx",
   "sources/app/entry/browser.tsx",
   "sources/app/entry/desktop.tsx",
   "sources/app/entry/mobile.tsx",
@@ -31,6 +32,14 @@ describe("B19 bootstrap ownership", () => {
     const html = fs.readFileSync(path.resolve(packageRoot, "index.html"), "utf8");
     expect(html).toContain('/sources/app/entry/browser.tsx');
     expect(html).toContain('id="bootstrap-splash"');
+  });
+
+  it("uses the runtime root dispatcher as the sole runtime app root", () => {
+    const appRoot = fs.readFileSync(path.resolve(packageRoot, "sources/app/AppRoot.tsx"), "utf8");
+
+    expect(appRoot).toContain("<AppRuntimeRoot />");
+    expect(appRoot.includes("isHappyUIEnabled")).toBe(false);
+    expect(appRoot.includes("<App />")).toBe(false);
   });
 
   it("keeps android project ownership at the package root with a tauri-compatible bridge", () => {

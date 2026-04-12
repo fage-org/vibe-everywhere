@@ -10,10 +10,43 @@
       "settings": "设置",
       "viewAll": "查看全部"
     },
+    "quickActionDescriptions": {
+      "newSession": "开始一个新的编程会话",
+      "resume": "继续上次中断的位置",
+      "settings": "自定义你的使用体验"
+    },
     "sections": {
       "quickActions": "快捷操作",
       "recentSessions": "最近会话",
       "stats": "统计"
+    },
+    "stats": {
+      "active": "活跃"
+    }
+  },
+  "newSession": {
+    "description": "基于当前后端创建一个真实会话。",
+    "fields": {
+      "workspace": {
+        "label": "工作区",
+        "placeholder": "/path/to/workspace"
+      },
+      "model": {
+        "label": "模型",
+        "placeholder": "gpt-5.4"
+      },
+      "title": {
+        "label": "标题",
+        "placeholder": "可选的会话标题"
+      },
+      "prompt": {
+        "label": "初始提示词",
+        "placeholder": "描述你希望这个会话完成什么。"
+      }
+    },
+    "validation": {
+      "workspaceRequired": "工作区为必填项。",
+      "promptRequired": "初始提示词为必填项。"
     }
   },
   "session": {
@@ -32,10 +65,29 @@
     },
     "composer": {
       "placeholder": "输入消息...",
-      "hint": "按 Cmd+Enter 发送"
+      "hint": "按 Cmd+Enter 发送",
+      "capabilityNotice": "AppV2 会话壳暂不支持附件和媒体插入。"
     },
     "models": {
       "selectPlaceholder": "选择模型"
+    },
+    "suggestions": {
+      "continue": {
+        "label": "继续",
+        "insertText": "继续"
+      },
+      "explain": {
+        "label": "解释",
+        "insertText": "你可以解释一下这段代码吗？"
+      },
+      "refactor": {
+        "label": "重构",
+        "insertText": "请把这段代码重构得更高效"
+      },
+      "test": {
+        "label": "补测试",
+        "insertText": "请为这段代码编写测试"
+      }
     },
     "actions": {
       "share": "分享",
@@ -60,10 +112,24 @@
     "empty": {
       "title": "没有通知",
       "subtitle": "你已看完所有通知！"
+    },
+    "feed": {
+      "accountActivity": "账户活动",
+      "actionLabel": "打开",
+      "friendRequest": {
+        "title": "{{userLabel}} 发来了好友请求",
+        "message": "打开 {{userLabel}} 以查看这条社交请求。"
+      },
+      "friendAccepted": {
+        "title": "{{userLabel}} 已接受好友请求",
+        "message": "{{userLabel}} 已加入你当前的社交关系图。"
+      }
     }
   },
   "settings": {
     "title": "设置",
+    "appV2Persistence": "AppV2 壳中的设置会在变更后立即持久化。",
+    "appearanceDescription": "自定义应用的外观与体验",
     "sections": {
       "general": "通用",
       "language": "语言",
@@ -80,6 +146,14 @@
       "title": "语言",
       "description": "选择你偏好的语言",
       "auto": "自动检测"
+    },
+    "sidebar": {
+      "label": "折叠侧边栏",
+      "description": "侧边栏仅显示图标"
     }
+  },
+  "unsupported": {
+    "title": "该路由尚未产品化",
+    "description": "AppV2 壳目前尚未将 {{routeTitle}} 作为 Wave 10 的有效表面暴露出来。"
   }
 }

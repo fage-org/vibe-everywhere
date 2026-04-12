@@ -68,6 +68,13 @@ For historical `vibe-app` reference work only:
 For `vibe-app-tauri`:
 
 - package bootstrap validation
+- default app-shell structure review proving the top-level shell does not simultaneously own route
+  mapping, protocol/feed/session projection, form draft persistence, async submit actions, and
+  route-specific rendering
+- explicit route-model validation proving user-visible `AppV2` routes are mapped by named route keys
+  or another documented contract; broad section-based fallbacks do not satisfy validation
+- adapter-seam review proving backend/session/feed projections live in dedicated adapter hooks or
+  modules rather than inside the shell component
 - route-level `P0` navigation smoke tests across the active desktop, Android, and static-export
   shells where applicable
 - retained static browser export smoke validation
@@ -82,6 +89,9 @@ For `vibe-app-tauri`:
 - Linux, macOS, and Windows startup/package validation before promotion
 - side-by-side parity review against Happy behavior and any required Vibe continuity notes before
   promotion
+- no product capability may be claimed through placeholder values in the default shell; fake unread
+  counts, forced read-state defaults, or implicit support fallbacks must be replaced by explicit
+  unsupported/handoff-only classification before promotion
 
 ## Milestone Exit Criteria
 

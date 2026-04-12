@@ -28,6 +28,10 @@ contract.
 - define retained browser-export contract
 - define Android support boundaries
 - define desktop support boundaries where desktop remains the richest runtime
+- ensure the formal default shell (`src/AppV2.tsx`) matches the active platform contract instead of
+  inheriting behavior only from the legacy shell
+- enforce explicit shell structure so platform support is expressed through named route/adapter seams
+  instead of single-file implicit behavior
 
 ## Non-Goals
 
@@ -50,6 +54,10 @@ contract.
    evidence supports it.
 5. Enforce parity for user-visible failure handling so Android surfaces surface async backend/native
    failures with the same clarity as desktop instead of failing silently.
+6. Keep default-shell route mapping explicit by route key or another documented surface contract;
+   do not rely on broad section-based fallbacks.
+7. Keep feed/session/backend projections in adapter modules so desktop/Android/browser capability
+   differences can be reviewed directly at the seam.
 
 ## Edge Cases And Failure Modes
 
@@ -58,6 +66,8 @@ contract.
 - Android shell coverage being overstated as route-complete product parity
 - async actions writing only desktop-visible error state while Android routes show no actionable
   feedback
+- defaulting to `AppV2` while key routes still depend on legacy-shell-only state shape or placeholder
+  actions
 
 ## Tests
 
@@ -70,6 +80,9 @@ contract.
 - active docs no longer use vague "multi-platform complete" wording
 - browser-export support is described in a bounded, testable way
 - desktop and Android shells both expose visible error feedback for backend/native action failures
+- the default `AppV2` shell is the artifact reviewed for platform parity, not only `src/App.tsx`
+- AppV2 structure makes platform support reviewable by seam: shell orchestration, route containers,
+  and adapter modules are separate and map to the documented contract
 
 ## Locked Decisions
 
