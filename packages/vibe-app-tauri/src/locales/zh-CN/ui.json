@@ -27,6 +27,17 @@
     "shimmer": "加载中...",
     "skeleton": "内容加载中"
   },
+  "account": {
+    "title": "账户",
+    "loading": "加载账户...",
+    "accountId": "账户 ID",
+    "connectedServices": "已连接的服务",
+    "noConnectedServices": "无已连接的服务",
+    "refresh": "刷新资料",
+    "refreshing": "刷新中...",
+    "signOut": "退出登录",
+    "signingOut": "正在退出..."
+  },
   "settings": {
     "aiProviders": "AI 供应商",
     "aiProvidersDescription": "连接您的 AI 供应商账户以使用您自己的 API 密钥",

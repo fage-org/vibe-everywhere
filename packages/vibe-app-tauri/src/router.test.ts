@@ -77,9 +77,11 @@ describe("desktop router", () => {
   });
 
   it("keeps deferred social and developer routes explicit as P2 planned surfaces", () => {
+    // Friends routes are now implemented (Wave 11)
     expect(resolveRoute("/(app)/friends/index").definition.promotionClass).toBe("P2");
-    expect(resolveRoute("/(app)/friends/index").definition.status).toBe("planned");
-    expect(resolveRoute("/(app)/friends/search").definition.status).toBe("planned");
+    expect(resolveRoute("/(app)/friends/index").definition.status).toBe("wired");
+    expect(resolveRoute("/(app)/friends/search").definition.status).toBe("wired");
+    // Dev routes remain planned
     expect(resolveRoute("/(app)/dev/index").definition.status).toBe("planned");
   });
 });

@@ -3,6 +3,7 @@ export { NewSessionRoute } from "./NewSessionRoute";
 export { RecentSessionsRoute } from "./RecentSessionsRoute";
 export { SessionRoute } from "./SessionRoute";
 export { SettingsRoute } from "./SettingsRoute";
+export { SettingsAccountRoute } from "./SettingsAccountRoute";
 export { SettingsAIProvidersRoute } from "./SettingsAIProvidersRoute";
 export { SettingsAppearanceRoute } from "./SettingsAppearanceRoute";
 export { SettingsFeaturesRoute } from "./SettingsFeaturesRoute";

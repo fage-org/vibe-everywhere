@@ -7,6 +7,7 @@ export type AppV2View =
   | "session-recent"
   | "session"
   | "settings"
+  | "settings-account"
   | "settings-appearance"
   | "settings-ai-providers"
   | "settings-features"
@@ -46,12 +47,12 @@ export type AppV2RouteModel = {
 
 const SETTINGS_INDEX_KEYS = new Set([
   "settings-index",
-  "settings-account",
   "settings-voice-language",
   "settings-connect-claude",
 ]);
 
 const SETTINGS_SUBVIEW_MAP: Record<string, AppV2View> = {
+  "settings-account": "settings-account",
   "settings-appearance": "settings-appearance",
   "settings-ai-providers": "settings-ai-providers",
   "settings-features": "settings-features",

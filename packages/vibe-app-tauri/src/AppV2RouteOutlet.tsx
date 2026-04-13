@@ -10,6 +10,7 @@ import {
   RecentSessionsRoute,
   SessionRoute,
   SettingsRoute,
+  SettingsAccountRoute,
   SettingsAIProvidersRoute,
   SettingsAppearanceRoute,
   SettingsFeaturesRoute,
@@ -253,6 +254,8 @@ export function AppV2RouteOutlet({
       );
     case "settings":
       return <SettingsRoute sections={settingsSections} />;
+    case "settings-account":
+      return <SettingsAccountRoute />;
     case "settings-appearance":
       return <SettingsAppearanceRoute />;
     case "settings-ai-providers":

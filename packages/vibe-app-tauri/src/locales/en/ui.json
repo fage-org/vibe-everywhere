@@ -27,6 +27,17 @@
     "shimmer": "Loading...",
     "skeleton": "Content loading"
   },
+  "account": {
+    "title": "Account",
+    "loading": "Loading account...",
+    "accountId": "Account ID",
+    "connectedServices": "Connected Services",
+    "noConnectedServices": "No connected services",
+    "refresh": "Refresh Profile",
+    "refreshing": "Refreshing...",
+    "signOut": "Sign Out",
+    "signingOut": "Signing out..."
+  },
   "settings": {
     "aiProviders": "AI Providers",
     "aiProvidersDescription": "Connect your AI provider accounts to use your own API keys",

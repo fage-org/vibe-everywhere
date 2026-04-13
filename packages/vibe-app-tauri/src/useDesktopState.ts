@@ -1489,6 +1489,7 @@ export function useDesktopState(activeSessionId?: string | null) {
     restoreWithSecret,
     startMobileLink,
     cancelMobileLink,
+    refreshProfile,
     refreshSessions,
     refreshAccountSettings,
     refreshArtifacts,

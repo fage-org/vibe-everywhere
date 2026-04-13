@@ -280,6 +280,7 @@ function createRouter(path: string) {
     "/(app)/settings/index": { key: "settings-index", section: "Settings" },
     "/(app)/artifacts/index": { key: "artifacts-index", section: "Artifacts" },
     "/(app)/friends/index": { key: "friends-index", section: "Social" },
+    "/(app)/dev/index": { key: "dev-index", section: "Dev" },
   };
   const current = routeMap[path];
   if (!current) {
@@ -413,7 +414,8 @@ describe("AppV2", () => {
 
   it("renders an explicit unsupported surface for non-productized routes", async () => {
     const shell = createShellState();
-    const router = createRouter("/(app)/friends/index");
+    // Use dev route which is still planned (not implemented)
+    const router = createRouter("/(app)/dev/index");
     appV2Mocks.shell = shell;
     appV2Mocks.router = router;
     installAppV2BrowserStubs();
