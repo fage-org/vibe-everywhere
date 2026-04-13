@@ -7,6 +7,7 @@ export { SettingsAppearanceRoute } from "./SettingsAppearanceRoute";
 export { SettingsFeaturesRoute } from "./SettingsFeaturesRoute";
 export { SettingsLanguageRoute } from "./SettingsLanguageRoute";
 export { SettingsUsageRoute } from "./SettingsUsageRoute";
+export { SettingsVoiceRoute } from "./SettingsVoiceRoute";
 export { InboxRoute } from "./InboxRoute";
 export { UnsupportedRoute } from "./UnsupportedRoute";
 export { RestoreRoute } from "./RestoreRoute";

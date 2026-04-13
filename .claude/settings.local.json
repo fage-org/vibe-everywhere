@@ -22,7 +22,24 @@
       "Bash(git add:*)",
       "Bash(git commit -m ':*)",
       "Bash(git checkout:*)",
-      "Bash(yarn workspace:*)"
+      "Bash(yarn workspace:*)",
+      "Bash(grep -r \"vibe-app\" /root/vibe-remote/package.json /root/vibe-remote/packages/*/package.json)",
+      "Bash(xargs sed:*)",
+      "Bash(ls -la /root/vibe-remote/packages/vibe-app-tauri/src/wave8-wire.*)",
+      "Bash(git commit:*)",
+      "Bash(wc:*)",
+      "Bash(find /root/happy/packages/happy-app/sources/components -name \"*.tsx\" -exec wc -l {} +)",
+      "Bash(cargo check:*)",
+      "Bash(cargo test:*)",
+      "Bash(node:*)",
+      "Bash(ls -la packages/vibe-app-tauri/src/routes/appv2/*.tsx)",
+      "Bash(ls -la packages/vibe-app-tauri/src/components/renderers/*.tsx)",
+      "Bash(pnpm tsc:*)",
+      "Bash(npx tsc:*)",
+      "Bash(yarn test:*)",
+      "Bash(npx prettier:*)",
+      "Bash(ls -la /root/vibe-remote/packages/vibe-app-tauri/*.json /root/vibe-remote/packages/vibe-app-tauri/tsconfig*.json)",
+      "Bash(pnpm typecheck:*)"
     ]
   }
 }

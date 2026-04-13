@@ -245,6 +245,16 @@
       "description": "开始会话后查看使用统计"
     }
   },
+  "settingsVoice": {
+    "title": "语音",
+    "description": "配置语音输入和输出设置",
+    "input": "语音输入",
+    "inputDescription": "使用语音识别进行消息输入",
+    "output": "语音输出",
+    "outputDescription": "使用语音朗读 AI 回复",
+    "synthesis": "语音合成",
+    "synthesisDescription": "自定义语音合成播放"
+  },
   "machine": {
     "back": "返回",
     "host": "主机名",

@@ -14,6 +14,7 @@ import {
   SettingsFeaturesRoute,
   SettingsLanguageRoute,
   SettingsUsageRoute,
+  SettingsVoiceRoute,
   UnsupportedRoute,
   RestoreRoute,
   ManualRestoreRoute,
@@ -251,6 +252,8 @@ export function AppV2RouteOutlet({
       return <SettingsLanguageRoute />;
     case "settings-usage":
       return <SettingsUsageRoute />;
+    case "settings-voice":
+      return <SettingsVoiceRoute />;
     case "inbox":
       return (
         <InboxRoute

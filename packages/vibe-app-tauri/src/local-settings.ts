@@ -63,6 +63,16 @@ export const LocalSettingsSchema = z.object({
     .string()
     .nullable()
     .describe("Preferred UI language (null for auto-detect from device locale)"),
+
+  // Voice preferences
+  voiceInputEnabled: z.boolean().describe("Enable voice input feature"),
+  voiceOutputEnabled: z.boolean().describe("Enable voice output (TTS) feature"),
+  voiceAutoPlay: z.boolean().describe("Automatically play AI responses"),
+  voiceLanguage: z
+    .string()
+    .describe("Voice recognition/synthesis language (BCP 47 code)"),
+  voiceRate: z.number().min(0.5).max(2).describe("Speech rate for TTS"),
+  voicePitch: z.number().min(0.5).max(2).describe("Speech pitch for TTS"),
 });
 
 const LocalSettingsSchemaPartial = LocalSettingsSchema.passthrough().partial();
@@ -89,6 +99,12 @@ export const localSettingsDefaults: LocalSettings = {
   debugMode: false,
   devModeEnabled: false,
   preferredLanguage: null,
+  voiceInputEnabled: true,
+  voiceOutputEnabled: true,
+  voiceAutoPlay: false,
+  voiceLanguage: "en-US",
+  voiceRate: 1.0,
+  voicePitch: 1.0,
 };
 
 Object.freeze(localSettingsDefaults);

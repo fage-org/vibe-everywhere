@@ -11,6 +11,7 @@ export type AppV2View =
   | "settings-features"
   | "settings-language"
   | "settings-usage"
+  | "settings-voice"
   | "inbox"
   | "restore"
   | "restore-manual"
@@ -39,7 +40,6 @@ export type AppV2RouteModel = {
 const SETTINGS_INDEX_KEYS = new Set([
   "settings-index",
   "settings-account",
-  "settings-voice",
   "settings-voice-language",
   "settings-connect-claude",
 ]);
@@ -49,6 +49,7 @@ const SETTINGS_SUBVIEW_MAP: Record<string, AppV2View> = {
   "settings-features": "settings-features",
   "settings-language": "settings-language",
   "settings-usage": "settings-usage",
+  "settings-voice": "settings-voice",
 };
 
 const ARTIFACT_ROUTES_MAP: Record<string, AppV2View> = {

@@ -26,5 +26,39 @@
   "loading": {
     "shimmer": "Loading...",
     "skeleton": "Content loading"
+  },
+  "voice": {
+    "notSupported": "Voice not supported in this browser",
+    "permissionRequired": "Microphone permission required",
+    "input": {
+      "start": "Start voice input",
+      "stop": "Stop recording",
+      "listening": "Listening...",
+      "noSpeech": "No speech detected",
+      "denied": "Microphone access denied"
+    },
+    "output": {
+      "play": "Play audio",
+      "pause": "Pause",
+      "resume": "Resume",
+      "stop": "Stop"
+    },
+    "settings": {
+      "title": "Voice Settings",
+      "inputEnabled": "Enable voice input",
+      "inputEnabledDescription": "Allow voice input in the message composer",
+      "outputEnabled": "Enable voice output",
+      "outputEnabledDescription": "Allow text-to-speech for AI responses",
+      "autoPlay": "Auto-play responses",
+      "autoPlayDescription": "Automatically play AI responses via text-to-speech",
+      "language": "Voice language",
+      "languageDescription": "Language for speech recognition and synthesis",
+      "rate": "Speech rate",
+      "rateDescription": "Speed of text-to-speech playback",
+      "pitch": "Speech pitch",
+      "pitchDescription": "Pitch of text-to-speech playback",
+      "voice": "Voice",
+      "voiceDescription": "Select the voice for text-to-speech"
+    }
   }
 }

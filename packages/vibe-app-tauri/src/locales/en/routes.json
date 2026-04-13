@@ -245,6 +245,16 @@
       "description": "Start a session to see your usage statistics"
     }
   },
+  "settingsVoice": {
+    "title": "Voice",
+    "description": "Configure voice input and output settings",
+    "input": "Voice Input",
+    "inputDescription": "Use speech recognition for message input",
+    "output": "Voice Output",
+    "outputDescription": "Text-to-speech for AI responses",
+    "synthesis": "Speech Synthesis",
+    "synthesisDescription": "Customize text-to-speech playback"
+  },
   "machine": {
     "back": "Back",
     "host": "Host",

@@ -26,5 +26,39 @@
   "loading": {
     "shimmer": "加载中...",
     "skeleton": "内容加载中"
+  },
+  "voice": {
+    "notSupported": "此浏览器不支持语音功能",
+    "permissionRequired": "需要麦克风权限",
+    "input": {
+      "start": "开始语音输入",
+      "stop": "停止录音",
+      "listening": "正在听...",
+      "noSpeech": "未检测到语音",
+      "denied": "麦克风访问被拒绝"
+    },
+    "output": {
+      "play": "播放音频",
+      "pause": "暂停",
+      "resume": "继续",
+      "stop": "停止"
+    },
+    "settings": {
+      "title": "语音设置",
+      "inputEnabled": "启用语音输入",
+      "inputEnabledDescription": "在消息输入框中使用语音输入",
+      "outputEnabled": "启用语音输出",
+      "outputEnabledDescription": "使用语音朗读 AI 回复",
+      "autoPlay": "自动播放回复",
+      "autoPlayDescription": "自动使用语音朗读 AI 的回复",
+      "language": "语音语言",
+      "languageDescription": "语音识别和合成的语言",
+      "rate": "语速",
+      "rateDescription": "语音合成的播放速度",
+      "pitch": "音调",
+      "pitchDescription": "语音合成的音调",
+      "voice": "语音",
+      "voiceDescription": "选择语音合成的声音"
+    }
   }
 }
