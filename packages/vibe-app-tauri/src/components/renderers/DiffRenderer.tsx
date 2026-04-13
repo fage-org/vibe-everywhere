@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { tokens } from "../../design-system/tokens";
 import { Caption1, Subheadline } from "../ui/Typography";
+import { useRichRenderOptions } from "../../LocalSettingsContext";
 
 export interface DiffHunk {
   /** Old starting line number */
@@ -46,6 +47,8 @@ export interface DiffRendererProps {
   files: DiffFile[];
   /** Whether to show line numbers */
   showLineNumbers?: boolean;
+  /** Whether to wrap long lines instead of horizontal scrolling */
+  wrapLines?: boolean;
   /** Whether files are collapsible */
   collapsible?: boolean;
   /** Maximum height before scrolling */
@@ -65,6 +68,7 @@ export interface DiffRendererProps {
 export function DiffRenderer({
   files,
   showLineNumbers = true,
+  wrapLines = false,
   collapsible = true,
   maxHeight,
 }: DiffRendererProps) {
@@ -84,6 +88,7 @@ export function DiffRenderer({
           key={file.path}
           file={file}
           showLineNumbers={showLineNumbers}
+          wrapLines={wrapLines}
           collapsible={collapsible}
           maxHeight={maxHeight}
         />
@@ -95,11 +100,12 @@ export function DiffRenderer({
 interface DiffFileViewProps {
   file: DiffFile;
   showLineNumbers: boolean;
+  wrapLines: boolean;
   collapsible: boolean;
   maxHeight?: number;
 }
 
-function DiffFileView({ file, showLineNumbers, collapsible, maxHeight }: DiffFileViewProps) {
+function DiffFileView({ file, showLineNumbers, wrapLines, collapsible, maxHeight }: DiffFileViewProps) {
   const [isExpanded, setIsExpanded] = useState(true);
 
   const statusConfig = {
@@ -203,6 +209,7 @@ function DiffFileView({ file, showLineNumbers, collapsible, maxHeight }: DiffFil
               key={hunkIndex}
               hunk={hunk}
               showLineNumbers={showLineNumbers}
+              wrapLines={wrapLines}
             />
           ))}
         </div>
@@ -214,9 +221,10 @@ function DiffFileView({ file, showLineNumbers, collapsible, maxHeight }: DiffFil
 interface DiffHunkViewProps {
   hunk: DiffHunk;
   showLineNumbers: boolean;
+  wrapLines: boolean;
 }
 
-function DiffHunkView({ hunk, showLineNumbers }: DiffHunkViewProps) {
+function DiffHunkView({ hunk, showLineNumbers, wrapLines }: DiffHunkViewProps) {
   return (
     <div>
       {/* Hunk Header */}
@@ -238,6 +246,7 @@ function DiffHunkView({ hunk, showLineNumbers }: DiffHunkViewProps) {
             key={lineIndex}
             line={line}
             showLineNumbers={showLineNumbers}
+            wrapLines={wrapLines}
           />
         ))}
       </div>
@@ -248,9 +257,10 @@ function DiffHunkView({ hunk, showLineNumbers }: DiffHunkViewProps) {
 interface DiffLineViewProps {
   line: DiffLine;
   showLineNumbers: boolean;
+  wrapLines: boolean;
 }
 
-function DiffLineView({ line, showLineNumbers }: DiffLineViewProps) {
+function DiffLineView({ line, showLineNumbers, wrapLines }: DiffLineViewProps) {
   const lineStyles: Record<DiffLine["type"], React.CSSProperties> = {
     context: {
       backgroundColor: "transparent",
@@ -328,7 +338,7 @@ function DiffLineView({ line, showLineNumbers }: DiffLineViewProps) {
           flex: 1,
           display: "flex",
           padding: `0 ${tokens.spacing[2]}`,
-          overflow: "hidden",
+          overflow: wrapLines ? "visible" : "hidden",
         }}
       >
         <span
@@ -350,7 +360,9 @@ function DiffLineView({ line, showLineNumbers }: DiffLineViewProps) {
             fontSize: "inherit",
             lineHeight: "inherit",
             color: "var(--text-primary)",
-            overflow: "auto",
+            overflow: wrapLines ? "visible" : "auto",
+            whiteSpace: wrapLines ? "pre-wrap" : "pre",
+            wordBreak: wrapLines ? "break-all" : "normal",
           }}
         >
           {line.content}
@@ -476,4 +488,28 @@ export function parseUnifiedDiff(diffText: string): DiffFile[] {
   }
 
   return files;
+}
+
+/**
+ * DiffRendererWithSettings - Settings-aware wrapper for DiffRenderer
+ *
+ * This component reads render options from LocalSettingsContext and passes them
+ * to DiffRenderer. Use this when you want settings to be automatically
+ * applied without passing options explicitly.
+ */
+export function DiffRendererWithSettings({
+  files,
+  collapsible = true,
+  maxHeight,
+}: Omit<DiffRendererProps, "showLineNumbers" | "wrapLines">) {
+  const { showLineNumbersInDiffs, wrapLinesInDiffs } = useRichRenderOptions();
+  return (
+    <DiffRenderer
+      files={files}
+      showLineNumbers={showLineNumbersInDiffs}
+      wrapLines={wrapLinesInDiffs}
+      collapsible={collapsible}
+      maxHeight={maxHeight}
+    />
+  );
 }

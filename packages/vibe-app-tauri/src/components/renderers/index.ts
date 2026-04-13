@@ -3,6 +3,7 @@
 
 export {
   DiffRenderer,
+  DiffRendererWithSettings,
   parseUnifiedDiff,
   type DiffRendererProps,
   type DiffFile,
@@ -21,3 +22,23 @@ export {
   type ToolCall,
   type Tool,
 } from "./ToolRenderer";
+
+// Tool Result Renderers
+export {
+  BashToolResult,
+  FileReadToolResult,
+  EditToolResult,
+  SearchToolResult,
+  ToolResultSection,
+  toolResultRegistry,
+  getToolResultRenderer,
+  hasToolResultRenderer,
+  type BashToolResultProps,
+  type FileReadToolResultProps,
+  type EditToolResultProps,
+  type SearchToolResultProps,
+  type SearchMatch,
+  type ToolResultSectionProps,
+  type ToolResultBaseProps,
+  type ToolResultRenderer,
+} from "./tool-results";

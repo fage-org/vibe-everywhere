@@ -190,6 +190,11 @@ export function useLocalSettings(): {
 
   // Sync with localStorage changes from other tabs/windows
   useEffect(() => {
+    // Skip if window is not available (e.g., in test environments)
+    if (typeof window === "undefined" || typeof window.addEventListener !== "function") {
+      return;
+    }
+
     const handleStorageChange = (event: StorageEvent) => {
       if (event.key === LOCAL_SETTINGS_KEY && event.newValue) {
         try {

@@ -4,11 +4,11 @@
 > Read this file first before any implementation task.
 > Update this file whenever a batch, module, or gate changes status.
 
-Last updated: 2026-04-13 (Phase 1 Module C complete)
+Last updated: 2026-04-13 (Phase 1 Module A/B/C complete)
 
 ## Current Phase
 
-**Phase 1 — Implementation Progress.** Module C (Machine Management) is now complete with full UI interaction. Modules A and B have minor items remaining. See `PHASE1_IMPLEMENTATION_PLAN.md` for details.
+**Phase 1 — Implementation Progress.** All three modules (A, B, C) are now complete with full settings integration. See `PHASE1_IMPLEMENTATION_PLAN.md` for details.
 
 ### Active Plan Documents
 
@@ -117,12 +117,13 @@ All routes are handled by AppV2:
 
 ## Next Actions
 
-Phase 1 implementation is largely complete. Remaining items:
+Phase 1 implementation is complete. All core functionality is implemented and tested.
 
-1. **Module A: 消息渲染增强** (可选后续)
-   - 代码块行号显示设置联动
-   - Diff 渲染器设置联动
-   - 工具特定渲染器 (Bash, FileRead, Edit)
+**Completed enhancements:**
+1. **Module A: 消息渲染增强** ✅
+   - 工具特定渲染器
+   - 设置联动 (showLineNumbers, wrapLines)
+   - 工具结果注册表
 
 **All critical functionality is implemented and tested.**
 

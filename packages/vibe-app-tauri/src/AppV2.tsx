@@ -19,6 +19,7 @@ import { useAppV2Shell } from "./useAppV2Shell";
 import { ThemeProvider } from "./components/providers/ThemeProvider";
 import { Shell, Sidebar, Header, MobileShell, MobileNavBar } from "./components/layout";
 import { SessionList, type ComposerSuggestion, type Message } from "./components/surfaces";
+import { LocalSettingsProvider } from "./LocalSettingsContext";
 
 import { useLanguage } from "./hooks/useLanguage";
 import {
@@ -48,9 +49,11 @@ export function AppV2({ runtimeTarget }: AppV2Props) {
   const isMobile = target === "mobile" || window.innerWidth < 768;
 
   return (
-    <ThemeProvider defaultScheme="system">
-      <AppContentV2 isMobile={isMobile} />
-    </ThemeProvider>
+    <LocalSettingsProvider>
+      <ThemeProvider defaultScheme="system">
+        <AppContentV2 isMobile={isMobile} />
+      </ThemeProvider>
+    </LocalSettingsProvider>
   );
 }
 

@@ -1,6 +1,7 @@
 import { Suspense, lazy } from "react";
 import { parsePatch } from "diff";
 import type { UiMessage } from "./desktop-client";
+import { useRichRenderOptions } from "./LocalSettingsContext";
 
 const LazySyntaxCodeBlock = lazy(() =>
   import("./syntax-code-block").then((module) => ({
@@ -303,4 +304,20 @@ function diffLineClass(line: string): string {
     return "diff-line-remove";
   }
   return "diff-line-context";
+}
+
+/**
+ * RichTimelineMessageBodyWithSettings - Settings-aware wrapper for RichTimelineMessageBody
+ *
+ * This component reads render options from LocalSettingsContext and passes them
+ * to RichTimelineMessageBody. Use this when you want settings to be automatically
+ * applied without passing options explicitly.
+ */
+export function RichTimelineMessageBodyWithSettings({
+  message,
+}: {
+  message: UiMessage;
+}) {
+  const options = useRichRenderOptions();
+  return <RichTimelineMessageBody message={message} options={options} />;
 }

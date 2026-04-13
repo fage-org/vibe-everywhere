@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { tokens } from "../../design-system/tokens";
 import { Button } from "../ui/Button";
 import { Caption1, Subheadline, Body } from "../ui/Typography";
+import { getToolResultRenderer } from "./tool-results";
 
 export interface ToolCall {
   /** Unique tool call ID */
@@ -131,6 +132,9 @@ function ToolCallView({ toolCall, tool, defaultExpanded, onClick, renderResult }
       ? toolCall.completedAt.getTime() - toolCall.startedAt.getTime()
       : null;
 
+  // Check if there's a specialized result renderer for this tool
+  const specializedRenderer = getToolResultRenderer(toolCall.name);
+
   return (
     <div
       style={{
@@ -254,6 +258,14 @@ function ToolCallView({ toolCall, tool, defaultExpanded, onClick, renderResult }
                 </div>
               ) : renderResult ? (
                 renderResult(toolCall)
+              ) : specializedRenderer ? (
+                specializedRenderer({
+                  toolCallId: toolCall.id,
+                  toolName: toolCall.name,
+                  input: toolCall.arguments,
+                  result: toolCall.result,
+                  status: toolCall.status,
+                })
               ) : (
                 <CodeBlock content={formatResult(toolCall.result)} />
               )}

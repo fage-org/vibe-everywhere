@@ -443,10 +443,12 @@
 ## 验收标准
 
 ### 模块A: 消息渲染增强
-- [ ] 工具调用支持内联显示模式
-- [ ] **TODO (后续)** Bash、文件读取、编辑工具有专用渲染器
-- [ ] 代码块支持行号显示
-- [ ] Diff 渲染器支持行号和换行设置
+- [x] ✅ 工具调用支持内联显示模式 (viewInline 设置已实现)
+- [x] ✅ Bash、文件读取、编辑、搜索工具有专用渲染器 (tool-results/ 目录)
+- [x] ✅ 代码块支持行号显示 (SyntaxCodeBlock + showLineNumbersInToolViews 设置联动)
+- [x] ✅ Diff 渲染器支持行号和换行设置 (DiffRenderer + showLineNumbers/wrapLines 设置联动)
+- [x] ✅ 本地设置上下文提供器 (LocalSettingsContext.tsx)
+- [x] ✅ 工具结果渲染器注册表 (toolResultRegistry)
 
 ### 模块B: 设置系统完善
 - [x] ✅ 外观设置页面可用，支持主题切换 (SettingsAppearanceRoute.tsx)
@@ -470,6 +472,7 @@
 ### 已完成
 - ✅ 后端 API 可用性检查
 - ✅ 本地设置系统 (`local-settings.ts`)
+- ✅ 本地设置上下文 (`LocalSettingsContext.tsx`) - 提供全局设置访问
 - ✅ 设置路由框架更新 (`useAppV2RouteModel.ts`, `AppV2RouteOutlet.tsx`)
 - ✅ 外观设置页面 (`SettingsAppearanceRoute.tsx`)
 - ✅ 功能设置页面 (`SettingsFeaturesRoute.tsx`)
@@ -484,11 +487,18 @@
 - ✅ 客户端 `spawnSessionOnMachine()` 方法 (`useDesktopState.ts`)
 - ✅ 客户端 `stopMachineDaemon()` 方法 (`useDesktopState.ts`)
 - ✅ 机器详情页面 UI 交互 (启动会话/停止守护进程按钮、路径输入、目录创建审批流程)
+- ✅ 代码块行号显示设置联动 (`SyntaxCodeBlock` + `useRichRenderOptions`)
+- ✅ Diff 渲染器设置联动 (`DiffRenderer` + `wrapLines` 支持 + `DiffRendererWithSettings`)
+- ✅ 工具特定渲染器 (`tool-results/` 目录)
+  - `BashToolResult.tsx` - Bash 命令结果渲染
+  - `FileReadToolResult.tsx` - 文件读取结果渲染
+  - `EditToolResult.tsx` - 文件编辑结果渲染 (Diff)
+  - `SearchToolResult.tsx` - 搜索结果渲染
+  - `ToolResultSection.tsx` - 通用区块容器
+  - `index.tsx` - 导出入口和注册表
 
 ### 待完成
-- ⏸️ 工具特定渲染器 (可在后续继续完善)
-- ⏸️ 代码块行号显示设置联动
-- ⏸️ Diff 渲染器设置联动
+- 无 (Phase 1 全部完成)
 
 ---
 
