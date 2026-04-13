@@ -14,5 +14,17 @@
     "connected": "Connected",
     "disconnected": "Disconnected",
     "connecting": "Connecting..."
+  },
+  "status": {
+    "online": "Online",
+    "offline": "Offline",
+    "processing": "Processing",
+    "error": "Error",
+    "warning": "Warning",
+    "success": "Success"
+  },
+  "loading": {
+    "shimmer": "Loading...",
+    "skeleton": "Content loading"
   }
 }

@@ -14,5 +14,17 @@
     "connected": "已连接",
     "disconnected": "已断开",
     "connecting": "连接中..."
+  },
+  "status": {
+    "online": "在线",
+    "offline": "离线",
+    "processing": "处理中",
+    "error": "错误",
+    "warning": "警告",
+    "success": "成功"
+  },
+  "loading": {
+    "shimmer": "加载中...",
+    "skeleton": "内容加载中"
   }
 }

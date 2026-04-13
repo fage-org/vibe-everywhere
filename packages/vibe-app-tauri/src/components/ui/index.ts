@@ -30,3 +30,47 @@ export {
   Eyebrow,
   type TypographyProps,
 } from "./Typography";
+
+// Multi-line text input with keyboard event handling
+export {
+  MultiTextInput,
+  type MultiTextInputProps,
+  type MultiTextInputHandle,
+  type KeyPressEvent,
+  type SupportedKey,
+  type TextInputState,
+} from "./MultiTextInput";
+
+// Shimmer loading animations
+export {
+  ShimmerView,
+  ShimmerText,
+  ShimmerAvatar,
+  ShimmerCard,
+  type ShimmerViewProps,
+  type ShimmerTextProps,
+  type ShimmerAvatarProps,
+  type ShimmerCardProps,
+} from "./ShimmerView";
+
+// Status indicators
+export {
+  StatusIndicator,
+  StatusBadge,
+  getStatusLabel,
+  type StatusIndicatorProps,
+  type StatusBadgeProps,
+  type StatusType,
+  type StatusSize,
+} from "./StatusIndicator";
+
+// Avatar components
+export {
+  Avatar,
+  AvatarGradient,
+  AvatarBrutalist,
+  type AvatarProps,
+  type AvatarGradientProps,
+  type AvatarBrutalistProps,
+  type AvatarStyle,
+} from "./avatar";
