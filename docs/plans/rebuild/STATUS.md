@@ -4,7 +4,7 @@
 > Read this file first before any implementation task.
 > Update this file whenever a batch, module, or gate changes status.
 
-Last updated: 2026-04-13 (Phase 1 Module A/B/C complete)
+Last updated: 2026-04-13 (Phase 3A/B complete)
 
 ## Current Phase
 
@@ -117,7 +117,7 @@ All routes are handled by AppV2:
 
 ## Next Actions
 
-Phase 1 implementation is complete. All core functionality is implemented and tested.
+Phase 1-3 implementation is complete. All core functionality is implemented and tested.
 
 **Completed enhancements:**
 1. **Phase 1 - Module A: 消息渲染增强** ✅
@@ -137,7 +137,23 @@ Phase 1 implementation is complete. All core functionality is implemented and te
    - useMediaQuery hook
    - useResponsiveLayout hook
 
+4. **Phase 3A - Artifacts 工件系统** ✅
+   - ArtifactsRoute (列表、搜索、筛选)
+   - ArtifactDetailRoute (详情、元数据、删除)
+   - ArtifactEditRoute (标题/内容编辑器)
+   - ArtifactNewRoute (创建、草稿/发布)
+
+5. **Phase 3B - Usage 可视化图表** ✅
+   - UsageChart (SVG 条形图)
+   - UsagePieChart (CSS 饼图)
+   - 时间范围选择器 (today/7days/30days)
+   - 模型分布可视化
+   - 月度费用预估
+
 **All critical functionality is implemented and tested.**
+
+**Optional future work:**
+- Phase 3C: Voice 语音助手 (需要 LiveKit 基础设施)
 
 ## Archived Work
 

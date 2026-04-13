@@ -225,8 +225,25 @@
     "summaryDescription": "Your API usage for the past 30 days",
     "totalTokens": "Total Tokens",
     "estimatedCost": "Estimated Cost",
+    "projectedMonthly": "Projected Monthly",
     "period": "Period",
-    "breakdown": "Daily Breakdown"
+    "periodOptions": {
+      "today": "Today",
+      "7days": "Last 7 Days",
+      "30days": "Last 30 Days"
+    },
+    "breakdown": "Daily Breakdown",
+    "chart": {
+      "title": "Usage Over Time"
+    },
+    "distribution": {
+      "title": "Model Distribution",
+      "tokens": "tokens"
+    },
+    "empty": {
+      "title": "No usage data",
+      "description": "Start a session to see your usage statistics"
+    }
   },
   "machine": {
     "back": "Back",

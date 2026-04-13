@@ -225,8 +225,25 @@
     "summaryDescription": "过去 30 天的 API 使用量",
     "totalTokens": "总 Token 数",
     "estimatedCost": "预估费用",
+    "projectedMonthly": "月度预估",
     "period": "统计周期",
-    "breakdown": "每日明细"
+    "periodOptions": {
+      "today": "今天",
+      "7days": "最近 7 天",
+      "30days": "最近 30 天"
+    },
+    "breakdown": "每日明细",
+    "chart": {
+      "title": "使用量趋势"
+    },
+    "distribution": {
+      "title": "模型分布",
+      "tokens": "tokens"
+    },
+    "empty": {
+      "title": "暂无使用数据",
+      "description": "开始会话后查看使用统计"
+    }
   },
   "machine": {
     "back": "返回",
