@@ -330,10 +330,10 @@ export const desktopRoutes: RouteDefinition[] = [
     title: "User Detail",
     pattern: "/(app)/user/[id]",
     examplePath: "/(app)/user/demo-user",
-    summary: "Desktop user or profile detail route in promotion scope.",
+    summary: "User profile with friend status and actions.",
     promotionClass: "P1",
     ownerModule: "secondary-surfaces",
-    section: "Utilities",
+    section: "Social",
     status: "wired",
   },
   {
@@ -414,12 +414,11 @@ export const desktopRoutes: RouteDefinition[] = [
     title: "Friends",
     pattern: "/(app)/friends/index",
     examplePath: "/(app)/friends/index",
-    summary:
-      "Social surface explicitly deferred from the current promotion gate until desktop value is confirmed.",
+    summary: "Social surface for friends list and management.",
     promotionClass: "P2",
     ownerModule: "secondary-surfaces",
     section: "Social",
-    status: "planned",
+    status: "wired",
   },
   {
     key: "friends-search",
@@ -427,12 +426,11 @@ export const desktopRoutes: RouteDefinition[] = [
     title: "Friend Search",
     pattern: "/(app)/friends/search",
     examplePath: "/(app)/friends/search",
-    summary:
-      "Friend search remains deferred with the broader social surface set until desktop value is confirmed.",
+    summary: "Search for users and send friend requests.",
     promotionClass: "P2",
     ownerModule: "secondary-surfaces",
     section: "Social",
-    status: "planned",
+    status: "wired",
   },
   {
     key: "dev-index",

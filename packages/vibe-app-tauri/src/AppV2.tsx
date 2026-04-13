@@ -323,6 +323,8 @@ function AppContentV2({ isMobile }: AppContentV2Props) {
       activeMachineId={appShell.activeMachineId}
       // Artifact props
       activeArtifactId={appShell.activeArtifactId}
+      // Social props
+      activeUserId={appShell.activeUserId}
       // Restore props
       restoreState={{
         qrSvg: restoreQrSvg,

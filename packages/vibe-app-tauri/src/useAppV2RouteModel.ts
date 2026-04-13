@@ -8,6 +8,7 @@ export type AppV2View =
   | "session"
   | "settings"
   | "settings-appearance"
+  | "settings-ai-providers"
   | "settings-features"
   | "settings-language"
   | "settings-usage"
@@ -24,6 +25,11 @@ export type AppV2View =
   | "artifact-detail"
   | "artifact-edit"
   | "artifact-new"
+  | "friends"
+  | "friends-search"
+  | "user-detail"
+  | "terminal"
+  | "terminal-connect"
   | "unsupported";
 
 export type AppV2RouteModel = {
@@ -33,6 +39,7 @@ export type AppV2RouteModel = {
   activeFilePath: string | null;
   activeMachineId: string | null;
   activeArtifactId: string | null;
+  activeUserId: string | null;
   canonicalPath: string;
   isSupported: boolean;
 };
@@ -46,6 +53,7 @@ const SETTINGS_INDEX_KEYS = new Set([
 
 const SETTINGS_SUBVIEW_MAP: Record<string, AppV2View> = {
   "settings-appearance": "settings-appearance",
+  "settings-ai-providers": "settings-ai-providers",
   "settings-features": "settings-features",
   "settings-language": "settings-language",
   "settings-usage": "settings-usage",
@@ -57,6 +65,17 @@ const ARTIFACT_ROUTES_MAP: Record<string, AppV2View> = {
   "artifacts-new": "artifact-new",
   "artifacts-detail": "artifact-detail",
   "artifacts-edit": "artifact-edit",
+};
+
+const SOCIAL_ROUTES_MAP: Record<string, AppV2View> = {
+  "friends-index": "friends",
+  "friends-search": "friends-search",
+  "user-detail": "user-detail",
+};
+
+const TERMINAL_ROUTES_MAP: Record<string, AppV2View> = {
+  "terminal-index": "terminal",
+  "terminal-connect": "terminal-connect",
 };
 
 export function resolveAppV2View(resolved: ResolvedRoute): AppV2View {
@@ -89,6 +108,12 @@ export function resolveAppV2View(resolved: ResolvedRoute): AppV2View {
       if (ARTIFACT_ROUTES_MAP[resolved.definition.key]) {
         return ARTIFACT_ROUTES_MAP[resolved.definition.key];
       }
+      if (SOCIAL_ROUTES_MAP[resolved.definition.key]) {
+        return SOCIAL_ROUTES_MAP[resolved.definition.key];
+      }
+      if (TERMINAL_ROUTES_MAP[resolved.definition.key]) {
+        return TERMINAL_ROUTES_MAP[resolved.definition.key];
+      }
       if (SETTINGS_SUBVIEW_MAP[resolved.definition.key]) {
         return SETTINGS_SUBVIEW_MAP[resolved.definition.key];
       }
@@ -112,6 +137,7 @@ export function useAppV2RouteModel(resolved: ResolvedRoute): AppV2RouteModel {
       activeFilePath: view === "session-file" ? resolved.searchParams.get("path") ?? null : null,
       activeMachineId: view === "machine-detail" ? resolved.params.id ?? null : null,
       activeArtifactId: isArtifactView ? resolved.params.id ?? null : null,
+      activeUserId: view === "user-detail" ? resolved.params.id ?? null : null,
       canonicalPath: resolved.canonicalPath,
       isSupported: view !== "unsupported",
     };

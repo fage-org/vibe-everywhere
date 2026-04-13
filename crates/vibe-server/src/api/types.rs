@@ -646,6 +646,42 @@ pub struct VendorPath {
     pub vendor: String,
 }
 
+// ============ Vendor Token Types ============
+
+/// Request body for registering a vendor token
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RegisterVendorTokenBody {
+    pub token: String,
+}
+
+/// Information about a connected vendor token (masked for security)
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VendorTokenInfo {
+    pub vendor: String,
+    pub masked_token: String,
+    pub connected: bool,
+    pub created_at: u64,
+    pub updated_at: u64,
+}
+
+/// Response for listing all vendor tokens
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VendorTokenListResponse {
+    pub tokens: Vec<VendorTokenInfo>,
+}
+
+/// Response after successfully registering a vendor token
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RegisterVendorResponse {
+    pub success: bool,
+    pub vendor: String,
+    pub masked_token: String,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct UserPath {
     pub id: String,

@@ -905,6 +905,32 @@ export function useDesktopState(activeSessionId?: string | null) {
     }
   }, []);
 
+  // ============ Vendor Token Methods ============
+
+  const listVendorTokens = useCallback(async () => {
+    const client = clientRef.current;
+    if (!client) {
+      throw new Error("Sign in first");
+    }
+    return client.listVendorTokens();
+  }, []);
+
+  const registerVendorToken = useCallback(async (vendor: string, token: string) => {
+    const client = clientRef.current;
+    if (!client) {
+      throw new Error("Sign in first");
+    }
+    return client.registerVendorToken(vendor, token);
+  }, []);
+
+  const deleteVendorToken = useCallback(async (vendor: string) => {
+    const client = clientRef.current;
+    if (!client) {
+      throw new Error("Sign in first");
+    }
+    return client.deleteVendorToken(vendor);
+  }, []);
+
   const sendMessage = useCallback(
     async (sessionId: string, text: string, options?: SendMessageOptions) => {
       const trimmed = text.trim();
@@ -1493,5 +1519,8 @@ export function useDesktopState(activeSessionId?: string | null) {
     updateAccountSettings,
     retryStoredSession,
     storedSessionAvailable,
+    listVendorTokens,
+    registerVendorToken,
+    deleteVendorToken,
   };
 }

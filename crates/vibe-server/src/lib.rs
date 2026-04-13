@@ -8,6 +8,7 @@ pub mod events;
 pub mod machines;
 pub mod monitoring;
 pub mod presence;
+pub mod services;
 pub mod sessions;
 pub mod storage;
 pub mod version;

@@ -54,8 +54,25 @@ For `vibe-app-tauri`, the active planning set is:
 - `execution-batches.md`
 - `modules/vibe-app-tauri/*`
 
-Wave 8 and Wave 9 planning artifacts now live in `archive/` and must not override the active Wave
-10 execution set.
+Wave 10 and Wave 11 planning artifacts now live in their respective directories.
+Wave 8 and Wave 9 planning artifacts live in `archive/` and must not override the active
+Wave 10/11 execution sets.
+
+## Wave 11: Backend API Completion
+
+Wave 11 focuses on completing the missing backend APIs identified in the Happy gap analysis.
+
+- `wave11/HAPPY_GAP_ANALYSIS.md`: Complete gap analysis between Happy and Vibe-Remote
+- `wave11/BACKEND_API_PLAN.md`: Implementation plan for missing backend APIs
+
+### Wave 11 Status
+
+| API Module | Status | Priority |
+|------------|--------|----------|
+| `/v1/kv` | ⏳ Pending | High |
+| `/v1/push` | ⏳ Pending | High |
+| `/v1/voice` | ⏳ Pending | High |
+| `/v1/dev` | ⏳ Pending | Low |
 
 ## Wave 10 Glossary
 

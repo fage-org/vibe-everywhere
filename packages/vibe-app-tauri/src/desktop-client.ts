@@ -154,6 +154,45 @@ export type DesktopMachine = {
   dataEncryptionKey: string | null;
 };
 
+/**
+ * Vendor token info (masked for security)
+ */
+export type VendorTokenInfo = {
+  vendor: string;
+  maskedToken: string;
+  connected: boolean;
+  createdAt: number;
+  updatedAt: number;
+};
+
+export type VendorTokenListResponse = {
+  tokens: VendorTokenInfo[];
+};
+
+export type RegisterVendorResponse = {
+  success: boolean;
+  vendor: string;
+  maskedToken: string;
+};
+
+const VendorTokenInfoSchema = z.object({
+  vendor: z.string(),
+  maskedToken: z.string(),
+  connected: z.boolean(),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+});
+
+const VendorTokenListResponseSchema = z.object({
+  tokens: z.array(VendorTokenInfoSchema),
+});
+
+const RegisterVendorResponseSchema = z.object({
+  success: z.boolean(),
+  vendor: z.string(),
+  maskedToken: z.string(),
+});
+
 export type UiMessage = {
   id: string;
   localId: string | null;
@@ -2494,6 +2533,65 @@ export class DesktopClient {
     wrapped[0] = 0;
     wrapped.set(encrypted, 1);
     return encodeBase64(wrapped, "base64");
+  }
+
+  // ============ Vendor Token Methods ============
+
+  /**
+   * List all connected vendor tokens (masked for security)
+   */
+  async listVendorTokens(): Promise<VendorTokenInfo[]> {
+    const response = await fetchJson<VendorTokenListResponse>(
+      `${this.serverUrl}/v1/connect/tokens`,
+      {
+        headers: {
+          Authorization: `Bearer ${this.credentials.token}`,
+        },
+      },
+      (value) =>
+        parseWithSchema(VendorTokenListResponseSchema, value, "List vendor tokens response"),
+    );
+    return response.tokens;
+  }
+
+  /**
+   * Register a vendor API token
+   * The token will be validated with the vendor before storing.
+   */
+  async registerVendorToken(
+    vendor: string,
+    token: string,
+  ): Promise<{ maskedToken: string }> {
+    const response = await fetchJson<RegisterVendorResponse>(
+      `${this.serverUrl}/v1/connect/${vendor}/register`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.credentials.token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ token }),
+      },
+      (value) =>
+        parseWithSchema(RegisterVendorResponseSchema, value, "Register vendor token response"),
+    );
+    return { maskedToken: response.maskedToken };
+  }
+
+  /**
+   * Delete a vendor token
+   */
+  async deleteVendorToken(vendor: string): Promise<void> {
+    await fetchJson<void>(
+      `${this.serverUrl}/v1/connect/${vendor}`,
+      {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${this.credentials.token}`,
+        },
+      },
+      () => undefined,
+    );
   }
 }
 

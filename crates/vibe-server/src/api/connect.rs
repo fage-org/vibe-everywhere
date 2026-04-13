@@ -12,9 +12,13 @@ use serde_json::Value;
 use sha2::Sha256;
 
 use crate::{
-    api::types::{ApiError, SuccessResponse, VendorPath},
+    api::types::{
+        ApiError, RegisterVendorResponse, RegisterVendorTokenBody, SuccessResponse,
+        VendorPath, VendorTokenInfo, VendorTokenListResponse,
+    },
     auth::AuthenticatedUser,
     context::AppContext,
+    services::token_validation::validate_vendor_token,
     storage::db::{GithubTokenRecord, VendorTokenRecord, now_ms},
 };
 
@@ -360,14 +364,23 @@ async fn register_vendor(
     State(ctx): State<AppContext>,
     user: AuthenticatedUser,
     Path(path): Path<VendorPath>,
-    Json(body): Json<Value>,
-) -> Result<Json<SuccessResponse>, ApiError> {
+    Json(body): Json<RegisterVendorTokenBody>,
+) -> Result<Json<RegisterVendorResponse>, ApiError> {
     let vendor = validate_vendor(&path.vendor)?;
-    let token = body
-        .get("token")
-        .and_then(|value| value.as_str())
-        .ok_or_else(|| ApiError::bad_request("token is required"))?
-        .to_string();
+    let token = body.token;
+
+    // Validate the token with the vendor's API
+    let valid = validate_vendor_token(vendor, &token)
+        .await
+        .map_err(|e| ApiError::bad_request(&format!("Token validation failed: {}", e)))?;
+
+    if !valid {
+        return Err(ApiError::bad_request("Invalid API token"));
+    }
+
+    let masked = mask_token(&token);
+    let now = now_ms();
+
     ctx.db().write(|state| {
         state.vendor_tokens.insert(
             (user.user_id.clone(), vendor.to_string()),
@@ -376,27 +389,41 @@ async fn register_vendor(
                 account_id: user.user_id.clone(),
                 vendor: vendor.to_string(),
                 token,
-                created_at: now_ms(),
-                updated_at: now_ms(),
+                created_at: now,
+                updated_at: now,
             },
         );
     });
-    Ok(Json(SuccessResponse { success: true }))
+
+    Ok(Json(RegisterVendorResponse {
+        success: true,
+        vendor: vendor.to_string(),
+        masked_token: masked,
+    }))
 }
 
 async fn get_vendor_token(
     State(ctx): State<AppContext>,
     user: AuthenticatedUser,
     Path(path): Path<VendorPath>,
-) -> Result<Json<Value>, ApiError> {
+) -> Result<Json<VendorTokenInfo>, ApiError> {
     let vendor = validate_vendor(&path.vendor)?;
-    let token = ctx.db().read(|state| {
+    let token_info = ctx.db().read(|state| {
         state
             .vendor_tokens
-            .get(&(user.user_id, vendor.to_string()))
-            .map(|record| record.token.clone())
+            .get(&(user.user_id.clone(), vendor.to_string()))
+            .map(|record| VendorTokenInfo {
+                vendor: record.vendor.clone(),
+                masked_token: mask_token(&record.token),
+                connected: true,
+                created_at: record.created_at,
+                updated_at: record.updated_at,
+            })
     });
-    Ok(Json(serde_json::json!({ "token": token })))
+
+    token_info
+        .map(Json)
+        .ok_or_else(|| ApiError::not_found("Vendor token not found"))
 }
 
 async fn delete_vendor(
@@ -416,22 +443,23 @@ async fn delete_vendor(
 async fn list_tokens(
     State(ctx): State<AppContext>,
     user: AuthenticatedUser,
-) -> Result<Json<Value>, ApiError> {
+) -> Result<Json<VendorTokenListResponse>, ApiError> {
     let tokens = ctx.db().read(|state| {
         state
             .vendor_tokens
             .values()
             .filter(|record| record.account_id == user.user_id)
             .filter(|record| validate_vendor(&record.vendor).is_ok())
-            .map(|record| {
-                serde_json::json!({
-                    "vendor": record.vendor,
-                    "token": record.token,
-                })
+            .map(|record| VendorTokenInfo {
+                vendor: record.vendor.clone(),
+                masked_token: mask_token(&record.token),
+                connected: true,
+                created_at: record.created_at,
+                updated_at: record.updated_at,
             })
             .collect::<Vec<_>>()
     });
-    Ok(Json(serde_json::json!({ "tokens": tokens })))
+    Ok(Json(VendorTokenListResponse { tokens }))
 }
 
 fn validate_vendor(vendor: &str) -> Result<&'static str, ApiError> {
@@ -440,6 +468,17 @@ fn validate_vendor(vendor: &str) -> Result<&'static str, ApiError> {
         .copied()
         .find(|candidate| *candidate == vendor)
         .ok_or_else(|| ApiError::bad_request("Unsupported vendor"))
+}
+
+/// Masks a token for safe display in API responses.
+/// Shows only the first 4 and last 4 characters, with `...` in between.
+/// Tokens shorter than 8 characters are fully masked.
+fn mask_token(token: &str) -> String {
+    if token.len() <= 8 {
+        "*".repeat(token.len())
+    } else {
+        format!("{}...{}", &token[..4], &token[token.len() - 4..])
+    }
 }
 
 fn separate_name(name: Option<&str>) -> (Option<String>, Option<String>) {
@@ -546,5 +585,24 @@ mod tests {
             location,
             Some("https://app.vibe.example?error=missing_code")
         );
+    }
+
+    #[test]
+    fn mask_token_shows_first_and_last_four_chars() {
+        let token = "sk-proj-1234567890abcdef";
+        let masked = super::mask_token(token);
+        assert_eq!(masked, "sk-p...cdef");
+    }
+
+    #[test]
+    fn mask_token_fully_masks_short_tokens() {
+        assert_eq!(super::mask_token("short"), "*****");
+        assert_eq!(super::mask_token("12345678"), "********");
+    }
+
+    #[test]
+    fn mask_token_handles_exactly_nine_chars() {
+        // 9 chars: show first 4 and last 4
+        assert_eq!(super::mask_token("123456789"), "1234...6789");
     }
 }

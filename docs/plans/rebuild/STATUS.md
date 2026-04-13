@@ -4,16 +4,22 @@
 > Read this file first before any implementation task.
 > Update this file whenever a batch, module, or gate changes status.
 
-Last updated: 2026-04-13 (Phase 3A/B/C complete)
+Last updated: 2026-04-13 (Wave 11 backend API completion started)
 
 ## Current Phase
 
-**Phase 1 — Implementation Progress.** All three modules (A, B, C) are now complete with full settings integration. See `PHASE1_IMPLEMENTATION_PLAN.md` for details.
+**Wave 11 — Backend API Completion.** Implementing missing backend APIs identified in Happy gap analysis. See `wave11/HAPPY_GAP_ANALYSIS.md` and `wave11/BACKEND_API_PLAN.md` for details.
+
+**Phase 1-3 — Completed.** All three modules (A, B, C) are complete with full settings integration. See `PHASE1_IMPLEMENTATION_PLAN.md` for details.
 
 ### Active Plan Documents
 
-- `HAPPY_GAP_ANALYSIS.md` - Complete gap analysis between Happy and Vibe-Remote
-- `PHASE1_IMPLEMENTATION_PLAN.md` - Detailed Phase 1 implementation plan (3 modules, 26 tasks)
+- `PHASE1_IMPLEMENTATION_PLAN.md` - Detailed Phase 1 implementation plan (3 modules, 26 tasks) - **Completed**
+
+### Wave 11 Documents (Backend API Completion)
+
+- `wave11/HAPPY_GAP_ANALYSIS.md` - Complete gap analysis between Happy and Vibe-Remote
+- `wave11/BACKEND_API_PLAN.md` - Implementation plan for missing backend APIs
 
 ## Project Status
 
@@ -52,6 +58,7 @@ The following cleanup was completed:
 | B30 | Remote operations workflow | ✅ done |
 | B31 | Platform parity contract | ✅ done |
 | B32 | Surface disposition and documentation reset | ✅ done |
+| B33 | Wave 11 Backend API investigation | ✅ done - APIs already implemented |
 
 ### Summary: B27-B32 Deliverables
 
@@ -114,8 +121,18 @@ All routes are handled by AppV2:
 - `settings-*` (all settings routes)
 - `restore-index`, `restore-manual` (account restoration)
 - `session-info`, `session-message`, `session-files`, `session-file` (session details)
+- `friends-index`, `friends-search`, `user-detail` (social features)
+- `artifacts-index`, `artifacts-new`, `artifacts-detail`, `artifacts-edit` (artifacts)
+- `terminal-index`, `terminal-connect` (terminal control)
 
 ## Next Actions
+
+**Wave 11 - Backend API Investigation Complete:**
+
+所有 Happy Gap Analysis 中标记为缺失的后端 API 实际上已在 `api/utility.rs` 中实现：
+- ✅ KV Store API (`/v1/kv`) - 完整实现
+- ✅ Push Notification API (`/v1/push-tokens`) - 完整实现
+- ✅ Voice API (`/v1/voice/token`) - 完整实现（含 ElevenLabs + RevenueCat）
 
 Phase 1-3 implementation is complete. All core functionality is implemented and tested.
 
@@ -157,7 +174,26 @@ Phase 1-3 implementation is complete. All core functionality is implemented and 
    - SettingsVoiceRoute (语音设置页面)
    - Web Speech API 跨平台支持
 
-**All Phase 1-3 functionality is implemented and tested.**
+7. **Phase 4 - Social 社交功能** ✅
+   - FriendsRoute (好友列表页面)
+   - FriendsSearchRoute (用户搜索页面)
+   - UserDetailRoute (用户资料页面)
+   - 好友状态管理
+   - 国际化支持 (中英文)
+
+8. **Phase 5 - AI Provider Token Management** ✅
+   - SettingsAIProvidersRoute (供应商设置页面)
+   - Vendor token validation (OpenAI, Anthropic, Gemini)
+   - Token masking 安全处理
+
+9. **Phase 6 - Terminal 终端控制** ✅
+   - TerminalRoute (终端功能主页)
+   - TerminalConnectRoute (终端连接确认页面)
+   - approveTerminalConnection API 集成
+   - 端到端加密认证流程
+   - 国际化支持 (中英文)
+
+**All Phase 1-6 functionality is implemented and tested.**
 
 ## Archived Work
 

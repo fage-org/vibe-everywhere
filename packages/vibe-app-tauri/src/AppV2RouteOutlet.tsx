@@ -10,6 +10,7 @@ import {
   RecentSessionsRoute,
   SessionRoute,
   SettingsRoute,
+  SettingsAIProvidersRoute,
   SettingsAppearanceRoute,
   SettingsFeaturesRoute,
   SettingsLanguageRoute,
@@ -27,6 +28,11 @@ import {
   ArtifactDetailRoute,
   ArtifactEditRoute,
   ArtifactNewRoute,
+  FriendsRoute,
+  FriendsSearchRoute,
+  UserDetailRoute,
+  TerminalRoute,
+  TerminalConnectRoute,
 } from "./routes/appv2";
 
 type NewSessionErrors = {
@@ -100,6 +106,8 @@ type AppV2RouteOutletProps = {
   activeMachineId: string | null;
   // Artifact props
   activeArtifactId: string | null;
+  // Social props
+  activeUserId: string | null;
   // Navigation callbacks
   onSessionSelect: (session: { id: string }) => void;
   onStartNewSession: () => void;
@@ -161,6 +169,7 @@ export function AppV2RouteOutlet({
   sessionFileState,
   activeMachineId,
   activeArtifactId,
+  activeUserId,
   onSessionSelect,
   onStartNewSession,
   onViewAllSessions,
@@ -246,6 +255,8 @@ export function AppV2RouteOutlet({
       return <SettingsRoute sections={settingsSections} />;
     case "settings-appearance":
       return <SettingsAppearanceRoute />;
+    case "settings-ai-providers":
+      return <SettingsAIProvidersRoute />;
     case "settings-features":
       return <SettingsFeaturesRoute />;
     case "settings-language":
@@ -353,6 +364,17 @@ export function AppV2RouteOutlet({
       );
     case "artifact-new":
       return <ArtifactNewRoute />;
+    case "friends":
+      return <FriendsRoute />;
+    case "friends-search":
+      return <FriendsSearchRoute />;
+    case "user-detail":
+      return <UserDetailRoute userId={activeUserId ?? ""} />;
+    case "terminal":
+      return <TerminalRoute />;
+    case "terminal-connect":
+      // Get publicKey from URL search params
+      return <TerminalConnectRoute publicKey={new URLSearchParams(window.location.hash.split("?")[1] || "").get("publicKey") || ""} />;
     case "unsupported":
       return (
         <UnsupportedRoute
