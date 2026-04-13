@@ -4,7 +4,7 @@
 > Read this file first before any implementation task.
 > Update this file whenever a batch, module, or gate changes status.
 
-Last updated: 2026-04-13 (Phase 3A/B complete)
+Last updated: 2026-04-13 (Phase 3A/B/C complete)
 
 ## Current Phase
 
@@ -150,10 +150,14 @@ Phase 1-3 implementation is complete. All core functionality is implemented and 
    - 模型分布可视化
    - 月度费用预估
 
-**All critical functionality is implemented and tested.**
+6. **Phase 3C - Voice 语音助手** ✅
+   - useSpeechRecognition hook (语音输入)
+   - useSpeechSynthesis hook (语音输出)
+   - VoiceInputButton/VoiceOutputButton 组件
+   - SettingsVoiceRoute (语音设置页面)
+   - Web Speech API 跨平台支持
 
-**Optional future work:**
-- Phase 3C: Voice 语音助手 (需要 LiveKit 基础设施)
+**All Phase 1-3 functionality is implemented and tested.**
 
 ## Archived Work
 
