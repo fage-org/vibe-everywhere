@@ -149,5 +149,18 @@
     "step3Description": "Review the connection request and approve it to complete setup.",
     "security": "Security",
     "infoCard": "Terminal connections allow you to run sessions remotely. Your credentials are securely shared using end-to-end encryption."
+  },
+  "commandPalette": {
+    "searchPlaceholder": "Search commands...",
+    "noResults": "No commands found",
+    "toNavigate": "to navigate",
+    "toSelect": "to select",
+    "toClose": "ESC to close",
+    "categories": {
+      "navigation": "Navigation",
+      "actions": "Actions",
+      "settings": "Settings",
+      "help": "Help"
+    }
   }
 }

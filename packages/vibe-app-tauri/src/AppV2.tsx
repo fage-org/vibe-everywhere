@@ -19,9 +19,11 @@ import { useAppV2Shell } from "./useAppV2Shell";
 import { ThemeProvider } from "./components/providers/ThemeProvider";
 import { Shell, Sidebar, Header, MobileShell, MobileNavBar } from "./components/layout";
 import { SessionList, type ComposerSuggestion, type Message } from "./components/surfaces";
+import { CommandPalette } from "./components/ui";
 import { LocalSettingsProvider } from "./LocalSettingsContext";
 
 import { useLanguage } from "./hooks/useLanguage";
+import { useCommandPalette, createDefaultCommands } from "./hooks/useCommandPalette";
 import {
   loadAppearanceSettings,
   saveAppearanceSettings,
@@ -91,6 +93,13 @@ function AppContentV2({ isMobile }: AppContentV2Props) {
     appShell.activeSessionId,
     appShell.currentSession,
   );
+
+  // Command palette
+  const commandPaletteCommands = useMemo(
+    () => createDefaultCommands(router.navigate),
+    [router.navigate],
+  );
+  const commandPalette = useCommandPalette(commandPaletteCommands);
 
   // Restore state
   const [restoreQrSvg, setRestoreQrSvg] = useState<string | null>(null);
@@ -392,116 +401,142 @@ function AppContentV2({ isMobile }: AppContentV2Props) {
   // Mobile layout
   if (isMobile) {
     return (
-      <MobileShell
-        header={
-          appShell.view === "session" && appShell.currentSession ? (
-            <MobileNavBar
-              title={appShell.currentSession.metadata?.name || t("routes:session.title")}
-              leading={
-                <button onClick={() => router.navigate("/(app)/index")} style={{ fontSize: "1.5rem" }}>
-                  ←
-                </button>
-              }
-            />
-          ) : (
-            <MobileNavBar title={t('common:app.name')} />
-          )
-        }
-        tabs={[
-          { id: "home", label: t('components:nav.home'), icon: "🏠" },
-          { id: "sessions", label: t('components:nav.sessions'), icon: "💬" },
-          { id: "inbox", label: t('components:nav.inbox'), icon: "🔔", badge: appShell.unreadCount },
-          { id: "settings", label: t('components:nav.settings'), icon: "⚙️" },
-        ]}
-        activeTab={navigation.mobileActiveTab}
-        onTabChange={(tab) => {
-          if (tab === "home") router.navigate("/(app)/index");
-          if (tab === "sessions") router.navigate("/(app)/session/recent");
-          if (tab === "inbox") router.navigate("/(app)/inbox/index");
-          if (tab === "settings") router.navigate("/(app)/settings/index");
-        }}
-      >
-        {routeContent}
-      </MobileShell>
+      <>
+        <MobileShell
+          header={
+            appShell.view === "session" && appShell.currentSession ? (
+              <MobileNavBar
+                title={appShell.currentSession.metadata?.name || t("routes:session.title")}
+                leading={
+                  <button onClick={() => router.navigate("/(app)/index")} style={{ fontSize: "1.5rem" }}>
+                    ←
+                  </button>
+                }
+              />
+            ) : (
+              <MobileNavBar title={t('common:app.name')} />
+            )
+          }
+          tabs={[
+            { id: "home", label: t('components:nav.home'), icon: "🏠" },
+            { id: "sessions", label: t('components:nav.sessions'), icon: "💬" },
+            { id: "inbox", label: t('components:nav.inbox'), icon: "🔔", badge: appShell.unreadCount },
+            { id: "settings", label: t('components:nav.settings'), icon: "⚙️" },
+          ]}
+          activeTab={navigation.mobileActiveTab}
+          onTabChange={(tab) => {
+            if (tab === "home") router.navigate("/(app)/index");
+            if (tab === "sessions") router.navigate("/(app)/session/recent");
+            if (tab === "inbox") router.navigate("/(app)/inbox/index");
+            if (tab === "settings") router.navigate("/(app)/settings/index");
+          }}
+        >
+          {routeContent}
+        </MobileShell>
+        <CommandPalette
+          isOpen={commandPalette.isOpen}
+          close={commandPalette.close}
+          query={commandPalette.query}
+          setQuery={commandPalette.setQuery}
+          commands={commandPalette.filteredCommands}
+          selectedIndex={commandPalette.selectedIndex}
+          selectPrevious={commandPalette.selectPrevious}
+          selectNext={commandPalette.selectNext}
+          executeSelected={commandPalette.executeSelected}
+        />
+      </>
     );
   }
 
   // Desktop layout
   return (
-    <Shell
-      sidebar={
-        <Sidebar
-          brand={
+    <>
+      <Shell
+        sidebar={
+          <Sidebar
+            brand={
+              <div
+                style={{
+                  fontWeight: 700,
+                  fontSize: "1.5rem",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "12px",
+                }}
+              >
+                <span>⚡</span>
+                {!sidebarCollapsed && <span>{t('common:app.name')}</span>}
+              </div>
+            }
+            primarySections={[{ items: navigation.primaryNavItems }]}
+            secondarySections={[{ items: navigation.secondaryNavItems }]}
+            connectionStatus={
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <span
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: "50%",
+                    backgroundColor: appShell.isConnected ? "var(--color-success)" : "var(--color-danger)",
+                  }}
+                />
+                {!sidebarCollapsed && (
+                  <span style={{ fontSize: "0.8125rem", color: "var(--text-tertiary)" }}>
+                    {appShell.isConnected ? t('ui:connection.connected') : t('ui:connection.disconnected')}
+                  </span>
+                )}
+              </div>
+            }
+            collapsed={sidebarCollapsed}
+          />
+        }
+        header={
+          appShell.view !== "session" && (
+            <Header
+              eyebrow={t(navigation.headerEyebrowKey)}
+              title={navigation.headerTitle}
+              size="compact"
+            />
+          )
+        }
+        sidebarCollapsed={sidebarCollapsed}
+      >
+        {appShell.view === "home" ? (
+          <div style={{ display: "flex", height: "100%" }}>
+            {/* Session List Sidebar */}
             <div
               style={{
-                fontWeight: 700,
-                fontSize: "1.5rem",
-                display: "flex",
-                alignItems: "center",
-                gap: "12px",
+                width: "320px",
+                borderRight: "1px solid var(--border-primary)",
+                overflow: "auto",
               }}
             >
-              <span>⚡</span>
-              {!sidebarCollapsed && <span>{t('common:app.name')}</span>}
-            </div>
-          }
-          primarySections={[{ items: navigation.primaryNavItems }]}
-          secondarySections={[{ items: navigation.secondaryNavItems }]}
-          connectionStatus={
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span
-                style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: "50%",
-                  backgroundColor: appShell.isConnected ? "var(--color-success)" : "var(--color-danger)",
-                }}
+              <SessionList
+                sessions={appShell.sessions}
+                selectedId={appShell.activeSessionId || undefined}
+                onSelect={handleSessionSelect}
+                loading={appShell.isLoading}
               />
-              {!sidebarCollapsed && (
-                <span style={{ fontSize: "0.8125rem", color: "var(--text-tertiary)" }}>
-                  {appShell.isConnected ? t('ui:connection.connected') : t('ui:connection.disconnected')}
-                </span>
-              )}
             </div>
-          }
-          collapsed={sidebarCollapsed}
-        />
-      }
-      header={
-        appShell.view !== "session" && (
-          <Header
-            eyebrow={t(navigation.headerEyebrowKey)}
-            title={navigation.headerTitle}
-            size="compact"
-          />
-        )
-      }
-      sidebarCollapsed={sidebarCollapsed}
-    >
-      {appShell.view === "home" ? (
-        <div style={{ display: "flex", height: "100%" }}>
-          {/* Session List Sidebar */}
-          <div
-            style={{
-              width: "320px",
-              borderRight: "1px solid var(--border-primary)",
-              overflow: "auto",
-            }}
-          >
-            <SessionList
-              sessions={appShell.sessions}
-              selectedId={appShell.activeSessionId || undefined}
-              onSelect={handleSessionSelect}
-              loading={appShell.isLoading}
-            />
-          </div>
 
-          <div style={{ flex: 1, overflow: "auto" }}>{routeContent}</div>
-        </div>
-      ) : (
-        routeContent
-      )}
-    </Shell>
+            <div style={{ flex: 1, overflow: "auto" }}>{routeContent}</div>
+          </div>
+        ) : (
+          routeContent
+        )}
+      </Shell>
+      <CommandPalette
+        isOpen={commandPalette.isOpen}
+        close={commandPalette.close}
+        query={commandPalette.query}
+        setQuery={commandPalette.setQuery}
+        commands={commandPalette.filteredCommands}
+        selectedIndex={commandPalette.selectedIndex}
+        selectPrevious={commandPalette.selectPrevious}
+        selectNext={commandPalette.selectNext}
+        executeSelected={commandPalette.executeSelected}
+      />
+    </>
   );
 }
 

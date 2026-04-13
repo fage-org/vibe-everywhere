@@ -149,5 +149,18 @@
     "step3Description": "查看连接请求并批准以完成设置。",
     "security": "安全",
     "infoCard": "终端连接允许您远程运行会话。您的凭据使用端到端加密安全共享。"
+  },
+  "commandPalette": {
+    "searchPlaceholder": "搜索命令...",
+    "noResults": "未找到命令",
+    "toNavigate": "导航",
+    "toSelect": "选择",
+    "toClose": "ESC 关闭",
+    "categories": {
+      "navigation": "导航",
+      "actions": "操作",
+      "settings": "设置",
+      "help": "帮助"
+    }
   }
 }
