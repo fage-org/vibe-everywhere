@@ -673,7 +673,11 @@ pub struct MachineSyncClient {
 }
 
 /// Type alias for RPC handler functions.
-type RpcHandler = Box<dyn Fn(Value) -> std::pin::Pin<Box<dyn std::future::Future<Output = Value> + Send>> + Send + Sync>;
+type RpcHandler = Box<
+    dyn Fn(Value) -> std::pin::Pin<Box<dyn std::future::Future<Output = Value> + Send>>
+        + Send
+        + Sync,
+>;
 
 impl MachineSyncClient {
     async fn connect(
@@ -684,7 +688,8 @@ impl MachineSyncClient {
         let machine_id = machine.id.clone();
         let state = Arc::new(Mutex::new((false, None::<String>)));
         let ready = Arc::new(Notify::new());
-        let rpc_handlers: Arc<Mutex<HashMap<String, RpcHandler>>> = Arc::new(Mutex::new(HashMap::new()));
+        let rpc_handlers: Arc<Mutex<HashMap<String, RpcHandler>>> =
+            Arc::new(Mutex::new(HashMap::new()));
 
         let connect_state = state.clone();
         let connect_ready = ready.clone();
@@ -738,7 +743,8 @@ impl MachineSyncClient {
                         ) {
                             // Parse the method to extract scope and actual method name
                             // Format: "{machine_id}:{method_name}" or just "{method_name}"
-                            let actual_method = method.strip_prefix(&format!("{}:", machine.id))
+                            let actual_method = method
+                                .strip_prefix(&format!("{}:", machine.id))
                                 .unwrap_or(method);
 
                             let handlers = rpc_handlers.lock().await;
@@ -753,15 +759,23 @@ impl MachineSyncClient {
                             drop(handlers);
 
                             // Encrypt the response
-                            let encrypted = encode_base64(&encrypt_json(
-                                &machine.encryption.key,
-                                machine.encryption.variant,
-                                &result,
-                            ).unwrap_or_default());
+                            let encrypted = encode_base64(
+                                &encrypt_json(
+                                    &machine.encryption.key,
+                                    machine.encryption.variant,
+                                    &result,
+                                )
+                                .unwrap_or_default(),
+                            );
 
-                            let _ = socket.emit("rpc-response", serde_json::json!({
-                                "result": encrypted,
-                            })).await;
+                            let _ = socket
+                                .emit(
+                                    "rpc-response",
+                                    serde_json::json!({
+                                        "result": encrypted,
+                                    }),
+                                )
+                                .await;
                         }
                     }
                 }
@@ -811,9 +825,15 @@ impl MachineSyncClient {
         // Register the method with the server
         let machine_id = self.machine.lock().await.id.clone();
         let method_with_scope = format!("{}:{}", machine_id, method);
-        let _ = self.socket.emit("rpc-register", serde_json::json!({
-            "method": method_with_scope,
-        })).await;
+        let _ = self
+            .socket
+            .emit(
+                "rpc-register",
+                serde_json::json!({
+                    "method": method_with_scope,
+                }),
+            )
+            .await;
     }
 
     /// Unregister an RPC handler.
@@ -824,9 +844,15 @@ impl MachineSyncClient {
         // Unregister the method from the server
         let machine_id = self.machine.lock().await.id.clone();
         let method_with_scope = format!("{}:{}", machine_id, method);
-        let _ = self.socket.emit("rpc-unregister", serde_json::json!({
-            "method": method_with_scope,
-        })).await;
+        let _ = self
+            .socket
+            .emit(
+                "rpc-unregister",
+                serde_json::json!({
+                    "method": method_with_scope,
+                }),
+            )
+            .await;
     }
 
     pub async fn machine_alive(&self) -> Result<(), CliApiError> {

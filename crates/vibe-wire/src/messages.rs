@@ -723,11 +723,10 @@ mod tests {
 
     #[test]
     fn parses_spawn_session_rpc_params_with_defaults() {
-        let params =
-            serde_json::from_value::<SpawnSessionRpcParams>(json!({
-                "directory": "/home/user/project"
-            }))
-            .unwrap();
+        let params = serde_json::from_value::<SpawnSessionRpcParams>(json!({
+            "directory": "/home/user/project"
+        }))
+        .unwrap();
 
         assert_eq!(params.directory, "/home/user/project");
         assert!(!params.approved_new_directory_creation);
@@ -737,31 +736,28 @@ mod tests {
 
     #[test]
     fn parses_spawn_session_rpc_result_variants() {
-        let success =
-            serde_json::from_value::<SpawnSessionRpcResult>(json!({
-                "type": "success",
-                "sessionId": "session-123"
-            }))
-            .unwrap();
+        let success = serde_json::from_value::<SpawnSessionRpcResult>(json!({
+            "type": "success",
+            "sessionId": "session-123"
+        }))
+        .unwrap();
         assert!(matches!(success, SpawnSessionRpcResult::Success { .. }));
 
-        let request_approval =
-            serde_json::from_value::<SpawnSessionRpcResult>(json!({
-                "type": "requestToApproveDirectoryCreation",
-                "directory": "/new/path"
-            }))
-            .unwrap();
+        let request_approval = serde_json::from_value::<SpawnSessionRpcResult>(json!({
+            "type": "requestToApproveDirectoryCreation",
+            "directory": "/new/path"
+        }))
+        .unwrap();
         assert!(matches!(
             request_approval,
             SpawnSessionRpcResult::RequestToApproveDirectoryCreation { .. }
         ));
 
-        let error =
-            serde_json::from_value::<SpawnSessionRpcResult>(json!({
-                "type": "error",
-                "errorMessage": "Failed to spawn"
-            }))
-            .unwrap();
+        let error = serde_json::from_value::<SpawnSessionRpcResult>(json!({
+            "type": "error",
+            "errorMessage": "Failed to spawn"
+        }))
+        .unwrap();
         assert!(matches!(error, SpawnSessionRpcResult::Error { .. }));
     }
 

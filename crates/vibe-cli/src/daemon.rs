@@ -240,9 +240,7 @@ pub async fn run_daemon_service(config: Config) -> Result<()> {
         .register_rpc_handler("spawn-happy-session", move |params: Value| {
             let config = rpc_config.clone();
             let sessions = rpc_sessions.clone();
-            async move {
-                handle_spawn_session_rpc(config, sessions, params).await
-            }
+            async move { handle_spawn_session_rpc(config, sessions, params).await }
         })
         .await;
 
@@ -250,9 +248,7 @@ pub async fn run_daemon_service(config: Config) -> Result<()> {
     machine_sync
         .register_rpc_handler("stop-daemon", move |_params: Value| {
             let shutdown_tx = daemon_shutdown_tx.clone();
-            async move {
-                handle_stop_daemon_rpc(shutdown_tx).await
-            }
+            async move { handle_stop_daemon_rpc(shutdown_tx).await }
         })
         .await;
 
@@ -524,12 +520,12 @@ async fn handle_spawn_session_rpc(
     // Parse the encrypted params
     let parsed: SpawnSessionRpcParams = match serde_json::from_value(params) {
         Ok(p) => p,
-        Err(e) => {
-            return serde_json::to_value(SpawnSessionRpcResult::Error {
-                error_message: format!("Invalid params: {e}"),
-            })
-            .unwrap_or_else(|_| serde_json::json!({ "type": "error", "errorMessage": "Failed to serialize error" }))
-        }
+        Err(e) => return serde_json::to_value(SpawnSessionRpcResult::Error {
+            error_message: format!("Invalid params: {e}"),
+        })
+        .unwrap_or_else(
+            |_| serde_json::json!({ "type": "error", "errorMessage": "Failed to serialize error" }),
+        ),
     };
 
     // Check if directory exists
@@ -582,12 +578,12 @@ async fn handle_spawn_session_rpc(
             serde_json::to_value(SpawnSessionRpcResult::Success { session_id })
                 .unwrap_or_else(|_| serde_json::json!({ "type": "error", "errorMessage": "Failed to serialize success" }))
         }
-        Err(e) => {
-            serde_json::to_value(SpawnSessionRpcResult::Error {
-                error_message: format!("Failed to spawn session: {e}"),
-            })
-            .unwrap_or_else(|_| serde_json::json!({ "type": "error", "errorMessage": "Failed to serialize error" }))
-        }
+        Err(e) => serde_json::to_value(SpawnSessionRpcResult::Error {
+            error_message: format!("Failed to spawn session: {e}"),
+        })
+        .unwrap_or_else(
+            |_| serde_json::json!({ "type": "error", "errorMessage": "Failed to serialize error" }),
+        ),
     }
 }
 

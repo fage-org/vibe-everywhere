@@ -41,7 +41,10 @@ pub enum TokenValidationError {
 /// * `Ok(true)` - Token is valid
 /// * `Ok(false)` - Token is invalid (should not happen, use Err for invalid)
 /// * `Err(TokenValidationError)` - Validation failed with specific error
-pub async fn validate_vendor_token(vendor: &str, token: &str) -> Result<bool, TokenValidationError> {
+pub async fn validate_vendor_token(
+    vendor: &str,
+    token: &str,
+) -> Result<bool, TokenValidationError> {
     match vendor {
         "openai" => validate_openai_token(token).await,
         "anthropic" => validate_anthropic_token(token).await,
@@ -143,7 +146,10 @@ mod tests {
     #[tokio::test]
     async fn unsupported_vendor_returns_error() {
         let result = validate_vendor_token("unknown", "test").await;
-        assert!(matches!(result, Err(TokenValidationError::UnsupportedVendor(_))));
+        assert!(matches!(
+            result,
+            Err(TokenValidationError::UnsupportedVendor(_))
+        ));
     }
 
     #[test]

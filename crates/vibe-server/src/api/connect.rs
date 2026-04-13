@@ -13,8 +13,8 @@ use sha2::Sha256;
 
 use crate::{
     api::types::{
-        ApiError, RegisterVendorResponse, RegisterVendorTokenBody, SuccessResponse,
-        VendorPath, VendorTokenInfo, VendorTokenListResponse,
+        ApiError, RegisterVendorResponse, RegisterVendorTokenBody, SuccessResponse, VendorPath,
+        VendorTokenInfo, VendorTokenListResponse,
     },
     auth::AuthenticatedUser,
     context::AppContext,
