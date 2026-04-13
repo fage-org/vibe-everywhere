@@ -92,9 +92,15 @@ export function useAppV2Navigation({
     const mobileActiveTab =
       view === "new-session" || view === "unsupported"
         ? "home"
-        : view === "session-recent"
+        : view === "session-recent" || view === "session" || view === "session-message" || view === "session-files" || view === "session-file"
           ? "sessions"
-          : view;
+          : view === "artifact-detail" || view === "artifact-edit" || view === "artifact-new"
+            ? "artifacts"
+            : view === "friends-search" || view === "user-detail"
+              ? "friends"
+              : view === "terminal-connect"
+                ? "terminal"
+                : view;
 
     const headerEyebrowKey =
       view === "new-session" || view === "unsupported" ? "components:nav.home" : `components:nav.${view}`;

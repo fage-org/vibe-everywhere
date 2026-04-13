@@ -421,6 +421,9 @@ function AppContentV2({ isMobile }: AppContentV2Props) {
             { id: "home", label: t('components:nav.home'), icon: "🏠" },
             { id: "sessions", label: t('components:nav.sessions'), icon: "💬" },
             { id: "inbox", label: t('components:nav.inbox'), icon: "🔔", badge: appShell.unreadCount },
+            { id: "artifacts", label: t('components:nav.artifacts'), icon: "📁" },
+            { id: "friends", label: t('components:nav.friends'), icon: "👥" },
+            { id: "terminal", label: t('components:nav.terminal'), icon: "💻" },
             { id: "settings", label: t('components:nav.settings'), icon: "⚙️" },
           ]}
           activeTab={navigation.mobileActiveTab}
@@ -428,6 +431,9 @@ function AppContentV2({ isMobile }: AppContentV2Props) {
             if (tab === "home") router.navigate("/(app)/index");
             if (tab === "sessions") router.navigate("/(app)/session/recent");
             if (tab === "inbox") router.navigate("/(app)/inbox/index");
+            if (tab === "artifacts") router.navigate("/(app)/artifacts/index");
+            if (tab === "friends") router.navigate("/(app)/friends/index");
+            if (tab === "terminal") router.navigate("/(app)/terminal/index");
             if (tab === "settings") router.navigate("/(app)/settings/index");
           }}
         >
