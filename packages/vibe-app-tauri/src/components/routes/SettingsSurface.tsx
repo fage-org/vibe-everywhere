@@ -23,7 +23,7 @@ export interface SettingItem {
   /** Setting description */
   description?: string;
   /** Setting type */
-  type: "toggle" | "select" | "text" | "number" | "custom";
+  type: "toggle" | "select" | "text" | "number" | "custom" | "link";
   /** Current value */
   value: unknown;
   /** Options for select type */
@@ -36,6 +36,10 @@ export interface SettingItem {
   disabled?: boolean;
   /** Beta/Experimental badge */
   experimental?: boolean;
+  /** Link URL for link type */
+  link?: string;
+  /** Icon for link type */
+  icon?: string;
 }
 
 export interface SettingsSurfaceProps {
@@ -192,6 +196,52 @@ interface SettingRowProps {
 
 function SettingRow({ setting, isLast }: SettingRowProps) {
   const { t } = useTranslation(['ui']);
+
+  // Link type is clickable row
+  if (setting.type === "link" && setting.link) {
+    return (
+      <a
+        href={setting.link}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: tokens.spacing[4],
+          padding: `${tokens.spacing[4]}`,
+          borderBottom: isLast ? undefined : "1px solid var(--border-primary)",
+          textDecoration: "none",
+          color: "inherit",
+          cursor: "pointer",
+          transition: `background-color ${tokens.animation.duration.fast} ${tokens.animation.easing.default}`,
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.backgroundColor = "var(--surface-secondary)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.backgroundColor = "transparent";
+        }}
+      >
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: tokens.spacing[2] }}>
+            {setting.icon && <span style={{ fontSize: "20px" }}>{setting.icon}</span>}
+            <Subheadline>{setting.label}</Subheadline>
+            {setting.experimental && (
+              <Badge variant="warning" size="sm">{t('ui:badges.beta')}</Badge>
+            )}
+          </div>
+          {setting.description && (
+            <Body color="tertiary" style={{ marginTop: tokens.spacing[1], fontSize: tokens.typography.fontSize.sm }}>
+              {setting.description}
+            </Body>
+          )}
+        </div>
+
+        <div style={{ flexShrink: 0, color: "var(--text-tertiary)" }}>
+          →
+        </div>
+      </a>
+    );
+  }
 
   return (
     <div

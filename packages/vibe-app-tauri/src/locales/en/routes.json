@@ -131,13 +131,32 @@
     "appV2Persistence": "Settings in the AppV2 shell persist immediately when changed.",
     "appearance": "Theme",
     "appearanceDescription": "Customize the look and feel of the app",
+    "accountDescription": "Manage your account and connected services",
+    "aiProvidersDescription": "Connect your AI provider accounts",
+    "voiceDescription": "Configure voice input and output",
+    "usageDescription": "View your API usage and costs",
     "sections": {
       "general": "General",
       "language": "Language",
       "appearance": "Appearance",
       "notifications": "Notifications",
       "account": "Account",
+      "aiProviders": "AI Providers",
+      "voice": "Voice",
+      "usage": "Usage",
       "about": "About"
+    },
+    "account": {
+      "title": "Account"
+    },
+    "aiProviders": {
+      "title": "AI Providers"
+    },
+    "voice": {
+      "title": "Voice"
+    },
+    "usage": {
+      "title": "Usage"
     },
     "actions": {
       "reset": "Reset",

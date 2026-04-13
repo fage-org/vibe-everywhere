@@ -47,6 +47,36 @@ export function useAppV2Navigation({
         state: view === "inbox" ? "active" : "default",
         onClick: () => navigate("/(app)/inbox/index"),
       },
+      {
+        id: "artifacts",
+        label: t("components:nav.artifacts"),
+        icon: "📁",
+        state:
+          view === "artifacts" ||
+          view === "artifact-detail" ||
+          view === "artifact-edit" ||
+          view === "artifact-new"
+            ? "active"
+            : "default",
+        onClick: () => navigate("/(app)/artifacts/index"),
+      },
+      {
+        id: "friends",
+        label: t("components:nav.friends"),
+        icon: "👥",
+        state:
+          view === "friends" || view === "friends-search" || view === "user-detail"
+            ? "active"
+            : "default",
+        onClick: () => navigate("/(app)/friends/index"),
+      },
+      {
+        id: "terminal",
+        label: t("components:nav.terminal"),
+        icon: "💻",
+        state: view === "terminal" || view === "terminal-connect" ? "active" : "default",
+        onClick: () => navigate("/(app)/terminal/index"),
+      },
     ];
 
     const secondaryNavItems: NavigationItem[] = [

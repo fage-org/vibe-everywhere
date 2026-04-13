@@ -27,6 +27,75 @@ export function useAppV2SettingsSections({
 }: SettingsSectionOptions): SettingSection[] {
   return useMemo((): SettingSection[] => {
     return [
+      // Account section (link to account settings)
+      {
+        id: "account",
+        title: t("routes:settings.sections.account"),
+        description: t("routes:settings.accountDescription"),
+        settings: [
+          {
+            id: "account-link",
+            label: t("routes:settings.account.title"),
+            description: t("routes:settings.accountDescription"),
+            type: "link",
+            value: null,
+            link: "/(app)/settings/account",
+            icon: "👤",
+          },
+        ],
+      },
+      // AI Providers section
+      {
+        id: "ai-providers",
+        title: t("routes:settings.sections.aiProviders"),
+        description: t("routes:settings.aiProvidersDescription"),
+        settings: [
+          {
+            id: "ai-providers-link",
+            label: t("routes:settings.aiProviders.title"),
+            description: t("routes:settings.aiProvidersDescription"),
+            type: "link",
+            value: null,
+            link: "/(app)/settings/ai-providers",
+            icon: "🤖",
+          },
+        ],
+      },
+      // Voice section
+      {
+        id: "voice",
+        title: t("routes:settings.sections.voice"),
+        description: t("routes:settings.voiceDescription"),
+        settings: [
+          {
+            id: "voice-link",
+            label: t("routes:settings.voice.title"),
+            description: t("routes:settings.voiceDescription"),
+            type: "link",
+            value: null,
+            link: "/(app)/settings/voice",
+            icon: "🎤",
+          },
+        ],
+      },
+      // Usage section
+      {
+        id: "usage",
+        title: t("routes:settings.sections.usage"),
+        description: t("routes:settings.usageDescription"),
+        settings: [
+          {
+            id: "usage-link",
+            label: t("routes:settings.usage.title"),
+            description: t("routes:settings.usageDescription"),
+            type: "link",
+            value: null,
+            link: "/(app)/settings/usage",
+            icon: "📊",
+          },
+        ],
+      },
+      // Language section
       {
         id: "language",
         title: t("routes:settings.language.title"),
@@ -47,6 +116,7 @@ export function useAppV2SettingsSections({
           },
         ],
       },
+      // Appearance section
       {
         id: "appearance",
         title: t("routes:settings.sections.appearance"),

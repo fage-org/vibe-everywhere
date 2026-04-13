@@ -30,6 +30,9 @@
     "home": "首页",
     "sessions": "会话",
     "inbox": "收件箱",
+    "artifacts": "工件",
+    "friends": "好友",
+    "terminal": "终端",
     "settings": "设置"
   }
 }

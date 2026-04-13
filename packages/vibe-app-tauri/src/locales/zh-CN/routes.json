@@ -131,13 +131,32 @@
     "appV2Persistence": "AppV2 壳中的设置会在变更后立即持久化。",
     "appearance": "主题",
     "appearanceDescription": "自定义应用的外观与体验",
+    "accountDescription": "管理您的账户和已连接的服务",
+    "aiProvidersDescription": "连接您的 AI 供应商账户",
+    "voiceDescription": "配置语音输入和输出",
+    "usageDescription": "查看您的 API 使用量和费用",
     "sections": {
       "general": "通用",
       "language": "语言",
       "appearance": "外观",
       "notifications": "通知",
       "account": "账户",
+      "aiProviders": "AI 供应商",
+      "voice": "语音",
+      "usage": "使用量",
       "about": "关于"
+    },
+    "account": {
+      "title": "账户"
+    },
+    "aiProviders": {
+      "title": "AI 供应商"
+    },
+    "voice": {
+      "title": "语音"
+    },
+    "usage": {
+      "title": "使用量"
     },
     "actions": {
       "reset": "重置",
