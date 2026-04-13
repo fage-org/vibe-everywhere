@@ -22,6 +22,12 @@ pub struct TestServer {
 
 impl TestServer {
     pub async fn start() -> Self {
+        // Skip token validation in tests (using fake tokens)
+        // SAFETY: This is a test fixture, setting an environment variable is safe here.
+        unsafe {
+            std::env::set_var("VIBE_SKIP_TOKEN_VALIDATION", "true");
+        }
+
         let std_listener = StdTcpListener::bind("127.0.0.1:0").unwrap();
         let addr = std_listener.local_addr().unwrap();
         std_listener.set_nonblocking(true).unwrap();

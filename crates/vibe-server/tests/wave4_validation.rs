@@ -13,6 +13,15 @@ use vibe_server::{
     },
 };
 
+// Skip token validation in tests (using fake tokens)
+// SAFETY: This is test code, setting an environment variable is safe here.
+static _SKIP_VALIDATION: std::sync::Once = std::sync::Once::new();
+fn skip_token_validation() {
+    _SKIP_VALIDATION.call_once(|| unsafe {
+        std::env::set_var("VIBE_SKIP_TOKEN_VALIDATION", "true");
+    });
+}
+
 fn test_config() -> Config {
     Config {
         host: "127.0.0.1".parse().unwrap(),
@@ -287,6 +296,7 @@ async fn artifact_and_access_key_routes_work() {
 
 #[tokio::test]
 async fn connect_social_and_feed_routes_work() {
+    skip_token_validation();
     let ctx = AppContext::new(test_config());
     let (account_id, token) = auth_token(&ctx, "wave4-social");
     let friend = ctx.db().upsert_account_by_public_key("wave4-friend");
@@ -446,9 +456,22 @@ async fn github_tokens_stay_out_of_generic_connect_routes_and_connected_services
     )
     .await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(
-        json,
-        json!({"tokens":[{"vendor":"anthropic","token":"service-token"}]})
+    // Check that anthropic vendor token is present (format changed to masked token)
+    assert_eq!(json["tokens"][0]["vendor"], "anthropic");
+    assert!(
+        json["tokens"][0]["maskedToken"]
+            .as_str()
+            .unwrap()
+            .starts_with("serv")
+    );
+    assert_eq!(json["tokens"][0]["connected"], true);
+    // GitHub token should NOT appear in this list
+    assert!(
+        json["tokens"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|t| t["vendor"] != "github")
     );
 
     let (status, json) = json_response(

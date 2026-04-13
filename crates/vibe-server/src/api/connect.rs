@@ -370,12 +370,19 @@ async fn register_vendor(
     let token = body.token;
 
     // Validate the token with the vendor's API
-    let valid = validate_vendor_token(vendor, &token)
-        .await
-        .map_err(|e| ApiError::bad_request(&format!("Token validation failed: {}", e)))?;
+    // Skip validation if VIBE_SKIP_TOKEN_VALIDATION is set (for testing/development)
+    let skip_validation = std::env::var("VIBE_SKIP_TOKEN_VALIDATION")
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
 
-    if !valid {
-        return Err(ApiError::bad_request("Invalid API token"));
+    if !skip_validation {
+        let valid = validate_vendor_token(vendor, &token)
+            .await
+            .map_err(|e| ApiError::bad_request(&format!("Token validation failed: {}", e)))?;
+
+        if !valid {
+            return Err(ApiError::bad_request("Invalid API token"));
+        }
     }
 
     let masked = mask_token(&token);
