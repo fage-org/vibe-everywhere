@@ -281,5 +281,129 @@
   "unsupported": {
     "title": "Route not yet productized",
     "description": "The AppV2 shell does not currently expose {{routeTitle}} as an active Wave 10 surface."
+  },
+  "artifacts": {
+    "header": {
+      "eyebrow": "Artifacts"
+    },
+    "title": "Artifacts",
+    "description": "Manage your code artifacts and documents",
+    "search": {
+      "placeholder": "Search artifacts..."
+    },
+    "sort": {
+      "updated": "Last Updated",
+      "created": "Date Created",
+      "title": "Title"
+    },
+    "actions": {
+      "new": "New Artifact",
+      "view": "View",
+      "createFirst": "Create Your First Artifact",
+      "retry": "Retry"
+    },
+    "badges": {
+      "draft": "Draft",
+      "locked": "Locked"
+    },
+    "empty": {
+      "title": "No artifacts yet",
+      "description": "Create your first artifact to get started",
+      "noResults": "No artifacts match your search"
+    },
+    "untitled": "Untitled",
+    "updated": "Updated {{date}}"
+  },
+  "artifactDetail": {
+    "header": {
+      "eyebrow": "Artifact"
+    },
+    "actions": {
+      "back": "Back",
+      "edit": "Edit",
+      "delete": "Delete"
+    },
+    "metadata": {
+      "createdAt": "Created",
+      "updatedAt": "Updated",
+      "version": "Version",
+      "status": "Status",
+      "sessions": "Associated Sessions"
+    },
+    "content": {
+      "title": "Content",
+      "empty": "No content",
+      "encrypted": "Content is encrypted and cannot be displayed"
+    },
+    "delete": {
+      "title": "Delete Artifact",
+      "description": "Are you sure you want to delete this artifact? This action cannot be undone.",
+      "cancel": "Cancel",
+      "confirm": "Delete"
+    }
+  },
+  "artifactEdit": {
+    "header": {
+      "eyebrow": "Edit Artifact"
+    },
+    "title": "Edit Artifact",
+    "badges": {
+      "unsaved": "Unsaved Changes"
+    },
+    "actions": {
+      "cancel": "Cancel",
+      "save": "Save"
+    },
+    "fields": {
+      "title": "Title",
+      "titlePlaceholder": "Enter artifact title",
+      "content": "Content",
+      "contentPlaceholder": "Enter artifact content..."
+    },
+    "metadata": {
+      "id": "Artifact ID",
+      "version": "Version",
+      "status": "Status"
+    },
+    "status": {
+      "decrypted": "Decrypted"
+    },
+    "hints": {
+      "shortcut": "Press Cmd+S to save"
+    }
+  },
+  "artifactNew": {
+    "header": {
+      "eyebrow": "New Artifact"
+    },
+    "title": "Create Artifact",
+    "description": "Create a new code artifact or document",
+    "actions": {
+      "cancel": "Cancel",
+      "create": "Create"
+    },
+    "fields": {
+      "title": "Title",
+      "titlePlaceholder": "Enter artifact title",
+      "content": "Content",
+      "contentPlaceholder": "Enter artifact content..."
+    },
+    "options": {
+      "title": "Options",
+      "draft": "Save as Draft",
+      "draftDescription": "Draft artifacts are only visible to you",
+      "status": "Visibility",
+      "statusDescription": "Published artifacts can be shared with others",
+      "session": "Associated Session",
+      "sessionDescription": "This artifact is linked to a session"
+    },
+    "status": {
+      "draft": "Draft",
+      "published": "Published"
+    },
+    "help": {
+      "title": "Tips",
+      "content": "Artifacts can contain code, markdown, or any text content. Use artifacts to save code snippets, notes, or documents."
+    }
   }
 }

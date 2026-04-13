@@ -22,6 +22,10 @@ import {
   SessionFilesRoute,
   SessionFileRoute,
   MachineDetailRoute,
+  ArtifactsRoute,
+  ArtifactDetailRoute,
+  ArtifactEditRoute,
+  ArtifactNewRoute,
 } from "./routes/appv2";
 
 type NewSessionErrors = {
@@ -93,6 +97,8 @@ type AppV2RouteOutletProps = {
   sessionFileState: SessionFileState;
   // Machine props
   activeMachineId: string | null;
+  // Artifact props
+  activeArtifactId: string | null;
   // Navigation callbacks
   onSessionSelect: (session: { id: string }) => void;
   onStartNewSession: () => void;
@@ -153,6 +159,7 @@ export function AppV2RouteOutlet({
   sessionFilesState,
   sessionFileState,
   activeMachineId,
+  activeArtifactId,
   onSessionSelect,
   onStartNewSession,
   onViewAllSessions,
@@ -327,6 +334,22 @@ export function AppV2RouteOutlet({
           onNavigateToSession={onNavigateToSession}
         />
       );
+    case "artifacts":
+      return <ArtifactsRoute />;
+    case "artifact-detail":
+      return (
+        <ArtifactDetailRoute
+          artifactId={activeArtifactId ?? ""}
+        />
+      );
+    case "artifact-edit":
+      return (
+        <ArtifactEditRoute
+          artifactId={activeArtifactId ?? ""}
+        />
+      );
+    case "artifact-new":
+      return <ArtifactNewRoute />;
     case "unsupported":
       return (
         <UnsupportedRoute

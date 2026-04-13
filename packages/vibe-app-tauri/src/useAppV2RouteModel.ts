@@ -19,6 +19,10 @@ export type AppV2View =
   | "session-files"
   | "session-file"
   | "machine-detail"
+  | "artifacts"
+  | "artifact-detail"
+  | "artifact-edit"
+  | "artifact-new"
   | "unsupported";
 
 export type AppV2RouteModel = {
@@ -27,6 +31,7 @@ export type AppV2RouteModel = {
   activeMessageId: string | null;
   activeFilePath: string | null;
   activeMachineId: string | null;
+  activeArtifactId: string | null;
   canonicalPath: string;
   isSupported: boolean;
 };
@@ -44,6 +49,13 @@ const SETTINGS_SUBVIEW_MAP: Record<string, AppV2View> = {
   "settings-features": "settings-features",
   "settings-language": "settings-language",
   "settings-usage": "settings-usage",
+};
+
+const ARTIFACT_ROUTES_MAP: Record<string, AppV2View> = {
+  "artifacts-index": "artifacts",
+  "artifacts-new": "artifact-new",
+  "artifacts-detail": "artifact-detail",
+  "artifacts-edit": "artifact-edit",
 };
 
 export function resolveAppV2View(resolved: ResolvedRoute): AppV2View {
@@ -73,6 +85,9 @@ export function resolveAppV2View(resolved: ResolvedRoute): AppV2View {
     case "machine-detail":
       return "machine-detail";
     default:
+      if (ARTIFACT_ROUTES_MAP[resolved.definition.key]) {
+        return ARTIFACT_ROUTES_MAP[resolved.definition.key];
+      }
       if (SETTINGS_SUBVIEW_MAP[resolved.definition.key]) {
         return SETTINGS_SUBVIEW_MAP[resolved.definition.key];
       }
@@ -88,12 +103,14 @@ export function useAppV2RouteModel(resolved: ResolvedRoute): AppV2RouteModel {
   return useMemo(() => {
     const view = resolveAppV2View(resolved);
     const isSessionView = ["session", "session-info", "session-message", "session-files", "session-file"].includes(view);
+    const isArtifactView = ["artifact-detail", "artifact-edit"].includes(view);
     return {
       view,
       activeSessionId: isSessionView ? resolved.params.id ?? null : null,
       activeMessageId: view === "session-message" ? resolved.params.messageId ?? null : null,
       activeFilePath: view === "session-file" ? resolved.searchParams.get("path") ?? null : null,
       activeMachineId: view === "machine-detail" ? resolved.params.id ?? null : null,
+      activeArtifactId: isArtifactView ? resolved.params.id ?? null : null,
       canonicalPath: resolved.canonicalPath,
       isSupported: view !== "unsupported",
     };

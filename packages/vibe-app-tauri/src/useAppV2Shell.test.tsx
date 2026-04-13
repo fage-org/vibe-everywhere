@@ -212,7 +212,8 @@ describe("useAppV2Shell", () => {
     expect(resolveAppV2View(createResolvedRoute("session-detail", "Session", { id: "session-1" }))).toBe("session");
     expect(resolveAppV2View(createResolvedRoute("settings-index", "Settings"))).toBe("settings");
     expect(resolveAppV2View(createResolvedRoute("inbox", "Session"))).toBe("inbox");
-    expect(resolveAppV2View(createResolvedRoute("artifacts-index", "Artifacts"))).toBe("unsupported");
+    expect(resolveAppV2View(createResolvedRoute("artifacts-index", "Artifacts"))).toBe("artifacts");
+    expect(resolveAppV2View(createResolvedRoute("artifacts-detail", "Artifacts", { id: "artifact-1" }))).toBe("artifact-detail");
   });
 
   it("routes home actions through canonical app paths", async () => {

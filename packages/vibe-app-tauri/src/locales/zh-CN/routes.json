@@ -281,5 +281,129 @@
   "unsupported": {
     "title": "该路由尚未产品化",
     "description": "AppV2 壳目前尚未将 {{routeTitle}} 作为 Wave 10 的有效表面暴露出来。"
+  },
+  "artifacts": {
+    "header": {
+      "eyebrow": "工件"
+    },
+    "title": "工件",
+    "description": "管理你的代码工件和文档",
+    "search": {
+      "placeholder": "搜索工件..."
+    },
+    "sort": {
+      "updated": "最近更新",
+      "created": "创建日期",
+      "title": "标题"
+    },
+    "actions": {
+      "new": "新建工件",
+      "view": "查看",
+      "createFirst": "创建你的第一个工件",
+      "retry": "重试"
+    },
+    "badges": {
+      "draft": "草稿",
+      "locked": "已锁定"
+    },
+    "empty": {
+      "title": "暂无工件",
+      "description": "创建你的第一个工件开始使用",
+      "noResults": "没有找到匹配的工件"
+    },
+    "untitled": "未命名",
+    "updated": "更新于 {{date}}"
+  },
+  "artifactDetail": {
+    "header": {
+      "eyebrow": "工件"
+    },
+    "actions": {
+      "back": "返回",
+      "edit": "编辑",
+      "delete": "删除"
+    },
+    "metadata": {
+      "createdAt": "创建时间",
+      "updatedAt": "更新时间",
+      "version": "版本",
+      "status": "状态",
+      "sessions": "关联会话"
+    },
+    "content": {
+      "title": "内容",
+      "empty": "暂无内容",
+      "encrypted": "内容已加密，无法显示"
+    },
+    "delete": {
+      "title": "删除工件",
+      "description": "确定要删除此工件吗？此操作无法撤销。",
+      "cancel": "取消",
+      "confirm": "删除"
+    }
+  },
+  "artifactEdit": {
+    "header": {
+      "eyebrow": "编辑工件"
+    },
+    "title": "编辑工件",
+    "badges": {
+      "unsaved": "有未保存的更改"
+    },
+    "actions": {
+      "cancel": "取消",
+      "save": "保存"
+    },
+    "fields": {
+      "title": "标题",
+      "titlePlaceholder": "输入工件标题",
+      "content": "内容",
+      "contentPlaceholder": "输入工件内容..."
+    },
+    "metadata": {
+      "id": "工件 ID",
+      "version": "版本",
+      "status": "状态"
+    },
+    "status": {
+      "decrypted": "已解密"
+    },
+    "hints": {
+      "shortcut": "按 Cmd+S 保存"
+    }
+  },
+  "artifactNew": {
+    "header": {
+      "eyebrow": "新建工件"
+    },
+    "title": "创建工件",
+    "description": "创建新的代码工件或文档",
+    "actions": {
+      "cancel": "取消",
+      "create": "创建"
+    },
+    "fields": {
+      "title": "标题",
+      "titlePlaceholder": "输入工件标题",
+      "content": "内容",
+      "contentPlaceholder": "输入工件内容..."
+    },
+    "options": {
+      "title": "选项",
+      "draft": "保存为草稿",
+      "draftDescription": "草稿工件仅对你可见",
+      "status": "可见性",
+      "statusDescription": "已发布的工件可以与他人分享",
+      "session": "关联会话",
+      "sessionDescription": "此工件与一个会话关联"
+    },
+    "status": {
+      "draft": "草稿",
+      "published": "已发布"
+    },
+    "help": {
+      "title": "提示",
+      "content": "工件可以包含代码、Markdown 或任何文本内容。使用工件保存代码片段、笔记或文档。"
+    }
   }
 }

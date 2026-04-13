@@ -16,3 +16,7 @@ export { SessionMessageRoute } from "./SessionMessageRoute";
 export { SessionFilesRoute } from "./SessionFilesRoute";
 export { SessionFileRoute } from "./SessionFileRoute";
 export { MachineDetailRoute, type MachineDetailRouteProps } from "./MachineDetailRoute";
+export { ArtifactsRoute, type ArtifactsRouteProps } from "./ArtifactsRoute";
+export { ArtifactDetailRoute, type ArtifactDetailRouteProps } from "./ArtifactDetailRoute";
+export { ArtifactEditRoute, type ArtifactEditRouteProps } from "./ArtifactEditRoute";
+export { ArtifactNewRoute, type ArtifactNewRouteProps } from "./ArtifactNewRoute";
