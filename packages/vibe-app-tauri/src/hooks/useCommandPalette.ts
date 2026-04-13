@@ -155,28 +155,10 @@ export function createDefaultCommands(navigate: (path: string) => void): Command
       icon: "🌐",
       action: () => navigate("/(app)/settings/language"),
     },
-    // Actions
-    {
-      id: "action-search",
-      label: "Search Sessions",
-      category: "actions",
-      icon: "🔍",
-      shortcut: "⌘F",
-      action: () => {
-        // This would trigger a search mode
-        console.log("Search sessions");
-      },
-    },
-    // Help
-    {
-      id: "help-shortcuts",
-      label: "Keyboard Shortcuts",
-      category: "help",
-      icon: "⌨️",
-      action: () => {
-        console.log("Show keyboard shortcuts");
-      },
-    },
+    // Note: Actions (Search Sessions) and Help (Keyboard Shortcuts)
+    // commands are removed until their functionality is implemented.
+    // TODO: Add search mode command when search UI is ready
+    // TODO: Add keyboard shortcuts modal command when modal is implemented
   ];
 }
 
