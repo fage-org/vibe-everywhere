@@ -24,8 +24,9 @@ pub use legacy_protocol::{
 pub use message_meta::MessageMeta;
 pub use messages::{
     ApiMessage, ApiUpdateMachineState, ApiUpdateNewMessage, ApiUpdateSessionState, CoreUpdateBody,
-    CoreUpdateContainer, MessageContent, SessionMessage, SessionMessageContent,
-    SessionProtocolMessage, Update, UpdateBody, UpdateMachineBody, UpdateNewMessageBody,
+    CoreUpdateContainer, MessageContent, ResumeSessionRpcParams, SessionMessage,
+    SessionMessageContent, SessionProtocolMessage, SpawnSessionRpcParams, SpawnSessionRpcResult,
+    StopDaemonRpcResult, Update, UpdateBody, UpdateMachineBody, UpdateNewMessageBody,
     UpdateSessionBody, VersionedEncryptedValue, VersionedMachineEncryptedValue,
     VersionedNullableEncryptedValue,
 };

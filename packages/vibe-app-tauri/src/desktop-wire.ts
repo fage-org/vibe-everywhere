@@ -171,6 +171,37 @@ export const SessionRpcAckSchema = z.discriminatedUnion("ok", [
 ]);
 export type SessionRpcAck = z.infer<typeof SessionRpcAckSchema>;
 
+// Machine RPC types for spawn-session and stop-daemon
+
+export const SpawnSessionRpcParamsSchema = z.object({
+  directory: z.string(),
+  approvedNewDirectoryCreation: z.boolean().default(false),
+  token: z.string().optional(),
+  agent: z.string().optional(),
+});
+export type SpawnSessionRpcParams = z.infer<typeof SpawnSessionRpcParamsSchema>;
+
+export const SpawnSessionRpcResultSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("success"),
+    sessionId: z.string(),
+  }),
+  z.object({
+    type: z.literal("requestToApproveDirectoryCreation"),
+    directory: z.string(),
+  }),
+  z.object({
+    type: z.literal("error"),
+    errorMessage: z.string(),
+  }),
+]);
+export type SpawnSessionRpcResult = z.infer<typeof SpawnSessionRpcResultSchema>;
+
+export const StopDaemonRpcResultSchema = z.object({
+  message: z.string(),
+});
+export type StopDaemonRpcResult = z.infer<typeof StopDaemonRpcResultSchema>;
+
 export const SessionBashRequestSchema = z.object({
   command: z.string(),
   cwd: z.string().optional(),

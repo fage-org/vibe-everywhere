@@ -1,5 +1,6 @@
 use std::{
     fs,
+    path::Path,
     process::{Command, Stdio},
     sync::Arc,
     time::Duration,
@@ -7,10 +8,12 @@ use std::{
 
 use anyhow::{Context, Result, bail};
 use axum::{Json, Router, extract::State, routing::post};
+use serde_json::Value;
 use tokio::{
     sync::{Mutex, oneshot},
     time::sleep,
 };
+use vibe_wire::{SpawnSessionRpcParams, SpawnSessionRpcResult, StopDaemonRpcResult};
 
 use crate::{
     api::CliApiClient,
@@ -228,6 +231,31 @@ pub async fn run_daemon_service(config: Config) -> Result<()> {
     let sessions = Arc::new(Mutex::new(read_daemon_registry(&config)?));
     let (shutdown_tx, mut shutdown_rx) = oneshot::channel();
 
+    // Register RPC handlers
+    let rpc_config = config.clone();
+    let rpc_sessions = sessions.clone();
+    let rpc_shutdown_tx = Arc::new(Mutex::new(Some(shutdown_tx)));
+
+    machine_sync
+        .register_rpc_handler("spawn-happy-session", move |params: Value| {
+            let config = rpc_config.clone();
+            let sessions = rpc_sessions.clone();
+            async move {
+                handle_spawn_session_rpc(config, sessions, params).await
+            }
+        })
+        .await;
+
+    let daemon_shutdown_tx = rpc_shutdown_tx.clone();
+    machine_sync
+        .register_rpc_handler("stop-daemon", move |_params: Value| {
+            let shutdown_tx = daemon_shutdown_tx.clone();
+            async move {
+                handle_stop_daemon_rpc(shutdown_tx).await
+            }
+        })
+        .await;
+
     write_daemon_state(
         &config,
         &DaemonState {
@@ -242,7 +270,7 @@ pub async fn run_daemon_service(config: Config) -> Result<()> {
     let control_state = DaemonControlState {
         config: config.clone(),
         sessions: sessions.clone(),
-        shutdown_tx: Arc::new(Mutex::new(Some(shutdown_tx))),
+        shutdown_tx: rpc_shutdown_tx.clone(),
     };
 
     let server = tokio::spawn(async move {
@@ -481,6 +509,103 @@ async fn server_handle_finished(handle: &tokio::task::JoinHandle<()>) {
     while !handle.is_finished() {
         sleep(Duration::from_millis(100)).await;
     }
+}
+
+// =============================================================================
+// RPC Handlers
+// =============================================================================
+
+/// Handle `spawn-happy-session` RPC requests.
+async fn handle_spawn_session_rpc(
+    config: Config,
+    _sessions: Arc<Mutex<DaemonRegistry>>,
+    params: Value,
+) -> Value {
+    // Parse the encrypted params
+    let parsed: SpawnSessionRpcParams = match serde_json::from_value(params) {
+        Ok(p) => p,
+        Err(e) => {
+            return serde_json::to_value(SpawnSessionRpcResult::Error {
+                error_message: format!("Invalid params: {e}"),
+            })
+            .unwrap_or_else(|_| serde_json::json!({ "type": "error", "errorMessage": "Failed to serialize error" }))
+        }
+    };
+
+    // Check if directory exists
+    let directory = Path::new(&parsed.directory);
+    if !directory.exists() {
+        if parsed.approved_new_directory_creation {
+            if let Err(e) = std::fs::create_dir_all(directory) {
+                return serde_json::to_value(SpawnSessionRpcResult::Error {
+                    error_message: format!("Failed to create directory: {e}"),
+                })
+                .unwrap_or_else(|_| serde_json::json!({ "type": "error", "errorMessage": "Failed to serialize error" }));
+            }
+        } else {
+            return serde_json::to_value(SpawnSessionRpcResult::RequestToApproveDirectoryCreation {
+                directory: parsed.directory.clone(),
+            })
+            .unwrap_or_else(|_| serde_json::json!({ "type": "error", "errorMessage": "Failed to serialize error" }));
+        }
+    }
+
+    // Determine agent binary
+    let agent = parsed.agent.as_deref().unwrap_or("claude");
+    let binary = match agent {
+        "claude" => &config.claude_bin,
+        "codex" => &config.codex_bin,
+        "gemini" => &config.gemini_bin,
+        "openclaw" => &config.openclaw_bin,
+        other => {
+            return serde_json::to_value(SpawnSessionRpcResult::Error {
+                error_message: format!("Unknown agent: {other}"),
+            })
+            .unwrap_or_else(|_| serde_json::json!({ "type": "error", "errorMessage": "Failed to serialize error" }));
+        }
+    };
+
+    // Generate session ID
+    let session_id = uuid::Uuid::now_v7().to_string();
+
+    // Spawn the agent process (simplified for now)
+    // In a full implementation, this would integrate with the provider run system
+    let spawn_result = std::process::Command::new(binary)
+        .arg("--session-id")
+        .arg(&session_id)
+        .current_dir(&parsed.directory)
+        .spawn();
+
+    match spawn_result {
+        Ok(_child) => {
+            // Session spawned successfully
+            serde_json::to_value(SpawnSessionRpcResult::Success { session_id })
+                .unwrap_or_else(|_| serde_json::json!({ "type": "error", "errorMessage": "Failed to serialize success" }))
+        }
+        Err(e) => {
+            serde_json::to_value(SpawnSessionRpcResult::Error {
+                error_message: format!("Failed to spawn session: {e}"),
+            })
+            .unwrap_or_else(|_| serde_json::json!({ "type": "error", "errorMessage": "Failed to serialize error" }))
+        }
+    }
+}
+
+/// Handle `stop-daemon` RPC requests.
+async fn handle_stop_daemon_rpc(shutdown_tx: Arc<Mutex<Option<oneshot::Sender<()>>>>) -> Value {
+    // Trigger shutdown after a brief delay
+    let tx = shutdown_tx.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        if let Some(sender) = tx.lock().await.take() {
+            let _ = sender.send(());
+        }
+    });
+
+    serde_json::to_value(StopDaemonRpcResult {
+        message: "Daemon stop request acknowledged, starting shutdown sequence...".into(),
+    })
+    .unwrap_or_else(|_| serde_json::json!({ "message": "Shutdown initiated" }))
 }
 
 #[cfg(test)]

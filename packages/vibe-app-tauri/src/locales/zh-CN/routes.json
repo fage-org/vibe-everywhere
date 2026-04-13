@@ -129,6 +129,7 @@
   "settings": {
     "title": "设置",
     "appV2Persistence": "AppV2 壳中的设置会在变更后立即持久化。",
+    "appearance": "主题",
     "appearanceDescription": "自定义应用的外观与体验",
     "sections": {
       "general": "通用",
@@ -151,6 +152,131 @@
       "label": "折叠侧边栏",
       "description": "侧边栏仅显示图标"
     }
+  },
+  "settingsAppearance": {
+    "title": "主题",
+    "theme": "主题",
+    "themeDescription": "选择你偏好的颜色方案",
+    "themeOptions": {
+      "adaptive": "跟随系统",
+      "light": "浅色",
+      "dark": "深色"
+    },
+    "themeDescriptions": {
+      "adaptive": "跟随系统设置",
+      "light": "始终使用浅色主题",
+      "dark": "始终使用深色主题"
+    },
+    "display": "显示",
+    "displayDescription": "控制布局和间距",
+    "compactSessionView": "紧凑会话视图",
+    "compactSessionViewDescription": "以更紧凑的布局显示活动会话",
+    "inlineToolCalls": "内联工具调用",
+    "inlineToolCallsDescription": "在聊天消息中直接显示工具调用",
+    "expandTodoLists": "展开待办列表",
+    "expandTodoListsDescription": "显示所有待办事项而非仅显示变更",
+    "showLineNumbersInDiffs": "在差异中显示行号",
+    "showLineNumbersInDiffsDescription": "在代码差异中显示行号",
+    "showLineNumbersInToolViews": "在工具视图中显示行号",
+    "showLineNumbersInToolViewsDescription": "在工具视图差异中显示行号",
+    "wrapLinesInDiffs": "在差异中换行",
+    "wrapLinesInDiffsDescription": "在差异视图中换行而非水平滚动",
+    "alwaysShowContextSize": "始终显示上下文大小",
+    "alwaysShowContextSizeDescription": "即使未接近限制也显示上下文使用量",
+    "avatarStyle": "头像样式",
+    "avatarStyleDescription": "选择会话头像外观",
+    "avatarOptions": {
+      "pixelated": "像素风格",
+      "gradient": "渐变",
+      "brutalist": "粗犷风格"
+    },
+    "showFlavorIcons": "显示 AI 供应商图标",
+    "showFlavorIconsDescription": "在会话头像上显示 AI 供应商图标",
+    "description": "自定义应用的外观和内容显示方式"
+  },
+  "settingsFeatures": {
+    "title": "功能",
+    "description": "启用或禁用实验性功能",
+    "experimental": "实验性功能",
+    "experimentalDescription": "在正式发布前试用新功能",
+    "developerMode": "开发者模式",
+    "developerModeDescription": "启用开发者工具和高级选项",
+    "debugMode": "调试模式",
+    "debugModeDescription": "启用额外的日志记录以便排查问题",
+    "input": "输入偏好",
+    "inputDescription": "自定义输入行为",
+    "enterToSend": "回车发送",
+    "enterToSendDescription": "按回车键发送消息（仅限网页版）",
+    "sessions": "会话偏好",
+    "sessionsDescription": "自定义会话显示",
+    "hideInactiveSessions": "隐藏非活动会话",
+    "hideInactiveSessionsDescription": "仅显示列表中的活动会话"
+  },
+  "settingsLanguage": {
+    "title": "语言",
+    "description": "选择界面语言",
+    "currentLanguage": "当前语言",
+    "automatic": "自动检测"
+  },
+  "settingsUsage": {
+    "title": "使用量",
+    "description": "查看你的 API 使用量和费用",
+    "summary": "使用量摘要",
+    "summaryDescription": "过去 30 天的 API 使用量",
+    "totalTokens": "总 Token 数",
+    "estimatedCost": "预估费用",
+    "period": "统计周期",
+    "breakdown": "每日明细"
+  },
+  "machine": {
+    "back": "返回",
+    "host": "主机名",
+    "machineId": "机器 ID",
+    "username": "用户名",
+    "homeDirectory": "主目录",
+    "platform": "平台",
+    "architecture": "架构",
+    "lastSeen": "最后在线",
+    "never": "从未",
+    "daemon": "守护进程",
+    "status": "状态",
+    "daemonStateVersion": "守护进程状态版本",
+    "cliAvailability": "CLI 可用性",
+    "cliInstalled": "已安装",
+    "cliNotFound": "未找到",
+    "lastDetected": "最后检测",
+    "machineGroup": "机器信息",
+    "recentPaths": "最近路径",
+    "recentSessions": "最近会话",
+    "offlineUnableToSpawn": "机器离线",
+    "offlineHelp": "机器必须在线才能启动新会话。",
+    "actions": {
+      "spawnSession": "启动会话",
+      "stopDaemon": "停止守护进程",
+      "spawning": "启动中...",
+      "stopping": "停止中..."
+    },
+    "spawnSession": {
+      "title": "启动新会话",
+      "description": "在此机器上启动新的编程会话",
+      "pathLabel": "工作目录",
+      "pathPlaceholder": "/项目路径",
+      "recentPaths": "最近路径",
+      "approveDirectory": "批准创建",
+      "approveDirectoryDescription": "目录不存在，是否批准创建？",
+      "success": "会话启动成功",
+      "errorPrefix": "启动会话失败："
+    },
+    "stopDaemon": {
+      "title": "停止守护进程",
+      "description": "停止此机器上的后台守护进程",
+      "success": "守护进程已停止",
+      "errorPrefix": "停止守护进程失败："
+    }
+  },
+  "status": {
+    "online": "在线",
+    "offline": "离线"
   },
   "unsupported": {
     "title": "该路由尚未产品化",

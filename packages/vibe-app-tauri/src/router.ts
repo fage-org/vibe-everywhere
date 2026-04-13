@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { PromotionClass, Wave8ModuleName } from "./bootstrap";
+import type { PromotionClass, DesktopModuleName } from "./bootstrap";
 
 export type RouteStatus = "wired" | "retained" | "planned";
 export type RouteSection =
@@ -20,7 +20,7 @@ export type RouteDefinition = {
   examplePath: string;
   summary: string;
   promotionClass: PromotionClass;
-  ownerModule: Wave8ModuleName;
+  ownerModule: DesktopModuleName;
   section: RouteSection;
   status: RouteStatus;
   notes?: string;

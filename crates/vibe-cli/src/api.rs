@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use futures_util::FutureExt;
 use rust_socketio::{
@@ -669,7 +669,11 @@ impl CliApiClient {
 pub struct MachineSyncClient {
     machine: Arc<Mutex<DecryptedMachine>>,
     socket: SocketClient,
+    rpc_handlers: Arc<Mutex<HashMap<String, RpcHandler>>>,
 }
+
+/// Type alias for RPC handler functions.
+type RpcHandler = Box<dyn Fn(Value) -> std::pin::Pin<Box<dyn std::future::Future<Output = Value> + Send>> + Send + Sync>;
 
 impl MachineSyncClient {
     async fn connect(
@@ -680,11 +684,16 @@ impl MachineSyncClient {
         let machine_id = machine.id.clone();
         let state = Arc::new(Mutex::new((false, None::<String>)));
         let ready = Arc::new(Notify::new());
+        let rpc_handlers: Arc<Mutex<HashMap<String, RpcHandler>>> = Arc::new(Mutex::new(HashMap::new()));
 
         let connect_state = state.clone();
         let connect_ready = ready.clone();
         let error_state = state.clone();
         let error_ready = ready.clone();
+
+        // Clone for use in the rpc-request handler
+        let rpc_handlers_clone = rpc_handlers.clone();
+        let machine_clone = machine.clone();
 
         let builder = ClientBuilder::new(config.socket_url())
             .transport_type(TransportType::Websocket)
@@ -717,6 +726,46 @@ impl MachineSyncClient {
                     ready.notify_waiters();
                 }
                 .boxed()
+            })
+            .on("rpc-request", move |payload, socket| {
+                let rpc_handlers = rpc_handlers_clone.clone();
+                let machine = machine_clone.clone();
+                async move {
+                    if let Some(value) = first_payload_value(&payload) {
+                        if let (Some(method), Some(params)) = (
+                            value.get("method").and_then(|v| v.as_str()),
+                            value.get("params").cloned(),
+                        ) {
+                            // Parse the method to extract scope and actual method name
+                            // Format: "{machine_id}:{method_name}" or just "{method_name}"
+                            let actual_method = method.strip_prefix(&format!("{}:", machine.id))
+                                .unwrap_or(method);
+
+                            let handlers = rpc_handlers.lock().await;
+                            let result = if let Some(handler) = handlers.get(actual_method) {
+                                handler(params).await
+                            } else {
+                                serde_json::json!({
+                                    "ok": false,
+                                    "error": format!("Unknown RPC method: {}", actual_method)
+                                })
+                            };
+                            drop(handlers);
+
+                            // Encrypt the response
+                            let encrypted = encode_base64(&encrypt_json(
+                                &machine.encryption.key,
+                                machine.encryption.variant,
+                                &result,
+                            ).unwrap_or_default());
+
+                            let _ = socket.emit("rpc-response", serde_json::json!({
+                                "result": encrypted,
+                            })).await;
+                        }
+                    }
+                }
+                .boxed()
             });
 
         let socket = tokio::time::timeout(SOCKET_CONNECT_TIMEOUT, builder.connect())
@@ -746,7 +795,38 @@ impl MachineSyncClient {
         Ok(Self {
             machine: Arc::new(Mutex::new(machine)),
             socket,
+            rpc_handlers,
         })
+    }
+
+    /// Register an RPC handler for a specific method.
+    pub async fn register_rpc_handler<F, Fut>(&self, method: &str, handler: F)
+    where
+        F: Fn(Value) -> Fut + Send + Sync + 'static,
+        Fut: std::future::Future<Output = Value> + Send + 'static,
+    {
+        let mut handlers = self.rpc_handlers.lock().await;
+        handlers.insert(method.to_string(), Box::new(move |v| Box::pin(handler(v))));
+
+        // Register the method with the server
+        let machine_id = self.machine.lock().await.id.clone();
+        let method_with_scope = format!("{}:{}", machine_id, method);
+        let _ = self.socket.emit("rpc-register", serde_json::json!({
+            "method": method_with_scope,
+        })).await;
+    }
+
+    /// Unregister an RPC handler.
+    pub async fn unregister_rpc_handler(&self, method: &str) {
+        let mut handlers = self.rpc_handlers.lock().await;
+        handlers.remove(method);
+
+        // Unregister the method from the server
+        let machine_id = self.machine.lock().await.id.clone();
+        let method_with_scope = format!("{}:{}", machine_id, method);
+        let _ = self.socket.emit("rpc-unregister", serde_json::json!({
+            "method": method_with_scope,
+        })).await;
     }
 
     pub async fn machine_alive(&self) -> Result<(), CliApiError> {

@@ -291,6 +291,63 @@ pub type ApiUpdateMachineState = UpdateMachineBody;
 pub type UpdateBody = UpdateNewMessageBody;
 pub type Update = CoreUpdateContainer;
 
+// =============================================================================
+// RPC Types for Machine Operations
+// =============================================================================
+
+/// Parameters for the `spawn-happy-session` RPC method.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SpawnSessionRpcParams {
+    /// Working directory for the new session.
+    pub directory: String,
+    /// Whether the user has approved creating a new directory.
+    #[serde(default)]
+    pub approved_new_directory_creation: bool,
+    /// Optional provider token (e.g., Anthropic API key).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub token: Option<String>,
+    /// Optional agent type (claude, codex, gemini, openclaw).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent: Option<String>,
+}
+
+/// Result of the `spawn-happy-session` RPC method.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum SpawnSessionRpcResult {
+    /// Session was successfully created.
+    #[serde(rename = "success")]
+    Success {
+        #[serde(rename = "sessionId")]
+        session_id: String,
+    },
+    /// The directory doesn't exist and needs user approval to create.
+    #[serde(rename = "requestToApproveDirectoryCreation")]
+    RequestToApproveDirectoryCreation { directory: String },
+    /// An error occurred while spawning the session.
+    #[serde(rename = "error")]
+    Error {
+        #[serde(rename = "errorMessage")]
+        error_message: String,
+    },
+}
+
+/// Parameters for the `resume-happy-session` RPC method.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResumeSessionRpcParams {
+    /// The session ID to resume.
+    pub session_id: String,
+}
+
+/// Result of the `stop-daemon` RPC method.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StopDaemonRpcResult {
+    /// Human-readable message about the shutdown.
+    pub message: String,
+}
+
 #[cfg(test)]
 mod tests {
     use serde_json::json;
@@ -303,8 +360,9 @@ mod tests {
 
     use super::{
         ApiUpdateMachineState, ApiUpdateNewMessage, ApiUpdateSessionState, CoreUpdateBody,
-        CoreUpdateContainer, MessageContent, SessionMessage, SessionMessageContent,
-        SessionProtocolMessage, SessionProtocolMessageRole, UpdateMachineBody,
+        CoreUpdateContainer, MessageContent, ResumeSessionRpcParams, SessionMessage,
+        SessionMessageContent, SessionProtocolMessage, SessionProtocolMessageRole,
+        SpawnSessionRpcParams, SpawnSessionRpcResult, StopDaemonRpcResult, UpdateMachineBody,
         UpdateNewMessageBody, UpdateSessionBody, VersionedEncryptedValue,
         VersionedMachineEncryptedValue, VersionedNullableEncryptedValue,
     };
@@ -645,5 +703,112 @@ mod tests {
         let parsed: CoreUpdateContainer = serde_json::from_value(value).unwrap();
 
         assert_eq!(parsed, container);
+    }
+
+    #[test]
+    fn parses_spawn_session_rpc_params() {
+        let params = serde_json::from_value::<SpawnSessionRpcParams>(json!({
+            "directory": "/home/user/project",
+            "approvedNewDirectoryCreation": true,
+            "token": "sk-xxx",
+            "agent": "claude"
+        }))
+        .unwrap();
+
+        assert_eq!(params.directory, "/home/user/project");
+        assert!(params.approved_new_directory_creation);
+        assert_eq!(params.token, Some("sk-xxx".into()));
+        assert_eq!(params.agent, Some("claude".into()));
+    }
+
+    #[test]
+    fn parses_spawn_session_rpc_params_with_defaults() {
+        let params =
+            serde_json::from_value::<SpawnSessionRpcParams>(json!({
+                "directory": "/home/user/project"
+            }))
+            .unwrap();
+
+        assert_eq!(params.directory, "/home/user/project");
+        assert!(!params.approved_new_directory_creation);
+        assert_eq!(params.token, None);
+        assert_eq!(params.agent, None);
+    }
+
+    #[test]
+    fn parses_spawn_session_rpc_result_variants() {
+        let success =
+            serde_json::from_value::<SpawnSessionRpcResult>(json!({
+                "type": "success",
+                "sessionId": "session-123"
+            }))
+            .unwrap();
+        assert!(matches!(success, SpawnSessionRpcResult::Success { .. }));
+
+        let request_approval =
+            serde_json::from_value::<SpawnSessionRpcResult>(json!({
+                "type": "requestToApproveDirectoryCreation",
+                "directory": "/new/path"
+            }))
+            .unwrap();
+        assert!(matches!(
+            request_approval,
+            SpawnSessionRpcResult::RequestToApproveDirectoryCreation { .. }
+        ));
+
+        let error =
+            serde_json::from_value::<SpawnSessionRpcResult>(json!({
+                "type": "error",
+                "errorMessage": "Failed to spawn"
+            }))
+            .unwrap();
+        assert!(matches!(error, SpawnSessionRpcResult::Error { .. }));
+    }
+
+    #[test]
+    fn parses_resume_session_rpc_params() {
+        let params = serde_json::from_value::<ResumeSessionRpcParams>(json!({
+            "sessionId": "session-456"
+        }))
+        .unwrap();
+
+        assert_eq!(params.session_id, "session-456");
+    }
+
+    #[test]
+    fn parses_stop_daemon_rpc_result() {
+        let result = serde_json::from_value::<StopDaemonRpcResult>(json!({
+            "message": "Daemon stopping"
+        }))
+        .unwrap();
+
+        assert_eq!(result.message, "Daemon stopping");
+    }
+
+    #[test]
+    fn round_trips_rpc_types() {
+        let params = SpawnSessionRpcParams {
+            directory: "/test".into(),
+            approved_new_directory_creation: true,
+            token: Some("token".into()),
+            agent: Some("codex".into()),
+        };
+        let value = serde_json::to_value(&params).unwrap();
+        let parsed: SpawnSessionRpcParams = serde_json::from_value(value).unwrap();
+        assert_eq!(parsed, params);
+
+        let result = SpawnSessionRpcResult::Success {
+            session_id: "sess-1".into(),
+        };
+        let value = serde_json::to_value(&result).unwrap();
+        let parsed: SpawnSessionRpcResult = serde_json::from_value(value).unwrap();
+        assert_eq!(parsed, result);
+
+        let stop_result = StopDaemonRpcResult {
+            message: "Shutdown initiated".into(),
+        };
+        let value = serde_json::to_value(&stop_result).unwrap();
+        let parsed: StopDaemonRpcResult = serde_json::from_value(value).unwrap();
+        assert_eq!(parsed, stop_result);
     }
 }

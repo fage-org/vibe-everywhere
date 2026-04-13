@@ -44,6 +44,7 @@ export function useAppV2Shell(
   return {
     view: routeModel.view,
     activeSessionId: routeModel.activeSessionId,
+    activeMachineId: routeModel.activeMachineId,
     isSupported: routeModel.isSupported,
     sessions,
     currentSession,

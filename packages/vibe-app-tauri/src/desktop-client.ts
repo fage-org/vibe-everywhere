@@ -43,6 +43,9 @@ import {
   SessionMessagesResponseSchema,
   SessionMetadataSchema,
   SessionsResponseSchema,
+  SpawnSessionRpcParamsSchema,
+  SpawnSessionRpcResultSchema,
+  StopDaemonRpcResultSchema,
   StoredCredentialsSchema,
   UsageQueryResponseSchema,
   UserResponseSchema,
@@ -66,6 +69,9 @@ import {
   type SessionAgentStateUpdate,
   type SessionMetadata,
   type SessionMetadataUpdate,
+  type SpawnSessionRpcParams,
+  type SpawnSessionRpcResult,
+  type StopDaemonRpcResult,
   type StoredCredentials,
   type UsageBucket,
   type UserProfile,
@@ -90,6 +96,9 @@ export type {
   SessionAgentStateUpdate,
   SessionMetadata,
   SessionMetadataUpdate,
+  SpawnSessionRpcParams,
+  SpawnSessionRpcResult,
+  StopDaemonRpcResult,
   StoredCredentials,
   UsageBucket,
   UserProfile,
@@ -142,6 +151,7 @@ export type DesktopMachine = {
   metadataVersion: number;
   daemonState: unknown | null;
   daemonStateVersion: number;
+  dataEncryptionKey: string | null;
 };
 
 export type UiMessage = {
@@ -1963,6 +1973,47 @@ export class DesktopClient {
     return cipher.decryptRecord(payload);
   }
 
+  // Machine RPC methods for spawn-session and stop-daemon
+
+  async encryptMachineRpcPayload(
+    machineId: string,
+    dataEncryptionKey: string | null,
+    payload: unknown,
+  ): Promise<string> {
+    const cipher = await this.getMachineCipher(machineId, dataEncryptionKey);
+    return cipher.encryptRecord(payload);
+  }
+
+  async decryptMachineRpcPayload(
+    machineId: string,
+    dataEncryptionKey: string | null,
+    payload: string,
+  ): Promise<unknown | null> {
+    const cipher = await this.getMachineCipher(machineId, dataEncryptionKey);
+    return cipher.decryptRecord(payload);
+  }
+
+  private machineCipherCache = new Map<string, SessionCipher>();
+
+  private async getMachineCipher(
+    machineId: string,
+    dataEncryptionKey: string | null,
+  ): Promise<SessionCipher> {
+    const cached = this.machineCipherCache.get(machineId);
+    if (cached) {
+      return cached;
+    }
+
+    let decryptedKey: Uint8Array | null = null;
+    if (dataEncryptionKey) {
+      decryptedKey = await this.decryptDataEncryptionKey(dataEncryptionKey);
+    }
+
+    const cipher = sessionCipherFromKeys(this.encryption.masterSecret, decryptedKey);
+    this.machineCipherCache.set(machineId, cipher);
+    return cipher;
+  }
+
   async createArtifact(input: {
     title: string | null;
     body: string | null;
@@ -2406,6 +2457,7 @@ export class DesktopClient {
               `Decrypted machine daemon state for ${machine.id}`,
             ),
       daemonStateVersion: machine.daemonStateVersion,
+      dataEncryptionKey: machine.dataEncryptionKey ?? null,
     };
   }
 

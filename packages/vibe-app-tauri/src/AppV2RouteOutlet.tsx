@@ -10,6 +10,10 @@ import {
   RecentSessionsRoute,
   SessionRoute,
   SettingsRoute,
+  SettingsAppearanceRoute,
+  SettingsFeaturesRoute,
+  SettingsLanguageRoute,
+  SettingsUsageRoute,
   UnsupportedRoute,
   RestoreRoute,
   ManualRestoreRoute,
@@ -17,6 +21,7 @@ import {
   SessionMessageRoute,
   SessionFilesRoute,
   SessionFileRoute,
+  MachineDetailRoute,
 } from "./routes/appv2";
 
 type NewSessionErrors = {
@@ -86,6 +91,8 @@ type AppV2RouteOutletProps = {
   // Session files props
   sessionFilesState: SessionFilesState;
   sessionFileState: SessionFileState;
+  // Machine props
+  activeMachineId: string | null;
   // Navigation callbacks
   onSessionSelect: (session: { id: string }) => void;
   onStartNewSession: () => void;
@@ -145,6 +152,7 @@ export function AppV2RouteOutlet({
   restoreState,
   sessionFilesState,
   sessionFileState,
+  activeMachineId,
   onSessionSelect,
   onStartNewSession,
   onViewAllSessions,
@@ -228,6 +236,14 @@ export function AppV2RouteOutlet({
       );
     case "settings":
       return <SettingsRoute sections={settingsSections} />;
+    case "settings-appearance":
+      return <SettingsAppearanceRoute />;
+    case "settings-features":
+      return <SettingsFeaturesRoute />;
+    case "settings-language":
+      return <SettingsLanguageRoute />;
+    case "settings-usage":
+      return <SettingsUsageRoute />;
     case "inbox":
       return (
         <InboxRoute
@@ -302,6 +318,13 @@ export function AppV2RouteOutlet({
           error={sessionFileState.error}
           onNavigateToFiles={() => onNavigateToSessionFiles(currentSession?.id ?? "")}
           onNavigateToSession={() => onNavigateToSession(currentSession?.id ?? "")}
+        />
+      );
+    case "machine-detail":
+      return (
+        <MachineDetailRoute
+          machineId={activeMachineId ?? ""}
+          onNavigateToSession={onNavigateToSession}
         />
       );
     case "unsupported":

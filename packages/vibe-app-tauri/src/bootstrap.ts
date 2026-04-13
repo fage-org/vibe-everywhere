@@ -1,11 +1,11 @@
-export type Wave8ModuleName = (typeof wave8Modules)[number];
+export type DesktopModuleName = (typeof desktopModules)[number];
 export type PromotionClass = "P0" | "P1" | "P2";
 
-export type Wave8FeatureArea = {
+export type DesktopFeatureArea = {
   key: string;
   title: string;
   batch: "B17" | "B18";
-  ownerModule: Wave8ModuleName;
+  ownerModule: DesktopModuleName;
   description: string;
   features: string[];
   definitionOfDone: string[];
@@ -17,7 +17,7 @@ export type PriorityBucket = {
   features: string[];
 };
 
-export const wave8Modules = [
+export const desktopModules = [
   "bootstrap-and-package",
   "desktop-shell-and-routing",
   "core-logic-extraction",
@@ -59,7 +59,7 @@ export const lockedAuthCallbackRequirements = [
   "Reject stale, replayed, or wrong-instance callbacks.",
 ];
 
-export const wave8FeatureAreas: Wave8FeatureArea[] = [
+export const desktopFeatureAreas: DesktopFeatureArea[] = [
   {
     key: "package-and-bootstrap",
     title: "Package And Bootstrap",
@@ -227,7 +227,7 @@ export const wave8FeatureAreas: Wave8FeatureArea[] = [
   },
 ];
 
-export const wave8PriorityBuckets: PriorityBucket[] = [
+export const desktopPriorityBuckets: PriorityBucket[] = [
   {
     priority: "P0",
     title: "First Usable Desktop Slice",
@@ -269,10 +269,10 @@ export const wave8PriorityBuckets: PriorityBucket[] = [
 ];
 
 export function formatModuleCount(modules: readonly string[]): string {
-  return `${modules.length} Wave 8 modules tracked`;
+  return `${modules.length} Desktop modules tracked`;
 }
 
-export function formatFeatureCount(areas: readonly Wave8FeatureArea[]): string {
+export function formatFeatureCount(areas: readonly DesktopFeatureArea[]): string {
   const total = areas.reduce((sum, area) => sum + area.features.length, 0);
   return `${total} scoped feature points`; 
 }

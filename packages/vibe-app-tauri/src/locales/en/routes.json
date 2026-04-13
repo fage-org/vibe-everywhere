@@ -129,6 +129,7 @@
   "settings": {
     "title": "Settings",
     "appV2Persistence": "Settings in the AppV2 shell persist immediately when changed.",
+    "appearance": "Theme",
     "appearanceDescription": "Customize the look and feel of the app",
     "sections": {
       "general": "General",
@@ -151,6 +152,131 @@
       "label": "Collapsed Sidebar",
       "description": "Show only icons in the sidebar"
     }
+  },
+  "settingsAppearance": {
+    "title": "Theme",
+    "theme": "Theme",
+    "themeDescription": "Choose your preferred color scheme",
+    "themeOptions": {
+      "adaptive": "Adaptive",
+      "light": "Light",
+      "dark": "Dark"
+    },
+    "themeDescriptions": {
+      "adaptive": "Match system settings",
+      "light": "Always use light theme",
+      "dark": "Always use dark theme"
+    },
+    "display": "Display",
+    "displayDescription": "Control layout and spacing",
+    "compactSessionView": "Compact Session View",
+    "compactSessionViewDescription": "Show active sessions in a more compact layout",
+    "inlineToolCalls": "Inline Tool Calls",
+    "inlineToolCallsDescription": "Display tool calls directly in chat messages",
+    "expandTodoLists": "Expand Todo Lists",
+    "expandTodoListsDescription": "Show all todos instead of just changes",
+    "showLineNumbersInDiffs": "Show Line Numbers in Diffs",
+    "showLineNumbersInDiffsDescription": "Display line numbers in code diffs",
+    "showLineNumbersInToolViews": "Show Line Numbers in Tool Views",
+    "showLineNumbersInToolViewsDescription": "Display line numbers in tool view diffs",
+    "wrapLinesInDiffs": "Wrap Lines in Diffs",
+    "wrapLinesInDiffsDescription": "Wrap long lines instead of horizontal scrolling in diff views",
+    "alwaysShowContextSize": "Always Show Context Size",
+    "alwaysShowContextSizeDescription": "Display context usage even when not near limit",
+    "avatarStyle": "Avatar Style",
+    "avatarStyleDescription": "Choose session avatar appearance",
+    "avatarOptions": {
+      "pixelated": "Pixelated",
+      "gradient": "Gradient",
+      "brutalist": "Brutalist"
+    },
+    "showFlavorIcons": "Show AI Provider Icons",
+    "showFlavorIconsDescription": "Display AI provider icons on session avatars",
+    "description": "Customize how the app looks and displays content"
+  },
+  "settingsFeatures": {
+    "title": "Features",
+    "description": "Enable or disable experimental features",
+    "experimental": "Experimental Features",
+    "experimentalDescription": "Try out new features before they're fully released",
+    "developerMode": "Developer Mode",
+    "developerModeDescription": "Enable developer tools and advanced options",
+    "debugMode": "Debug Mode",
+    "debugModeDescription": "Enable additional logging for troubleshooting",
+    "input": "Input Preferences",
+    "inputDescription": "Customize input behavior",
+    "enterToSend": "Enter to Send",
+    "enterToSendDescription": "Press Enter to send messages (web only)",
+    "sessions": "Session Preferences",
+    "sessionsDescription": "Customize session display",
+    "hideInactiveSessions": "Hide Inactive Sessions",
+    "hideInactiveSessionsDescription": "Only show active sessions in the list"
+  },
+  "settingsLanguage": {
+    "title": "Language",
+    "description": "Choose your preferred language for the interface",
+    "currentLanguage": "Current Language",
+    "automatic": "Auto-detect"
+  },
+  "settingsUsage": {
+    "title": "Usage",
+    "description": "View your API usage and costs",
+    "summary": "Usage Summary",
+    "summaryDescription": "Your API usage for the past 30 days",
+    "totalTokens": "Total Tokens",
+    "estimatedCost": "Estimated Cost",
+    "period": "Period",
+    "breakdown": "Daily Breakdown"
+  },
+  "machine": {
+    "back": "Back",
+    "host": "Host",
+    "machineId": "Machine ID",
+    "username": "Username",
+    "homeDirectory": "Home Directory",
+    "platform": "Platform",
+    "architecture": "Architecture",
+    "lastSeen": "Last Seen",
+    "never": "Never",
+    "daemon": "Daemon",
+    "status": "Status",
+    "daemonStateVersion": "Daemon State Version",
+    "cliAvailability": "CLI Availability",
+    "cliInstalled": "Installed",
+    "cliNotFound": "Not Found",
+    "lastDetected": "Last Detected",
+    "machineGroup": "Machine",
+    "recentPaths": "Recent Paths",
+    "recentSessions": "Recent Sessions",
+    "offlineUnableToSpawn": "Machine is offline",
+    "offlineHelp": "The machine must be online to spawn new sessions.",
+    "actions": {
+      "spawnSession": "Start Session",
+      "stopDaemon": "Stop Daemon",
+      "spawning": "Starting...",
+      "stopping": "Stopping..."
+    },
+    "spawnSession": {
+      "title": "Start New Session",
+      "description": "Launch a new coding session on this machine",
+      "pathLabel": "Working Directory",
+      "pathPlaceholder": "/path/to/project",
+      "recentPaths": "Recent Paths",
+      "approveDirectory": "Approve Creation",
+      "approveDirectoryDescription": "The directory does not exist. Approve creation?",
+      "success": "Session started successfully",
+      "errorPrefix": "Failed to start session: "
+    },
+    "stopDaemon": {
+      "title": "Stop Daemon",
+      "description": "Stop the background daemon process on this machine",
+      "success": "Daemon stopped successfully",
+      "errorPrefix": "Failed to stop daemon: "
+    }
+  },
+  "status": {
+    "online": "Online",
+    "offline": "Offline"
   },
   "unsupported": {
     "title": "Route not yet productized",

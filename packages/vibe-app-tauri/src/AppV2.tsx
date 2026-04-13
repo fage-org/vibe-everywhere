@@ -316,6 +316,8 @@ function AppContentV2({ isMobile }: AppContentV2Props) {
         routeTitle: router.resolved.definition.title,
       })}
       unsupportedTitle={t("routes:unsupported.title")}
+      // Machine props
+      activeMachineId={appShell.activeMachineId}
       // Restore props
       restoreState={{
         qrSvg: restoreQrSvg,

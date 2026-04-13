@@ -30,6 +30,9 @@ import {
   type SessionMetadataUpdate,
   type SendMessageOptions,
   type Settings,
+  type SpawnSessionRpcParams,
+  type SpawnSessionRpcResult,
+  type StopDaemonRpcResult,
   type StoredCredentials,
   type UsageBucket,
   type UsagePeriod,
@@ -52,6 +55,8 @@ import {
   SessionBashResponseSchema,
   SessionReadFileResponseSchema,
   SessionRpcAckSchema,
+  SpawnSessionRpcResultSchema,
+  StopDaemonRpcResultSchema,
   type SessionsRealtimeUpdate,
   SessionsRealtimeUpdateSchema,
   parseWithSchema,
@@ -114,6 +119,7 @@ export function useDesktopState(activeSessionId?: string | null) {
   const activeSessionIdRef = useRef<string | null>(activeSessionId ?? null);
   const loadedSessionsRef = useRef<Set<string>>(new Set());
   const sessionsRef = useRef<DesktopSession[]>([]);
+  const machinesRef = useRef<DesktopMachine[]>([]);
   const sessionStateRef = useRef<Record<string, SessionUiState>>({});
   const refreshSessionsRef = useRef<(() => Promise<DesktopSession[]>) | null>(null);
   const loadMessagesRef = useRef<(typeof loadMessages) | null>(null);
@@ -206,8 +212,10 @@ export function useDesktopState(activeSessionId?: string | null) {
       setProfile(nextProfile);
       setAccountSettings(nextAccountSettings.settings);
       setAccountSettingsVersion(nextAccountSettings.version);
+      sessionsRef.current = nextSessions;
       setSessions(nextSessions);
       setArtifacts(nextArtifacts);
+      machinesRef.current = nextMachines;
       setMachines(nextMachines);
       setFriends(nextFriends);
       setFeedItems(nextFeedItems);
@@ -232,8 +240,10 @@ export function useDesktopState(activeSessionId?: string | null) {
       setProfile(null);
       setAccountSettings(null);
       setAccountSettingsVersion(null);
+      sessionsRef.current = [];
       setSessions([]);
       setArtifacts([]);
+      machinesRef.current = [];
       setMachines([]);
       setUserProfiles({});
       setFriends([]);
@@ -254,8 +264,10 @@ export function useDesktopState(activeSessionId?: string | null) {
       setProfile(null);
       setAccountSettings(null);
       setAccountSettingsVersion(null);
+      sessionsRef.current = [];
       setSessions([]);
       setArtifacts([]);
+      machinesRef.current = [];
       setMachines([]);
       setUserProfiles({});
       setFriends([]);
@@ -428,6 +440,7 @@ export function useDesktopState(activeSessionId?: string | null) {
 
     try {
       const nextMachines = await clientRef.current.listMachines();
+      machinesRef.current = nextMachines;
       setMachines(nextMachines);
       return nextMachines;
     } catch (error) {
@@ -449,7 +462,9 @@ export function useDesktopState(activeSessionId?: string | null) {
 
     setMachines((current) => {
       const remaining = current.filter((item) => item.id !== machine.id);
-      return [machine, ...remaining].sort((left, right) => right.activeAt - left.activeAt);
+      const nextMachines = [machine, ...remaining].sort((left, right) => right.activeAt - left.activeAt);
+      machinesRef.current = nextMachines;
+      return nextMachines;
     });
     return machine;
   }, []);
@@ -766,8 +781,10 @@ export function useDesktopState(activeSessionId?: string | null) {
     setProfile(null);
     setAccountSettings(null);
     setAccountSettingsVersion(null);
+    sessionsRef.current = [];
     setSessions([]);
     setArtifacts([]);
+    machinesRef.current = [];
     setMachines([]);
     setUserProfiles({});
     setFriends([]);
@@ -961,6 +978,87 @@ export function useDesktopState(activeSessionId?: string | null) {
       return parser(decrypted);
     },
     [],
+  );
+
+  // Machine RPC methods for spawn-session and stop-daemon
+
+  const machineRpc = useCallback(
+    async <TParams extends object, TResult>(
+      machineId: string,
+      method: string,
+      params: TParams,
+      parser: (value: unknown) => TResult,
+    ): Promise<TResult> => {
+      const socket = socketRef.current;
+      const client = clientRef.current;
+      const machine = machinesRef.current.find((item) => item.id === machineId) ?? null;
+      if (!socket || !client || !machine) {
+        throw new Error("Machine RPC is unavailable");
+      }
+
+      const encryptedParams = await client.encryptMachineRpcPayload(
+        machineId,
+        machine.dataEncryptionKey,
+        params,
+      );
+      const ack = parseWithSchema(
+        SessionRpcAckSchema,
+        await socket.emitWithAck("rpc-call", {
+          method: `${machineId}:${method}`,
+          params: encryptedParams,
+        }),
+        `Machine RPC ack for ${machineId}:${method}`,
+      ) as SessionRpcAck;
+
+      if (!ack.ok) {
+        throw new Error(ack.error || `Machine RPC ${method} failed`);
+      }
+
+      const decrypted = await client.decryptMachineRpcPayload(
+        machineId,
+        machine.dataEncryptionKey,
+        ack.result,
+      );
+      return parser(decrypted);
+    },
+    [],
+  );
+
+  const spawnSessionOnMachine = useCallback(
+    async (
+      machineId: string,
+      params: SpawnSessionRpcParams,
+    ): Promise<SpawnSessionRpcResult> => {
+      return machineRpc<SpawnSessionRpcParams, SpawnSessionRpcResult>(
+        machineId,
+        "spawn-happy-session",
+        params,
+        (value) =>
+          parseWithSchema(
+            SpawnSessionRpcResultSchema,
+            value,
+            `Spawn session result for machine ${machineId}`,
+          ),
+      );
+    },
+    [machineRpc],
+  );
+
+  const stopMachineDaemon = useCallback(
+    async (machineId: string): Promise<StopDaemonRpcResult> => {
+      return machineRpc<{}, StopDaemonRpcResult>(
+        machineId,
+        "stop-daemon",
+        {},
+        (value) =>
+          parseWithSchema(
+            StopDaemonRpcResultSchema,
+            value,
+            `Stop daemon result for machine ${machineId}`,
+          ),
+      );
+    },
+    [machineRpc],
   );
 
   const abortSession = useCallback(
@@ -1388,6 +1486,8 @@ export function useDesktopState(activeSessionId?: string | null) {
     deleteSession,
     sendMessage,
     abortSession,
+    spawnSessionOnMachine,
+    stopMachineDaemon,
     logout,
     updateServerUrl,
     updateAccountSettings,

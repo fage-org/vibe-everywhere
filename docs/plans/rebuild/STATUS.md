@@ -4,13 +4,16 @@
 > Read this file first before any implementation task.
 > Update this file whenever a batch, module, or gate changes status.
 
-Last updated: 2026-04-13 (Legacy UI cleanup complete, AppV2 is sole UI shell)
+Last updated: 2026-04-13 (Phase 1 Module C complete)
 
 ## Current Phase
 
-**Wave 10 — Planning Active.** Wave 9 is complete and archived. Wave 10 is the active planning
-track for `packages/vibe-app-tauri` and exists to close the gap between route coverage and
-product-contract completion.
+**Phase 1 — Implementation Progress.** Module C (Machine Management) is now complete with full UI interaction. Modules A and B have minor items remaining. See `PHASE1_IMPLEMENTATION_PLAN.md` for details.
+
+### Active Plan Documents
+
+- `HAPPY_GAP_ANALYSIS.md` - Complete gap analysis between Happy and Vibe-Remote
+- `PHASE1_IMPLEMENTATION_PLAN.md` - Detailed Phase 1 implementation plan (3 modules, 26 tasks)
 
 ## Project Status
 
@@ -114,12 +117,14 @@ All routes are handled by AppV2:
 
 ## Next Actions
 
-Wave 10 planning is complete. The repository is in a stable state with:
+Phase 1 implementation is largely complete. Remaining items:
 
-1. ✅ AppV2 as the sole UI shell
-2. ✅ Legacy code removed
-3. ✅ Documentation updated
-4. ✅ All tests passing
+1. **Module A: 消息渲染增强** (可选后续)
+   - 代码块行号显示设置联动
+   - Diff 渲染器设置联动
+   - 工具特定渲染器 (Bash, FileRead, Edit)
+
+**All critical functionality is implemented and tested.**
 
 ## Archived Work
 

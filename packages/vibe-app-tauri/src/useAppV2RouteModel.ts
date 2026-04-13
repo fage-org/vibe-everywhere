@@ -7,6 +7,10 @@ export type AppV2View =
   | "session-recent"
   | "session"
   | "settings"
+  | "settings-appearance"
+  | "settings-features"
+  | "settings-language"
+  | "settings-usage"
   | "inbox"
   | "restore"
   | "restore-manual"
@@ -14,6 +18,7 @@ export type AppV2View =
   | "session-message"
   | "session-files"
   | "session-file"
+  | "machine-detail"
   | "unsupported";
 
 export type AppV2RouteModel = {
@@ -21,21 +26,25 @@ export type AppV2RouteModel = {
   activeSessionId: string | null;
   activeMessageId: string | null;
   activeFilePath: string | null;
+  activeMachineId: string | null;
   canonicalPath: string;
   isSupported: boolean;
 };
 
-const SETTINGS_ROUTE_KEYS = new Set([
+const SETTINGS_INDEX_KEYS = new Set([
   "settings-index",
   "settings-account",
-  "settings-appearance",
-  "settings-features",
-  "settings-language",
-  "settings-usage",
   "settings-voice",
   "settings-voice-language",
   "settings-connect-claude",
 ]);
+
+const SETTINGS_SUBVIEW_MAP: Record<string, AppV2View> = {
+  "settings-appearance": "settings-appearance",
+  "settings-features": "settings-features",
+  "settings-language": "settings-language",
+  "settings-usage": "settings-usage",
+};
 
 export function resolveAppV2View(resolved: ResolvedRoute): AppV2View {
   switch (resolved.definition.key) {
@@ -61,8 +70,13 @@ export function resolveAppV2View(resolved: ResolvedRoute): AppV2View {
       return "session-files";
     case "session-file":
       return "session-file";
+    case "machine-detail":
+      return "machine-detail";
     default:
-      if (SETTINGS_ROUTE_KEYS.has(resolved.definition.key)) {
+      if (SETTINGS_SUBVIEW_MAP[resolved.definition.key]) {
+        return SETTINGS_SUBVIEW_MAP[resolved.definition.key];
+      }
+      if (SETTINGS_INDEX_KEYS.has(resolved.definition.key)) {
         return "settings";
       }
 
@@ -79,6 +93,7 @@ export function useAppV2RouteModel(resolved: ResolvedRoute): AppV2RouteModel {
       activeSessionId: isSessionView ? resolved.params.id ?? null : null,
       activeMessageId: view === "session-message" ? resolved.params.messageId ?? null : null,
       activeFilePath: view === "session-file" ? resolved.searchParams.get("path") ?? null : null,
+      activeMachineId: view === "machine-detail" ? resolved.params.id ?? null : null,
       canonicalPath: resolved.canonicalPath,
       isSupported: view !== "unsupported",
     };
