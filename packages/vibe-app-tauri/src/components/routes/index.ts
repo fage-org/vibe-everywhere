@@ -20,9 +20,3 @@ export {
   type SettingItem,
 } from "./SettingsSurface";
 
-export {
-  InboxSurface,
-  type InboxSurfaceProps,
-  type Notification,
-  type NotificationType,
-} from "./InboxSurface";

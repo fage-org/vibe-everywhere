@@ -10,7 +10,7 @@ use serde_json::Value;
 use vibe_wire::SessionMessageContent;
 
 use crate::storage::db::{
-    AccessKeyRecord, ArtifactRecord, FeedPostRecord, KvRecord, MachineRecord, PushTokenRecord,
+    AccessKeyRecord, ArtifactRecord, KvRecord, MachineRecord, PushTokenRecord,
     SessionMessageRecord, SessionRecord,
 };
 
@@ -680,77 +680,6 @@ pub struct RegisterVendorResponse {
     pub success: bool,
     pub vendor: String,
     pub masked_token: String,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct UserPath {
-    pub id: String,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct UserSearchQuery {
-    pub query: Option<String>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct FriendMutationBody {
-    pub uid: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct UserProfile {
-    pub id: String,
-    pub first_name: String,
-    pub last_name: Option<String>,
-    pub username: String,
-    pub avatar: Option<Value>,
-    pub bio: Option<String>,
-    pub status: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct UserProfileResponse {
-    pub user: Option<UserProfile>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct UserSearchResponse {
-    pub users: Vec<UserProfile>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct FriendsListResponse {
-    pub friends: Vec<UserProfile>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FeedPostResponse {
-    pub id: String,
-    pub body: Value,
-    pub repeat_key: Option<String>,
-    pub cursor: String,
-    pub created_at: u64,
-}
-
-impl FeedPostResponse {
-    pub fn from_record(record: &FeedPostRecord) -> Self {
-        Self {
-            id: record.id.clone(),
-            body: record.body.clone(),
-            repeat_key: record.repeat_key.clone(),
-            cursor: record.cursor.clone(),
-            created_at: record.created_at,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FeedListResponse {
-    pub items: Vec<FeedPostResponse>,
-    pub has_more: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]

@@ -15,7 +15,7 @@ use crate::{
         LateDurableUpdate, LateVersionedValue,
     },
     storage::db::{
-        ArtifactRecord, Database, FeedPostRecord, MachineRecord, SessionMessageRecord,
+        ArtifactRecord, Database, MachineRecord, SessionMessageRecord,
         SessionRecord, now_ms,
     },
 };
@@ -332,39 +332,6 @@ impl EventRouter {
         self.emit_update(
             user_id,
             build_delete_artifact_update(artifact_id, seq),
-            RecipientFilter::UserScopedOnly,
-            None,
-        );
-        Ok(())
-    }
-
-    pub fn publish_relationship_update(
-        &self,
-        db: &Database,
-        user_id: &str,
-        target_user_id: &str,
-        status: &str,
-    ) -> Result<(), EventPublishError> {
-        let seq = next_user_seq(db, user_id)?;
-        self.emit_update(
-            user_id,
-            build_relationship_updated(target_user_id, status, seq),
-            RecipientFilter::UserScopedOnly,
-            None,
-        );
-        Ok(())
-    }
-
-    pub fn publish_new_feed_post(
-        &self,
-        db: &Database,
-        user_id: &str,
-        post: &FeedPostRecord,
-    ) -> Result<(), EventPublishError> {
-        let seq = next_user_seq(db, user_id)?;
-        self.emit_update(
-            user_id,
-            build_new_feed_post(post, seq),
             RecipientFilter::UserScopedOnly,
             None,
         );
@@ -713,37 +680,6 @@ pub fn build_delete_artifact_update(artifact_id: &str, seq: u64) -> DurableUpdat
         seq,
         body: DurableUpdateBody::Late(LateDurableUpdate::DeleteArtifact {
             artifact_id: artifact_id.to_string(),
-        }),
-        created_at: now_ms(),
-    }
-}
-
-pub fn build_relationship_updated(
-    target_user_id: &str,
-    status: &str,
-    seq: u64,
-) -> DurableUpdateContainer {
-    DurableUpdateContainer {
-        id: format!("upd_{}", uuid::Uuid::now_v7()),
-        seq,
-        body: DurableUpdateBody::Late(LateDurableUpdate::RelationshipUpdated {
-            uid: target_user_id.to_string(),
-            status: status.to_string(),
-            timestamp: now_ms(),
-        }),
-        created_at: now_ms(),
-    }
-}
-
-pub fn build_new_feed_post(post: &FeedPostRecord, seq: u64) -> DurableUpdateContainer {
-    DurableUpdateContainer {
-        id: format!("upd_{}", uuid::Uuid::now_v7()),
-        seq,
-        body: DurableUpdateBody::Late(LateDurableUpdate::NewFeedPost {
-            id: post.id.clone(),
-            body: post.body.clone(),
-            cursor: post.cursor.clone(),
-            created_at: post.created_at,
         }),
         created_at: now_ms(),
     }

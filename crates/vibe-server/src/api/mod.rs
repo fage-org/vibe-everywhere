@@ -1,8 +1,6 @@
 pub mod account;
 pub mod artifacts;
 pub mod connect;
-pub mod feed;
-pub mod social;
 pub mod socket;
 pub mod types;
 pub mod utility;
@@ -35,8 +33,6 @@ pub fn build_router(ctx: AppContext) -> Router {
         .merge(utility::routes())
         .merge(artifacts::routes())
         .merge(connect::routes())
-        .merge(social::routes())
-        .merge(feed::routes())
         .merge(monitoring::routes())
         .with_state(ctx.clone())
         .layer(from_fn_with_state(ctx, record_http_metrics))

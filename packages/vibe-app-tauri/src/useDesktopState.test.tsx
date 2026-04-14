@@ -218,32 +218,11 @@ function createMockClient() {
       listSessions: vi.fn(async () => [buildSession()]),
       listArtifacts: vi.fn(async () => []),
       listMachines: vi.fn(async () => []),
-      listFriends: vi.fn(async () => []),
-      listFeed: vi.fn(async () => []),
       fetchMachine: vi.fn(async () => null),
-      fetchUserProfile: vi.fn(async () => null),
       fetchArtifact: vi.fn(async () => null),
       updateAccountSettings: vi.fn(async () => ({
         settings: buildAccountSettings(),
         version: 2,
-      })),
-      addFriend: vi.fn(async (userId: string) => ({
-        id: userId,
-        firstName: "Sam",
-        lastName: null,
-        username: "sam",
-        avatar: null,
-        bio: null,
-        status: "friend",
-      })),
-      removeFriend: vi.fn(async (userId: string) => ({
-        id: userId,
-        firstName: "Sam",
-        lastName: null,
-        username: "sam",
-        avatar: null,
-        bio: null,
-        status: "none",
       })),
       queryUsage: vi.fn(async () => ({
         usage: [],
@@ -755,69 +734,6 @@ describe("useDesktopState", () => {
 
     expect(latest?.linkState.status).toBe("error");
     expect(latest?.linkState.error).toBe("Failed to link account");
-    expect(latest?.globalError).toBeNull();
-  });
-
-  it("keeps friend action failures out of the global banner state", async () => {
-    const mock = createMockClient();
-    mock.client.addFriend.mockRejectedValueOnce(new Error("Failed to add friend"));
-    runtimeMocks.connect.mockResolvedValue(mock.client);
-
-    await act(async () => {
-      renderer = create(
-        <HookProbe activeSessionId="session-1" onValue={(value) => { latest = value; }} />,
-      );
-      await flushPromises();
-    });
-
-    await waitFor(
-      () => latest?.status === "ready",
-      "authenticated bootstrap",
-    );
-
-    const desktop = latest;
-    if (!desktop) {
-      throw new Error("Hook state did not initialize");
-    }
-
-    await act(async () => {
-      await expect(desktop.addFriend("friend-2")).rejects.toThrow("Failed to add friend");
-      await flushPromises();
-    });
-
-    expect(latest?.globalError).toBeNull();
-  });
-
-  it("does not leak follow-up friend refresh failures into the global banner", async () => {
-    const mock = createMockClient();
-    mock.client.listFriends.mockReset();
-    mock.client.listFriends
-      .mockResolvedValueOnce([])
-      .mockRejectedValueOnce(new Error("Failed to refresh friends"));
-    runtimeMocks.connect.mockResolvedValue(mock.client);
-
-    await act(async () => {
-      renderer = create(
-        <HookProbe activeSessionId="session-1" onValue={(value) => { latest = value; }} />,
-      );
-      await flushPromises();
-    });
-
-    await waitFor(
-      () => latest?.status === "ready",
-      "authenticated bootstrap",
-    );
-
-    const desktop = latest;
-    if (!desktop) {
-      throw new Error("Hook state did not initialize");
-    }
-
-    await act(async () => {
-      await expect(desktop.addFriend("friend-2")).rejects.toThrow("Failed to refresh friends");
-      await flushPromises();
-    });
-
     expect(latest?.globalError).toBeNull();
   });
 

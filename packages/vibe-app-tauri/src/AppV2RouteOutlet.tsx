@@ -1,11 +1,10 @@
-import type { Notification, QuickAction, SettingSection, StatItem } from "./components/routes";
+import type { QuickAction, SettingSection, StatItem } from "./components/routes";
 import type { ComposerSuggestion, Message } from "./components/surfaces";
 import type { DesktopSession } from "./desktop-client";
 import type { AppV2View } from "./useAppV2RouteModel";
 import type { SessionWorkspaceFile, SessionWorkspaceFileContent } from "./session-files";
 import {
   HomeRoute,
-  InboxRoute,
   NewSessionRoute,
   RecentSessionsRoute,
   SessionRoute,
@@ -29,9 +28,6 @@ import {
   ArtifactDetailRoute,
   ArtifactEditRoute,
   ArtifactNewRoute,
-  FriendsRoute,
-  FriendsSearchRoute,
-  UserDetailRoute,
   TerminalRoute,
   TerminalConnectRoute,
 } from "./routes/appv2";
@@ -76,9 +72,6 @@ type AppV2RouteOutletProps = {
   messages: Message[];
   currentMessage: Message | null;
   settingsSections: SettingSection[];
-  notifications: Notification[];
-  inboxFilter: "all" | "unread";
-  unreadCount?: number;
   quickActions: QuickAction[];
   stats: StatItem[];
   suggestions: ComposerSuggestion[];
@@ -107,8 +100,6 @@ type AppV2RouteOutletProps = {
   activeMachineId: string | null;
   // Artifact props
   activeArtifactId: string | null;
-  // Social props
-  activeUserId: string | null;
   // Navigation callbacks
   onSessionSelect: (session: { id: string }) => void;
   onStartNewSession: () => void;
@@ -122,7 +113,6 @@ type AppV2RouteOutletProps = {
   onComposerChange: (value: string) => void;
   onModelChange: (value: string) => void;
   onSendMessage: () => Promise<void> | void;
-  onInboxFilterChange: (filter: "all" | "unread") => void;
   // Restore callbacks
   onRefreshQr: () => void;
   onManualRestore: () => void;
@@ -143,9 +133,6 @@ export function AppV2RouteOutlet({
   messages,
   currentMessage,
   settingsSections,
-  notifications,
-  inboxFilter,
-  unreadCount,
   quickActions,
   stats,
   suggestions,
@@ -170,7 +157,6 @@ export function AppV2RouteOutlet({
   sessionFileState,
   activeMachineId,
   activeArtifactId,
-  activeUserId,
   onSessionSelect,
   onStartNewSession,
   onViewAllSessions,
@@ -183,7 +169,6 @@ export function AppV2RouteOutlet({
   onComposerChange,
   onModelChange,
   onSendMessage,
-  onInboxFilterChange,
   onRefreshQr,
   onManualRestore,
   onSubmitManualRestore,
@@ -268,16 +253,6 @@ export function AppV2RouteOutlet({
       return <SettingsUsageRoute />;
     case "settings-voice":
       return <SettingsVoiceRoute />;
-    case "inbox":
-      return (
-        <InboxRoute
-          notifications={notifications}
-          unreadCount={unreadCount}
-          supportsUnreadFilter={typeof unreadCount === "number"}
-          filter={inboxFilter}
-          onFilterChange={onInboxFilterChange}
-        />
-      );
     case "restore":
       return (
         <RestoreRoute
@@ -367,12 +342,6 @@ export function AppV2RouteOutlet({
       );
     case "artifact-new":
       return <ArtifactNewRoute />;
-    case "friends":
-      return <FriendsRoute />;
-    case "friends-search":
-      return <FriendsSearchRoute />;
-    case "user-detail":
-      return <UserDetailRoute userId={activeUserId ?? ""} />;
     case "terminal":
       return <TerminalRoute />;
     case "terminal-connect":

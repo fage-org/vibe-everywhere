@@ -12,7 +12,6 @@ import {
   type SurfaceCapability,
 } from './types';
 import { settingsSurfaces } from './settings-registry';
-import { inboxSurfaces } from './inbox-registry';
 import { remoteSurfaces } from './remote-registry';
 
 /**
@@ -237,7 +236,6 @@ export function getBrowserContractDescription(
 export function getAllSurfaces(): SurfaceCapability[] {
   return [
     ...settingsSurfaces,
-    ...inboxSurfaces,
     ...remoteSurfaces,
   ];
 }

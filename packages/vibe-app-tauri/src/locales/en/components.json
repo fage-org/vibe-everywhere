@@ -29,9 +29,7 @@
   "nav": {
     "home": "Home",
     "sessions": "Sessions",
-    "inbox": "Inbox",
     "artifacts": "Artifacts",
-    "friends": "Friends",
     "terminal": "Terminal",
     "settings": "Settings"
   }

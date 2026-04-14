@@ -75,7 +75,6 @@ function AppContentV2({ isMobile }: AppContentV2Props) {
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isSending, setIsSending] = useState(false);
-  const [inboxFilter, setInboxFilter] = useState<"all" | "unread">("all");
   const [appearance, setAppearance] = useState<DesktopAppearanceSettings>(() =>
     loadAppearanceSettings(),
   );
@@ -282,12 +281,9 @@ function AppContentV2({ isMobile }: AppContentV2Props) {
 
   const navigation = useAppV2Navigation({
     view: appShell.view,
-    unreadCount: appShell.unreadCount,
     navigate: router.navigate,
     t,
   });
-  const normalizedInboxFilter =
-    inboxFilter === "unread" && typeof appShell.unreadCount !== "number" ? "all" : inboxFilter;
   const routeContent = (
     <AppV2RouteOutlet
       view={appShell.view}
@@ -296,9 +292,6 @@ function AppContentV2({ isMobile }: AppContentV2Props) {
       messages={appShell.messages}
       currentMessage={currentMessage}
       settingsSections={settingsSections}
-      notifications={appShell.notifications}
-      inboxFilter={normalizedInboxFilter}
-      unreadCount={appShell.unreadCount}
       quickActions={homeViewModel.quickActions}
       stats={homeViewModel.stats}
       suggestions={suggestions}
@@ -332,8 +325,6 @@ function AppContentV2({ isMobile }: AppContentV2Props) {
       activeMachineId={appShell.activeMachineId}
       // Artifact props
       activeArtifactId={appShell.activeArtifactId}
-      // Social props
-      activeUserId={appShell.activeUserId}
       // Restore props
       restoreState={{
         qrSvg: restoreQrSvg,
@@ -383,7 +374,6 @@ function AppContentV2({ isMobile }: AppContentV2Props) {
       onComposerChange={setComposerValue}
       onModelChange={composerPreferences.setSelectedModel}
       onSendMessage={handleSendMessage}
-      onInboxFilterChange={setInboxFilter}
       // Restore callbacks
       onRefreshQr={handleRefreshQr}
       onManualRestore={handleManualRestore}
@@ -420,9 +410,7 @@ function AppContentV2({ isMobile }: AppContentV2Props) {
           tabs={[
             { id: "home", label: t('components:nav.home'), icon: "🏠" },
             { id: "sessions", label: t('components:nav.sessions'), icon: "💬" },
-            { id: "inbox", label: t('components:nav.inbox'), icon: "🔔", badge: appShell.unreadCount },
             { id: "artifacts", label: t('components:nav.artifacts'), icon: "📁" },
-            { id: "friends", label: t('components:nav.friends'), icon: "👥" },
             { id: "terminal", label: t('components:nav.terminal'), icon: "💻" },
             { id: "settings", label: t('components:nav.settings'), icon: "⚙️" },
           ]}
@@ -430,9 +418,7 @@ function AppContentV2({ isMobile }: AppContentV2Props) {
           onTabChange={(tab) => {
             if (tab === "home") router.navigate("/(app)/index");
             if (tab === "sessions") router.navigate("/(app)/session/recent");
-            if (tab === "inbox") router.navigate("/(app)/inbox/index");
             if (tab === "artifacts") router.navigate("/(app)/artifacts/index");
-            if (tab === "friends") router.navigate("/(app)/friends/index");
             if (tab === "terminal") router.navigate("/(app)/terminal/index");
             if (tab === "settings") router.navigate("/(app)/settings/index");
           }}

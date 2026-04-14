@@ -87,33 +87,6 @@
       "voiceDescription": "Select the voice for text-to-speech"
     }
   },
-  "friends": {
-    "title": "Friends",
-    "description": "Manage your friends and connections",
-    "findFriends": "Find Friends",
-    "noFriends": "You don't have any friends yet. Search for users to add!",
-    "remove": "Remove",
-    "removing": "Removing...",
-    "removeFriend": "Remove Friend",
-    "searchTitle": "Find Friends",
-    "searchDescription": "Search for users by username to add as friends",
-    "searchPlaceholder": "Search by username...",
-    "search": "Search",
-    "searching": "Searching...",
-    "noResults": "No users found. Try a different search term.",
-    "addFriend": "Add Friend",
-    "adding": "Adding...",
-    "statusFriend": "Friends",
-    "statusRequested": "Request Sent",
-    "statusPending": "Pending Request",
-    "statusNone": "",
-    "cancelRequest": "Cancel Request",
-    "acceptRequest": "Accept",
-    "accepting": "Accepting...",
-    "declineRequest": "Decline",
-    "userProfile": "User Profile",
-    "userNotFound": "User not found"
-  },
   "terminal": {
     "title": "Terminal",
     "description": "Connect your terminal for remote access",

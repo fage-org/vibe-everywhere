@@ -96,36 +96,6 @@
       "delete": "删除"
     }
   },
-  "inbox": {
-    "header": {
-      "eyebrow": "通知"
-    },
-    "title": "收件箱",
-    "unreadCount": "未读",
-    "actions": {
-      "markAllRead": "全部标为已读"
-    },
-    "filters": {
-      "all": "全部",
-      "unread": "未读"
-    },
-    "empty": {
-      "title": "没有通知",
-      "subtitle": "你已看完所有通知！"
-    },
-    "feed": {
-      "accountActivity": "账户活动",
-      "actionLabel": "打开",
-      "friendRequest": {
-        "title": "{{userLabel}} 发来了好友请求",
-        "message": "打开 {{userLabel}} 以查看这条社交请求。"
-      },
-      "friendAccepted": {
-        "title": "{{userLabel}} 已接受好友请求",
-        "message": "{{userLabel}} 已加入你当前的社交关系图。"
-      }
-    }
-  },
   "settings": {
     "title": "设置",
     "appV2Persistence": "AppV2 壳中的设置会在变更后立即持久化。",

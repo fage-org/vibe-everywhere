@@ -259,6 +259,5 @@ describe("useAppV2Shell", () => {
     expect(latest.currentSession?.id).toBe("session-1");
     expect(latest.messages[0]?.content).toBe("Inspect the live diff");
     expect(latest.sessions[0]?.metadata?.model).toBe("gpt-5.4");
-    expect(latest.unreadCount).toBeUndefined();
   });
 });

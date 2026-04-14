@@ -87,33 +87,6 @@
       "voiceDescription": "选择语音合成的声音"
     }
   },
-  "friends": {
-    "title": "好友",
-    "description": "管理您的好友和连接",
-    "findFriends": "查找好友",
-    "noFriends": "您还没有好友。搜索用户来添加好友吧！",
-    "remove": "移除",
-    "removing": "移除中...",
-    "removeFriend": "移除好友",
-    "searchTitle": "查找好友",
-    "searchDescription": "通过用户名搜索用户来添加好友",
-    "searchPlaceholder": "通过用户名搜索...",
-    "search": "搜索",
-    "searching": "搜索中...",
-    "noResults": "未找到用户。请尝试其他搜索词。",
-    "addFriend": "添加好友",
-    "adding": "添加中...",
-    "statusFriend": "好友",
-    "statusRequested": "已发送请求",
-    "statusPending": "待处理请求",
-    "statusNone": "",
-    "cancelRequest": "取消请求",
-    "acceptRequest": "接受",
-    "accepting": "接受中...",
-    "declineRequest": "拒绝",
-    "userProfile": "用户资料",
-    "userNotFound": "用户未找到"
-  },
   "terminal": {
     "title": "终端",
     "description": "连接您的终端以进行远程访问",

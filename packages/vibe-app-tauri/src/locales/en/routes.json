@@ -96,36 +96,6 @@
       "delete": "Delete"
     }
   },
-  "inbox": {
-    "header": {
-      "eyebrow": "Notifications"
-    },
-    "title": "Inbox",
-    "unreadCount": "unread",
-    "actions": {
-      "markAllRead": "Mark all read"
-    },
-    "filters": {
-      "all": "All",
-      "unread": "Unread"
-    },
-    "empty": {
-      "title": "No notifications",
-      "subtitle": "You're all caught up!"
-    },
-    "feed": {
-      "accountActivity": "Account activity",
-      "actionLabel": "Open",
-      "friendRequest": {
-        "title": "Friend request from {{userLabel}}",
-        "message": "Open {{userLabel}} to review the incoming social request."
-      },
-      "friendAccepted": {
-        "title": "Friend accepted: {{userLabel}}",
-        "message": "{{userLabel}} is now part of your current social graph."
-      }
-    }
-  },
   "settings": {
     "title": "Settings",
     "appV2Persistence": "Settings in the AppV2 shell persist immediately when changed.",

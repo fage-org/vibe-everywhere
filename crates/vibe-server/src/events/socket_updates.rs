@@ -89,20 +89,6 @@ pub enum LateDurableUpdate {
         #[serde(rename = "artifactId")]
         artifact_id: String,
     },
-    #[serde(rename = "relationship-updated")]
-    RelationshipUpdated {
-        uid: String,
-        status: String,
-        timestamp: u64,
-    },
-    #[serde(rename = "new-feed-post")]
-    NewFeedPost {
-        id: String,
-        body: serde_json::Value,
-        cursor: String,
-        #[serde(rename = "createdAt")]
-        created_at: u64,
-    },
     #[serde(rename = "kv-batch-update")]
     KvBatchUpdate { changes: Vec<KvBatchChange> },
 }

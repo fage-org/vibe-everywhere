@@ -40,14 +40,6 @@ export function useAppV2Navigation({
         onClick: () => navigate("/(app)/session/recent"),
       },
       {
-        id: "inbox",
-        label: t("components:nav.inbox"),
-        icon: "🔔",
-        badge: unreadCount && unreadCount > 0 ? unreadCount : undefined,
-        state: view === "inbox" ? "active" : "default",
-        onClick: () => navigate("/(app)/inbox/index"),
-      },
-      {
         id: "artifacts",
         label: t("components:nav.artifacts"),
         icon: "📁",
@@ -59,16 +51,6 @@ export function useAppV2Navigation({
             ? "active"
             : "default",
         onClick: () => navigate("/(app)/artifacts/index"),
-      },
-      {
-        id: "friends",
-        label: t("components:nav.friends"),
-        icon: "👥",
-        state:
-          view === "friends" || view === "friends-search" || view === "user-detail"
-            ? "active"
-            : "default",
-        onClick: () => navigate("/(app)/friends/index"),
       },
       {
         id: "terminal",
@@ -96,11 +78,9 @@ export function useAppV2Navigation({
           ? "sessions"
           : view === "artifact-detail" || view === "artifact-edit" || view === "artifact-new"
             ? "artifacts"
-            : view === "friends-search" || view === "user-detail"
-              ? "friends"
-              : view === "terminal-connect"
-                ? "terminal"
-                : view;
+            : view === "terminal-connect"
+              ? "terminal"
+              : view;
 
     const headerEyebrowKey =
       view === "new-session" || view === "unsupported" ? "components:nav.home" : `components:nav.${view}`;
@@ -108,15 +88,13 @@ export function useAppV2Navigation({
     const headerTitle =
       view === "home"
         ? t("common:app.name")
-        : view === "inbox"
-          ? t("routes:inbox.title")
-          : view === "settings"
-            ? t("routes:settings.title")
-            : view === "new-session"
-              ? t("routes:home.actions.newSession")
-              : view === "session-recent"
-                ? t("routes:home.actions.resume")
-                : t("common:app.name");
+        : view === "settings"
+          ? t("routes:settings.title")
+          : view === "new-session"
+            ? t("routes:home.actions.newSession")
+            : view === "session-recent"
+              ? t("routes:home.actions.resume")
+              : t("common:app.name");
 
     return {
       primaryNavItems,
@@ -125,5 +103,5 @@ export function useAppV2Navigation({
       headerEyebrowKey,
       headerTitle,
     };
-  }, [navigate, t, unreadCount, view]);
+  }, [navigate, t, view]);
 }

@@ -1,7 +1,6 @@
 import { useCallback } from "react";
 import type { AppShellState } from "./useAppShellState";
 import type { ResolvedRoute } from "./router";
-import { useInboxFeedAdapter } from "./useInboxFeedAdapter";
 import { useAppV2CurrentSession } from "./useAppV2CurrentSession";
 import { useAppV2RouteModel, resolveAppV2View } from "./useAppV2RouteModel";
 import { useAppV2SessionList } from "./useAppV2SessionList";
@@ -21,7 +20,6 @@ export function useAppV2Shell(
     routeModel.activeSessionId,
     routeModel.view === "session",
   );
-  const notifications = useInboxFeedAdapter(shell, navigate);
 
   const startNewSession = useCallback(() => {
     navigate("/(app)/new/index");
@@ -46,13 +44,10 @@ export function useAppV2Shell(
     activeSessionId: routeModel.activeSessionId,
     activeMachineId: routeModel.activeMachineId,
     activeArtifactId: routeModel.activeArtifactId,
-    activeUserId: routeModel.activeUserId,
     isSupported: routeModel.isSupported,
     sessions,
     currentSession,
     messages,
-    notifications,
-    unreadCount: undefined as number | undefined,
     isConnected: shell.status === "ready",
     isLoading: shell.status === "checking" || shell.status === "loading",
     errorMessage: shell.globalError,
