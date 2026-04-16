@@ -13,5 +13,8 @@ pub use models::*;
 pub use proto::*;
 pub use types::*;
 
+// Re-export ts-rs for external usage
+pub use ts_rs::TS;
+
 // Re-export commonly used types
 pub use models::SessionMessageType;

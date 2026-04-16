@@ -4,12 +4,14 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 use uuid::Uuid;
 
 use crate::types::*;
 
 /// Client device information
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct ClientDevice {
     pub device_id: Uuid,
     pub device_name: String,
@@ -22,7 +24,8 @@ pub struct ClientDevice {
 }
 
 /// Request to register a new client device
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, TS)]
+#[ts(export)]
 pub struct RegisterDeviceRequest {
     pub device_name: String,
     pub device_type: DeviceType,
@@ -30,14 +33,16 @@ pub struct RegisterDeviceRequest {
 }
 
 /// Response after device registration
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
 pub struct RegisterDeviceResponse {
     pub device_id: Uuid,
     pub token: String,
 }
 
 /// Remote host information
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct Host {
     pub host_id: Uuid,
     pub host_name: String,
@@ -53,7 +58,8 @@ pub struct Host {
 }
 
 /// Workspace information
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct Workspace {
     pub workspace_id: Uuid,
     pub host_id: Uuid,
@@ -67,7 +73,8 @@ pub struct Workspace {
 }
 
 /// Request to create a new workspace
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, TS)]
+#[ts(export)]
 pub struct CreateWorkspaceRequest {
     pub host_id: Uuid,
     pub path: String,
@@ -75,7 +82,8 @@ pub struct CreateWorkspaceRequest {
 }
 
 /// Session information
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct Session {
     pub session_id: Uuid,
     pub title: String,
@@ -94,7 +102,8 @@ pub struct Session {
 }
 
 /// Request to create a new session
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, TS)]
+#[ts(export)]
 pub struct CreateSessionRequest {
     /// Idempotency key for duplicate request protection
     pub idempotency_key: String,
@@ -105,7 +114,8 @@ pub struct CreateSessionRequest {
 }
 
 /// Session archive information
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct SessionArchive {
     pub archive_id: Uuid,
     pub session_id: Uuid,
@@ -123,7 +133,8 @@ pub struct SessionArchive {
 ///
 /// Contains session snapshot information for archive details display
 /// and historical tracing.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct ArchiveMetadata {
     /// Workspace path where the session ran
     pub workspace_path: String,
@@ -151,7 +162,8 @@ pub struct ArchiveMetadata {
 }
 
 /// Session statistics captured at archive time
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct ArchiveStatistics {
     /// Total message count
     pub message_count: u32,
@@ -164,7 +176,8 @@ pub struct ArchiveStatistics {
 }
 
 /// Permission request information
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct PermissionRequest {
     pub permission_id: Uuid,
     pub session_id: Uuid,
@@ -177,14 +190,16 @@ pub struct PermissionRequest {
 }
 
 /// Request to respond to a permission request
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, TS)]
+#[ts(export)]
 pub struct PermissionResponseRequest {
     pub decision: PermissionDecision,
 }
 
 /// Permission decision types
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "snake_case")]
+#[ts(export)]
 pub enum PermissionDecision {
     ApproveOnce,
     DenyOnce,
@@ -192,7 +207,8 @@ pub enum PermissionDecision {
 }
 
 /// Notification preferences
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct NotificationPreference {
     pub device_id: Uuid,
     pub enabled: bool,
@@ -216,7 +232,8 @@ impl Default for NotificationPreference {
 }
 
 /// Session message (log entry, assistant output, etc.)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct SessionMessage {
     pub message_id: Uuid,
     pub session_id: Uuid,
@@ -226,8 +243,9 @@ pub struct SessionMessage {
 }
 
 /// Type of session message
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "snake_case")]
+#[ts(export)]
 pub enum SessionMessageType {
     User,
     Assistant,

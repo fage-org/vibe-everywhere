@@ -12,3 +12,4 @@ chrono = { workspace = true }
 jsonwebtoken = { workspace = true }
 thiserror = { workspace = true }
 anyhow = { workspace = true }
+ts-rs = { workspace = true }

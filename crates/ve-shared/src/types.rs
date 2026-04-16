@@ -3,18 +3,21 @@
 //! Common enumerations and type aliases used across the Vibe Everywhere system.
 
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
 /// Device type enumeration
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "snake_case")]
+#[ts(export)]
 pub enum DeviceType {
     Mobile,
     Desktop,
 }
 
 /// Host platform
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "lowercase")]
+#[ts(export)]
 pub enum Platform {
     Linux,
     Macos,
@@ -22,8 +25,9 @@ pub enum Platform {
 }
 
 /// Host online status
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "lowercase")]
+#[ts(export)]
 pub enum OnlineStatus {
     Online,
     Offline,
@@ -32,8 +36,9 @@ pub enum OnlineStatus {
 }
 
 /// Daemon connection status
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "lowercase")]
+#[ts(export)]
 pub enum DaemonStatus {
     Healthy,
     Connecting,
@@ -43,8 +48,9 @@ pub enum DaemonStatus {
 }
 
 /// Host pairing status
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "lowercase")]
+#[ts(export)]
 pub enum PairStatus {
     Paired,
     #[default]
@@ -53,8 +59,9 @@ pub enum PairStatus {
 }
 
 /// Session status
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "snake_case")]
+#[ts(export)]
 pub enum SessionStatus {
     #[default]
     Running,
@@ -81,8 +88,9 @@ impl SessionStatus {
 }
 
 /// Archive close reason
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "snake_case")]
+#[ts(export)]
 pub enum CloseReason {
     UserClosed,
     Completed,
@@ -91,8 +99,9 @@ pub enum CloseReason {
 }
 
 /// Permission risk type
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "snake_case")]
+#[ts(export)]
 pub enum RiskType {
     WriteFs,
     ExecCmd,
@@ -100,8 +109,9 @@ pub enum RiskType {
 }
 
 /// Permission request status
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "snake_case")]
+#[ts(export)]
 pub enum PermissionStatus {
     #[default]
     Pending,
@@ -124,8 +134,9 @@ impl PermissionStatus {
 }
 
 /// Connection status for server config
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "lowercase")]
+#[ts(export)]
 pub enum ConnectionStatus {
     Idle,
     Testing,
@@ -134,7 +145,8 @@ pub enum ConnectionStatus {
 }
 
 /// Pagination parameters
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, TS)]
+#[ts(export)]
 pub struct Pagination {
     /// Page number (1-indexed)
     #[serde(default = "default_page")]
@@ -163,8 +175,9 @@ impl Default for Pagination {
 }
 
 /// Paginated response wrapper
-#[derive(Debug, Clone, Serialize)]
-pub struct Paginated<T> {
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct Paginated<T: TS> {
     pub items: Vec<T>,
     pub total: u64,
     pub page: u32,
@@ -172,7 +185,7 @@ pub struct Paginated<T> {
     pub has_more: bool,
 }
 
-impl<T> Paginated<T> {
+impl<T: TS> Paginated<T> {
     pub fn new(items: Vec<T>, total: u64, page: u32, limit: u32) -> Self {
         let has_more = (page * limit) < total as u32;
         Self {

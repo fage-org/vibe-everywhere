@@ -4,15 +4,18 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 use uuid::Uuid;
 
 use crate::models::PermissionDecision;
 use crate::types::{DaemonStatus, OnlineStatus, RiskType, SessionStatus};
 
 /// WebSocket message envelope
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct WsEnvelope {
     pub r#type: String,
+    #[ts(type = "unknown")]
     pub payload: serde_json::Value,
     pub timestamp: DateTime<Utc>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -42,9 +45,10 @@ impl WsEnvelope {
 // ============================================================================
 
 /// Client-to-server message types
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[serde(tag = "type", content = "payload")]
 #[serde(rename_all = "snake_case")]
+#[ts(export)]
 pub enum ClientToServer {
     SubscribeSession { session_id: Uuid },
     UnsubscribeSession { session_id: Uuid },
@@ -56,13 +60,15 @@ pub enum ClientToServer {
 // ============================================================================
 
 /// Server-to-client message types
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[serde(tag = "type", content = "payload")]
 #[serde(rename_all = "snake_case")]
+#[ts(export)]
 pub enum ServerToClient {
     SessionEvent {
         session_id: Uuid,
         event_type: String,
+        #[ts(type = "unknown")]
         data: serde_json::Value,
     },
     PermissionRequest {
@@ -122,9 +128,10 @@ impl From<ClientMessage> for WsEnvelope {
 // ============================================================================
 
 /// Daemon-to-server message types
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[serde(tag = "type", content = "payload")]
 #[serde(rename_all = "snake_case")]
+#[ts(export)]
 pub enum DaemonToServer {
     DaemonHello {
         host_id: Uuid,
@@ -138,6 +145,7 @@ pub enum DaemonToServer {
     SessionEvent {
         session_id: Uuid,
         event_type: String,
+        #[ts(type = "unknown")]
         data: serde_json::Value,
     },
     PermissionRequest {
@@ -154,6 +162,7 @@ pub enum DaemonToServer {
     FileTreeResponse {
         request_id: String,
         session_id: Uuid,
+        #[ts(type = "unknown")]
         tree: serde_json::Value,
     },
     FileContentResponse {
@@ -169,9 +178,10 @@ pub enum DaemonToServer {
 // ============================================================================
 
 /// Server-to-daemon message types
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[serde(tag = "type", content = "payload")]
 #[serde(rename_all = "snake_case")]
+#[ts(export)]
 pub enum ServerToDaemon {
     CreateSession {
         session_id: Uuid,
@@ -233,8 +243,9 @@ impl From<DaemonMessage> for WsEnvelope {
 }
 
 /// Session control action
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "lowercase")]
+#[ts(export)]
 pub enum SessionControlAction {
     Pause,
     Terminate,
@@ -247,7 +258,8 @@ pub enum SessionControlAction {
 // ============================================================================
 
 /// Acknowledgment payload for daemon responses
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct AckPayload {
     pub request_id: String,
     pub success: bool,
@@ -256,7 +268,8 @@ pub struct AckPayload {
 }
 
 /// Error payload for failed operations
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct ErrorPayload {
     pub request_id: String,
     pub error_code: String,
