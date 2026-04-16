@@ -65,6 +65,41 @@ pub struct Config {
     /// CORS allowed origins (comma-separated, empty = most restrictive, "*" = allow all)
     #[serde(default = "default_cors_origins")]
     pub cors_origins: Vec<String>,
+
+    /// Ack timeout in milliseconds (default: 10 seconds)
+    #[serde(default = "default_ack_timeout_ms")]
+    #[allow(dead_code)]
+    pub ack_timeout_ms: u64,
+
+    /// Ack max retries for retryable operations (default: 2)
+    #[serde(default = "default_ack_max_retries")]
+    #[allow(dead_code)]
+    pub ack_max_retries: u32,
+
+    /// Ack retry delay in milliseconds (default: 500ms)
+    #[serde(default = "default_ack_retry_delay_ms")]
+    #[allow(dead_code)]
+    pub ack_retry_delay_ms: u64,
+
+    /// Permission request default TTL in seconds (default: 30 minutes)
+    #[serde(default = "default_permission_ttl_secs")]
+    #[allow(dead_code)]
+    pub permission_ttl_secs: u64,
+
+    /// Permission expiry check interval in seconds (default: 60 seconds)
+    #[serde(default = "default_permission_expiry_check_secs")]
+    #[allow(dead_code)]
+    pub permission_expiry_check_secs: u64,
+
+    /// Idempotency key default TTL in seconds (default: 24 hours)
+    #[serde(default = "default_idempotency_ttl_secs")]
+    #[allow(dead_code)]
+    pub idempotency_ttl_secs: u64,
+
+    /// Idempotency cleanup interval in seconds (default: 1 hour)
+    #[serde(default = "default_idempotency_cleanup_secs")]
+    #[allow(dead_code)]
+    pub idempotency_cleanup_secs: u64,
 }
 
 fn default_listen_addr() -> SocketAddr {
@@ -95,6 +130,34 @@ fn default_cors_origins() -> Vec<String> {
     Vec::new() // Empty by default = most restrictive
 }
 
+fn default_ack_timeout_ms() -> u64 {
+    10000 // 10 seconds
+}
+
+fn default_ack_max_retries() -> u32 {
+    2
+}
+
+fn default_ack_retry_delay_ms() -> u64 {
+    500
+}
+
+fn default_permission_ttl_secs() -> u64 {
+    30 * 60 // 30 minutes
+}
+
+fn default_permission_expiry_check_secs() -> u64 {
+    60
+}
+
+fn default_idempotency_ttl_secs() -> u64 {
+    24 * 60 * 60 // 24 hours
+}
+
+fn default_idempotency_cleanup_secs() -> u64 {
+    60 * 60 // 1 hour
+}
+
 impl Config {
     /// Load configuration from environment variables
     pub fn from_env() -> Result<Self> {
@@ -112,6 +175,20 @@ impl Config {
             .set_default("data_dir", default_data_dir().to_string_lossy().to_string())
             .map_err(ServerError::Config)?
             .set_default("cors_origins", Vec::<String>::new())
+            .map_err(ServerError::Config)?
+            .set_default("ack_timeout_ms", default_ack_timeout_ms())
+            .map_err(ServerError::Config)?
+            .set_default("ack_max_retries", default_ack_max_retries())
+            .map_err(ServerError::Config)?
+            .set_default("ack_retry_delay_ms", default_ack_retry_delay_ms())
+            .map_err(ServerError::Config)?
+            .set_default("permission_ttl_secs", default_permission_ttl_secs())
+            .map_err(ServerError::Config)?
+            .set_default("permission_expiry_check_secs", default_permission_expiry_check_secs())
+            .map_err(ServerError::Config)?
+            .set_default("idempotency_ttl_secs", default_idempotency_ttl_secs())
+            .map_err(ServerError::Config)?
+            .set_default("idempotency_cleanup_secs", default_idempotency_cleanup_secs())
             .map_err(ServerError::Config)?
             .add_source(
                 config::Environment::default()
@@ -185,5 +262,29 @@ impl Config {
     #[allow(dead_code)]
     pub fn connection_timeout(&self) -> std::time::Duration {
         std::time::Duration::from_secs(self.connection_timeout_secs)
+    }
+
+    /// Ack timeout as Duration
+    #[allow(dead_code)]
+    pub fn ack_timeout(&self) -> std::time::Duration {
+        std::time::Duration::from_millis(self.ack_timeout_ms)
+    }
+
+    /// Ack retry delay as Duration
+    #[allow(dead_code)]
+    pub fn ack_retry_delay(&self) -> std::time::Duration {
+        std::time::Duration::from_millis(self.ack_retry_delay_ms)
+    }
+
+    /// Permission TTL as chrono Duration
+    #[allow(dead_code)]
+    pub fn permission_ttl(&self) -> chrono::Duration {
+        chrono::Duration::seconds(self.permission_ttl_secs as i64)
+    }
+
+    /// Idempotency TTL as chrono Duration
+    #[allow(dead_code)]
+    pub fn idempotency_ttl(&self) -> chrono::Duration {
+        chrono::Duration::seconds(self.idempotency_ttl_secs as i64)
     }
 }
