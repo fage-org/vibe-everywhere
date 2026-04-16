@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            INSERT INTO notification_preferences (device_id, enabled, permission_request_enabled,\n                task_completed_enabled, task_failed_enabled, session_error_enabled)\n            VALUES (?, ?, ?, ?, ?, ?)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "5734b789021debfb0194fb13a7e64a5404420b16c3a4fd6716dc6b449b038aa4"
+}

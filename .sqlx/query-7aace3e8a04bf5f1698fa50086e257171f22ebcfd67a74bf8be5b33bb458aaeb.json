@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT device_id, enabled, permission_request_enabled, task_completed_enabled,\n               task_failed_enabled, session_error_enabled\n        FROM notification_preferences\n        WHERE device_id = ?\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "device_id",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "enabled",
+        "ordinal": 1,
+        "type_info": "Integer"
+      },
+      {
+        "name": "permission_request_enabled",
+        "ordinal": 2,
+        "type_info": "Integer"
+      },
+      {
+        "name": "task_completed_enabled",
+        "ordinal": 3,
+        "type_info": "Integer"
+      },
+      {
+        "name": "task_failed_enabled",
+        "ordinal": 4,
+        "type_info": "Integer"
+      },
+      {
+        "name": "session_error_enabled",
+        "ordinal": 5,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "7aace3e8a04bf5f1698fa50086e257171f22ebcfd67a74bf8be5b33bb458aaeb"
+}

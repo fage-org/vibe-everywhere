@@ -1,0 +1,44 @@
+[package]
+name = "ve-server"
+version = "0.1.0"
+edition = "2021"
+description = "Vibe Everywhere Server - Backend service for remote AI agent sessions"
+default-run = "ve-server"
+
+[[bin]]
+name = "ve-server"
+path = "src/main.rs"
+
+[features]
+default = ["sqlite"]
+sqlite = ["sqlx/sqlite"]
+postgres = ["sqlx/postgres"]
+
+[dependencies]
+# Workspace dependencies
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+tokio = { workspace = true }
+jsonwebtoken = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+axum = { workspace = true }
+axum-extra = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+sqlx = { workspace = true }
+dashmap = { workspace = true }
+futures = { workspace = true }
+rand = { workspace = true }
+config = "0.14"
+
+# Local dependencies
+ve-shared = { path = "../ve-shared" }
+
+[dev-dependencies]
+tokio-tungstenite = "0.26"
+http-body-util = "0.1"

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        UPDATE hosts\n        SET pair_status = 'paired', pair_code = NULL, qr_payload = NULL, updated_at = datetime('now')\n        WHERE host_id = ?\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "5d8a9db104a93f0b8fe9adfdf813b543464cad5d09bec7e60e7274c167f0a42d"
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        UPDATE sessions\n        SET pending_permission_count = MAX(0, pending_permission_count - 1), updated_at = datetime('now')\n        WHERE session_id = ?\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "a3f5cba8a1ca227b7178f32a3016ebd59fcc2d9a4eb8302ae516b1dfe7d13ecd"
+}

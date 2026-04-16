@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        UPDATE workspaces\n        SET display_name = ?, is_favorited = ?, updated_at = datetime('now')\n        WHERE workspace_id = ?\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "7065bea915a8f71bdd38d11c92f98bffeff722311e809ac60ef026ba23c897f7"
+}

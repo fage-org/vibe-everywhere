@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        DELETE FROM hosts WHERE host_id = ?\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "5defead46730a52ae8cd64cdaf2aa42d68564cbc2d0b0be4e88b4b89e6258bec"
+}

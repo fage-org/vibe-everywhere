@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        UPDATE permission_requests\n        SET status = ?, responded_at = datetime('now')\n        WHERE permission_id = ?\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "80f5ae79bc68ca2ccbafbf97e97057213671551f90b900c513e029ce67cbd99a"
+}

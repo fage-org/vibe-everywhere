@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        UPDATE hosts\n        SET online_status = ?, daemon_status = ?, updated_at = datetime('now')\n        WHERE host_id = ?\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "cc5f33a846bad25deed70c633947e0a923b35d49c6ff97d2e808a22820586eb3"
+}

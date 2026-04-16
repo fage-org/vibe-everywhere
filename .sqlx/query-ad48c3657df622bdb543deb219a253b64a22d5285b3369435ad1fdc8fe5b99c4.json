@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        INSERT INTO pairing_codes (pair_code, host_id, host_name, platform, qr_payload, expires_at)\n        VALUES (?, ?, ?, ?, ?, ?)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "ad48c3657df622bdb543deb219a253b64a22d5285b3369435ad1fdc8fe5b99c4"
+}

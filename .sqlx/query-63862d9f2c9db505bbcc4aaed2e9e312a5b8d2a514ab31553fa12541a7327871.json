@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        INSERT INTO hosts (host_id, host_name, platform, pair_status, pair_code, qr_payload)\n        VALUES (?, ?, ?, 'pending', ?, ?)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "63862d9f2c9db505bbcc4aaed2e9e312a5b8d2a514ab31553fa12541a7327871"
+}

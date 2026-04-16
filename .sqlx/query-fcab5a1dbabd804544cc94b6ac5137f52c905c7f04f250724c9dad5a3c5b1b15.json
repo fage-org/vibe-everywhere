@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            UPDATE sessions SET status = 'paused', updated_at = datetime('now')\n            WHERE session_id = ?\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "fcab5a1dbabd804544cc94b6ac5137f52c905c7f04f250724c9dad5a3c5b1b15"
+}

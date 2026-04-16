@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        UPDATE sessions SET status = 'archived', updated_at = datetime('now')\n        WHERE session_id = ?\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "8ebd4577092b1c329de022a3f5b0de9a64ecdd0c986dc42106c0eabcfd25b96a"
+}

@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT archive_id, session_id, title, closed_at, close_reason, host_id, workspace_id, created_at\n            FROM session_archives\n            ORDER BY closed_at DESC\n            LIMIT ? OFFSET ?\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "archive_id",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "session_id",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "title",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "closed_at",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "close_reason",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "host_id",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "workspace_id",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 7,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "5d745efedfd31ff6a803e88f3acd659ffe00fbabce9c2e4f6e0a423d9b46ab3d"
+}

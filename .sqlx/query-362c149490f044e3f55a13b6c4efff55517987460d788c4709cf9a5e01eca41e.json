@@ -1,0 +1,80 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT host_id, host_name, platform, online_status, daemon_status,\n               last_active_at, pair_status, pair_code, qr_payload, created_at, updated_at\n        FROM hosts\n        WHERE pair_status = 'paired'\n        ORDER BY updated_at DESC\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "host_id",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "host_name",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "platform",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "online_status",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "daemon_status",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "last_active_at",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "pair_status",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "pair_code",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "qr_payload",
+        "ordinal": 8,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 9,
+        "type_info": "Text"
+      },
+      {
+        "name": "updated_at",
+        "ordinal": 10,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "362c149490f044e3f55a13b6c4efff55517987460d788c4709cf9a5e01eca41e"
+}

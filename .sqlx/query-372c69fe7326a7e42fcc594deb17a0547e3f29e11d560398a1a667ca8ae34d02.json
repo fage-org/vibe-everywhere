@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            UPDATE notification_preferences\n            SET enabled = COALESCE(?, enabled),\n                permission_request_enabled = COALESCE(?, permission_request_enabled),\n                task_completed_enabled = COALESCE(?, task_completed_enabled),\n                task_failed_enabled = COALESCE(?, task_failed_enabled),\n                session_error_enabled = COALESCE(?, session_error_enabled)\n            WHERE device_id = ?\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "372c69fe7326a7e42fcc594deb17a0547e3f29e11d560398a1a667ca8ae34d02"
+}

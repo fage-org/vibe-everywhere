@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT archive_id FROM session_archives WHERE session_id = ?\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "archive_id",
+        "ordinal": 0,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "6e787d546ddc1188b71783a34fed46eb8ffad3b77ee1c4396e32c4ceb5851025"
+}
