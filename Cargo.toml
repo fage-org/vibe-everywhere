@@ -3,7 +3,7 @@ resolver = "2"
 members = [
     "crates/ve-server",
     "crates/ve-shared",
-    # "crates/ve-daemon",  # Will be added when daemon is implemented
+    "crates/ve-daemon",
     # "client/src-tauri",  # Will be added when client is implemented
 ]
 
@@ -28,3 +28,5 @@ futures = "0.3"
 rand = "0.9"
 sha2 = "0.10"
 ts-rs = { version = "10", features = ["serde-compat", "chrono-impl", "uuid-impl"] }
+tokio-tungstenite = { version = "0.26", features = ["native-tls"] }
+toml = "0.8"

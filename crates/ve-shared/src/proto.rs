@@ -184,20 +184,28 @@ pub enum DaemonToServer {
 #[ts(export)]
 pub enum ServerToDaemon {
     CreateSession {
+        /// Unique request ID for correlation and acknowledgment
+        request_id: String,
         session_id: Uuid,
         workspace_path: String,
         agent_type: String,
         initial_message: String,
     },
     SendMessage {
+        /// Unique request ID for correlation and acknowledgment
+        request_id: String,
         session_id: Uuid,
         content: String,
     },
     SessionControl {
+        /// Unique request ID for correlation and acknowledgment
+        request_id: String,
         session_id: Uuid,
         action: SessionControlAction,
     },
     CloseSession {
+        /// Unique request ID for correlation and acknowledgment
+        request_id: String,
         session_id: Uuid,
     },
     PermissionResponse {
@@ -227,18 +235,23 @@ pub type DaemonMessage = ServerToDaemon;
 
 impl From<DaemonMessage> for WsEnvelope {
     fn from(msg: DaemonMessage) -> Self {
-        let msg_type = match &msg {
-            DaemonMessage::CreateSession { .. } => "create_session",
-            DaemonMessage::SendMessage { .. } => "send_message",
-            DaemonMessage::SessionControl { .. } => "session_control",
-            DaemonMessage::CloseSession { .. } => "close_session",
-            DaemonMessage::PermissionResponse { .. } => "permission_response",
-            DaemonMessage::FileTreeRequest { .. } => "file_tree_request",
-            DaemonMessage::FileContentRequest { .. } => "file_content_request",
-            DaemonMessage::Pong => "pong",
-            DaemonMessage::Paired { .. } => "paired",
+        let (msg_type, request_id) = match &msg {
+            DaemonMessage::CreateSession { request_id, .. } => ("create_session", Some(request_id.clone())),
+            DaemonMessage::SendMessage { request_id, .. } => ("send_message", Some(request_id.clone())),
+            DaemonMessage::SessionControl { request_id, .. } => ("session_control", Some(request_id.clone())),
+            DaemonMessage::CloseSession { request_id, .. } => ("close_session", Some(request_id.clone())),
+            DaemonMessage::PermissionResponse { .. } => ("permission_response", None),
+            DaemonMessage::FileTreeRequest { request_id, .. } => ("file_tree_request", Some(request_id.clone())),
+            DaemonMessage::FileContentRequest { request_id, .. } => ("file_content_request", Some(request_id.clone())),
+            DaemonMessage::Pong => ("pong", None),
+            DaemonMessage::Paired { .. } => ("paired", None),
         };
-        WsEnvelope::new(msg_type, &msg)
+
+        let mut envelope = WsEnvelope::new(msg_type, &msg);
+        if let Some(id) = request_id {
+            envelope = envelope.with_request_id(id);
+        }
+        envelope
     }
 }
 

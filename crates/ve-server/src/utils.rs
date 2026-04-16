@@ -2,9 +2,44 @@
 //!
 //! Provides safe parsing helpers with proper error handling and logging.
 
+use axum::http::HeaderMap;
 use uuid::Uuid;
 
 use crate::error::ServerError;
+
+/// Generate a new request ID with prefix.
+///
+/// Format: `req-{uuid}` for WebSocket message-level IDs.
+pub fn generate_request_id() -> String {
+    format!("req-{}", Uuid::new_v4())
+}
+
+/// Generate a new trace ID with prefix.
+///
+/// Format: `tr-{uuid}` for cross-service trace IDs.
+pub fn generate_trace_id() -> String {
+    format!("tr-{}", Uuid::new_v4())
+}
+
+/// Extract `x-request-id` header from HTTP headers.
+///
+/// If not present, generates a new trace ID.
+/// Returns the trace ID for logging correlation.
+pub fn extract_request_id(headers: &HeaderMap) -> String {
+    headers
+        .get("x-request-id")
+        .and_then(|h| h.to_str().ok())
+        .map(|s| {
+            // If already prefixed, use it directly
+            if s.starts_with("tr-") || s.starts_with("req-") {
+                s.to_string()
+            } else {
+                // Add prefix if not present
+                format!("tr-{}", s)
+            }
+        })
+        .unwrap_or_else(generate_trace_id)
+}
 
 /// Parse a UUID string with a field name context for better error messages.
 ///
@@ -162,6 +197,50 @@ pub fn parse_pair_status(s: &str) -> ve_shared::types::PairStatus {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use axum::http::{header::HeaderName, HeaderValue};
+
+    #[test]
+    fn test_generate_request_id_format() {
+        let id = generate_request_id();
+        assert!(id.starts_with("req-"));
+        assert!(id.len() > 4); // Should have UUID after prefix
+    }
+
+    #[test]
+    fn test_generate_trace_id_format() {
+        let id = generate_trace_id();
+        assert!(id.starts_with("tr-"));
+        assert!(id.len() > 3); // Should have UUID after prefix
+    }
+
+    #[test]
+    fn test_extract_request_id_from_header() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            HeaderName::from_static("x-request-id"),
+            HeaderValue::from_static("tr-abc123"),
+        );
+        let id = extract_request_id(&headers);
+        assert_eq!(id, "tr-abc123");
+    }
+
+    #[test]
+    fn test_extract_request_id_adds_prefix() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            HeaderName::from_static("x-request-id"),
+            HeaderValue::from_static("abc123"),
+        );
+        let id = extract_request_id(&headers);
+        assert_eq!(id, "tr-abc123");
+    }
+
+    #[test]
+    fn test_extract_request_id_generates_when_missing() {
+        let headers = HeaderMap::new();
+        let id = extract_request_id(&headers);
+        assert!(id.starts_with("tr-"));
+    }
 
     #[test]
     fn test_parse_uuid_valid() {

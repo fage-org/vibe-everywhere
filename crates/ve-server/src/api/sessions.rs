@@ -4,6 +4,7 @@
 
 use axum::{
     extract::{Path, Query, State},
+    http::HeaderMap,
     Json,
 };
 use serde::Deserialize;
@@ -17,7 +18,7 @@ use ve_shared::types::{Paginated, SessionStatus};
 use crate::db::idempotency::IdempotencyKeyStore;
 use crate::error::{Result, ServerError};
 use crate::state::AppState;
-use crate::utils::{self, parse_uuid};
+use crate::utils::{self, extract_request_id, generate_request_id, parse_uuid};
 use crate::validation::{validate_title, validate_content};
 
 /// Session list query parameters
@@ -176,8 +177,12 @@ pub async fn list_sessions(
 /// Create a new session with strict idempotency protection.
 pub async fn create_session(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Json(req): Json<CreateSessionRequest>,
 ) -> Result<Json<Session>> {
+    // Extract trace_id for correlation
+    let trace_id = extract_request_id(&headers);
+
     // Validate inputs
     validate_title(&req.title)?;
     validate_content(&req.initial_message)?;
@@ -256,7 +261,7 @@ pub async fn create_session(
             updated_at: row.13,
         };
 
-        tracing::info!(%session_id, key = %idempotency_key, "Returning existing session (idempotent)");
+        tracing::info!(trace_id = %trace_id, session_id = %session_id, key = %idempotency_key, "Returning existing session (idempotent)");
 
         return Ok(Json(record.to_model()?));
     }
@@ -266,6 +271,9 @@ pub async fn create_session(
     let session_id_str = session_id.to_string();
     let host_id_str = req.host_id.to_string();
     let workspace_id_str = req.workspace_id.to_string();
+
+    // Generate request_id for daemon message
+    let request_id = generate_request_id();
 
     // Get workspace path
     let workspace = sqlx::query!(
@@ -313,10 +321,11 @@ pub async fn create_session(
     // Store idempotency key with request hash
     store.store(&idempotency_key, &request_hash, &session_id, "session").await?;
 
-    // Send create_session to daemon
+    // Send create_session to daemon with request_id
     state.hub.send_to_daemon(
         &req.host_id,
         DaemonMessage::CreateSession {
+            request_id,
             session_id,
             workspace_path: workspace.path,
             agent_type: "claude_code".to_string(),
@@ -324,7 +333,7 @@ pub async fn create_session(
         },
     );
 
-    tracing::info!(%session_id, %req.host_id, "Session created");
+    tracing::info!(trace_id = %trace_id, session_id = %session_id, host_id = %req.host_id, "Session created");
 
     Ok(Json(Session {
         session_id,
@@ -403,9 +412,13 @@ pub struct SendMessageRequest {
 /// Send a message to the session.
 pub async fn send_message(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Path(id): Path<Uuid>,
     Json(req): Json<SendMessageRequest>,
 ) -> Result<Json<serde_json::Value>> {
+    // Extract trace_id for correlation
+    let trace_id = extract_request_id(&headers);
+
     // Validate content
     validate_content(&req.content)?;
 
@@ -454,14 +467,20 @@ pub async fn send_message(
     .execute(&state.db)
     .await?;
 
-    // Forward to daemon
+    // Generate request_id for daemon message
+    let request_id = generate_request_id();
+
+    // Forward to daemon with request_id
     state.hub.send_to_daemon(
         &host_id,
         DaemonMessage::SendMessage {
+            request_id,
             session_id: id,
             content: req.content,
         },
     );
+
+    tracing::debug!(trace_id = %trace_id, session_id = %id, message_id = %message_id, "Message sent");
 
     Ok(Json(
         serde_json::json!({ "success": true, "message_id": message_id }),
@@ -544,9 +563,13 @@ pub struct ControlRequest {
 /// Send a control command (pause, terminate, interrupt, rerun).
 pub async fn control_session(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Path(id): Path<Uuid>,
     Json(req): Json<ControlRequest>,
 ) -> Result<Json<serde_json::Value>> {
+    // Extract trace_id for correlation
+    let trace_id = extract_request_id(&headers);
+
     let session_id_str = id.to_string();
 
     let session = sqlx::query!(
@@ -579,13 +602,19 @@ pub async fn control_session(
         .await?;
     }
 
+    // Generate request_id for daemon message
+    let request_id = generate_request_id();
+
     state.hub.send_to_daemon(
         &host_id,
         DaemonMessage::SessionControl {
+            request_id,
             session_id: id,
             action,
         },
     );
+
+    tracing::debug!(trace_id = %trace_id, session_id = %id, action = ?action, "Control command sent");
 
     Ok(Json(serde_json::json!({ "success": true })))
 }
@@ -596,8 +625,12 @@ pub async fn control_session(
 #[allow(clippy::type_complexity)]
 pub async fn close_session(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>> {
+    // Extract trace_id for correlation
+    let trace_id = extract_request_id(&headers);
+
     let session_id_str = id.to_string();
 
     // Get session details
@@ -731,12 +764,19 @@ pub async fn close_session(
     .execute(&state.db)
     .await?;
 
-    // Notify daemon
-    state
-        .hub
-        .send_to_daemon(&host_id, DaemonMessage::CloseSession { session_id: id });
+    // Generate request_id for daemon message
+    let request_id = generate_request_id();
 
-    tracing::info!(%id, %archive_id, "Session archived with metadata");
+    // Notify daemon with request_id
+    state.hub.send_to_daemon(
+        &host_id,
+        DaemonMessage::CloseSession {
+            request_id,
+            session_id: id,
+        },
+    );
+
+    tracing::info!(trace_id = %trace_id, session_id = %id, archive_id = %archive_id, "Session archived with metadata");
 
     Ok(Json(
         serde_json::json!({ "success": true, "archive_id": archive_id }),
