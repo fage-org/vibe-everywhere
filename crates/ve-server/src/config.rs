@@ -100,6 +100,22 @@ pub struct Config {
     #[serde(default = "default_idempotency_cleanup_secs")]
     #[allow(dead_code)]
     pub idempotency_cleanup_secs: u64,
+
+    /// Log format: "pretty" for development, "json" for production
+    #[serde(default = "default_log_format")]
+    pub log_format: String,
+
+    /// Log level: "trace", "debug", "info", "warn", "error"
+    #[serde(default = "default_log_level")]
+    pub log_level: String,
+}
+
+fn default_log_format() -> String {
+    "pretty".to_string()
+}
+
+fn default_log_level() -> String {
+    "info".to_string()
 }
 
 fn default_listen_addr() -> SocketAddr {
@@ -189,6 +205,10 @@ impl Config {
             .set_default("idempotency_ttl_secs", default_idempotency_ttl_secs())
             .map_err(ServerError::Config)?
             .set_default("idempotency_cleanup_secs", default_idempotency_cleanup_secs())
+            .map_err(ServerError::Config)?
+            .set_default("log_format", default_log_format())
+            .map_err(ServerError::Config)?
+            .set_default("log_level", default_log_level())
             .map_err(ServerError::Config)?
             .add_source(
                 config::Environment::default()
@@ -286,5 +306,21 @@ impl Config {
     #[allow(dead_code)]
     pub fn idempotency_ttl(&self) -> chrono::Duration {
         chrono::Duration::seconds(self.idempotency_ttl_secs as i64)
+    }
+
+    /// Check if JSON log format is enabled
+    pub fn is_json_logging(&self) -> bool {
+        self.log_format.to_lowercase() == "json"
+    }
+
+    /// Parse log level string to tracing::Level
+    pub fn log_level(&self) -> tracing::Level {
+        match self.log_level.to_lowercase().as_str() {
+            "trace" => tracing::Level::TRACE,
+            "debug" => tracing::Level::DEBUG,
+            "warn" => tracing::Level::WARN,
+            "error" => tracing::Level::ERROR,
+            _ => tracing::Level::INFO,
+        }
     }
 }

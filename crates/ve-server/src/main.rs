@@ -33,19 +33,16 @@ use crate::state::AppState;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Initialize tracing
-    tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::INFO)
-        .with_target(false)
-        .with_thread_ids(false)
-        .pretty()
-        .init();
-
-    // Load configuration
+    // Load configuration first (needed for logging setup)
     let config = Config::from_env().expect("Failed to load configuration");
+
+    // Initialize tracing with environment-aware configuration
+    init_tracing(&config);
 
     info!(
         listen_addr = %config.listen_addr,
+        log_format = %config.log_format,
+        log_level = %config.log_level,
         "Starting Vibe Everywhere server"
     );
 
@@ -170,6 +167,37 @@ async fn main() -> Result<()> {
 /// Health check endpoint
 async fn healthz() -> &'static str {
     "OK"
+}
+
+/// Initialize tracing subscriber with environment-aware configuration
+///
+/// Development (log_format=pretty): Human-readable format with colors and file:line
+/// Production (log_format=json): Structured JSON format for log aggregation
+fn init_tracing(config: &Config) {
+    let level = config.log_level();
+
+    if config.is_json_logging() {
+        // Production: JSON format for log aggregation (ELK, Loki, CloudWatch)
+        tracing_subscriber::fmt()
+            .json()
+            .with_max_level(level)
+            .with_target(true)
+            .with_current_span(false)
+            .with_span_list(true)
+            .with_file(true)
+            .with_line_number(true)
+            .init();
+    } else {
+        // Development: Pretty format for human readability
+        tracing_subscriber::fmt()
+            .with_max_level(level)
+            .with_target(true)
+            .with_thread_ids(false)
+            .with_file(true)
+            .with_line_number(true)
+            .pretty()
+            .init();
+    }
 }
 
 /// Build CORS layer from configuration
