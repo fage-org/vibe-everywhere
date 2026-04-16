@@ -592,73 +592,142 @@ pub async fn control_session(
 
 /// POST /api/sessions/:id/close
 ///
-/// Close and archive a session.
+/// Close and archive a session with metadata aggregation.
+#[allow(clippy::type_complexity)]
 pub async fn close_session(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>> {
     let session_id_str = id.to_string();
 
-    let session = sqlx::query!(
+    // Get session details
+    let session_row: Option<(
+        String, String, String, String, String, String,
+        Option<String>, Option<String>, String,
+    )> = sqlx::query_as(
         r#"
-        SELECT session_id, title, host_id, workspace_id, status
+        SELECT session_id, title, host_id, workspace_id, status, agent_type,
+               latest_summary, claude_session_id, created_at
         FROM sessions WHERE session_id = ?
         "#,
-        session_id_str,
     )
+    .bind(&session_id_str)
     .fetch_optional(&state.db)
-    .await?
-    .ok_or(ServerError::NotFound(format!("Session {}", id)))?;
+    .await?;
+
+    let session = session_row.ok_or(ServerError::NotFound(format!("Session {}", id)))?;
 
     // Check if already archived (idempotent - return existing archive)
-    if session.status == "archived" {
+    if session.4 == "archived" {
         // Find existing archive
-        let archive = sqlx::query!(
+        let archive: Option<(String,)> = sqlx::query_as(
             r#"
             SELECT archive_id FROM session_archives WHERE session_id = ?
             "#,
-            session_id_str,
         )
+        .bind(&session_id_str)
         .fetch_optional(&state.db)
         .await?;
 
         return Ok(Json(serde_json::json!({
             "success": true,
             "already_archived": true,
-            "archive_id": archive.map(|a| a.archive_id)
+            "archive_id": archive.map(|a| a.0)
         })));
     }
 
-    let host_id = parse_uuid(&session.host_id, "host_id")?;
-    let workspace_id = parse_uuid(&session.workspace_id, "workspace_id")?;
+    let host_id = parse_uuid(&session.2, "host_id")?;
+    let workspace_id = parse_uuid(&session.3, "workspace_id")?;
     let host_id_str = host_id.to_string();
     let workspace_id_str = workspace_id.to_string();
 
-    // Create archive
+    // Get workspace info for metadata
+    let workspace_row: Option<(String, String)> = sqlx::query_as(
+        r#"
+        SELECT path, display_name FROM workspaces WHERE workspace_id = ?
+        "#,
+    )
+    .bind(&workspace_id_str)
+    .fetch_optional(&state.db)
+    .await?;
+
+    // Aggregate statistics for metadata
+    let message_count_row: (i64,) = sqlx::query_as(
+        r#"
+        SELECT COUNT(*) as count FROM session_messages WHERE session_id = ?
+        "#,
+    )
+    .bind(&session_id_str)
+    .fetch_one(&state.db)
+    .await?;
+    let message_count = message_count_row.0 as u32;
+
+    let permission_count_row: (i64,) = sqlx::query_as(
+        r#"
+        SELECT COUNT(*) as count FROM permission_requests WHERE session_id = ?
+        "#,
+    )
+    .bind(&session_id_str)
+    .fetch_one(&state.db)
+    .await?;
+    let permission_count = permission_count_row.0 as u32;
+
+    // Calculate duration from session creation to now
+    let created_at = chrono::DateTime::parse_from_rfc3339(&session.8)
+        .map_err(|e| ServerError::Internal(format!("Invalid created_at: {}", e)))?;
+    let duration_seconds = (chrono::Utc::now() - created_at.with_timezone(&chrono::Utc))
+        .num_seconds()
+        .max(0) as u32;
+
+    // Build archive metadata
+    use ve_shared::models::{ArchiveMetadata, ArchiveStatistics};
+
+    let metadata = ArchiveMetadata {
+        workspace_path: workspace_row.as_ref().map(|w| w.0.clone()).unwrap_or_default(),
+        workspace_display_name: workspace_row.as_ref().map(|w| w.1.clone()),
+        agent_type: session.5.clone(),
+        closed_by: "server".to_string(), // Could be enhanced to track actual closer
+        final_summary: session.6.clone(),
+        claude_session_id: session.7.clone(),
+        statistics: Some(ArchiveStatistics {
+            message_count,
+            event_count: 0, // session_events table doesn't exist yet
+            permission_count,
+            duration_seconds,
+        }),
+        last_commit_sha: None,
+        last_commit_message: None,
+    };
+
+    let metadata_json = serde_json::to_string(&metadata)
+        .map_err(|e| ServerError::Internal(format!("Failed to serialize metadata: {}", e)))?;
+
+    // Create archive with metadata
     let archive_id = Uuid::new_v4();
     let archive_id_str = archive_id.to_string();
-    sqlx::query!(
+    sqlx::query(
         r#"
-        INSERT INTO session_archives (archive_id, session_id, title, closed_at, close_reason, host_id, workspace_id)
-        VALUES (?, ?, ?, datetime('now'), 'user_closed', ?, ?)
+        INSERT INTO session_archives (archive_id, session_id, title, closed_at, close_reason, host_id, workspace_id, metadata_json)
+        VALUES (?, ?, ?, datetime('now'), 'user_closed', ?, ?, ?)
         "#,
-        archive_id_str,
-        session_id_str,
-        session.title,
-        host_id_str,
-        workspace_id_str,
     )
+    .bind(&archive_id_str)
+    .bind(&session_id_str)
+    .bind(&session.1) // title
+    .bind(&host_id_str)
+    .bind(&workspace_id_str)
+    .bind(&metadata_json)
     .execute(&state.db)
     .await?;
 
     // Update session status to archived
-    sqlx::query!(
+    sqlx::query(
         r#"
         UPDATE sessions SET status = 'archived', updated_at = datetime('now')
         WHERE session_id = ?
         "#,
-        session_id_str,
     )
+    .bind(&session_id_str)
     .execute(&state.db)
     .await?;
 
@@ -667,7 +736,7 @@ pub async fn close_session(
         .hub
         .send_to_daemon(&host_id, DaemonMessage::CloseSession { session_id: id });
 
-    tracing::info!(%id, %archive_id, "Session archived");
+    tracing::info!(%id, %archive_id, "Session archived with metadata");
 
     Ok(Json(
         serde_json::json!({ "success": true, "archive_id": archive_id }),

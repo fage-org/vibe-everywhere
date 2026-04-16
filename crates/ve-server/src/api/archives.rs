@@ -10,14 +10,14 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
-use ve_shared::models::SessionArchive;
+use ve_shared::models::{ArchiveMetadata, SessionArchive};
 use ve_shared::types::Paginated;
 
 use crate::error::{Result, ServerError};
 use crate::state::AppState;
 use crate::utils::{self, parse_uuid};
 
-/// Archive row type alias
+/// Archive row type alias (includes metadata_json)
 type ArchiveRow = (
     String,
     String,
@@ -27,6 +27,7 @@ type ArchiveRow = (
     String,
     String,
     String,
+    Option<String>,
 );
 
 /// Archive list query parameters
@@ -48,10 +49,14 @@ struct ArchiveRecord {
     host_id: String,
     workspace_id: String,
     created_at: String,
+    metadata_json: Option<String>,
 }
 
 impl ArchiveRecord {
     fn to_model(&self) -> Result<SessionArchive> {
+        let metadata = self.metadata_json.as_ref()
+            .and_then(|json| serde_json::from_str::<ArchiveMetadata>(json).ok());
+
         Ok(SessionArchive {
             archive_id: parse_uuid(&self.archive_id, "archive_id")?,
             session_id: parse_uuid(&self.session_id, "session_id")?,
@@ -65,6 +70,7 @@ impl ArchiveRecord {
             created_at: chrono::DateTime::parse_from_rfc3339(&self.created_at)
                 .map_err(|e| ServerError::Internal(format!("Invalid created_at: {}", e)))?
                 .with_timezone(&chrono::Utc),
+            metadata,
         })
     }
 }
@@ -84,12 +90,12 @@ pub async fn list_archives(
         let host_id_str = host_id.to_string();
         sqlx::query_as(
                 r#"
-                SELECT archive_id, session_id, title, closed_at, close_reason, host_id, workspace_id, created_at
+                SELECT archive_id, session_id, title, closed_at, close_reason, host_id, workspace_id, created_at, metadata_json
                 FROM session_archives
                 WHERE host_id = ?
                 ORDER BY closed_at DESC
                 LIMIT ? OFFSET ?
-                "#
+                "#,
             )
             .bind(host_id_str)
             .bind(limit as i32)
@@ -100,12 +106,12 @@ pub async fn list_archives(
         let workspace_id_str = workspace_id.to_string();
         sqlx::query_as(
                 r#"
-                SELECT archive_id, session_id, title, closed_at, close_reason, host_id, workspace_id, created_at
+                SELECT archive_id, session_id, title, closed_at, close_reason, host_id, workspace_id, created_at, metadata_json
                 FROM session_archives
                 WHERE workspace_id = ?
                 ORDER BY closed_at DESC
                 LIMIT ? OFFSET ?
-                "#
+                "#,
             )
             .bind(workspace_id_str)
             .bind(limit as i32)
@@ -115,11 +121,11 @@ pub async fn list_archives(
     } else {
         sqlx::query_as(
                 r#"
-                SELECT archive_id, session_id, title, closed_at, close_reason, host_id, workspace_id, created_at
+                SELECT archive_id, session_id, title, closed_at, close_reason, host_id, workspace_id, created_at, metadata_json
                 FROM session_archives
                 ORDER BY closed_at DESC
                 LIMIT ? OFFSET ?
-                "#
+                "#,
             )
             .bind(limit as i32)
             .bind(offset as i32)
@@ -144,6 +150,7 @@ pub async fn list_archives(
                 host_id,
                 workspace_id,
                 created_at,
+                metadata_json,
             )| {
                 ArchiveRecord {
                     archive_id,
@@ -154,6 +161,7 @@ pub async fn list_archives(
                     host_id,
                     workspace_id,
                     created_at,
+                    metadata_json,
                 }
                 .to_model()
             },
@@ -174,7 +182,7 @@ pub async fn get_archive(
 
     let row = sqlx::query_as::<_, ArchiveRow>(
         r#"
-        SELECT archive_id, session_id, title, closed_at, close_reason, host_id, workspace_id, created_at
+        SELECT archive_id, session_id, title, closed_at, close_reason, host_id, workspace_id, created_at, metadata_json
         FROM session_archives
         WHERE archive_id = ?
         "#
@@ -193,6 +201,7 @@ pub async fn get_archive(
         host_id: row.5,
         workspace_id: row.6,
         created_at: row.7,
+        metadata_json: row.8,
     };
 
     Ok(Json(record.to_model()?))

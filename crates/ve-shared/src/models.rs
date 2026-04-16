@@ -115,6 +115,52 @@ pub struct SessionArchive {
     pub host_id: Uuid,
     pub workspace_id: Uuid,
     pub created_at: DateTime<Utc>,
+    /// Metadata captured at archive time
+    pub metadata: Option<ArchiveMetadata>,
+}
+
+/// Archive metadata captured when session is closed
+///
+/// Contains session snapshot information for archive details display
+/// and historical tracing.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ArchiveMetadata {
+    /// Workspace path where the session ran
+    pub workspace_path: String,
+    /// Display name of the workspace
+    pub workspace_display_name: Option<String>,
+    /// Agent type (claude_code, acp)
+    pub agent_type: String,
+    /// Who triggered the close: device_id or 'daemon'
+    pub closed_by: String,
+    /// Latest session summary at close time
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub final_summary: Option<String>,
+    /// Claude Code CLI's internal session-id if available
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub claude_session_id: Option<String>,
+    /// Session statistics
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub statistics: Option<ArchiveStatistics>,
+    /// Git commit SHA at close time
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_commit_sha: Option<String>,
+    /// Git commit message at close time
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_commit_message: Option<String>,
+}
+
+/// Session statistics captured at archive time
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ArchiveStatistics {
+    /// Total message count
+    pub message_count: u32,
+    /// Total event count
+    pub event_count: u32,
+    /// Total permission requests count
+    pub permission_count: u32,
+    /// Session duration in seconds
+    pub duration_seconds: u32,
 }
 
 /// Permission request information
