@@ -66,7 +66,8 @@ async fn main() -> Result<()> {
     let state = AppState::new(db.clone(), hub, config.clone());
 
     // Start background tasks
-    let _expiry_task = tasks::start_permission_expiry_task(db, Arc::new(config.clone()));
+    let _expiry_task = tasks::start_permission_expiry_task(db.clone(), Arc::new(config.clone()));
+    let _cleanup_task = tasks::start_idempotency_cleanup_task(db, Arc::new(config.clone()));
     info!("Background tasks started");
 
     // Build router

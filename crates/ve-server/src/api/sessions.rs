@@ -14,6 +14,7 @@ use ve_shared::models::{CreateSessionRequest, Session, SessionMessage};
 use ve_shared::proto::{DaemonMessage, SessionControlAction};
 use ve_shared::types::{Paginated, SessionStatus};
 
+use crate::db::idempotency::IdempotencyKeyStore;
 use crate::error::{Result, ServerError};
 use crate::state::AppState;
 use crate::utils::{self, parse_uuid};
@@ -183,19 +184,28 @@ pub async fn create_session(
 
     let idempotency_key = req.idempotency_key.clone();
 
-    // Check idempotency key
-    let existing = sqlx::query!(
-        r#"
-        SELECT key, session_id FROM idempotency_keys WHERE key = ?
-        "#,
-        idempotency_key,
-    )
-    .fetch_optional(&state.db)
-    .await?;
+    // Compute request hash for detecting request body changes
+    // Hash includes the key fields that define a unique session creation request
+    let hash_content = format!(
+        "{}:{}:{}:{}",
+        req.host_id, req.workspace_id, req.title, req.initial_message
+    );
+    let request_hash = IdempotencyKeyStore::compute_hash(&hash_content);
 
-    if let Some(existing) = existing {
+    // Create idempotency key store
+    let store = IdempotencyKeyStore::new(state.db.clone(), state.config.idempotency_ttl_secs);
+
+    // Check if idempotency key exists
+    if let Some(existing) = store.get(&idempotency_key).await? {
+        // Verify request hash matches
+        if !store.verify_hash(&existing, &request_hash) {
+            return Err(ServerError::Conflict(
+                "Request body changed for existing idempotency key".to_string(),
+            ));
+        }
+
         // Return existing session for duplicate request
-        let session_id = parse_uuid(&existing.session_id, "session_id")?;
+        let session_id = parse_uuid(&existing.result_ref, "session_id")?;
         let session_id_str = session_id.to_string();
 
         let row = sqlx::query_as::<
@@ -300,16 +310,8 @@ pub async fn create_session(
     .execute(&state.db)
     .await?;
 
-    // Store idempotency key
-    sqlx::query!(
-        r#"
-        INSERT INTO idempotency_keys (key, session_id) VALUES (?, ?)
-        "#,
-        idempotency_key,
-        session_id_str,
-    )
-    .execute(&state.db)
-    .await?;
+    // Store idempotency key with request hash
+    store.store(&idempotency_key, &request_hash, &session_id, "session").await?;
 
     // Send create_session to daemon
     state.hub.send_to_daemon(

@@ -26,3 +26,4 @@ sqlx = { version = "0.8", features = ["runtime-tokio", "uuid", "chrono", "json"]
 dashmap = "6"
 futures = "0.3"
 rand = "0.9"
+sha2 = "0.10"

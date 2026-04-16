@@ -2,6 +2,8 @@
 //!
 //! Connection pool creation and migration execution.
 
+pub mod idempotency;
+
 use sqlx::migrate::MigrateDatabase;
 use sqlx::sqlite::SqlitePoolOptions;
 use tracing::info;
