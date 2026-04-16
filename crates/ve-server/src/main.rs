@@ -9,6 +9,7 @@ mod error;
 mod hub;
 mod middleware;
 mod state;
+mod tasks;
 mod utils;
 mod validation;
 mod ws;
@@ -62,7 +63,11 @@ async fn main() -> Result<()> {
     ));
 
     // Create application state
-    let state = AppState::new(db, hub, config.clone());
+    let state = AppState::new(db.clone(), hub, config.clone());
+
+    // Start background tasks
+    let _expiry_task = tasks::start_permission_expiry_task(db, Arc::new(config.clone()));
+    info!("Background tasks started");
 
     // Build router
     let app = Router::new()
