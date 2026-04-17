@@ -29,6 +29,13 @@ uuid = { workspace = true }
 
 # WebSocket
 tokio-tungstenite = { workspace = true }
+futures-util = "0.3"
+
+# HTTP client for pairing
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+
+# Random for backoff jitter
+rand = { workspace = true }
 
 # Configuration
 config = "0.14"

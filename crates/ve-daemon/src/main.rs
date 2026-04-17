@@ -22,9 +22,12 @@ use std::sync::Arc;
 
 use tokio::signal;
 use tracing::{error, info, warn};
+use uuid::Uuid;
 
 use ve_daemon::config::Config;
 use ve_daemon::credentials::Credentials;
+use ve_daemon::pairing::Pairing;
+use ve_daemon::ws_client::WsClient;
 use ve_daemon::DaemonError;
 
 #[tokio::main]
@@ -52,26 +55,48 @@ async fn run() -> Result<(), DaemonError> {
         "Starting Vibe Everywhere daemon"
     );
 
-    // 3. Check for existing credentials
+    // 3. Create shutdown channel
+    let (shutdown_tx, shutdown_rx) = tokio::sync::broadcast::channel::<()>(1);
+
+    // 4. Spawn signal handler
+    let shutdown_tx_clone = shutdown_tx.clone();
+    tokio::spawn(async move {
+        wait_for_shutdown().await;
+        let _ = shutdown_tx_clone.send(());
+    });
+
+    // 5. Check for existing credentials
     let credentials = load_credentials(&config)?;
 
-    // 4. Validate credentials file permissions
-    if let Some(ref creds) = credentials {
+    // 6. Run either pairing or connection mode
+    if let Some(creds) = credentials {
+        // Validate credentials file permissions
         let path = config.credentials_path();
         if let Some(warning) = Credentials::check_permissions(&path)? {
             warn!("{}", warning);
         }
+
         info!(host_id = %creds.host_id, "Found existing credentials, entering connection mode");
-        // TODO: WebSocket client connection (next phase)
-        // ws_client::connect(&config, creds, shutdown_tx.subscribe()).await?;
+
+        // Parse host_id UUID
+        let host_id = Uuid::parse_str(&creds.host_id).map_err(|_| DaemonError::TokenParse)?;
+
+        // Create and run WebSocket client
+        let client = WsClient::new(config, host_id, creds.expose_token().to_string());
+        client.run(shutdown_rx).await?;
     } else {
         info!("No credentials found, entering pairing mode");
-        // TODO: Pairing flow (next phase)
-        // pairing::start_pairing(&config, shutdown_tx.subscribe()).await?;
-    }
 
-    // 5. Wait for shutdown signal
-    wait_for_shutdown().await;
+        // Run pairing flow
+        let pairing = Pairing::new(config.clone());
+        let creds = pairing.start(shutdown_rx).await?;
+        pairing.save_credentials(&creds)?;
+
+        // After pairing, start WebSocket client
+        let host_id = Uuid::parse_str(&creds.host_id).map_err(|_| DaemonError::TokenParse)?;
+        let client = WsClient::new(config, host_id, creds.expose_token().to_string());
+        client.run(shutdown_tx.subscribe()).await?;
+    }
 
     info!("Daemon shutdown complete");
     Ok(())

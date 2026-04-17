@@ -18,10 +18,14 @@
 pub mod config;
 pub mod credentials;
 pub mod error;
+pub mod pairing;
+pub mod ws_client;
 
 pub use config::Config;
 pub use credentials::Credentials;
 pub use error::{AckError, DaemonError};
+pub use pairing::Pairing;
+pub use ws_client::WsClient;
 
 /// Result type alias for daemon operations
 pub type Result<T> = std::result::Result<T, DaemonError>;
