@@ -12,7 +12,7 @@ use ve_shared::models::PermissionDecision;
 use ve_shared::proto::SessionControlAction;
 use ve_shared::types::SessionStatus;
 
-use crate::agent::{AgentDriver, DriverConfig, DriverEvent, MockDriver};
+use crate::agent::{create_driver, AgentDriver, DriverConfig, DriverEvent};
 use crate::config::Config;
 use crate::error::DaemonError;
 use crate::Result;
@@ -115,11 +115,11 @@ impl SessionRunner {
 
         let runner = Self {
             session_id,
-            workspace_path,
-            agent_type,
-            config,
+            workspace_path: workspace_path.clone(),
+            agent_type: agent_type.clone(),
+            config: config.clone(),
             state: RunnerState::Starting,
-            driver: Box::new(MockDriver::new(event_tx.clone())),
+            driver: create_driver(&agent_type, config, event_tx.clone()),
             command_rx,
             event_tx,
             pending_permissions: HashMap::new(),

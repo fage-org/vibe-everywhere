@@ -2,7 +2,13 @@
 //!
 //! 定义与 CLI agent 交互的统一接口。
 
+mod claude_code;
+
 use async_trait::async_trait;
+use std::sync::Arc;
+use tracing::warn;
+
+pub use claude_code::ClaudeCodeDriver;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use ve_shared::proto::SessionControlAction;
@@ -139,5 +145,28 @@ impl AgentDriver for MockDriver {
             summary: Some("Session closed".to_string()),
         }).await.ok();
         Ok(())
+    }
+}
+
+/// Create an Agent Driver based on the specified type
+///
+/// # Arguments
+/// * `agent_type` - The type of agent driver to create ("claude_code" or other)
+/// * `config` - Daemon configuration reference
+/// * `event_tx` - Channel for sending driver events
+///
+/// # Returns
+/// A boxed driver implementing `AgentDriver`
+pub fn create_driver(
+    agent_type: &str,
+    config: Arc<crate::config::Config>,
+    event_tx: tokio::sync::mpsc::Sender<DriverEvent>,
+) -> Box<dyn AgentDriver> {
+    match agent_type {
+        "claude_code" => Box::new(ClaudeCodeDriver::new(config, event_tx)),
+        _ => {
+            warn!(agent_type, "Unknown agent type, using mock driver");
+            Box::new(MockDriver::new(event_tx))
+        }
     }
 }

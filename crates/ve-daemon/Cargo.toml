@@ -26,6 +26,9 @@ anyhow = "1"
 # Async trait
 async-trait = "0.1"
 
+# CLI discovery
+which = "7"
+
 # Time and UUID
 chrono = { workspace = true }
 uuid = { workspace = true }
