@@ -201,6 +201,20 @@ pub enum AckError {
     CliNotRunning,
 }
 
+impl AckError {
+    /// Convert to error code string for protocol messages
+    pub fn as_error_code(&self) -> &'static str {
+        match self {
+            Self::SessionNotFound => "SESSION_NOT_FOUND",
+            Self::SessionInvalidState => "SESSION_INVALID_STATE",
+            Self::SessionArchived => "SESSION_ARCHIVED",
+            Self::WorkspaceInvalid => "WORKSPACE_INVALID",
+            Self::InternalError => "INTERNAL_ERROR",
+            Self::CliNotRunning => "CLI_NOT_RUNNING",
+        }
+    }
+}
+
 impl DaemonError {
     /// Convert to WebSocket error code for protocol messages
     pub fn to_ws_error_code(&self) -> &'static str {
@@ -215,6 +229,21 @@ impl DaemonError {
             | Self::CliExitError { .. }
             | Self::CliKilled { .. } => "SERVICE_UNAVAILABLE",
             _ => "INTERNAL_ERROR",
+        }
+    }
+
+    /// Convert to AckError for sending to server
+    pub fn to_ack_error(&self) -> AckError {
+        match self {
+            Self::SessionNotFound { .. } => AckError::SessionNotFound,
+            Self::SessionInvalidStatus { .. } => AckError::SessionInvalidState,
+            Self::SessionArchived { .. } => AckError::SessionArchived,
+            Self::WorkspaceNotFound { .. } | Self::WorkspaceInvalid { .. } => AckError::WorkspaceInvalid,
+            Self::CliNotFound { .. }
+            | Self::CliStartFailed { .. }
+            | Self::CliExitError { .. }
+            | Self::CliKilled { .. } => AckError::CliNotRunning,
+            _ => AckError::InternalError,
         }
     }
 
@@ -289,5 +318,34 @@ mod tests {
     fn test_ack_error_display() {
         let err = AckError::SessionArchived;
         assert!(err.to_string().contains("归档"));
+    }
+
+    #[test]
+    fn test_ack_error_code_mapping() {
+        assert_eq!(AckError::SessionNotFound.as_error_code(), "SESSION_NOT_FOUND");
+        assert_eq!(AckError::SessionInvalidState.as_error_code(), "SESSION_INVALID_STATE");
+        assert_eq!(AckError::SessionArchived.as_error_code(), "SESSION_ARCHIVED");
+        assert_eq!(AckError::WorkspaceInvalid.as_error_code(), "WORKSPACE_INVALID");
+        assert_eq!(AckError::InternalError.as_error_code(), "INTERNAL_ERROR");
+        assert_eq!(AckError::CliNotRunning.as_error_code(), "CLI_NOT_RUNNING");
+    }
+
+    #[test]
+    fn test_daemon_error_to_ack_error() {
+        let err = DaemonError::SessionNotFound {
+            session_id: "test".to_string(),
+        };
+        assert!(matches!(err.to_ack_error(), AckError::SessionNotFound));
+
+        let err = DaemonError::SessionArchived {
+            session_id: "test".to_string(),
+        };
+        assert!(matches!(err.to_ack_error(), AckError::SessionArchived));
+
+        let err = DaemonError::CliExitError { code: 1 };
+        assert!(matches!(err.to_ack_error(), AckError::CliNotRunning));
+
+        let err = DaemonError::TokenExpired;
+        assert!(matches!(err.to_ack_error(), AckError::InternalError));
     }
 }

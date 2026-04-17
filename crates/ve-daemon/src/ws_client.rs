@@ -14,13 +14,20 @@ use tokio_tungstenite::{
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 use ve_shared::models::PermissionDecision;
-use ve_shared::proto::{DaemonToServer, SessionControlAction, WsEnvelope};
+use ve_shared::proto::{AckPayload, DaemonToServer, ErrorPayload, SessionControlAction, WsEnvelope};
 
 use crate::agent::DriverEvent;
 use crate::config::Config;
-use crate::error::DaemonError;
+use crate::error::{AckError, DaemonError};
 use crate::session_registry::SessionRegistry;
 use crate::Result;
+
+/// Type alias for WebSocket sender
+#[allow(clippy::type_complexity)]
+type WsSender = futures_util::stream::SplitSink<
+    tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>,
+    WsMessage,
+>;
 
 /// WebSocket client for daemon-server communication
 #[allow(dead_code)]
@@ -37,8 +44,8 @@ pub struct WsClient {
     event_rx: Option<mpsc::Receiver<DriverEvent>>,
     /// Event sender (clone for session runners)
     event_tx: Option<mpsc::Sender<DriverEvent>>,
-    /// WebSocket sender for sending acks
-    ws_sender: Option<tokio::sync::Mutex<futures_util::stream::SplitSink<tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>, WsMessage>>>,
+    /// WebSocket sender for sending acks (wrapped in Arc for sharing)
+    ws_sender: Option<Arc<tokio::sync::Mutex<WsSender>>>,
 }
 
 impl WsClient {
@@ -77,6 +84,50 @@ impl WsClient {
     /// Get event sender for session runners
     pub fn event_sender(&self) -> Option<mpsc::Sender<DriverEvent>> {
         self.event_tx.clone()
+    }
+
+    /// Send an ack response to the server
+    async fn send_ack(&self, request_id: &str, success: bool, error: Option<&str>) {
+        if let Some(ref ws_sender) = self.ws_sender {
+            let ack = AckPayload {
+                request_id: request_id.to_string(),
+                success,
+                error: error.map(|s| s.to_string()),
+            };
+            let envelope = WsEnvelope::new("ack", &ack);
+            if let Ok(json) = serde_json::to_string(&envelope) {
+                let mut sender = ws_sender.lock().await;
+                if let Err(e) = sender.send(WsMessage::Text(json.into())).await {
+                    warn!(error = %e, "Failed to send ack");
+                } else {
+                    debug!(%request_id, success, "Sent ack");
+                }
+            }
+        } else {
+            warn!(%request_id, "Cannot send ack: ws_sender not initialized");
+        }
+    }
+
+    /// Send an error response to the server
+    async fn send_error(&self, request_id: &str, error: &AckError, error_message: &str) {
+        if let Some(ref ws_sender) = self.ws_sender {
+            let error_payload = ErrorPayload {
+                request_id: request_id.to_string(),
+                error_code: error.as_error_code().to_string(),
+                error_message: error_message.to_string(),
+            };
+            let envelope = WsEnvelope::new("error", &error_payload);
+            if let Ok(json) = serde_json::to_string(&envelope) {
+                let mut sender = ws_sender.lock().await;
+                if let Err(e) = sender.send(WsMessage::Text(json.into())).await {
+                    warn!(error = %e, "Failed to send error response");
+                } else {
+                    debug!(%request_id, error_code = %error.as_error_code(), "Sent error response");
+                }
+            }
+        } else {
+            warn!(%request_id, "Cannot send error: ws_sender not initialized");
+        }
     }
 
     /// Connect to server and run the main message loop
@@ -154,7 +205,11 @@ impl WsClient {
 
         info!("WebSocket connected");
 
-        let (mut sender, mut receiver) = ws_stream.split();
+        let (sender, mut receiver) = ws_stream.split();
+
+        // Wrap sender in Arc<Mutex> for sharing between main loop and handlers
+        let sender = Arc::new(tokio::sync::Mutex::new(sender));
+        self.ws_sender = Some(sender.clone());
 
         // Send daemon_hello
         let hello = DaemonToServer::DaemonHello {
@@ -165,8 +220,11 @@ impl WsClient {
         let envelope = WsEnvelope::new("daemon_hello", &hello);
         let json = serde_json::to_string(&envelope)
             .map_err(DaemonError::WsMessageParse)?;
-        sender.send(WsMessage::Text(json.into())).await
-            .map_err(|e| DaemonError::WsConnect(Box::new(e)))?;
+        {
+            let mut s = sender.lock().await;
+            s.send(WsMessage::Text(json.into())).await
+                .map_err(|e| DaemonError::WsConnect(Box::new(e)))?;
+        }
 
         info!(host_id = %self.host_id, "Sent daemon_hello");
 
@@ -209,8 +267,11 @@ impl WsClient {
                     let envelope = WsEnvelope::new("daemon_heartbeat", &heartbeat);
                     let json = serde_json::to_string(&envelope)
                         .map_err(DaemonError::WsMessageParse)?;
-                    sender.send(WsMessage::Text(json.into())).await
-                        .map_err(|e| DaemonError::WsConnect(Box::new(e)))?;
+                    {
+                        let mut s = sender.lock().await;
+                        s.send(WsMessage::Text(json.into())).await
+                            .map_err(|e| DaemonError::WsConnect(Box::new(e)))?;
+                    }
                     debug!("Sent heartbeat");
                 }
 
@@ -249,7 +310,8 @@ impl WsClient {
                         for (msg_type, payload) in messages {
                             let envelope = WsEnvelope::new(&msg_type, &payload);
                             if let Ok(json) = serde_json::to_string(&envelope) {
-                                if sender.send(WsMessage::Text(json.into())).await.is_err() {
+                                let mut s = sender.lock().await;
+                                if s.send(WsMessage::Text(json.into())).await.is_err() {
                                     warn!("Failed to forward event to server");
                                 }
                             }
@@ -273,7 +335,8 @@ impl WsClient {
                             last_pong = std::time::Instant::now();
                         }
                         Some(Ok(WsMessage::Ping(data))) => {
-                            sender.send(WsMessage::Pong(data)).await
+                            let mut s = sender.lock().await;
+                            s.send(WsMessage::Pong(data)).await
                                 .map_err(|e| DaemonError::WsConnect(Box::new(e)))?;
                         }
                         Some(Ok(WsMessage::Close(_))) => {
@@ -413,7 +476,7 @@ impl WsClient {
     // Message handlers
 
     async fn handle_create_session(&self, envelope: &WsEnvelope) -> Result<()> {
-        let _request_id = envelope.request_id.clone()
+        let request_id = envelope.request_id.clone()
             .ok_or(DaemonError::RequestIdMissing)?;
 
         let session_id = envelope.payload.get("session_id")
@@ -437,6 +500,7 @@ impl WsClient {
             Some(r) => r,
             None => {
                 warn!("Received create_session but registry not configured");
+                self.send_error(&request_id, &AckError::InternalError, "Registry not configured").await;
                 return Ok(());
             }
         };
@@ -445,10 +509,12 @@ impl WsClient {
         match registry.create(session_id, workspace_path, agent_type).await {
             Ok(_) => {
                 info!(%session_id, "Session created successfully");
+                self.send_ack(&request_id, true, None).await;
             }
             Err(e) => {
                 warn!(%session_id, error = %e, "Failed to create session");
-                return Err(e);
+                let ack_error = e.to_ack_error();
+                self.send_error(&request_id, &ack_error, &e.to_string()).await;
             }
         }
 
@@ -456,6 +522,14 @@ impl WsClient {
     }
 
     async fn handle_send_message(&self, envelope: &WsEnvelope) -> Result<()> {
+        let request_id = match &envelope.request_id {
+            Some(id) => id.clone(),
+            None => {
+                warn!("send_message missing request_id");
+                return Ok(());
+            }
+        };
+
         let session_id = envelope.payload.get("session_id")
             .and_then(|v| v.as_str())
             .ok_or_else(|| DaemonError::WsPayloadMissing("session_id".to_string()))?;
@@ -469,20 +543,40 @@ impl WsClient {
 
         let registry = match &self.registry {
             Some(r) => r,
-            None => return Ok(()),
+            None => {
+                self.send_error(&request_id, &AckError::InternalError, "Registry not configured").await;
+                return Ok(());
+            }
         };
 
         if let Some(handle) = registry.get(&session_id).await {
-            handle.send_message(content).await?;
-            debug!(%session_id, "Message sent to session");
+            match handle.send_message(content).await {
+                Ok(()) => {
+                    debug!(%session_id, "Message sent to session");
+                    self.send_ack(&request_id, true, None).await;
+                }
+                Err(e) => {
+                    warn!(%session_id, error = %e, "Failed to send message");
+                    self.send_error(&request_id, &e.to_ack_error(), &e.to_string()).await;
+                }
+            }
         } else {
             warn!(%session_id, "Session not found for send_message");
+            self.send_error(&request_id, &AckError::SessionNotFound, &format!("Session {} not found", session_id)).await;
         }
 
         Ok(())
     }
 
     async fn handle_session_control(&self, envelope: &WsEnvelope) -> Result<()> {
+        let request_id = match &envelope.request_id {
+            Some(id) => id.clone(),
+            None => {
+                warn!("session_control missing request_id");
+                return Ok(());
+            }
+        };
+
         let session_id = envelope.payload.get("session_id")
             .and_then(|v| v.as_str())
             .ok_or_else(|| DaemonError::WsPayloadMissing("session_id".to_string()))?;
@@ -500,26 +594,47 @@ impl WsClient {
             "rerun" => SessionControlAction::Rerun,
             _ => {
                 warn!(action = %action_str, "Unknown session control action");
+                self.send_error(&request_id, &AckError::InternalError, &format!("Unknown action: {}", action_str)).await;
                 return Ok(());
             }
         };
 
         let registry = match &self.registry {
             Some(r) => r,
-            None => return Ok(()),
+            None => {
+                self.send_error(&request_id, &AckError::InternalError, "Registry not configured").await;
+                return Ok(());
+            }
         };
 
         if let Some(handle) = registry.get(&session_id).await {
-            handle.send_control(action).await?;
-            debug!(%session_id, ?action, "Control sent to session");
+            match handle.send_control(action).await {
+                Ok(()) => {
+                    debug!(%session_id, ?action, "Control sent to session");
+                    self.send_ack(&request_id, true, None).await;
+                }
+                Err(e) => {
+                    warn!(%session_id, error = %e, "Failed to send control");
+                    self.send_error(&request_id, &e.to_ack_error(), &e.to_string()).await;
+                }
+            }
         } else {
             warn!(%session_id, "Session not found for session_control");
+            self.send_error(&request_id, &AckError::SessionNotFound, &format!("Session {} not found", session_id)).await;
         }
 
         Ok(())
     }
 
     async fn handle_close_session(&self, envelope: &WsEnvelope) -> Result<()> {
+        let request_id = match &envelope.request_id {
+            Some(id) => id.clone(),
+            None => {
+                warn!("close_session missing request_id");
+                return Ok(());
+            }
+        };
+
         let session_id = envelope.payload.get("session_id")
             .and_then(|v| v.as_str())
             .ok_or_else(|| DaemonError::WsPayloadMissing("session_id".to_string()))?;
@@ -528,23 +643,25 @@ impl WsClient {
 
         let registry = match &self.registry {
             Some(r) => r,
-            None => return Ok(()),
+            None => {
+                self.send_error(&request_id, &AckError::InternalError, "Registry not configured").await;
+                return Ok(());
+            }
         };
 
         // 使用原子性的 close_and_remove 方法
-        // 如果关闭失败，session 保留在 registry 中可重试
         match registry.close_and_remove(&session_id).await {
             Ok(()) => {
                 info!(%session_id, "Session closed");
+                self.send_ack(&request_id, true, None).await;
             }
             Err(DaemonError::SessionNotFound { .. }) => {
-                // Session 已不存在，忽略
                 warn!(%session_id, "Session not found for close_session");
+                self.send_error(&request_id, &AckError::SessionNotFound, &format!("Session {} not found", session_id)).await;
             }
             Err(e) => {
-                // 其他错误（如 channel 关闭），记录但返回成功
-                // Session 仍保留在 registry 中
-                warn!(%session_id, error = %e, "Failed to close session, session remains in registry");
+                warn!(%session_id, error = %e, "Failed to close session");
+                self.send_error(&request_id, &e.to_ack_error(), &e.to_string()).await;
             }
         }
 
