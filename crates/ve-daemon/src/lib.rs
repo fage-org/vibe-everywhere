@@ -15,16 +15,22 @@
 //! All errors use [`DaemonError`] for categorization and handling.
 //! Critical errors that need to be reported back use [`AckError`].
 
+pub mod agent;
 pub mod config;
 pub mod credentials;
 pub mod error;
 pub mod pairing;
+pub mod session_registry;
+pub mod session_runner;
 pub mod ws_client;
 
+pub use agent::{AgentDriver, DriverConfig, DriverEvent, MockDriver};
 pub use config::Config;
 pub use credentials::Credentials;
 pub use error::{AckError, DaemonError};
 pub use pairing::Pairing;
+pub use session_registry::SessionRegistry;
+pub use session_runner::{ApprovalRule, RunnerCommand, RunnerState, SessionRunner, SessionRunnerHandle};
 pub use ws_client::WsClient;
 
 /// Result type alias for daemon operations

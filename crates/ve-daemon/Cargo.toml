@@ -23,6 +23,9 @@ toml = { workspace = true }
 thiserror = { workspace = true }
 anyhow = "1"
 
+# Async trait
+async-trait = "0.1"
+
 # Time and UUID
 chrono = { workspace = true }
 uuid = { workspace = true }

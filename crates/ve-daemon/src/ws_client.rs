@@ -6,20 +6,23 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, mpsc};
 use tokio_tungstenite::{
     connect_async,
     tungstenite::Message as WsMessage,
 };
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
-use ve_shared::proto::{DaemonToServer, WsEnvelope};
+use ve_shared::proto::{DaemonToServer, SessionControlAction, WsEnvelope};
 
+use crate::agent::DriverEvent;
 use crate::config::Config;
 use crate::error::DaemonError;
+use crate::session_registry::SessionRegistry;
 use crate::Result;
 
 /// WebSocket client for daemon-server communication
+#[allow(dead_code)]
 pub struct WsClient {
     /// Configuration reference
     config: Arc<Config>,
@@ -27,6 +30,14 @@ pub struct WsClient {
     host_id: Uuid,
     /// Authentication token
     token: String,
+    /// Session registry
+    registry: Option<Arc<SessionRegistry>>,
+    /// Event receiver from session runners
+    event_rx: Option<mpsc::Receiver<DriverEvent>>,
+    /// Event sender (clone for session runners)
+    event_tx: Option<mpsc::Sender<DriverEvent>>,
+    /// WebSocket sender for sending acks
+    ws_sender: Option<tokio::sync::Mutex<futures_util::stream::SplitSink<tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>, WsMessage>>>,
 }
 
 impl WsClient {
@@ -36,7 +47,35 @@ impl WsClient {
             config,
             host_id,
             token,
+            registry: None,
+            event_rx: None,
+            event_tx: None,
+            ws_sender: None,
         }
+    }
+
+    /// Create a new WebSocket client with session registry
+    pub fn with_registry(
+        config: Arc<Config>,
+        host_id: Uuid,
+        token: String,
+        registry: Arc<SessionRegistry>,
+    ) -> Self {
+        let (event_tx, event_rx) = mpsc::channel(64);
+        Self {
+            config,
+            host_id,
+            token,
+            registry: Some(registry),
+            event_rx: Some(event_rx),
+            event_tx: Some(event_tx),
+            ws_sender: None,
+        }
+    }
+
+    /// Get event sender for session runners
+    pub fn event_sender(&self) -> Option<mpsc::Sender<DriverEvent>> {
+        self.event_tx.clone()
     }
 
     /// Connect to server and run the main message loop
@@ -154,9 +193,14 @@ impl WsClient {
             tokio::select! {
                 // Heartbeat trigger
                 _ = heartbeat_rx.recv() => {
+                    let active_sessions = if let Some(ref registry) = self.registry {
+                        registry.list_active_session_ids().await
+                    } else {
+                        vec![]
+                    };
                     let heartbeat = DaemonToServer::DaemonHeartbeat {
                         host_id: self.host_id,
-                        active_sessions: vec![], // TODO: Get from session registry
+                        active_sessions,
                     };
                     let envelope = WsEnvelope::new("daemon_heartbeat", &heartbeat);
                     let json = serde_json::to_string(&envelope)
@@ -267,26 +311,144 @@ impl WsClient {
         Ok(())
     }
 
-    // Message handlers (to be implemented in next phase)
+    // Message handlers
 
-    async fn handle_create_session(&self, _envelope: &WsEnvelope) -> Result<()> {
-        // TODO: Send ack, create SessionRunner
-        info!("Received create_session (handler not implemented yet)");
+    async fn handle_create_session(&self, envelope: &WsEnvelope) -> Result<()> {
+        let _request_id = envelope.request_id.clone()
+            .ok_or(DaemonError::RequestIdMissing)?;
+
+        let session_id = envelope.payload.get("session_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| DaemonError::WsPayloadMissing("session_id".to_string()))?;
+        let session_id = Uuid::parse_str(session_id)
+            .map_err(|_| DaemonError::WsPayloadMissing("invalid session_id".to_string()))?;
+
+        let workspace_path = envelope.payload.get("workspace_path")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| DaemonError::WsPayloadMissing("workspace_path".to_string()))?
+            .to_string();
+
+        let agent_type = envelope.payload.get("agent_type")
+            .and_then(|v| v.as_str())
+            .unwrap_or("claude_code")
+            .to_string();
+
+        // Check if registry is available
+        let registry = match &self.registry {
+            Some(r) => r,
+            None => {
+                warn!("Received create_session but registry not configured");
+                return Ok(());
+            }
+        };
+
+        // Create session
+        match registry.create(session_id, workspace_path, agent_type).await {
+            Ok(_) => {
+                info!(%session_id, "Session created successfully");
+            }
+            Err(e) => {
+                warn!(%session_id, error = %e, "Failed to create session");
+                return Err(e);
+            }
+        }
+
         Ok(())
     }
 
-    async fn handle_send_message(&self, _envelope: &WsEnvelope) -> Result<()> {
-        info!("Received send_message (handler not implemented yet)");
+    async fn handle_send_message(&self, envelope: &WsEnvelope) -> Result<()> {
+        let session_id = envelope.payload.get("session_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| DaemonError::WsPayloadMissing("session_id".to_string()))?;
+        let session_id = Uuid::parse_str(session_id)
+            .map_err(|_| DaemonError::WsPayloadMissing("invalid session_id".to_string()))?;
+
+        let content = envelope.payload.get("content")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| DaemonError::WsPayloadMissing("content".to_string()))?
+            .to_string();
+
+        let registry = match &self.registry {
+            Some(r) => r,
+            None => return Ok(()),
+        };
+
+        if let Some(handle) = registry.get(&session_id).await {
+            handle.send_message(content).await?;
+            debug!(%session_id, "Message sent to session");
+        } else {
+            warn!(%session_id, "Session not found for send_message");
+        }
+
         Ok(())
     }
 
-    async fn handle_session_control(&self, _envelope: &WsEnvelope) -> Result<()> {
-        info!("Received session_control (handler not implemented yet)");
+    async fn handle_session_control(&self, envelope: &WsEnvelope) -> Result<()> {
+        let session_id = envelope.payload.get("session_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| DaemonError::WsPayloadMissing("session_id".to_string()))?;
+        let session_id = Uuid::parse_str(session_id)
+            .map_err(|_| DaemonError::WsPayloadMissing("invalid session_id".to_string()))?;
+
+        let action_str = envelope.payload.get("action")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| DaemonError::WsPayloadMissing("action".to_string()))?;
+
+        let action = match action_str {
+            "pause" => SessionControlAction::Pause,
+            "terminate" => SessionControlAction::Terminate,
+            "interrupt" => SessionControlAction::Interrupt,
+            "rerun" => SessionControlAction::Rerun,
+            _ => {
+                warn!(action = %action_str, "Unknown session control action");
+                return Ok(());
+            }
+        };
+
+        let registry = match &self.registry {
+            Some(r) => r,
+            None => return Ok(()),
+        };
+
+        if let Some(handle) = registry.get(&session_id).await {
+            handle.send_control(action).await?;
+            debug!(%session_id, ?action, "Control sent to session");
+        } else {
+            warn!(%session_id, "Session not found for session_control");
+        }
+
         Ok(())
     }
 
-    async fn handle_close_session(&self, _envelope: &WsEnvelope) -> Result<()> {
-        info!("Received close_session (handler not implemented yet)");
+    async fn handle_close_session(&self, envelope: &WsEnvelope) -> Result<()> {
+        let session_id = envelope.payload.get("session_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| DaemonError::WsPayloadMissing("session_id".to_string()))?;
+        let session_id = Uuid::parse_str(session_id)
+            .map_err(|_| DaemonError::WsPayloadMissing("invalid session_id".to_string()))?;
+
+        let registry = match &self.registry {
+            Some(r) => r,
+            None => return Ok(()),
+        };
+
+        // 使用原子性的 close_and_remove 方法
+        // 如果关闭失败，session 保留在 registry 中可重试
+        match registry.close_and_remove(&session_id).await {
+            Ok(()) => {
+                info!(%session_id, "Session closed");
+            }
+            Err(DaemonError::SessionNotFound { .. }) => {
+                // Session 已不存在，忽略
+                warn!(%session_id, "Session not found for close_session");
+            }
+            Err(e) => {
+                // 其他错误（如 channel 关闭），记录但返回成功
+                // Session 仍保留在 registry 中
+                warn!(%session_id, error = %e, "Failed to close session, session remains in registry");
+            }
+        }
+
         Ok(())
     }
 
