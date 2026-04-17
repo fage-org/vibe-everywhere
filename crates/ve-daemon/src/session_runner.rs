@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 use ve_shared::models::PermissionDecision;
@@ -39,6 +39,13 @@ pub enum RunnerCommand {
     /// 执行控制动作
     Control {
         action: SessionControlAction,
+    },
+    /// 注册权限请求（存储元数据用于 session 级授权缓存）
+    RegisterPermission {
+        permission_id: Uuid,
+        risk_type: String,
+        target: Option<String>,
+        summary: String,
     },
     /// 响应权限请求
     PermissionResponse {
@@ -82,8 +89,8 @@ pub struct SessionRunner {
     /// 事件发送通道 (给 WS 客户端)
     event_tx: mpsc::Sender<DriverEvent>,
 
-    /// 等待中的权限请求
-    pending_permissions: HashMap<Uuid, oneshot::Sender<PermissionDecision>>,
+    /// 等待中的权限请求（存储元数据用于 session 级授权缓存）
+    pending_permissions: HashMap<Uuid, PendingPermission>,
 
     /// 本会话授权缓存
     approval_cache: Vec<ApprovalRule>,
@@ -196,17 +203,38 @@ impl SessionRunner {
                 self.handle_control(action).await?;
             }
 
+            RunnerCommand::RegisterPermission {
+                permission_id,
+                risk_type,
+                target,
+                summary,
+            } => {
+                self.pending_permissions.insert(
+                    permission_id,
+                    PendingPermission {
+                        risk_type,
+                        target,
+                        summary,
+                    },
+                );
+                debug!(session_id = %self.session_id, %permission_id, "Permission request registered");
+            }
+
             RunnerCommand::PermissionResponse { permission_id, decision } => {
-                if let Some(tx) = self.pending_permissions.remove(&permission_id) {
+                if let Some(pending) = self.pending_permissions.remove(&permission_id) {
                     // 如果是 approve_session，添加到授权缓存
                     if decision == PermissionDecision::ApproveSession {
-                        // TODO: 从权限请求中获取 risk_type 和 target
                         self.approval_cache.push(ApprovalRule {
-                            risk_type: "unknown".to_string(),
-                            target_pattern: "*".to_string(),
+                            risk_type: pending.risk_type.clone(),
+                            target_pattern: pending.target.clone().unwrap_or("*".to_string()),
                         });
+                        debug!(
+                            session_id = %self.session_id,
+                            risk_type = %pending.risk_type,
+                            target = ?pending.target,
+                            "Added approval rule to cache"
+                        );
                     }
-                    let _ = tx.send(decision);
                 }
             }
 
@@ -305,6 +333,51 @@ impl SessionRunnerHandle {
             .await
             .map_err(|_| DaemonError::ChannelSendFailed("command channel".to_string()))
     }
+
+    /// 注册权限请求（存储元数据用于 session 级授权缓存）
+    pub async fn register_permission(
+        &self,
+        permission_id: Uuid,
+        risk_type: String,
+        target: Option<String>,
+        summary: String,
+    ) -> Result<()> {
+        self.command_tx
+            .send(RunnerCommand::RegisterPermission {
+                permission_id,
+                risk_type,
+                target,
+                summary,
+            })
+            .await
+            .map_err(|_| DaemonError::ChannelSendFailed("command channel".to_string()))
+    }
+
+    /// 发送权限响应
+    pub async fn send_permission_response(
+        &self,
+        permission_id: Uuid,
+        decision: PermissionDecision,
+    ) -> Result<()> {
+        self.command_tx
+            .send(RunnerCommand::PermissionResponse {
+                permission_id,
+                decision,
+            })
+            .await
+            .map_err(|_| DaemonError::ChannelSendFailed("command channel".to_string()))
+    }
+}
+
+/// 待处理的权限请求
+#[derive(Debug, Clone)]
+pub struct PendingPermission {
+    /// 风险类型
+    pub risk_type: String,
+    /// 目标资源
+    pub target: Option<String>,
+    /// 摘要描述
+    pub summary: String,
 }
 
 #[cfg(test)]
@@ -324,5 +397,31 @@ mod tests {
             target_pattern: "*".to_string(),
         };
         assert!(format!("{:?}", rule).contains("write_fs"));
+    }
+
+    #[test]
+    fn test_pending_permission_stores_metadata() {
+        let pending = PendingPermission {
+            risk_type: "write_fs".to_string(),
+            target: Some("/workspace/test.txt".to_string()),
+            summary: "Write to file".to_string(),
+        };
+        assert_eq!(pending.risk_type, "write_fs");
+        assert_eq!(pending.target, Some("/workspace/test.txt".to_string()));
+    }
+
+    #[test]
+    fn test_approval_rule_from_pending_permission() {
+        let pending = PendingPermission {
+            risk_type: "execute_bash".to_string(),
+            target: Some("npm test".to_string()),
+            summary: "Run tests".to_string(),
+        };
+        let rule = ApprovalRule {
+            risk_type: pending.risk_type.clone(),
+            target_pattern: pending.target.clone().unwrap_or("*".to_string()),
+        };
+        assert_eq!(rule.risk_type, "execute_bash");
+        assert_eq!(rule.target_pattern, "npm test");
     }
 }

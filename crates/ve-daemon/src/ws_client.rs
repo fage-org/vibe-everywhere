@@ -13,6 +13,7 @@ use tokio_tungstenite::{
 };
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
+use ve_shared::models::PermissionDecision;
 use ve_shared::proto::{DaemonToServer, SessionControlAction, WsEnvelope};
 
 use crate::agent::DriverEvent;
@@ -83,7 +84,7 @@ impl WsClient {
     /// Handles automatic reconnection with exponential backoff.
     /// Returns when shutdown signal is received or max retries exceeded.
     pub async fn run(
-        self,
+        mut self,
         mut shutdown_rx: broadcast::Receiver<()>,
     ) -> Result<()> {
         let mut retry_count = 0u32;
@@ -134,7 +135,7 @@ impl WsClient {
     }
 
     /// Establish connection and run message loop
-    async fn connect_and_run(&self) -> Result<()> {
+    async fn connect_and_run(&mut self) -> Result<()> {
         // Build WebSocket URL with token
         let ws_url = format!(
             "{}/ws/daemon?token={}",
@@ -189,6 +190,9 @@ impl WsClient {
         let mut last_pong = std::time::Instant::now();
         let heartbeat_timeout = self.config.heartbeat_timeout();
 
+        // Take event_rx out of Option for the duration of this connection
+        let mut event_rx = self.event_rx.take();
+
         loop {
             tokio::select! {
                 // Heartbeat trigger
@@ -208,6 +212,49 @@ impl WsClient {
                     sender.send(WsMessage::Text(json.into())).await
                         .map_err(|e| DaemonError::WsConnect(Box::new(e)))?;
                     debug!("Sent heartbeat");
+                }
+
+                // Handle events from session runners
+                event = async {
+                    if let Some(ref mut rx) = event_rx {
+                        rx.recv().await
+                    } else {
+                        std::future::pending().await
+                    }
+                } => {
+                    if let Some(event) = event {
+                        // Handle permission registration for session-level approval cache
+                        if let DriverEvent::PermissionRequest {
+                            permission_id,
+                            session_id,
+                            risk_type,
+                            summary,
+                            target,
+                        } = &event
+                        {
+                            if let Some(ref registry) = self.registry {
+                                if let Some(handle) = registry.get(session_id).await {
+                                    let _ = handle.register_permission(
+                                        *permission_id,
+                                        risk_type.clone(),
+                                        target.clone(),
+                                        summary.clone(),
+                                    ).await;
+                                }
+                            }
+                        }
+
+                        // Process event and send messages
+                        let messages = self.handle_driver_event(event);
+                        for (msg_type, payload) in messages {
+                            let envelope = WsEnvelope::new(&msg_type, &payload);
+                            if let Ok(json) = serde_json::to_string(&envelope) {
+                                if sender.send(WsMessage::Text(json.into())).await.is_err() {
+                                    warn!("Failed to forward event to server");
+                                }
+                            }
+                        }
+                    }
                 }
 
                 // Receive message
@@ -266,6 +313,58 @@ impl WsClient {
 
         heartbeat_handle.abort();
         Ok(())
+    }
+
+    /// Handle driver event from session runners and return messages to send
+    fn handle_driver_event(
+        &self,
+        event: DriverEvent,
+    ) -> Vec<(String, serde_json::Value)> {
+        let mut messages = Vec::new();
+
+        match &event {
+            DriverEvent::PermissionRequest {
+                permission_id: _,
+                session_id,
+                risk_type: _,
+                summary: _,
+                target: _,
+            } => {
+                // Permission registration happens in the async context of the caller
+                // (see the select! branch where this is called)
+
+                // Prepare message to forward to server
+                let event_json = serde_json::to_value(&event).unwrap_or(serde_json::json!({}));
+                messages.push(("session_event".to_string(), serde_json::json!({
+                    "session_id": session_id,
+                    "event_type": "permission_request",
+                    "data": event_json,
+                })));
+            }
+            DriverEvent::SessionEvent { session_id, event_type, data } => {
+                messages.push(("session_event".to_string(), serde_json::json!({
+                    "session_id": session_id,
+                    "event_type": event_type,
+                    "data": data,
+                })));
+            }
+            DriverEvent::StatusUpdate { session_id, status, summary } => {
+                messages.push(("session_status_update".to_string(), serde_json::json!({
+                    "session_id": session_id,
+                    "status": status,
+                    "summary": summary,
+                })));
+            }
+            DriverEvent::FatalError { session_id, message } => {
+                messages.push(("session_event".to_string(), serde_json::json!({
+                    "session_id": session_id,
+                    "event_type": "fatal_error",
+                    "data": { "message": message },
+                })));
+            }
+        }
+
+        messages
     }
 
     /// Handle received message
@@ -452,8 +551,43 @@ impl WsClient {
         Ok(())
     }
 
-    async fn handle_permission_response(&self, _envelope: &WsEnvelope) -> Result<()> {
-        info!("Received permission_response (handler not implemented yet)");
+    async fn handle_permission_response(&self, envelope: &WsEnvelope) -> Result<()> {
+        let permission_id = envelope.payload.get("permission_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| DaemonError::WsPayloadMissing("permission_id".to_string()))?;
+        let permission_id = Uuid::parse_str(permission_id)
+            .map_err(|_| DaemonError::WsPayloadMissing("invalid permission_id".to_string()))?;
+
+        let session_id = envelope.payload.get("session_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| DaemonError::WsPayloadMissing("session_id".to_string()))?;
+        let session_id = Uuid::parse_str(session_id)
+            .map_err(|_| DaemonError::WsPayloadMissing("invalid session_id".to_string()))?;
+
+        let decision_str = envelope.payload.get("decision")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| DaemonError::WsPayloadMissing("decision".to_string()))?;
+
+        let decision = match decision_str {
+            "approve_once" => PermissionDecision::ApproveOnce,
+            "deny_once" => PermissionDecision::DenyOnce,
+            "approve_session" => PermissionDecision::ApproveSession,
+            _ => {
+                warn!(decision = %decision_str, "Unknown permission decision");
+                return Ok(());
+            }
+        };
+
+        // Get session handle and send permission response
+        if let Some(ref registry) = self.registry {
+            if let Some(handle) = registry.get(&session_id).await {
+                handle.send_permission_response(permission_id, decision).await?;
+                debug!(%session_id, %permission_id, ?decision, "Permission response sent to session");
+            } else {
+                warn!(%session_id, "Session not found for permission_response");
+            }
+        }
+
         Ok(())
     }
 

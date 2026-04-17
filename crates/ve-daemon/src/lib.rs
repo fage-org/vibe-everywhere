@@ -19,6 +19,7 @@ pub mod agent;
 pub mod config;
 pub mod credentials;
 pub mod error;
+pub mod file_ops;
 pub mod pairing;
 pub mod session_registry;
 pub mod session_runner;
@@ -28,9 +29,10 @@ pub use agent::{AgentDriver, DriverConfig, DriverEvent, MockDriver};
 pub use config::Config;
 pub use credentials::Credentials;
 pub use error::{AckError, DaemonError};
+pub use file_ops::FileOps;
 pub use pairing::Pairing;
 pub use session_registry::SessionRegistry;
-pub use session_runner::{ApprovalRule, RunnerCommand, RunnerState, SessionRunner, SessionRunnerHandle};
+pub use session_runner::{ApprovalRule, PendingPermission, RunnerCommand, RunnerState, SessionRunner, SessionRunnerHandle};
 pub use ws_client::WsClient;
 
 /// Result type alias for daemon operations
