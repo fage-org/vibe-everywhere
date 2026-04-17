@@ -55,13 +55,38 @@ pub async fn create_sqlite_pool(config: &Config) -> Result<sqlx::SqlitePool> {
 pub async fn run_migrations(pool: &sqlx::SqlitePool) -> Result<()> {
     info!("Running database migrations");
 
-    // Run inline migrations for SQLite
-    // In a production setup, these would be separate .sql files
+    // Migration 001: Initial schema
+    info!("Running migration 001_initial.sql");
     sqlx::query(include_str!("migrations/sqlite/001_initial.sql"))
         .execute(pool)
         .await
-        .map_err(|e| crate::error::ServerError::Internal(format!("Migration failed: {}", e)))?;
+        .map_err(|e| {
+            crate::error::ServerError::Internal(format!("Migration 001 failed: {}", e))
+        })?;
 
-    info!("Migrations completed successfully");
+    // Migration 002: Supplemental fields
+    // Note: SQLite ALTER TABLE ADD COLUMN fails if column exists
+    // We catch and ignore "duplicate column name" errors for idempotency
+    info!("Running migration 002_supplemental_fields.sql");
+    let result = sqlx::query(include_str!("migrations/sqlite/002_supplemental_fields.sql"))
+        .execute(pool)
+        .await;
+
+    match result {
+        Ok(_) => info!("Migration 002 completed"),
+        Err(e) => {
+            let err_str = e.to_string();
+            if err_str.contains("duplicate column name") {
+                info!("Migration 002 columns already exist, skipping");
+            } else {
+                return Err(crate::error::ServerError::Internal(format!(
+                    "Migration 002 failed: {}",
+                    e
+                )));
+            }
+        }
+    }
+
+    info!("All migrations completed successfully");
     Ok(())
 }
