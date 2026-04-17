@@ -1,0 +1,65 @@
+# Vibe Everywhere Daemon Configuration Example
+#
+# Copy this file to ~/.config/vibe-daemon/config.toml
+# or set environment variables with VIBE_DAEMON__ prefix.
+#
+# Example:
+#   export VIBE_DAEMON__SERVER_URL="https://your-server.com"
+#   export VIBE_DAEMON__HOST_NAME="dev-server-01"
+#   export VIBE_DAEMON__PLATFORM="linux"
+
+# === Required Configuration ===
+
+# Server URL (the coordination server to connect to)
+server_url = "https://your-server.com"
+
+# Host name for display in the client
+host_name = "dev-server-01"
+
+# Platform identifier (linux, macos, windows)
+platform = "linux"
+
+# === Optional Configuration (defaults shown) ===
+
+# Heartbeat interval in seconds
+# heartbeat_interval_seconds = 30
+
+# Heartbeat timeout in seconds (must be > heartbeat_interval)
+# heartbeat_timeout_seconds = 90
+
+# Reconnect backoff minimum in milliseconds
+# reconnect_backoff_min_ms = 1000
+
+# Reconnect backoff maximum in milliseconds
+# reconnect_backoff_max_ms = 30000
+
+# Maximum parallel sessions
+# max_parallel_sessions = 4
+
+# File read text limit in bytes (256KB)
+# file_read_text_limit_bytes = 262144
+
+# Maximum file tree nodes
+# file_tree_max_nodes = 20000
+
+# Claude Code CLI command path
+# claude_command = "claude"
+
+# Default model for Claude Code
+# default_model = "claude-sonnet-4-20250514"
+
+# Log format: "pretty" for development, "json" for production
+# log_format = "pretty"
+
+# Log level: trace, debug, info, warn, error
+# log_level = "info"
+
+# === Configuration Directory ===
+#
+# By default, the daemon stores configuration and credentials in:
+# - Linux: ~/.config/vibe-daemon/
+# - macOS: ~/Library/Application Support/vibe-daemon/
+# - Windows: %APPDATA%\vibe-daemon\
+#
+# Override with config_dir (not recommended):
+# config_dir = "/custom/path"

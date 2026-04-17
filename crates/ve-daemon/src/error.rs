@@ -70,7 +70,7 @@ pub enum DaemonError {
 
     // ========== Network Layer ==========
     #[error("WebSocket 连接失败: {0}")]
-    WsConnect(#[source] tokio_tungstenite::tungstenite::Error),
+    WsConnect(#[source] Box<tokio_tungstenite::tungstenite::Error>),
 
     #[error("WebSocket 连接已断开")]
     WsDisconnected,
@@ -238,6 +238,12 @@ impl DaemonError {
                 | Self::CliKilled { .. }
                 | Self::CliStartFailed { .. }
         )
+    }
+}
+
+impl From<tokio_tungstenite::tungstenite::Error> for DaemonError {
+    fn from(err: tokio_tungstenite::tungstenite::Error) -> Self {
+        DaemonError::WsConnect(Box::new(err))
     }
 }
 
