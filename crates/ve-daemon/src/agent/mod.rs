@@ -79,6 +79,9 @@ pub trait AgentDriver: Send + Sync {
         decision: PermissionDecision,
     ) -> Result<()>;
 
+    /// 处理权限超时
+    async fn permission_timeout(&mut self, session_id: Uuid, permission_id: Uuid) -> Result<()>;
+
     /// 关闭 agent
     async fn close(&mut self, session_id: Uuid) -> Result<()>;
 }
@@ -135,6 +138,10 @@ impl AgentDriver for MockDriver {
         _permission_id: Uuid,
         _decision: PermissionDecision,
     ) -> Result<()> {
+        Ok(())
+    }
+
+    async fn permission_timeout(&mut self, _session_id: Uuid, _permission_id: Uuid) -> Result<()> {
         Ok(())
     }
 

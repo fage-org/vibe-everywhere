@@ -39,6 +39,10 @@ pub struct Config {
     #[serde(default = "default_ack_timeout")]
     pub ack_timeout_secs: u64,
 
+    /// Permission wait timeout in seconds
+    #[serde(default = "default_permission_timeout")]
+    pub permission_timeout_secs: u64,
+
     /// Minimum reconnect backoff in milliseconds
     #[serde(default = "default_reconnect_backoff_min")]
     pub reconnect_backoff_min_ms: u64,
@@ -92,6 +96,10 @@ fn default_heartbeat_timeout() -> u64 {
 
 fn default_ack_timeout() -> u64 {
     30
+}
+
+fn default_permission_timeout() -> u64 {
+    60
 }
 
 fn default_reconnect_backoff_min() -> u64 {
@@ -159,6 +167,8 @@ impl Config {
             .set_default("heartbeat_timeout_secs", default_heartbeat_timeout())
             .map_err(|e| DaemonError::ConfigInvalid(e.to_string()))?
             .set_default("ack_timeout_secs", default_ack_timeout())
+            .map_err(|e| DaemonError::ConfigInvalid(e.to_string()))?
+            .set_default("permission_timeout_secs", default_permission_timeout())
             .map_err(|e| DaemonError::ConfigInvalid(e.to_string()))?
             .set_default(
                 "reconnect_backoff_min_ms",
@@ -303,6 +313,11 @@ impl Config {
         std::time::Duration::from_secs(self.ack_timeout_secs)
     }
 
+    /// Get permission timeout as Duration
+    pub fn permission_timeout(&self) -> std::time::Duration {
+        std::time::Duration::from_secs(self.permission_timeout_secs)
+    }
+
     /// Get minimum reconnect backoff as Duration
     pub fn reconnect_backoff_min(&self) -> std::time::Duration {
         std::time::Duration::from_millis(self.reconnect_backoff_min_ms)
@@ -329,6 +344,7 @@ mod tests {
         assert_eq!(default_heartbeat_interval(), 30);
         assert_eq!(default_heartbeat_timeout(), 90);
         assert_eq!(default_ack_timeout(), 30);
+        assert_eq!(default_permission_timeout(), 60);
         assert_eq!(default_reconnect_backoff_min(), 1000);
         assert_eq!(default_reconnect_backoff_max(), 30000);
         assert_eq!(default_max_parallel_sessions(), 4);
@@ -352,6 +368,7 @@ mod tests {
             heartbeat_interval_secs: 30,
             heartbeat_timeout_secs: 90,
             ack_timeout_secs: 30,
+            permission_timeout_secs: 60,
             reconnect_backoff_min_ms: 1000,
             reconnect_backoff_max_ms: 30000,
             max_parallel_sessions: 4,
@@ -382,6 +399,7 @@ mod tests {
             heartbeat_interval_secs: 30,
             heartbeat_timeout_secs: 90,
             ack_timeout_secs: 30,
+            permission_timeout_secs: 60,
             reconnect_backoff_min_ms: 1000,
             reconnect_backoff_max_ms: 30000,
             max_parallel_sessions: 4,
@@ -422,6 +440,7 @@ mod tests {
             heartbeat_interval_secs: 90,
             heartbeat_timeout_secs: 30, // Invalid: less than interval
             ack_timeout_secs: 30,
+            permission_timeout_secs: 60,
             reconnect_backoff_min_ms: 1000,
             reconnect_backoff_max_ms: 30000,
             max_parallel_sessions: 4,
@@ -448,6 +467,7 @@ mod tests {
             heartbeat_interval_secs: 30,
             heartbeat_timeout_secs: 90,
             ack_timeout_secs: 30,
+            permission_timeout_secs: 60,
             reconnect_backoff_min_ms: 1000,
             reconnect_backoff_max_ms: 30000,
             max_parallel_sessions: 4,
@@ -474,6 +494,7 @@ mod tests {
             heartbeat_interval_secs: 30,
             heartbeat_timeout_secs: 90,
             ack_timeout_secs: 30,
+            permission_timeout_secs: 60,
             reconnect_backoff_min_ms: 1000,
             reconnect_backoff_max_ms: 30000,
             max_parallel_sessions: 4,

@@ -4,6 +4,7 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Instant;
 
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
@@ -92,6 +93,9 @@ pub struct SessionRunner {
     /// 等待中的权限请求（存储元数据用于 session 级授权缓存）
     pending_permissions: HashMap<Uuid, PendingPermission>,
 
+    /// 权限请求超时时间点
+    permission_timeouts: HashMap<Uuid, Instant>,
+
     /// 本会话授权缓存
     approval_cache: Vec<ApprovalRule>,
 }
@@ -101,6 +105,38 @@ pub struct SessionRunner {
 pub struct ApprovalRule {
     pub risk_type: String,
     pub target_pattern: String,
+}
+
+/// Check if a target matches a pattern with wildcard support
+///
+/// Pattern rules:
+/// - `*` matches any sequence of characters
+/// - `?` matches any single character
+/// - literal characters match themselves
+fn matches_pattern(pattern: &str, target: &str) -> bool {
+    let pattern_chars: Vec<char> = pattern.chars().collect();
+    let target_chars: Vec<char> = target.chars().collect();
+
+    fn match_helper(pattern: &[char], target: &[char]) -> bool {
+        match (pattern.first(), target.first()) {
+            (None, None) => true,
+            (Some('*'), _) => {
+                // * matches zero or more characters
+                match_helper(&pattern[1..], target)
+                    || (!target.is_empty() && match_helper(pattern, &target[1..]))
+            }
+            (Some('?'), Some(_)) => {
+                // ? matches exactly one character
+                match_helper(&pattern[1..], &target[1..])
+            }
+            (Some(p), Some(t)) if *p == *t => {
+                match_helper(&pattern[1..], &target[1..])
+            }
+            _ => false,
+        }
+    }
+
+    match_helper(&pattern_chars, &target_chars)
 }
 
 impl SessionRunner {
@@ -130,6 +166,7 @@ impl SessionRunner {
             command_rx,
             event_tx,
             pending_permissions: HashMap::new(),
+            permission_timeouts: HashMap::new(),
             approval_cache: Vec::new(),
         };
 
@@ -175,6 +212,13 @@ impl SessionRunner {
                         }
                     }
                 }
+
+                // 检查权限超时 (每秒检查一次)
+                _ = tokio::time::sleep(std::time::Duration::from_secs(1)) => {
+                    if let Err(e) = self.check_permission_timeouts().await {
+                        error!(error = %e, "Failed to check permission timeouts");
+                    }
+                }
             }
 
             if self.state == RunnerState::Closed || self.state == RunnerState::Error {
@@ -209,19 +253,58 @@ impl SessionRunner {
                 target,
                 summary,
             } => {
-                self.pending_permissions.insert(
-                    permission_id,
-                    PendingPermission {
+                // Check approval cache first
+                if self.check_approval_cache(&risk_type, target.as_deref()) {
+                    info!(
+                        session_id = %self.session_id,
+                        %permission_id,
                         risk_type,
-                        target,
-                        summary,
-                    },
-                );
-                debug!(session_id = %self.session_id, %permission_id, "Permission request registered");
+                        target = ?target,
+                        "Permission auto-approved by cache"
+                    );
+                    // Auto-approve via driver
+                    self.driver
+                        .respond_permission(
+                            self.session_id,
+                            permission_id,
+                            PermissionDecision::ApproveSession,
+                        )
+                        .await?;
+                } else {
+                    // Cache miss - store pending permission and set timeout
+                    self.pending_permissions.insert(
+                        permission_id,
+                        PendingPermission {
+                            risk_type: risk_type.clone(),
+                            target: target.clone(),
+                            summary,
+                        },
+                    );
+                    // Set timeout
+                    let expires_at = Instant::now() + self.config.permission_timeout();
+                    self.permission_timeouts.insert(permission_id, expires_at);
+                    debug!(
+                        session_id = %self.session_id,
+                        %permission_id,
+                        risk_type,
+                        target = ?target,
+                        timeout_secs = self.config.permission_timeout().as_secs(),
+                        "Permission request registered with timeout"
+                    );
+                }
             }
 
             RunnerCommand::PermissionResponse { permission_id, decision } => {
+                // Remove from pending and timeout tracking
                 if let Some(pending) = self.pending_permissions.remove(&permission_id) {
+                    // Remove timeout entry
+                    self.permission_timeouts.remove(&permission_id);
+
+                    // Forward response to driver
+                    self.driver
+                        .respond_permission(self.session_id, permission_id, decision)
+                        .await?;
+
                     // 如果是 approve_session，添加到授权缓存
                     if decision == PermissionDecision::ApproveSession {
                         self.approval_cache.push(ApprovalRule {
@@ -303,9 +386,55 @@ impl SessionRunner {
     }
 
     /// 检查授权缓存
-    pub fn check_approval_cache(&self, _risk_type: &str, _target: &str) -> bool {
-        // TODO: 实现缓存匹配逻辑
-        false
+    ///
+    /// 检查给定的权限请求是否匹配任何已缓存的授权规则。
+    /// risk_type 必须完全匹配，target 支持通配符匹配。
+    pub fn check_approval_cache(&self, risk_type: &str, target: Option<&str>) -> bool {
+        let target_str = target.unwrap_or("*");
+
+        self.approval_cache.iter().any(|rule| {
+            // Risk type must match exactly
+            if rule.risk_type != risk_type {
+                return false;
+            }
+            // Target must match pattern (supports wildcards)
+            matches_pattern(&rule.target_pattern, target_str)
+        })
+    }
+
+    /// 检查权限超时
+    ///
+    /// 检查所有等待中的权限请求，如果超时则发送超时响应。
+    async fn check_permission_timeouts(&mut self) -> Result<()> {
+        let now = Instant::now();
+
+        // 收集所有超时的权限 ID
+        let expired: Vec<Uuid> = self
+            .permission_timeouts
+            .iter()
+            .filter(|(_, &expires_at)| now >= expires_at)
+            .map(|(&id, _)| id)
+            .collect();
+
+        // 处理每个超时
+        for permission_id in expired {
+            warn!(
+                session_id = %self.session_id,
+                %permission_id,
+                "Permission request timed out"
+            );
+
+            // 从 pending 和 timeout 中移除
+            self.pending_permissions.remove(&permission_id);
+            self.permission_timeouts.remove(&permission_id);
+
+            // 发送超时响应给 driver
+            self.driver
+                .permission_timeout(self.session_id, permission_id)
+                .await?;
+        }
+
+        Ok(())
     }
 }
 
@@ -423,5 +552,63 @@ mod tests {
         };
         assert_eq!(rule.risk_type, "execute_bash");
         assert_eq!(rule.target_pattern, "npm test");
+    }
+
+    // ========== matches_pattern tests ==========
+
+    #[test]
+    fn test_matches_pattern_wildcard() {
+        assert!(matches_pattern("*", "anything"));
+        assert!(matches_pattern("*", ""));
+        assert!(matches_pattern("*", "/some/long/path"));
+    }
+
+    #[test]
+    fn test_matches_pattern_extension() {
+        assert!(matches_pattern("*.txt", "file.txt"));
+        assert!(matches_pattern("*.txt", "test.txt"));
+        assert!(!matches_pattern("*.txt", "file.rs"));
+        assert!(!matches_pattern("*.txt", "txt"));
+    }
+
+    #[test]
+    fn test_matches_pattern_question() {
+        assert!(matches_pattern("file?.txt", "file1.txt"));
+        assert!(matches_pattern("file?.txt", "fileA.txt"));
+        assert!(!matches_pattern("file?.txt", "file.txt"));
+        assert!(!matches_pattern("file?.txt", "file12.txt"));
+    }
+
+    #[test]
+    fn test_matches_pattern_path() {
+        assert!(matches_pattern("/home/user/*", "/home/user/project"));
+        assert!(matches_pattern("/home/user/*", "/home/user/"));
+        assert!(!matches_pattern("/home/user/*", "/home/other/file"));
+    }
+
+    #[test]
+    fn test_matches_pattern_empty() {
+        assert!(matches_pattern("", ""));
+        assert!(!matches_pattern("", "x"));
+        assert!(!matches_pattern("x", ""));
+    }
+
+    #[test]
+    fn test_matches_pattern_exact() {
+        assert!(matches_pattern("exact", "exact"));
+        assert!(!matches_pattern("exact", "Exact"));
+        assert!(!matches_pattern("exact", "exact "));
+    }
+
+    #[test]
+    fn test_matches_pattern_multiple_wildcards() {
+        assert!(matches_pattern("*.rs", "lib.rs"));
+        // Note: Our simple glob doesn't support ** special behavior
+        // * matches any characters including /, so this works:
+        assert!(matches_pattern("src/*", "src/main.rs"));
+        assert!(matches_pattern("src/*", "src/lib/mod.rs"));
+        // Pattern with multiple * works:
+        assert!(matches_pattern("*.txt", "file.txt"));
+        assert!(matches_pattern("*test*", "mytestfile"));
     }
 }

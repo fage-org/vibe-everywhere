@@ -460,6 +460,39 @@ impl AgentDriver for ClaudeCodeDriver {
         Ok(())
     }
 
+    async fn permission_timeout(&mut self, session_id: Uuid, permission_id: Uuid) -> Result<()> {
+        warn!(%session_id, %permission_id, "Permission request timed out");
+
+        // Send timeout response to CLI (deny with reason)
+        let input = serde_json::json!({
+            "type": "permission_response",
+            "decision": "deny_once",  // Deny on timeout, but don't persist
+            "reason": "timeout",
+        });
+
+        let stdin = self.stdin.as_mut().ok_or(DaemonError::CliStdinWriteFailed)?;
+
+        let line = serde_json::to_string(&input)
+            .map_err(|e| DaemonError::CliStdoutParseFailed {
+                reason: e.to_string(),
+            })?;
+        stdin
+            .write_all(line.as_bytes())
+            .await
+            .map_err(|_| DaemonError::CliStdinWriteFailed)?;
+        stdin
+            .write_all(b"\n")
+            .await
+            .map_err(|_| DaemonError::CliStdinWriteFailed)?;
+        stdin
+            .flush()
+            .await
+            .map_err(|_| DaemonError::CliStdinWriteFailed)?;
+
+        debug!(%permission_id, "Permission timeout response sent to CLI");
+        Ok(())
+    }
+
     async fn close(&mut self, session_id: Uuid) -> Result<()> {
         if let Some(ref mut child) = self.child {
             // Try graceful shutdown
