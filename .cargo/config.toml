@@ -1,0 +1,21 @@
+# Cargo Configuration for Vibe Everywhere
+#
+# This file defines cargo aliases and build configuration.
+
+[alias]
+# Generate TypeScript types from Rust types using ts-rs
+# Usage: cargo generate-types
+# This runs tests in ve-shared which triggers ts-rs export due to #[ts(export)] attribute
+generate-types = "test --package ve-shared export_bindings"
+
+# Development shortcuts
+dev = "run --package ve-server"
+daemon-dev = "run --package ve-daemon"
+
+[build]
+# Use all available CPU cores for parallel compilation
+jobs = -1
+
+[env]
+# Export TypeScript types to the client directory
+TS_RS_EXPORT_DIR = { value = "client/src/types/generated", relative = true }
