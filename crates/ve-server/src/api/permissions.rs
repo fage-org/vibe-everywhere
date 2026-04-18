@@ -198,12 +198,12 @@ pub async fn respond_permission(
     }
 
     // Get session info for host_id
-    let session = sqlx::query!(
+    let session: (String,) = sqlx::query_as(
         r#"
         SELECT host_id FROM sessions WHERE session_id = $1
         "#,
-        existing.session_id,
     )
+    .bind(&existing.session_id)
     .fetch_optional(&state.db)
     .await?
     .ok_or(ServerError::NotFound(format!(
@@ -211,7 +211,7 @@ pub async fn respond_permission(
         existing.session_id
     )))?;
 
-    let host_id = parse_uuid(&session.host_id, "host_id")?;
+    let host_id = parse_uuid(&session.0, "host_id")?;
     let session_id = parse_uuid(&existing.session_id, "session_id")?;
     let session_id_str = existing.session_id.clone();
 
@@ -223,29 +223,29 @@ pub async fn respond_permission(
     };
 
     let now = chrono::Utc::now().to_rfc3339();
-    sqlx::query!(
+    sqlx::query(
         r#"
         UPDATE permission_requests
         SET status = $1, responded_at = $3
         WHERE permission_id = $2
         "#,
-        new_status,
-        permission_id_str,
-        now,
     )
+    .bind(new_status)
+    .bind(&permission_id_str)
+    .bind(&now)
     .execute(&state.db)
     .await?;
 
     // Decrement pending permission count in session
-    sqlx::query!(
+    sqlx::query(
         r#"
         UPDATE sessions
         SET pending_permission_count = MAX(0, pending_permission_count - 1), updated_at = $2
         WHERE session_id = $1
         "#,
-        session_id_str,
-        now,
     )
+    .bind(&session_id_str)
+    .bind(&now)
     .execute(&state.db)
     .await?;
 

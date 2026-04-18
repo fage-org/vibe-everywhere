@@ -1,29 +1,41 @@
 //! Database Initialization
 //!
-//! Connection pool creation and migration execution.
+//! Connection pool creation and migration execution using AnyPool for runtime database selection.
 
 pub mod idempotency;
 
+use sqlx::any::AnyPoolOptions;
 use sqlx::migrate::MigrateDatabase;
-use sqlx::sqlite::SqlitePoolOptions;
 use tracing::info;
 
-#[cfg(feature = "postgres")]
-use sqlx::postgres::PgPoolOptions;
-
-use crate::config::Config;
+use crate::config::{Config, DatabaseBackend};
 use crate::error::Result;
 
-// Database pool type alias based on feature flags
-// PostgreSQL takes priority when both features are enabled
-#[cfg(feature = "postgres")]
-pub type DbPool = sqlx::PgPool;
+/// Database pool type - uses AnyPool for runtime database selection
+pub type DbPool = sqlx::AnyPool;
 
-#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-pub type DbPool = sqlx::SqlitePool;
+/// Install default database drivers for AnyPool
+///
+/// This must be called before creating any AnyPool connections.
+pub fn install_drivers() {
+    sqlx::any::install_default_drivers();
+}
+
+/// Create a database connection pool based on configuration
+///
+/// Detects database type from DATABASE_URL and creates appropriate pool.
+/// Supports both SQLite and PostgreSQL at runtime.
+pub async fn create_pool(config: &Config) -> Result<DbPool> {
+    let backend = config.database_backend();
+
+    match backend {
+        DatabaseBackend::Sqlite => create_sqlite_pool(config).await,
+        DatabaseBackend::Postgres => create_postgres_pool(config).await,
+    }
+}
 
 /// Create a SQLite connection pool
-pub async fn create_sqlite_pool(config: &Config) -> Result<sqlx::SqlitePool> {
+async fn create_sqlite_pool(config: &Config) -> Result<DbPool> {
     // Ensure data directory exists
     tokio::fs::create_dir_all(&config.data_dir)
         .await
@@ -51,7 +63,7 @@ pub async fn create_sqlite_pool(config: &Config) -> Result<sqlx::SqlitePool> {
         })?;
     }
 
-    let pool = SqlitePoolOptions::new()
+    let pool = AnyPoolOptions::new()
         .max_connections(5)
         .connect(&db_url)
         .await
@@ -63,13 +75,12 @@ pub async fn create_sqlite_pool(config: &Config) -> Result<sqlx::SqlitePool> {
 }
 
 /// Create a PostgreSQL connection pool
-#[cfg(feature = "postgres")]
-pub async fn create_postgres_pool(config: &Config) -> Result<sqlx::PgPool> {
+async fn create_postgres_pool(config: &Config) -> Result<DbPool> {
     let db_url = &config.database_url;
 
     info!(url = %db_url, "Creating PostgreSQL connection pool");
 
-    let pool = PgPoolOptions::new()
+    let pool = AnyPoolOptions::new()
         .max_connections(10)
         .connect(db_url)
         .await
@@ -81,9 +92,17 @@ pub async fn create_postgres_pool(config: &Config) -> Result<sqlx::PgPool> {
     Ok(pool)
 }
 
+/// Run database migrations based on database type
+pub async fn run_migrations(pool: &DbPool, backend: DatabaseBackend) -> Result<()> {
+    match backend {
+        DatabaseBackend::Sqlite => run_sqlite_migrations(pool).await,
+        DatabaseBackend::Postgres => run_postgres_migrations(pool).await,
+    }
+}
+
 /// Run SQLite database migrations
-pub async fn run_sqlite_migrations(pool: &sqlx::SqlitePool) -> Result<()> {
-    info!("Running database migrations");
+async fn run_sqlite_migrations(pool: &DbPool) -> Result<()> {
+    info!("Running SQLite database migrations");
 
     // Migration 001: Initial schema
     info!("Running migration 001_initial.sql");
@@ -117,13 +136,12 @@ pub async fn run_sqlite_migrations(pool: &sqlx::SqlitePool) -> Result<()> {
         }
     }
 
-    info!("All migrations completed successfully");
+    info!("All SQLite migrations completed successfully");
     Ok(())
 }
 
 /// Run PostgreSQL database migrations
-#[cfg(feature = "postgres")]
-pub async fn run_postgres_migrations(pool: &sqlx::PgPool) -> Result<()> {
+async fn run_postgres_migrations(pool: &DbPool) -> Result<()> {
     info!("Running PostgreSQL migrations");
 
     sqlx::query(include_str!("migrations/postgres/001_initial.sql"))
@@ -135,15 +153,4 @@ pub async fn run_postgres_migrations(pool: &sqlx::PgPool) -> Result<()> {
 
     info!("PostgreSQL migrations completed successfully");
     Ok(())
-}
-
-/// Run migrations based on pool type
-#[cfg(feature = "postgres")]
-pub async fn run_migrations(pool: &DbPool) -> Result<()> {
-    run_postgres_migrations(pool).await
-}
-
-#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-pub async fn run_migrations(pool: &DbPool) -> Result<()> {
-    run_sqlite_migrations(pool).await
 }

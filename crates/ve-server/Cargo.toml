@@ -11,8 +11,9 @@ path = "src/main.rs"
 
 [features]
 default = ["sqlite"]
-sqlite = ["sqlx/sqlite"]
-postgres = ["sqlx/postgres"]
+sqlite = ["sqlx/sqlite", "sqlx/any"]
+postgres = ["sqlx/postgres", "sqlx/any"]
+both = ["sqlite", "postgres"]
 
 [dependencies]
 # Workspace dependencies

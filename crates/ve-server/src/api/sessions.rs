@@ -276,12 +276,12 @@ pub async fn create_session(
     let request_id = generate_request_id();
 
     // Get workspace path
-    let workspace = sqlx::query!(
+    let workspace: (String,) = sqlx::query_as(
         r#"
         SELECT path FROM workspaces WHERE workspace_id = $1
         "#,
-        workspace_id_str,
     )
+    .bind(&workspace_id_str)
     .fetch_optional(&state.db)
     .await?
     .ok_or(ServerError::NotFound(format!(
@@ -290,31 +290,31 @@ pub async fn create_session(
     )))?;
 
     // Insert session
-    sqlx::query!(
+    sqlx::query(
         r#"
         INSERT INTO sessions (session_id, title, host_id, workspace_id, agent_type)
         VALUES ($1, $2, $3, $4, 'claude_code')
         "#,
-        session_id_str,
-        req.title,
-        host_id_str,
-        workspace_id_str,
     )
+    .bind(&session_id_str)
+    .bind(&req.title)
+    .bind(&host_id_str)
+    .bind(&workspace_id_str)
     .execute(&state.db)
     .await?;
 
     // Insert initial message
     let message_id = Uuid::new_v4();
     let message_id_str = message_id.to_string();
-    sqlx::query!(
+    sqlx::query(
         r#"
         INSERT INTO session_messages (message_id, session_id, message_type, content)
         VALUES ($1, $2, 'user', $3)
         "#,
-        message_id_str,
-        session_id_str,
-        req.initial_message,
     )
+    .bind(&message_id_str)
+    .bind(&session_id_str)
+    .bind(&req.initial_message)
     .execute(&state.db)
     .await?;
 
@@ -327,7 +327,7 @@ pub async fn create_session(
         DaemonMessage::CreateSession {
             request_id,
             session_id,
-            workspace_path: workspace.path,
+            workspace_path: workspace.0,
             agent_type: "claude_code".to_string(),
             initial_message: req.initial_message,
         },
@@ -362,40 +362,55 @@ pub async fn get_session(
 ) -> Result<Json<Session>> {
     let session_id_str = id.to_string();
 
-    let row = sqlx::query!(
+    let row: (
+        String,
+        String,
+        String,
+        String,
+        String,
+        String,
+        Option<String>,
+        Option<String>,
+        i64,
+        i64,
+        i64,
+        Option<String>,
+        String,
+        String,
+    ) = sqlx::query_as(
         r#"
         SELECT session_id, title, host_id, workspace_id, agent_type, status,
                last_activity_at, latest_summary, unread_event_count, pending_permission_count,
                can_resume_cross_device, claude_session_id, created_at, updated_at
         FROM sessions WHERE session_id = $1
         "#,
-        session_id_str,
     )
+    .bind(&session_id_str)
     .fetch_optional(&state.db)
     .await?
     .ok_or(ServerError::NotFound(format!("Session {}", id)))?;
 
     Ok(Json(Session {
         session_id: id,
-        title: row.title,
-        host_id: parse_uuid(&row.host_id, "host_id")?,
-        workspace_id: parse_uuid(&row.workspace_id, "workspace_id")?,
-        agent_type: row.agent_type,
-        status: utils::parse_session_status(&row.status),
-        last_activity_at: row.last_activity_at.and_then(|s| {
+        title: row.1,
+        host_id: parse_uuid(&row.2, "host_id")?,
+        workspace_id: parse_uuid(&row.3, "workspace_id")?,
+        agent_type: row.4,
+        status: utils::parse_session_status(&row.5),
+        last_activity_at: row.6.and_then(|s| {
             chrono::DateTime::parse_from_rfc3339(&s)
                 .ok()
                 .map(|d| d.with_timezone(&chrono::Utc))
         }),
-        latest_summary: row.latest_summary,
-        unread_event_count: row.unread_event_count as i32,
-        pending_permission_count: row.pending_permission_count as i32,
-        can_resume_cross_device: row.can_resume_cross_device != 0,
-        claude_session_id: row.claude_session_id,
-        created_at: chrono::DateTime::parse_from_rfc3339(&row.created_at)
+        latest_summary: row.7,
+        unread_event_count: row.8 as i32,
+        pending_permission_count: row.9 as i32,
+        can_resume_cross_device: row.10 != 0,
+        claude_session_id: row.11,
+        created_at: chrono::DateTime::parse_from_rfc3339(&row.12)
             .map_err(|e| ServerError::Internal(format!("Invalid created_at: {}", e)))?
             .with_timezone(&chrono::Utc),
-        updated_at: chrono::DateTime::parse_from_rfc3339(&row.updated_at)
+        updated_at: chrono::DateTime::parse_from_rfc3339(&row.13)
             .map_err(|e| ServerError::Internal(format!("Invalid updated_at: {}", e)))?
             .with_timezone(&chrono::Utc),
     }))
@@ -425,47 +440,47 @@ pub async fn send_message(
     let session_id_str = id.to_string();
 
     // Check session is not archived
-    let session = sqlx::query!(
+    let session: (String, String) = sqlx::query_as(
         r#"
         SELECT status, host_id FROM sessions WHERE session_id = $1
         "#,
-        session_id_str,
     )
+    .bind(&session_id_str)
     .fetch_optional(&state.db)
     .await?
     .ok_or(ServerError::NotFound(format!("Session {}", id)))?;
 
-    if session.status == "archived" {
+    if session.0 == "archived" {
         return Err(ServerError::SessionArchived);
     }
 
-    let host_id = parse_uuid(&session.host_id, "host_id")?;
+    let host_id = parse_uuid(&session.1, "host_id")?;
 
     // Insert message
     let message_id = Uuid::new_v4();
     let message_id_str = message_id.to_string();
-    sqlx::query!(
+    sqlx::query(
         r#"
         INSERT INTO session_messages (message_id, session_id, message_type, content)
         VALUES ($1, $2, 'user', $3)
         "#,
-        message_id_str,
-        session_id_str,
-        req.content,
     )
+    .bind(&message_id_str)
+    .bind(&session_id_str)
+    .bind(&req.content)
     .execute(&state.db)
     .await?;
 
     // Update session activity
     let now = chrono::Utc::now().to_rfc3339();
-    sqlx::query!(
+    sqlx::query(
         r#"
         UPDATE sessions SET last_activity_at = $2, updated_at = $2
         WHERE session_id = $1
         "#,
-        session_id_str,
-        now,
     )
+    .bind(&session_id_str)
+    .bind(&now)
     .execute(&state.db)
     .await?;
 
@@ -511,7 +526,7 @@ pub async fn list_messages(
     let limit_i32 = limit as i32;
     let offset_i32 = offset as i32;
 
-    let rows = sqlx::query!(
+    let rows: Vec<(String, String, String, String, String)> = sqlx::query_as(
         r#"
         SELECT message_id, session_id, message_type, content, created_at
         FROM session_messages
@@ -519,32 +534,32 @@ pub async fn list_messages(
         ORDER BY created_at ASC
         LIMIT $2 OFFSET $3
         "#,
-        session_id_str,
-        limit_i32,
-        offset_i32,
     )
+    .bind(&session_id_str)
+    .bind(limit_i32)
+    .bind(offset_i32)
     .fetch_all(&state.db)
     .await?;
 
-    let total = sqlx::query!(
+    let total: (i64,) = sqlx::query_as(
         r#"
         SELECT COUNT(*) as count FROM session_messages WHERE session_id = $1
         "#,
-        session_id_str,
     )
+    .bind(&session_id_str)
     .fetch_one(&state.db)
-    .await?
-    .count as u64;
+    .await?;
+    let total = total.0 as u64;
 
     let messages: Result<Vec<SessionMessage>> = rows
         .into_iter()
         .map(|row| {
             Ok(SessionMessage {
-                message_id: parse_uuid(&row.message_id, "message_id")?,
+                message_id: parse_uuid(&row.0, "message_id")?,
                 session_id: id,
-                message_type: utils::parse_message_type(&row.message_type),
-                content: row.content,
-                created_at: chrono::DateTime::parse_from_rfc3339(&row.created_at)
+                message_type: utils::parse_message_type(&row.2),
+                content: row.3,
+                created_at: chrono::DateTime::parse_from_rfc3339(&row.4)
                     .map_err(|e| ServerError::Internal(format!("Invalid created_at: {}", e)))?
                     .with_timezone(&chrono::Utc),
             })
@@ -574,34 +589,34 @@ pub async fn control_session(
 
     let session_id_str = id.to_string();
 
-    let session = sqlx::query!(
+    let session: (String, String) = sqlx::query_as(
         r#"
         SELECT status, host_id FROM sessions WHERE session_id = $1
         "#,
-        session_id_str,
     )
+    .bind(&session_id_str)
     .fetch_optional(&state.db)
     .await?
     .ok_or(ServerError::NotFound(format!("Session {}", id)))?;
 
-    if session.status == "archived" {
+    if session.0 == "archived" {
         return Err(ServerError::SessionArchived);
     }
 
-    let host_id = parse_uuid(&session.host_id, "host_id")?;
+    let host_id = parse_uuid(&session.1, "host_id")?;
     let action = utils::parse_control_action(&req.action);
 
     // Update session status for pause
     if action == SessionControlAction::Pause {
         let now = chrono::Utc::now().to_rfc3339();
-        sqlx::query!(
+        sqlx::query(
             r#"
             UPDATE sessions SET status = 'paused', updated_at = $2
             WHERE session_id = $1
             "#,
-            session_id_str,
-            now,
         )
+        .bind(&session_id_str)
+        .bind(&now)
         .execute(&state.db)
         .await?;
     }

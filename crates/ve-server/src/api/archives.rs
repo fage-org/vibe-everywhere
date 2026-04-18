@@ -134,10 +134,10 @@ pub async fn list_archives(
             .await?
     };
 
-    let total = sqlx::query!(r#"SELECT COUNT(*) as count FROM session_archives"#)
+    let total: (i64,) = sqlx::query_as(r#"SELECT COUNT(*) as count FROM session_archives"#)
         .fetch_one(&state.db)
-        .await?
-        .count as u64;
+        .await?;
+    let total = total.0 as u64;
 
     let archives: Result<Vec<SessionArchive>> = rows
         .into_iter()
@@ -236,12 +236,12 @@ pub async fn batch_delete_archives(
 
     for archive_id in req.archive_ids {
         let archive_id_str = archive_id.to_string();
-        let result = sqlx::query!(
+        let result = sqlx::query(
             r#"
             DELETE FROM session_archives WHERE archive_id = $1
             "#,
-            archive_id_str,
         )
+        .bind(&archive_id_str)
         .execute(&state.db)
         .await;
 
