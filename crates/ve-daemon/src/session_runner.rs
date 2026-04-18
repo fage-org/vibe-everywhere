@@ -53,6 +53,10 @@ pub enum RunnerCommand {
         permission_id: Uuid,
         decision: PermissionDecision,
     },
+    /// 设置 Claude session ID (for --resume support)
+    SetClaudeSessionId {
+        claude_session_id: String,
+    },
     /// 关闭会话
     Close,
 }
@@ -98,6 +102,9 @@ pub struct SessionRunner {
 
     /// 本会话授权缓存
     approval_cache: Vec<ApprovalRule>,
+
+    /// Claude session ID (for --resume/rerun support)
+    claude_session_id: Option<String>,
 }
 
 /// 授权规则
@@ -168,6 +175,7 @@ impl SessionRunner {
             pending_permissions: HashMap::new(),
             permission_timeouts: HashMap::new(),
             approval_cache: Vec::new(),
+            claude_session_id: None,
         };
 
         (runner, handle)
@@ -321,6 +329,15 @@ impl SessionRunner {
                 }
             }
 
+            RunnerCommand::SetClaudeSessionId { claude_session_id } => {
+                self.claude_session_id = Some(claude_session_id.clone());
+                debug!(
+                    session_id = %self.session_id,
+                    claude_session_id = %claude_session_id,
+                    "Stored Claude session ID for --resume support"
+                );
+            }
+
             RunnerCommand::Close => {
                 self.handle_close().await?;
             }
@@ -346,8 +363,26 @@ impl SessionRunner {
                 self.report_status(SessionStatus::Archived, None).await;
             }
             SessionControlAction::Rerun => {
-                // TODO: 实现 rerun 逻辑
-                self.driver.control(self.session_id, action).await?;
+                // Check if claude_session_id is available
+                if let Some(claude_sid) = self.claude_session_id.clone() {
+                    // Call driver.rerun with the stored claude_session_id
+                    self.driver.rerun(self.session_id, &claude_sid).await?;
+                    self.update_state(RunnerState::Running);
+                    self.report_status(SessionStatus::Running, Some("Session resumed".to_string())).await;
+                    info!(
+                        session_id = %self.session_id,
+                        claude_session_id = %claude_sid,
+                        "Session rerun successful"
+                    );
+                } else {
+                    warn!(
+                        session_id = %self.session_id,
+                        "Rerun requested but no claude_session_id available"
+                    );
+                    return Err(DaemonError::SessionRerunFailed {
+                        reason: "No Claude session ID available".to_string(),
+                    });
+                }
             }
         }
         Ok(())
@@ -493,6 +528,14 @@ impl SessionRunnerHandle {
                 permission_id,
                 decision,
             })
+            .await
+            .map_err(|_| DaemonError::ChannelSendFailed("command channel".to_string()))
+    }
+
+    /// 设置 Claude session ID (for --resume support)
+    pub async fn set_claude_session_id(&self, claude_session_id: String) -> Result<()> {
+        self.command_tx
+            .send(RunnerCommand::SetClaudeSessionId { claude_session_id })
             .await
             .map_err(|_| DaemonError::ChannelSendFailed("command channel".to_string()))
     }

@@ -323,6 +323,19 @@ impl WsClient {
                             }
                         }
 
+                        // Handle ClaudeSessionId event for --resume support
+                        if let DriverEvent::ClaudeSessionId {
+                            session_id,
+                            claude_session_id,
+                        } = &event
+                        {
+                            if let Some(ref registry) = self.registry {
+                                if let Some(handle) = registry.get(session_id).await {
+                                    let _ = handle.set_claude_session_id(claude_session_id.clone()).await;
+                                }
+                            }
+                        }
+
                         // Process event and send messages
                         let messages = self.handle_driver_event(event);
                         for (msg_type, payload) in messages {
@@ -441,6 +454,13 @@ impl WsClient {
                     "session_id": session_id,
                     "event_type": "fatal_error",
                     "data": { "message": message },
+                })));
+            }
+            DriverEvent::ClaudeSessionId { session_id, claude_session_id } => {
+                messages.push(("session_event".to_string(), serde_json::json!({
+                    "session_id": session_id,
+                    "event_type": "claude_session_id",
+                    "data": { "claude_session_id": claude_session_id },
                 })));
             }
         }

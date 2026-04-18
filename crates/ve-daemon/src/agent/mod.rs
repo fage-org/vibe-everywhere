@@ -57,6 +57,12 @@ pub enum DriverEvent {
         session_id: Uuid,
         message: String,
     },
+
+    /// Claude session ID received (for --resume support)
+    ClaudeSessionId {
+        session_id: Uuid,
+        claude_session_id: String,
+    },
 }
 
 /// Agent Driver trait
@@ -84,6 +90,9 @@ pub trait AgentDriver: Send + Sync {
 
     /// 关闭 agent
     async fn close(&mut self, session_id: Uuid) -> Result<()>;
+
+    /// 重新运行会话 (使用 --resume 参数)
+    async fn rerun(&mut self, session_id: Uuid, claude_session_id: &str) -> Result<()>;
 }
 
 /// Mock Agent Driver (用于测试)
@@ -150,6 +159,16 @@ impl AgentDriver for MockDriver {
             session_id,
             status: SessionStatus::Archived,
             summary: Some("Session closed".to_string()),
+        }).await.ok();
+        Ok(())
+    }
+
+    async fn rerun(&mut self, session_id: Uuid, _claude_session_id: &str) -> Result<()> {
+        // 模拟 rerun
+        self.event_tx.send(DriverEvent::StatusUpdate {
+            session_id,
+            status: SessionStatus::Running,
+            summary: Some("Session resumed".to_string()),
         }).await.ok();
         Ok(())
     }

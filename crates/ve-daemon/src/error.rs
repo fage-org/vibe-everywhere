@@ -100,6 +100,9 @@ pub enum DaemonError {
     #[error("Session 关闭失败: {reason}")]
     SessionCloseFailed { reason: String },
 
+    #[error("Session rerun 失败: {reason}")]
+    SessionRerunFailed { reason: String },
+
     #[error("Workspace 路径不存在: {path}")]
     WorkspaceNotFound { path: String },
 

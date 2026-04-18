@@ -42,6 +42,9 @@ pub struct ClaudeCodeDriver {
     /// Claude session ID (returned by CLI, for --resume support)
     claude_session_id: Option<String>,
 
+    /// Workspace path (for rerun support)
+    workspace_path: Option<String>,
+
     /// Pending permission requests (for tracking permission responses)
     pending_permissions: HashMap<String, tokio::sync::oneshot::Sender<PermissionDecision>>,
 }
@@ -101,6 +104,7 @@ impl ClaudeCodeDriver {
             event_tx,
             session_id: None,
             claude_session_id: None,
+            workspace_path: None,
             pending_permissions: HashMap::new(),
         }
     }
@@ -290,6 +294,15 @@ impl ClaudeCodeDriver {
                 session_id: claude_sid,
             } => {
                 info!(%session_id, claude_session_id = %claude_sid, "CLI session started");
+
+                // Send ClaudeSessionId event for --resume support
+                event_tx
+                    .send(DriverEvent::ClaudeSessionId {
+                        session_id,
+                        claude_session_id: claude_sid.clone(),
+                    })
+                    .await
+                    .ok();
             }
         }
 
@@ -331,6 +344,7 @@ impl AgentDriver for ClaudeCodeDriver {
     async fn start(&mut self, config: DriverConfig) -> Result<()> {
         self.check_cli_exists()?;
         self.session_id = Some(config.session_id);
+        self.workspace_path = Some(config.workspace_path.clone());
 
         // Build command
         let mut cmd = TokioCommand::new(&self.config.claude_command);
@@ -412,8 +426,9 @@ impl AgentDriver for ClaudeCodeDriver {
                 warn!(%session_id, "Pause action not fully supported");
             }
             SessionControlAction::Rerun => {
-                // TODO: Implement rerun (--resume)
-                warn!(%session_id, "Rerun action not yet implemented");
+                // Rerun is handled separately by SessionRunner calling driver.rerun()
+                // This should not be reached via control()
+                warn!(%session_id, "Rerun should be called via driver.rerun(), not control()");
             }
         }
         Ok(())
@@ -517,6 +532,66 @@ impl AgentDriver for ClaudeCodeDriver {
         self.stdin = None;
 
         info!(%session_id, "Claude Code CLI closed");
+        Ok(())
+    }
+
+    async fn rerun(&mut self, session_id: Uuid, claude_session_id: &str) -> Result<()> {
+        // Close current CLI process first
+        self.close(session_id).await?;
+
+        // Get stored workspace path
+        let workspace_path = self.workspace_path.clone().ok_or(DaemonError::SessionRerunFailed {
+            reason: "No workspace path available".to_string(),
+        })?;
+
+        // Build command with --resume flag
+        let mut cmd = TokioCommand::new(&self.config.claude_command);
+        cmd.arg("-p")
+            .arg("--output-format")
+            .arg("stream-json")
+            .arg("--input-format")
+            .arg("stream-json")
+            .arg("--permission-prompt-tool")
+            .arg("mcp__ve_daemon__permission_prompt")
+            .arg("--session-id")
+            .arg(session_id.to_string())
+            .arg("--model")
+            .arg(&self.config.default_model)
+            .arg("--add-dir")
+            .arg(&workspace_path)
+            .arg("--resume")
+            .arg(claude_session_id);
+
+        cmd.stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+
+        // Spawn process
+        let mut child = cmd.spawn().map_err(|e| DaemonError::SessionRerunFailed {
+            reason: format!("Failed to spawn: {}", e),
+        })?;
+
+        let stdin = child.stdin.take().ok_or_else(|| DaemonError::SessionRerunFailed {
+            reason: "Failed to get stdin".to_string(),
+        })?;
+
+        let stdout = child.stdout.take().ok_or_else(|| DaemonError::SessionRerunFailed {
+            reason: "Failed to get stdout".to_string(),
+        })?;
+
+        self.stdin = Some(stdin);
+        self.child = Some(child);
+
+        // Spawn stdout reader task
+        self.spawn_stdout_reader(stdout, session_id);
+
+        info!(
+            %session_id,
+            claude_session_id = %claude_session_id,
+            workspace = %workspace_path,
+            "Claude Code CLI resumed"
+        );
+
         Ok(())
     }
 }
