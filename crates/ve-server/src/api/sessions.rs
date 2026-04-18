@@ -107,7 +107,7 @@ pub async fn list_sessions(
                        last_activity_at, latest_summary, unread_event_count, pending_permission_count,
                        can_resume_cross_device, claude_session_id, created_at, updated_at
                 FROM sessions
-                WHERE host_id = ? AND status != 'archived'
+                WHERE host_id = $1 AND status != 'archived'
                 ORDER BY updated_at DESC
                 "#
             )
@@ -236,7 +236,7 @@ pub async fn create_session(
             SELECT session_id, title, host_id, workspace_id, agent_type, status,
                    last_activity_at, latest_summary, unread_event_count, pending_permission_count,
                    can_resume_cross_device, claude_session_id, created_at, updated_at
-            FROM sessions WHERE session_id = ?
+            FROM sessions WHERE session_id = $1
             "#,
         )
         .bind(session_id_str)
@@ -278,7 +278,7 @@ pub async fn create_session(
     // Get workspace path
     let workspace = sqlx::query!(
         r#"
-        SELECT path FROM workspaces WHERE workspace_id = ?
+        SELECT path FROM workspaces WHERE workspace_id = $1
         "#,
         workspace_id_str,
     )
@@ -293,7 +293,7 @@ pub async fn create_session(
     sqlx::query!(
         r#"
         INSERT INTO sessions (session_id, title, host_id, workspace_id, agent_type)
-        VALUES (?, ?, ?, ?, 'claude_code')
+        VALUES ($1, $2, $3, $4, 'claude_code')
         "#,
         session_id_str,
         req.title,
@@ -309,7 +309,7 @@ pub async fn create_session(
     sqlx::query!(
         r#"
         INSERT INTO session_messages (message_id, session_id, message_type, content)
-        VALUES (?, ?, 'user', ?)
+        VALUES ($1, $2, 'user', $3)
         "#,
         message_id_str,
         session_id_str,
@@ -367,7 +367,7 @@ pub async fn get_session(
         SELECT session_id, title, host_id, workspace_id, agent_type, status,
                last_activity_at, latest_summary, unread_event_count, pending_permission_count,
                can_resume_cross_device, claude_session_id, created_at, updated_at
-        FROM sessions WHERE session_id = ?
+        FROM sessions WHERE session_id = $1
         "#,
         session_id_str,
     )
@@ -427,7 +427,7 @@ pub async fn send_message(
     // Check session is not archived
     let session = sqlx::query!(
         r#"
-        SELECT status, host_id FROM sessions WHERE session_id = ?
+        SELECT status, host_id FROM sessions WHERE session_id = $1
         "#,
         session_id_str,
     )
@@ -447,7 +447,7 @@ pub async fn send_message(
     sqlx::query!(
         r#"
         INSERT INTO session_messages (message_id, session_id, message_type, content)
-        VALUES (?, ?, 'user', ?)
+        VALUES ($1, $2, 'user', $3)
         "#,
         message_id_str,
         session_id_str,
@@ -457,12 +457,14 @@ pub async fn send_message(
     .await?;
 
     // Update session activity
+    let now = chrono::Utc::now().to_rfc3339();
     sqlx::query!(
         r#"
-        UPDATE sessions SET last_activity_at = datetime('now'), updated_at = datetime('now')
-        WHERE session_id = ?
+        UPDATE sessions SET last_activity_at = $2, updated_at = $2
+        WHERE session_id = $1
         "#,
         session_id_str,
+        now,
     )
     .execute(&state.db)
     .await?;
@@ -513,9 +515,9 @@ pub async fn list_messages(
         r#"
         SELECT message_id, session_id, message_type, content, created_at
         FROM session_messages
-        WHERE session_id = ?
+        WHERE session_id = $1
         ORDER BY created_at ASC
-        LIMIT ? OFFSET ?
+        LIMIT $2 OFFSET $3
         "#,
         session_id_str,
         limit_i32,
@@ -526,7 +528,7 @@ pub async fn list_messages(
 
     let total = sqlx::query!(
         r#"
-        SELECT COUNT(*) as count FROM session_messages WHERE session_id = ?
+        SELECT COUNT(*) as count FROM session_messages WHERE session_id = $1
         "#,
         session_id_str,
     )
@@ -574,7 +576,7 @@ pub async fn control_session(
 
     let session = sqlx::query!(
         r#"
-        SELECT status, host_id FROM sessions WHERE session_id = ?
+        SELECT status, host_id FROM sessions WHERE session_id = $1
         "#,
         session_id_str,
     )
@@ -591,12 +593,14 @@ pub async fn control_session(
 
     // Update session status for pause
     if action == SessionControlAction::Pause {
+        let now = chrono::Utc::now().to_rfc3339();
         sqlx::query!(
             r#"
-            UPDATE sessions SET status = 'paused', updated_at = datetime('now')
-            WHERE session_id = ?
+            UPDATE sessions SET status = 'paused', updated_at = $2
+            WHERE session_id = $1
             "#,
             session_id_str,
+            now,
         )
         .execute(&state.db)
         .await?;
@@ -641,7 +645,7 @@ pub async fn close_session(
         r#"
         SELECT session_id, title, host_id, workspace_id, status, agent_type,
                latest_summary, claude_session_id, created_at
-        FROM sessions WHERE session_id = ?
+        FROM sessions WHERE session_id = $1
         "#,
     )
     .bind(&session_id_str)
@@ -655,7 +659,7 @@ pub async fn close_session(
         // Find existing archive
         let archive: Option<(String,)> = sqlx::query_as(
             r#"
-            SELECT archive_id FROM session_archives WHERE session_id = ?
+            SELECT archive_id FROM session_archives WHERE session_id = $1
             "#,
         )
         .bind(&session_id_str)
@@ -677,7 +681,7 @@ pub async fn close_session(
     // Get workspace info for metadata
     let workspace_row: Option<(String, String)> = sqlx::query_as(
         r#"
-        SELECT path, display_name FROM workspaces WHERE workspace_id = ?
+        SELECT path, display_name FROM workspaces WHERE workspace_id = $1
         "#,
     )
     .bind(&workspace_id_str)
@@ -687,7 +691,7 @@ pub async fn close_session(
     // Aggregate statistics for metadata
     let message_count_row: (i64,) = sqlx::query_as(
         r#"
-        SELECT COUNT(*) as count FROM session_messages WHERE session_id = ?
+        SELECT COUNT(*) as count FROM session_messages WHERE session_id = $1
         "#,
     )
     .bind(&session_id_str)
@@ -697,7 +701,7 @@ pub async fn close_session(
 
     let permission_count_row: (i64,) = sqlx::query_as(
         r#"
-        SELECT COUNT(*) as count FROM permission_requests WHERE session_id = ?
+        SELECT COUNT(*) as count FROM permission_requests WHERE session_id = $1
         "#,
     )
     .bind(&session_id_str)
@@ -738,15 +742,17 @@ pub async fn close_session(
     // Create archive with metadata
     let archive_id = Uuid::new_v4();
     let archive_id_str = archive_id.to_string();
+    let closed_at = chrono::Utc::now().to_rfc3339();
     sqlx::query(
         r#"
         INSERT INTO session_archives (archive_id, session_id, title, closed_at, close_reason, host_id, workspace_id, metadata_json)
-        VALUES (?, ?, ?, datetime('now'), 'user_closed', ?, ?, ?)
+        VALUES ($1, $2, $3, $4, 'user_closed', $5, $6, $7)
         "#,
     )
     .bind(&archive_id_str)
     .bind(&session_id_str)
     .bind(&session.1) // title
+    .bind(&closed_at)
     .bind(&host_id_str)
     .bind(&workspace_id_str)
     .bind(&metadata_json)
@@ -754,13 +760,15 @@ pub async fn close_session(
     .await?;
 
     // Update session status to archived
+    let updated_at = chrono::Utc::now().to_rfc3339();
     sqlx::query(
         r#"
-        UPDATE sessions SET status = 'archived', updated_at = datetime('now')
-        WHERE session_id = ?
+        UPDATE sessions SET status = 'archived', updated_at = $2
+        WHERE session_id = $1
         "#,
     )
     .bind(&session_id_str)
+    .bind(&updated_at)
     .execute(&state.db)
     .await?;
 

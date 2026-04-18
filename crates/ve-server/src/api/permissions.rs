@@ -71,7 +71,7 @@ pub async fn list_permissions(
             r#"
             SELECT permission_id, session_id, risk_type, summary, target, status, created_at, responded_at
             FROM permission_requests
-            WHERE session_id = ?
+            WHERE session_id = $1
             ORDER BY created_at DESC
             "#
         )
@@ -134,7 +134,7 @@ pub async fn get_permission(
         r#"
         SELECT permission_id, session_id, risk_type, summary, target, status, created_at, responded_at
         FROM permission_requests
-        WHERE permission_id = ?
+        WHERE permission_id = $1
         "#
     )
     .bind(permission_id_str)
@@ -171,7 +171,7 @@ pub async fn respond_permission(
         r#"
         SELECT permission_id, session_id, risk_type, summary, target, status, created_at, responded_at
         FROM permission_requests
-        WHERE permission_id = ?
+        WHERE permission_id = $1
         "#
     )
     .bind(&permission_id_str)
@@ -200,7 +200,7 @@ pub async fn respond_permission(
     // Get session info for host_id
     let session = sqlx::query!(
         r#"
-        SELECT host_id FROM sessions WHERE session_id = ?
+        SELECT host_id FROM sessions WHERE session_id = $1
         "#,
         existing.session_id,
     )
@@ -222,14 +222,16 @@ pub async fn respond_permission(
         PermissionDecision::ApproveSession => "approved_session",
     };
 
+    let now = chrono::Utc::now().to_rfc3339();
     sqlx::query!(
         r#"
         UPDATE permission_requests
-        SET status = ?, responded_at = datetime('now')
-        WHERE permission_id = ?
+        SET status = $1, responded_at = $3
+        WHERE permission_id = $2
         "#,
         new_status,
         permission_id_str,
+        now,
     )
     .execute(&state.db)
     .await?;
@@ -238,10 +240,11 @@ pub async fn respond_permission(
     sqlx::query!(
         r#"
         UPDATE sessions
-        SET pending_permission_count = MAX(0, pending_permission_count - 1), updated_at = datetime('now')
-        WHERE session_id = ?
+        SET pending_permission_count = MAX(0, pending_permission_count - 1), updated_at = $2
+        WHERE session_id = $1
         "#,
         session_id_str,
+        now,
     )
     .execute(&state.db)
     .await?;

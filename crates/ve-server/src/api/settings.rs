@@ -12,8 +12,9 @@ use uuid::Uuid;
 
 use ve_shared::models::NotificationPreference;
 
-use crate::error::Result;
+use crate::error::{Result, ServerError};
 use crate::state::AppState;
+use crate::validation::validate_device_id_format;
 
 /// GET /api/settings/notifications
 ///
@@ -22,28 +23,44 @@ pub async fn get_notification_preferences(
     State(state): State<Arc<AppState>>,
     Path(device_id): Path<Uuid>,
 ) -> Result<Json<NotificationPreference>> {
+    // Validate device_id format
     let device_id_str = device_id.to_string();
+    validate_device_id_format(&device_id_str)?;
 
-    let row = sqlx::query!(
+    // Check if device exists
+    let device_exists: Option<(String,)> = sqlx::query_as(
+        r#"
+        SELECT device_id FROM client_devices WHERE device_id = $1
+        "#,
+    )
+    .bind(&device_id_str)
+    .fetch_optional(&state.db)
+    .await?;
+
+    if device_exists.is_none() {
+        return Err(ServerError::NotFound(format!("Device {}", device_id)));
+    }
+
+    let row: Option<(String, i64, i64, i64, i64, i64)> = sqlx::query_as(
         r#"
         SELECT device_id, enabled, permission_request_enabled, task_completed_enabled,
                task_failed_enabled, session_error_enabled
         FROM notification_preferences
-        WHERE device_id = ?
+        WHERE device_id = $1
         "#,
-        device_id_str,
     )
+    .bind(&device_id_str)
     .fetch_optional(&state.db)
     .await?;
 
     let prefs = if let Some(row) = row {
         NotificationPreference {
             device_id,
-            enabled: row.enabled != 0,
-            permission_request_enabled: row.permission_request_enabled != 0,
-            task_completed_enabled: row.task_completed_enabled != 0,
-            task_failed_enabled: row.task_failed_enabled != 0,
-            session_error_enabled: row.session_error_enabled != 0,
+            enabled: row.1 != 0,
+            permission_request_enabled: row.2 != 0,
+            task_completed_enabled: row.3 != 0,
+            task_failed_enabled: row.4 != 0,
+            session_error_enabled: row.5 != 0,
         }
     } else {
         // Return defaults if no preferences set
@@ -74,15 +91,31 @@ pub async fn update_notification_preferences(
     Path(device_id): Path<Uuid>,
     Json(req): Json<UpdateNotificationPreferencesRequest>,
 ) -> Result<Json<NotificationPreference>> {
+    // Validate device_id format
     let device_id_str = device_id.to_string();
+    validate_device_id_format(&device_id_str)?;
 
-    // Check if record exists
-    let existing = sqlx::query!(
+    // Check if device exists in client_devices table
+    let device_exists: Option<(String,)> = sqlx::query_as(
         r#"
-        SELECT device_id FROM notification_preferences WHERE device_id = ?
+        SELECT device_id FROM client_devices WHERE device_id = $1
         "#,
-        device_id_str,
     )
+    .bind(&device_id_str)
+    .fetch_optional(&state.db)
+    .await?;
+
+    if device_exists.is_none() {
+        return Err(ServerError::NotFound(format!("Device {}", device_id)));
+    }
+
+    // Check if preferences record exists
+    let existing: Option<(String,)> = sqlx::query_as(
+        r#"
+        SELECT device_id FROM notification_preferences WHERE device_id = $1
+        "#,
+    )
+    .bind(&device_id_str)
     .fetch_optional(&state.db)
     .await?;
 
@@ -110,19 +143,19 @@ pub async fn update_notification_preferences(
             0
         };
 
-        sqlx::query!(
+        sqlx::query(
             r#"
             INSERT INTO notification_preferences (device_id, enabled, permission_request_enabled,
                 task_completed_enabled, task_failed_enabled, session_error_enabled)
-            VALUES (?, ?, ?, ?, ?, ?)
+            VALUES ($1, $2, $3, $4, $5, $6)
             "#,
-            device_id_str,
-            enabled_int,
-            perm_int,
-            comp_int,
-            fail_int,
-            err_int,
         )
+        .bind(&device_id_str)
+        .bind(enabled_int)
+        .bind(perm_int)
+        .bind(comp_int)
+        .bind(fail_int)
+        .bind(err_int)
         .execute(&state.db)
         .await?;
     } else {
@@ -135,23 +168,23 @@ pub async fn update_notification_preferences(
         let fail_int = req.task_failed_enabled.map(|b| if b { 1 } else { 0 });
         let err_int = req.session_error_enabled.map(|b| if b { 1 } else { 0 });
 
-        sqlx::query!(
+        sqlx::query(
             r#"
             UPDATE notification_preferences
-            SET enabled = COALESCE(?, enabled),
-                permission_request_enabled = COALESCE(?, permission_request_enabled),
-                task_completed_enabled = COALESCE(?, task_completed_enabled),
-                task_failed_enabled = COALESCE(?, task_failed_enabled),
-                session_error_enabled = COALESCE(?, session_error_enabled)
-            WHERE device_id = ?
+            SET enabled = COALESCE($1, enabled),
+                permission_request_enabled = COALESCE($2, permission_request_enabled),
+                task_completed_enabled = COALESCE($3, task_completed_enabled),
+                task_failed_enabled = COALESCE($4, task_failed_enabled),
+                session_error_enabled = COALESCE($5, session_error_enabled)
+            WHERE device_id = $6
             "#,
-            enabled_int,
-            perm_int,
-            comp_int,
-            fail_int,
-            err_int,
-            device_id_str,
         )
+        .bind(enabled_int)
+        .bind(perm_int)
+        .bind(comp_int)
+        .bind(fail_int)
+        .bind(err_int)
+        .bind(&device_id_str)
         .execute(&state.db)
         .await?;
     }

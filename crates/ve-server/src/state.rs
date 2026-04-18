@@ -5,13 +5,14 @@
 use std::sync::Arc;
 
 use crate::config::Config;
+use crate::db::DbPool;
 use crate::hub::Hub;
 
 /// Application state shared across handlers
 #[derive(Clone)]
 pub struct AppState {
     /// Database connection pool
-    pub db: sqlx::SqlitePool,
+    pub db: DbPool,
 
     /// WebSocket hub for real-time communication
     pub hub: Arc<Hub>,
@@ -22,7 +23,7 @@ pub struct AppState {
 
 impl AppState {
     /// Create a new application state
-    pub fn new(db: sqlx::SqlitePool, hub: Hub, config: Config) -> Self {
+    pub fn new(db: DbPool, hub: Hub, config: Config) -> Self {
         Self {
             db,
             hub: Arc::new(hub),

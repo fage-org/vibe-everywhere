@@ -5,7 +5,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use sqlx::SqlitePool;
+use crate::db::DbPool;
 use tokio::time::interval;
 use tracing::{error, info};
 
@@ -16,7 +16,7 @@ use crate::config::Config;
 /// This task runs periodically to remove expired idempotency keys
 /// that have passed their TTL.
 pub fn start_idempotency_cleanup_task(
-    db: SqlitePool,
+    db: DbPool,
     config: Arc<Config>,
 ) -> tokio::task::JoinHandle<()> {
     let cleanup_interval = Duration::from_secs(config.idempotency_cleanup_secs);
@@ -49,13 +49,13 @@ pub fn start_idempotency_cleanup_task(
 /// Remove expired idempotency keys from the database.
 ///
 /// Returns the number of keys that were deleted.
-async fn cleanup_expired_keys(db: &SqlitePool) -> Result<usize, sqlx::Error> {
+async fn cleanup_expired_keys(db: &DbPool) -> Result<usize, sqlx::Error> {
     let now = chrono::Utc::now().to_rfc3339();
 
     let result = sqlx::query(
         r#"
         DELETE FROM idempotency_keys
-        WHERE expires_at IS NOT NULL AND expires_at < ?
+        WHERE expires_at IS NOT NULL AND expires_at < $1
         "#,
     )
     .bind(&now)

@@ -13,6 +13,7 @@ use uuid::Uuid;
 use crate::error::{Result, ServerError};
 use crate::state::AppState;
 use crate::utils::{self, parse_uuid};
+use crate::validation::{validate_host_can_be_deleted, HostDeletionStatus};
 use ve_shared::models::Host;
 
 /// Host list response
@@ -25,7 +26,9 @@ pub struct HostListResponse {
 ///
 /// List all paired hosts.
 pub async fn list_hosts(State(state): State<Arc<AppState>>) -> Result<Json<HostListResponse>> {
-    let rows = sqlx::query!(
+    type HostRow = (String, String, String, String, String, Option<String>, String, Option<String>, Option<String>, String, String);
+
+    let rows: Vec<HostRow> = sqlx::query_as(
         r#"
         SELECT host_id, host_name, platform, online_status, daemon_status,
                last_active_at, pair_status, pair_code, qr_payload, created_at, updated_at
@@ -40,25 +43,25 @@ pub async fn list_hosts(State(state): State<Arc<AppState>>) -> Result<Json<HostL
     let hosts: Result<Vec<Host>> = rows
         .into_iter()
         .map(|row| {
-            let host_id = parse_uuid(&row.host_id, "host_id")?;
+            let host_id = parse_uuid(&row.0, "host_id")?;
             Ok(Host {
                 host_id,
-                host_name: row.host_name,
-                platform: utils::parse_platform(&row.platform),
-                online_status: utils::parse_online_status(&row.online_status),
-                daemon_status: utils::parse_daemon_status(&row.daemon_status),
-                last_active_at: row.last_active_at.and_then(|s| {
+                host_name: row.1,
+                platform: utils::parse_platform(&row.2),
+                online_status: utils::parse_online_status(&row.3),
+                daemon_status: utils::parse_daemon_status(&row.4),
+                last_active_at: row.5.and_then(|s| {
                     chrono::DateTime::parse_from_rfc3339(&s)
                         .ok()
                         .map(|d| d.with_timezone(&chrono::Utc))
                 }),
-                pair_status: utils::parse_pair_status(&row.pair_status),
-                pair_code: row.pair_code,
-                qr_payload: row.qr_payload,
-                created_at: chrono::DateTime::parse_from_rfc3339(&row.created_at)
+                pair_status: utils::parse_pair_status(&row.6),
+                pair_code: row.7,
+                qr_payload: row.8,
+                created_at: chrono::DateTime::parse_from_rfc3339(&row.9)
                     .map_err(|e| ServerError::Internal(format!("Invalid created_at: {}", e)))?
                     .with_timezone(&chrono::Utc),
-                updated_at: chrono::DateTime::parse_from_rfc3339(&row.updated_at)
+                updated_at: chrono::DateTime::parse_from_rfc3339(&row.10)
                     .map_err(|e| ServerError::Internal(format!("Invalid updated_at: {}", e)))?
                     .with_timezone(&chrono::Utc),
             })
@@ -75,39 +78,41 @@ pub async fn get_host(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Host>> {
+    type HostRow = (String, String, String, String, String, Option<String>, String, Option<String>, Option<String>, String, String);
+
     let host_id_str = id.to_string();
 
-    let row = sqlx::query!(
+    let row: HostRow = sqlx::query_as(
         r#"
         SELECT host_id, host_name, platform, online_status, daemon_status,
                last_active_at, pair_status, pair_code, qr_payload, created_at, updated_at
         FROM hosts
-        WHERE host_id = ?
+        WHERE host_id = $1
         "#,
-        host_id_str,
     )
+    .bind(&host_id_str)
     .fetch_optional(&state.db)
     .await?
     .ok_or(ServerError::NotFound(format!("Host {}", id)))?;
 
     Ok(Json(Host {
         host_id: id,
-        host_name: row.host_name,
-        platform: utils::parse_platform(&row.platform),
-        online_status: utils::parse_online_status(&row.online_status),
-        daemon_status: utils::parse_daemon_status(&row.daemon_status),
-        last_active_at: row.last_active_at.and_then(|s| {
+        host_name: row.1,
+        platform: utils::parse_platform(&row.2),
+        online_status: utils::parse_online_status(&row.3),
+        daemon_status: utils::parse_daemon_status(&row.4),
+        last_active_at: row.5.and_then(|s| {
             chrono::DateTime::parse_from_rfc3339(&s)
                 .ok()
                 .map(|d| d.with_timezone(&chrono::Utc))
         }),
-        pair_status: utils::parse_pair_status(&row.pair_status),
-        pair_code: row.pair_code,
-        qr_payload: row.qr_payload,
-        created_at: chrono::DateTime::parse_from_rfc3339(&row.created_at)
+        pair_status: utils::parse_pair_status(&row.6),
+        pair_code: row.7,
+        qr_payload: row.8,
+        created_at: chrono::DateTime::parse_from_rfc3339(&row.9)
             .map_err(|e| ServerError::Internal(format!("Invalid created_at: {}", e)))?
             .with_timezone(&chrono::Utc),
-        updated_at: chrono::DateTime::parse_from_rfc3339(&row.updated_at)
+        updated_at: chrono::DateTime::parse_from_rfc3339(&row.10)
             .map_err(|e| ServerError::Internal(format!("Invalid updated_at: {}", e)))?
             .with_timezone(&chrono::Utc),
     }))
@@ -139,16 +144,58 @@ pub async fn unbind_host(
 
     let host_id_str = id.to_string();
 
-    sqlx::query!(
+    // Check for dependent resources
+    let session_count: (i64,) = sqlx::query_as(
         r#"
-        DELETE FROM hosts WHERE host_id = ?
+        SELECT COUNT(*) FROM sessions WHERE host_id = $1 AND status != 'archived'
         "#,
-        host_id_str,
     )
+    .bind(&host_id_str)
+    .fetch_one(&state.db)
+    .await?;
+
+    let archive_count: (i64,) = sqlx::query_as(
+        r#"
+        SELECT COUNT(*) FROM session_archives WHERE host_id = $1
+        "#,
+    )
+    .bind(&host_id_str)
+    .fetch_one(&state.db)
+    .await?;
+
+    let workspace_count: (i64,) = sqlx::query_as(
+        r#"
+        SELECT COUNT(*) FROM workspaces WHERE host_id = $1
+        "#,
+    )
+    .bind(&host_id_str)
+    .fetch_one(&state.db)
+    .await?;
+
+    let deletion_status = HostDeletionStatus {
+        session_count: session_count.0 as usize,
+        archive_count: archive_count.0 as usize,
+        workspace_count: workspace_count.0 as usize,
+    };
+
+    if !validate_host_can_be_deleted(&deletion_status) {
+        return Err(ServerError::Conflict(format!(
+            "Cannot unbind host: {} active session(s), {} archive(s). Close or delete sessions first.",
+            deletion_status.session_count,
+            deletion_status.archive_count
+        )));
+    }
+
+    sqlx::query(
+        r#"
+        DELETE FROM hosts WHERE host_id = $1
+        "#,
+    )
+    .bind(&host_id_str)
     .execute(&state.db)
     .await?;
 
-    tracing::info!(%id, "Host unbound");
+    tracing::info!(%id, sessions = deletion_status.session_count, archives = deletion_status.archive_count, workspaces = deletion_status.workspace_count, "Host unbound");
 
     Ok(Json(UnbindResponse { success: true }))
 }

@@ -10,6 +10,9 @@ pub const MAX_HOST_NAME_LENGTH: usize = 255;
 pub const MAX_TITLE_LENGTH: usize = 500;
 pub const MAX_CONTENT_LENGTH: usize = 100000; // 100KB
 
+/// Maximum number of items in a batch operation
+pub const MAX_BATCH_DELETE_SIZE: usize = 100;
+
 /// Validation error types
 #[derive(Debug, Error)]
 pub enum ValidationError {
@@ -22,6 +25,9 @@ pub enum ValidationError {
     #[error("{field} contains invalid characters")]
     #[allow(dead_code)]
     InvalidChars { field: &'static str },
+
+    #[error("{field} exceeds maximum count of {max}")]
+    TooMany { field: &'static str, max: usize },
 }
 
 /// Validate device name
@@ -86,6 +92,46 @@ pub fn validate_content(content: &str) -> Result<(), ValidationError> {
     Ok(())
 }
 
+/// Validate batch operation size
+pub fn validate_batch_size(size: usize, field: &'static str) -> Result<(), ValidationError> {
+    if size > MAX_BATCH_DELETE_SIZE {
+        return Err(ValidationError::TooMany { field, max: MAX_BATCH_DELETE_SIZE });
+    }
+    Ok(())
+}
+
+/// Validate device_id format (must be a valid UUID)
+pub fn validate_device_id_format(device_id: &str) -> Result<(), ValidationError> {
+    let trimmed = device_id.trim();
+    if trimmed.is_empty() {
+        return Err(ValidationError::Empty { field: "device_id" });
+    }
+    // Validate UUID format
+    if uuid::Uuid::parse_str(trimmed).is_err() {
+        return Err(ValidationError::InvalidChars { field: "device_id" });
+    }
+    Ok(())
+}
+
+/// Status of host's dependent resources for deletion validation
+#[derive(Debug, Clone, Copy, Default)]
+pub struct HostDeletionStatus {
+    /// Number of active sessions for this host
+    pub session_count: usize,
+    /// Number of archived sessions for this host
+    pub archive_count: usize,
+    /// Number of workspaces for this host (will be cascade deleted)
+    pub workspace_count: usize,
+}
+
+/// Validate if a host can be safely deleted
+///
+/// Returns true if the host has no blocking dependencies (sessions, archives).
+/// Workspaces are cascade deleted and don't block deletion.
+pub fn validate_host_can_be_deleted(status: &HostDeletionStatus) -> bool {
+    status.session_count == 0 && status.archive_count == 0
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -122,5 +168,89 @@ mod tests {
     fn test_validate_content_too_long() {
         let content = "a".repeat(100001);
         assert!(validate_content(&content).is_err());
+    }
+
+    #[test]
+    fn test_validate_batch_size_valid() {
+        assert!(validate_batch_size(10, "archive_ids").is_ok());
+    }
+
+    #[test]
+    fn test_validate_batch_size_at_max() {
+        assert!(validate_batch_size(MAX_BATCH_DELETE_SIZE, "archive_ids").is_ok());
+    }
+
+    #[test]
+    fn test_validate_batch_size_exceeds_max() {
+        let result = validate_batch_size(MAX_BATCH_DELETE_SIZE + 1, "archive_ids");
+        assert!(result.is_err());
+        if let Err(ValidationError::TooMany { field, max }) = result {
+            assert_eq!(field, "archive_ids");
+            assert_eq!(max, MAX_BATCH_DELETE_SIZE);
+        } else {
+            panic!("Expected TooMany error");
+        }
+    }
+
+    #[test]
+    fn test_validate_batch_size_empty() {
+        assert!(validate_batch_size(0, "archive_ids").is_ok());
+    }
+
+    #[test]
+    fn test_validate_device_id_format_valid() {
+        let uuid = uuid::Uuid::new_v4().to_string();
+        assert!(validate_device_id_format(&uuid).is_ok());
+    }
+
+    #[test]
+    fn test_validate_device_id_format_empty() {
+        assert!(validate_device_id_format("").is_err());
+        assert!(validate_device_id_format("   ").is_err());
+    }
+
+    #[test]
+    fn test_validate_device_id_format_invalid() {
+        assert!(validate_device_id_format("not-a-uuid").is_err());
+        assert!(validate_device_id_format("12345").is_err());
+    }
+
+    #[test]
+    fn test_validate_device_id_format_trims() {
+        let uuid = uuid::Uuid::new_v4().to_string();
+        assert!(validate_device_id_format(&format!("  {}  ", uuid)).is_ok());
+    }
+
+    #[test]
+    fn test_validate_host_can_be_deleted_empty() {
+        let status = HostDeletionStatus::default();
+        assert!(validate_host_can_be_deleted(&status));
+    }
+
+    #[test]
+    fn test_validate_host_cannot_be_deleted_with_sessions() {
+        let status = HostDeletionStatus {
+            session_count: 1,
+            ..Default::default()
+        };
+        assert!(!validate_host_can_be_deleted(&status));
+    }
+
+    #[test]
+    fn test_validate_host_cannot_be_deleted_with_archives() {
+        let status = HostDeletionStatus {
+            archive_count: 1,
+            ..Default::default()
+        };
+        assert!(!validate_host_can_be_deleted(&status));
+    }
+
+    #[test]
+    fn test_validate_host_can_be_deleted_with_workspaces() {
+        let status = HostDeletionStatus {
+            workspace_count: 10,
+            ..Default::default()
+        };
+        assert!(validate_host_can_be_deleted(&status));
     }
 }

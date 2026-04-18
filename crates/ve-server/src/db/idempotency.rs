@@ -5,12 +5,16 @@
 //! and have TTL-based expiration for cleanup.
 
 use sha2::{Digest, Sha256};
-use sqlx::SqlitePool;
 use uuid::Uuid;
 
+use crate::db::DbPool;
 use crate::error::{Result, ServerError};
 
 /// Idempotency key record from database
+///
+/// Note: The database column `session_id` is mapped to `result_ref` field
+/// to support multiple resource types (sessions, archives, etc.).
+/// The column name is kept for backward compatibility with existing migrations.
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct IdempotencyKeyRecord {
@@ -18,7 +22,7 @@ pub struct IdempotencyKeyRecord {
     pub key: String,
     /// SHA-256 hash of the original request body
     pub request_hash: Option<String>,
-    /// Reference to the created resource (session_id, etc.)
+    /// Reference to the created resource (maps to `session_id` column in DB)
     pub result_ref: String,
     /// Type of resource (default: "session")
     pub result_type: String,
@@ -30,13 +34,13 @@ pub struct IdempotencyKeyRecord {
 
 /// Idempotency key store for managing duplicate request protection
 pub struct IdempotencyKeyStore {
-    pool: SqlitePool,
+    pool: DbPool,
     default_ttl_secs: u64,
 }
 
 impl IdempotencyKeyStore {
     /// Create a new idempotency key store
-    pub fn new(pool: SqlitePool, default_ttl_secs: u64) -> Self {
+    pub fn new(pool: DbPool, default_ttl_secs: u64) -> Self {
         Self {
             pool,
             default_ttl_secs,
@@ -55,6 +59,9 @@ impl IdempotencyKeyStore {
     /// Returns:
     /// - `Ok(Some(record))` if key exists (may be expired or valid)
     /// - `Ok(None)` if key doesn't exist
+    ///
+    /// Note: The database column is named `session_id` for historical reasons,
+    /// but it's mapped to `result_ref` in the struct to support multiple resource types.
     pub async fn get(&self, key: &str) -> Result<Option<IdempotencyKeyRecord>> {
         let row = sqlx::query_as::<_, (String, Option<String>, String, String, String, Option<String>)>(
             r#"
@@ -62,7 +69,7 @@ impl IdempotencyKeyStore {
                    COALESCE(result_type, 'session') as result_type,
                    created_at, expires_at
             FROM idempotency_keys
-            WHERE key = ?
+            WHERE key = $1
             "#,
         )
         .bind(key)
@@ -110,7 +117,7 @@ impl IdempotencyKeyStore {
         let result = sqlx::query(
             r#"
             INSERT INTO idempotency_keys (key, request_hash, session_id, result_type, expires_at)
-            VALUES (?, ?, ?, ?, ?)
+            VALUES ($1, $2, $3, $4, $5)
             "#,
         )
         .bind(key)
@@ -167,7 +174,7 @@ impl IdempotencyKeyStore {
         let result = sqlx::query(
             r#"
             DELETE FROM idempotency_keys
-            WHERE expires_at IS NOT NULL AND expires_at < ?
+            WHERE expires_at IS NOT NULL AND expires_at < $1
             "#,
         )
         .bind(&now)

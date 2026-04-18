@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT host_id FROM sessions WHERE session_id = $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "host_id",
+        "ordinal": 0,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "bfeb1179de0b3fe0bdd7373d2385d0b4e6de5dc5fb265eee9e05d121c5a3b01b"
+}

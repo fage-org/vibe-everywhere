@@ -16,6 +16,7 @@ use ve_shared::types::Paginated;
 use crate::error::{Result, ServerError};
 use crate::state::AppState;
 use crate::utils::{self, parse_uuid};
+use crate::validation::validate_batch_size;
 
 /// Archive row type alias (includes metadata_json)
 type ArchiveRow = (
@@ -92,9 +93,9 @@ pub async fn list_archives(
                 r#"
                 SELECT archive_id, session_id, title, closed_at, close_reason, host_id, workspace_id, created_at, metadata_json
                 FROM session_archives
-                WHERE host_id = ?
+                WHERE host_id = $1
                 ORDER BY closed_at DESC
-                LIMIT ? OFFSET ?
+                LIMIT $2 OFFSET $3
                 "#,
             )
             .bind(host_id_str)
@@ -108,9 +109,9 @@ pub async fn list_archives(
                 r#"
                 SELECT archive_id, session_id, title, closed_at, close_reason, host_id, workspace_id, created_at, metadata_json
                 FROM session_archives
-                WHERE workspace_id = ?
+                WHERE workspace_id = $1
                 ORDER BY closed_at DESC
-                LIMIT ? OFFSET ?
+                LIMIT $2 OFFSET $3
                 "#,
             )
             .bind(workspace_id_str)
@@ -124,7 +125,7 @@ pub async fn list_archives(
                 SELECT archive_id, session_id, title, closed_at, close_reason, host_id, workspace_id, created_at, metadata_json
                 FROM session_archives
                 ORDER BY closed_at DESC
-                LIMIT ? OFFSET ?
+                LIMIT $1 OFFSET $2
                 "#,
             )
             .bind(limit as i32)
@@ -184,7 +185,7 @@ pub async fn get_archive(
         r#"
         SELECT archive_id, session_id, title, closed_at, close_reason, host_id, workspace_id, created_at, metadata_json
         FROM session_archives
-        WHERE archive_id = ?
+        WHERE archive_id = $1
         "#
     )
     .bind(archive_id_str)
@@ -227,6 +228,9 @@ pub async fn batch_delete_archives(
     State(state): State<Arc<AppState>>,
     Json(req): Json<BatchDeleteRequest>,
 ) -> Result<Json<BatchDeleteResponse>> {
+    // Validate batch size to prevent abuse
+    validate_batch_size(req.archive_ids.len(), "archive_ids")?;
+
     let mut deleted_count = 0;
     let mut failed_ids = Vec::new();
 
@@ -234,7 +238,7 @@ pub async fn batch_delete_archives(
         let archive_id_str = archive_id.to_string();
         let result = sqlx::query!(
             r#"
-            DELETE FROM session_archives WHERE archive_id = ?
+            DELETE FROM session_archives WHERE archive_id = $1
             "#,
             archive_id_str,
         )

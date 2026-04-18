@@ -39,16 +39,16 @@ pub async fn register_device(
         ve_shared::types::DeviceType::Desktop => "desktop",
     };
 
-    sqlx::query!(
+    sqlx::query(
         r#"
         INSERT INTO client_devices (device_id, device_name, device_type, server_url)
-        VALUES (?, ?, ?, ?)
+        VALUES ($1, $2, $3, $4)
         "#,
-        device_id_str,
-        req.device_name,
-        device_type_str,
-        req.server_url,
     )
+    .bind(&device_id_str)
+    .bind(&req.device_name)
+    .bind(device_type_str)
+    .bind(&req.server_url)
     .execute(&state.db)
     .await?;
 
@@ -110,33 +110,33 @@ pub async fn daemon_hello(
     let qr_payload = format!("vibe://pair/{}", pair_code);
 
     // Store pending pairing
-    sqlx::query!(
+    sqlx::query(
         r#"
         INSERT INTO pairing_codes (pair_code, host_id, host_name, platform, qr_payload, expires_at)
-        VALUES (?, ?, ?, ?, ?, ?)
+        VALUES ($1, $2, $3, $4, $5, $6)
         "#,
-        pair_code,
-        host_id_str,
-        req.host_name,
-        req.platform,
-        qr_payload,
-        expires_at_str,
     )
+    .bind(&pair_code)
+    .bind(&host_id_str)
+    .bind(&req.host_name)
+    .bind(&req.platform)
+    .bind(&qr_payload)
+    .bind(&expires_at_str)
     .execute(&state.db)
     .await?;
 
     // Create host record in pending state
-    sqlx::query!(
+    sqlx::query(
         r#"
         INSERT INTO hosts (host_id, host_name, platform, pair_status, pair_code, qr_payload)
-        VALUES (?, ?, ?, 'pending', ?, ?)
+        VALUES ($1, $2, $3, 'pending', $4, $5)
         "#,
-        host_id_str,
-        req.host_name,
-        req.platform,
-        pair_code,
-        qr_payload,
     )
+    .bind(&host_id_str)
+    .bind(&req.host_name)
+    .bind(&req.platform)
+    .bind(&pair_code)
+    .bind(&qr_payload)
     .execute(&state.db)
     .await?;
 
@@ -173,61 +173,64 @@ pub async fn pair(
     let pair_code = req.pair_code.clone();
 
     // Look up the pairing code
-    let pairing = sqlx::query!(
+    let pairing: (String, String, String, i64, String) = sqlx::query_as(
         r#"
         SELECT pair_code, host_id, host_name, used, expires_at
         FROM pairing_codes
-        WHERE pair_code = ?
+        WHERE pair_code = $1
         "#,
-        pair_code,
     )
+    .bind(&pair_code)
     .fetch_optional(&state.db)
     .await?
     .ok_or(ServerError::PairCodeExpired)?;
 
     // Check if already used
-    if pairing.used != 0 {
+    if pairing.3 != 0 {
         return Err(ServerError::PairCodeUsed);
     }
 
     // Check expiration
-    let expires_at = chrono::DateTime::parse_from_rfc3339(&pairing.expires_at)
+    let expires_at = chrono::DateTime::parse_from_rfc3339(&pairing.4)
         .map_err(|e| ServerError::Internal(format!("Invalid expiration time: {}", e)))?;
 
     if chrono::Utc::now() > expires_at {
         return Err(ServerError::PairCodeExpired);
     }
 
-    let host_id = Uuid::parse_str(&pairing.host_id)
+    let host_id = Uuid::parse_str(&pairing.1)
         .map_err(|e| ServerError::Internal(format!("Invalid host ID: {}", e)))?;
 
-    let host_id_str = pairing.host_id.clone();
+    let host_id_str = pairing.1.clone();
+    let host_name = pairing.2.clone();
 
     // Mark pairing code as used
-    sqlx::query!(
+    sqlx::query(
         r#"
-        UPDATE pairing_codes SET used = 1 WHERE pair_code = ?
+        UPDATE pairing_codes SET used = 1 WHERE pair_code = $1
         "#,
-        pair_code,
     )
+    .bind(&pair_code)
     .execute(&state.db)
     .await?;
 
     // Update host status to paired
-    sqlx::query!(
+    let updated_at = chrono::Utc::now().to_rfc3339();
+    sqlx::query(
         r#"
         UPDATE hosts
-        SET pair_status = 'paired', pair_code = NULL, qr_payload = NULL, updated_at = datetime('now')
-        WHERE host_id = ?
+        SET pair_status = 'paired', pair_code = NULL, qr_payload = NULL, updated_at = $2
+        WHERE host_id = $1
         "#,
-        host_id_str,
     )
+    .bind(&host_id_str)
+    .bind(&updated_at)
     .execute(&state.db)
     .await?;
 
     // Generate daemon JWT token
     let jwt_manager = JwtManager::new(&state.config.jwt_secret, state.config.jwt_expiration());
-    let daemon_token = jwt_manager.create_daemon_token(host_id, &pairing.host_name)?;
+    let daemon_token = jwt_manager.create_daemon_token(host_id, &host_name)?;
 
     // Notify daemon via WebSocket if connected
     let _ = state.hub.send_to_daemon(
@@ -242,7 +245,7 @@ pub async fn pair(
 
     Ok(Json(PairResponse {
         host_id,
-        host_name: pairing.host_name,
+        host_name,
     }))
 }
 

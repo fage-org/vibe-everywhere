@@ -8,8 +8,19 @@ use sqlx::migrate::MigrateDatabase;
 use sqlx::sqlite::SqlitePoolOptions;
 use tracing::info;
 
+#[cfg(feature = "postgres")]
+use sqlx::postgres::PgPoolOptions;
+
 use crate::config::Config;
 use crate::error::Result;
+
+// Database pool type alias based on feature flags
+// PostgreSQL takes priority when both features are enabled
+#[cfg(feature = "postgres")]
+pub type DbPool = sqlx::PgPool;
+
+#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+pub type DbPool = sqlx::SqlitePool;
 
 /// Create a SQLite connection pool
 pub async fn create_sqlite_pool(config: &Config) -> Result<sqlx::SqlitePool> {
@@ -51,8 +62,27 @@ pub async fn create_sqlite_pool(config: &Config) -> Result<sqlx::SqlitePool> {
     Ok(pool)
 }
 
-/// Run database migrations
-pub async fn run_migrations(pool: &sqlx::SqlitePool) -> Result<()> {
+/// Create a PostgreSQL connection pool
+#[cfg(feature = "postgres")]
+pub async fn create_postgres_pool(config: &Config) -> Result<sqlx::PgPool> {
+    let db_url = &config.database_url;
+
+    info!(url = %db_url, "Creating PostgreSQL connection pool");
+
+    let pool = PgPoolOptions::new()
+        .max_connections(10)
+        .connect(db_url)
+        .await
+        .map_err(|e| {
+            crate::error::ServerError::Internal(format!("Failed to connect to PostgreSQL: {}", e))
+        })?;
+
+    info!("PostgreSQL connection pool created successfully");
+    Ok(pool)
+}
+
+/// Run SQLite database migrations
+pub async fn run_sqlite_migrations(pool: &sqlx::SqlitePool) -> Result<()> {
     info!("Running database migrations");
 
     // Migration 001: Initial schema
@@ -89,4 +119,31 @@ pub async fn run_migrations(pool: &sqlx::SqlitePool) -> Result<()> {
 
     info!("All migrations completed successfully");
     Ok(())
+}
+
+/// Run PostgreSQL database migrations
+#[cfg(feature = "postgres")]
+pub async fn run_postgres_migrations(pool: &sqlx::PgPool) -> Result<()> {
+    info!("Running PostgreSQL migrations");
+
+    sqlx::query(include_str!("migrations/postgres/001_initial.sql"))
+        .execute(pool)
+        .await
+        .map_err(|e| {
+            crate::error::ServerError::Internal(format!("PostgreSQL migration failed: {}", e))
+        })?;
+
+    info!("PostgreSQL migrations completed successfully");
+    Ok(())
+}
+
+/// Run migrations based on pool type
+#[cfg(feature = "postgres")]
+pub async fn run_migrations(pool: &DbPool) -> Result<()> {
+    run_postgres_migrations(pool).await
+}
+
+#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+pub async fn run_migrations(pool: &DbPool) -> Result<()> {
+    run_sqlite_migrations(pool).await
 }

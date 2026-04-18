@@ -49,11 +49,13 @@ pub struct Config {
     pub pair_code_ttl_secs: u64,
 
     /// WebSocket heartbeat interval in seconds (default: 30 seconds)
+    /// Reserved for future WebSocket keepalive implementation.
     #[serde(default = "default_heartbeat_interval")]
     #[allow(dead_code)]
     pub heartbeat_interval_secs: u64,
 
     /// WebSocket connection timeout in seconds (default: 60 seconds)
+    /// Reserved for future WebSocket timeout handling implementation.
     #[serde(default = "default_connection_timeout")]
     #[allow(dead_code)]
     pub connection_timeout_secs: u64,
@@ -67,36 +69,43 @@ pub struct Config {
     pub cors_origins: Vec<String>,
 
     /// Ack timeout in milliseconds (default: 10 seconds)
+    /// Reserved for daemon message acknowledgment retry logic.
     #[serde(default = "default_ack_timeout_ms")]
     #[allow(dead_code)]
     pub ack_timeout_ms: u64,
 
     /// Ack max retries for retryable operations (default: 2)
+    /// Reserved for daemon message acknowledgment retry logic.
     #[serde(default = "default_ack_max_retries")]
     #[allow(dead_code)]
     pub ack_max_retries: u32,
 
     /// Ack retry delay in milliseconds (default: 500ms)
+    /// Reserved for daemon message acknowledgment retry logic.
     #[serde(default = "default_ack_retry_delay_ms")]
     #[allow(dead_code)]
     pub ack_retry_delay_ms: u64,
 
     /// Permission request default TTL in seconds (default: 30 minutes)
+    /// Used by background task for permission expiry.
     #[serde(default = "default_permission_ttl_secs")]
     #[allow(dead_code)]
     pub permission_ttl_secs: u64,
 
     /// Permission expiry check interval in seconds (default: 60 seconds)
+    /// Used by background task for permission expiry.
     #[serde(default = "default_permission_expiry_check_secs")]
     #[allow(dead_code)]
     pub permission_expiry_check_secs: u64,
 
     /// Idempotency key default TTL in seconds (default: 24 hours)
+    /// Used by background task for idempotency key cleanup.
     #[serde(default = "default_idempotency_ttl_secs")]
     #[allow(dead_code)]
     pub idempotency_ttl_secs: u64,
 
     /// Idempotency cleanup interval in seconds (default: 1 hour)
+    /// Used by background task for idempotency key cleanup.
     #[serde(default = "default_idempotency_cleanup_secs")]
     #[allow(dead_code)]
     pub idempotency_cleanup_secs: u64,
@@ -172,6 +181,15 @@ fn default_idempotency_ttl_secs() -> u64 {
 
 fn default_idempotency_cleanup_secs() -> u64 {
     60 * 60 // 1 hour
+}
+
+/// Database backend type
+/// Reserved for future multi-database support (currently auto-detected from DATABASE_URL).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
+pub enum DatabaseBackend {
+    Sqlite,
+    Postgres,
 }
 
 impl Config {
@@ -321,6 +339,19 @@ impl Config {
             "warn" => tracing::Level::WARN,
             "error" => tracing::Level::ERROR,
             _ => tracing::Level::INFO,
+        }
+    }
+
+    /// Get database backend type from database_url
+    /// Reserved for future multi-database support.
+    #[allow(dead_code)]
+    pub fn database_backend(&self) -> DatabaseBackend {
+        if self.database_url.starts_with("postgres://")
+            || self.database_url.starts_with("postgresql://")
+        {
+            DatabaseBackend::Postgres
+        } else {
+            DatabaseBackend::Sqlite
         }
     }
 }

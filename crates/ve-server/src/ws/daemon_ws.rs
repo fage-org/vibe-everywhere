@@ -135,15 +135,17 @@ async fn update_host_status(
         DaemonStatus::Error => "error",
     };
 
+    let updated_at = chrono::Utc::now().to_rfc3339();
     sqlx::query!(
         r#"
         UPDATE hosts
-        SET online_status = ?, daemon_status = ?, updated_at = datetime('now')
-        WHERE host_id = ?
+        SET online_status = $1, daemon_status = $2, updated_at = $4
+        WHERE host_id = $3
         "#,
         online_str,
         daemon_str,
         host_id_str,
+        updated_at,
     )
     .execute(&state.db)
     .await?;
@@ -163,13 +165,15 @@ async fn handle_daemon_message(
     match envelope.r#type.as_str() {
         "daemon_heartbeat" => {
             // Update last_active_at
+            let now = chrono::Utc::now().to_rfc3339();
             sqlx::query!(
                 r#"
                 UPDATE hosts
-                SET last_active_at = datetime('now'), updated_at = datetime('now')
-                WHERE host_id = ?
+                SET last_active_at = $2, updated_at = $2
+                WHERE host_id = $1
                 "#,
                 host_id_str,
+                now,
             )
             .execute(&state.db)
             .await?;
@@ -260,7 +264,7 @@ async fn handle_permission_request(
     sqlx::query!(
         r#"
         INSERT INTO permission_requests (permission_id, session_id, risk_type, summary, target)
-        VALUES (?, ?, ?, ?, ?)
+        VALUES ($1, $2, $3, $4, $5)
         "#,
         permission_id_str,
         session_id_str,
@@ -272,13 +276,15 @@ async fn handle_permission_request(
     .await?;
 
     // Increment pending permission count in session
+    let now = chrono::Utc::now().to_rfc3339();
     sqlx::query!(
         r#"
         UPDATE sessions
-        SET pending_permission_count = pending_permission_count + 1, updated_at = datetime('now')
-        WHERE session_id = ?
+        SET pending_permission_count = pending_permission_count + 1, updated_at = $2
+        WHERE session_id = $1
         "#,
         session_id_str,
+        now,
     )
     .execute(&state.db)
     .await?;
@@ -322,7 +328,7 @@ async fn handle_session_status_update(
     // Check if session is archived - reject updates
     let session = sqlx::query!(
         r#"
-        SELECT status FROM sessions WHERE session_id = ?
+        SELECT status FROM sessions WHERE session_id = $1
         "#,
         session_id_str_db,
     )
@@ -340,16 +346,18 @@ async fn handle_session_status_update(
         .get("summary")
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
+    let updated_at = chrono::Utc::now().to_rfc3339();
 
     sqlx::query!(
         r#"
         UPDATE sessions
-        SET status = ?, latest_summary = COALESCE(?, latest_summary), updated_at = datetime('now')
-        WHERE session_id = ?
+        SET status = $1, latest_summary = COALESCE($2, latest_summary), updated_at = $4
+        WHERE session_id = $3
         "#,
         status,
         summary,
         session_id_str_db,
+        updated_at,
     )
     .execute(&state.db)
     .await?;

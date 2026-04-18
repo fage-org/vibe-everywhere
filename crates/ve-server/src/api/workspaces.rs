@@ -84,7 +84,7 @@ pub async fn list_workspaces(
                 SELECT workspace_id, host_id, path, display_name, is_favorited,
                        last_used_at, exists_on_host, created_at, updated_at
                 FROM workspaces
-                WHERE host_id = ?
+                WHERE host_id = $1
                 ORDER BY is_favorited DESC, last_used_at DESC
                 "#,
         )
@@ -156,16 +156,16 @@ pub async fn create_workspace(
             .to_string()
     });
 
-    sqlx::query!(
+    sqlx::query(
         r#"
         INSERT INTO workspaces (workspace_id, host_id, path, display_name)
-        VALUES (?, ?, ?, ?)
+        VALUES ($1, $2, $3, $4)
         "#,
-        workspace_id_str,
-        host_id_str,
-        req.path,
-        display_name,
     )
+    .bind(&workspace_id_str)
+    .bind(&host_id_str)
+    .bind(&req.path)
+    .bind(&display_name)
     .execute(&state.db)
     .await
     .map_err(|e| {
@@ -198,37 +198,39 @@ pub async fn get_workspace(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Workspace>> {
+    type WorkspaceRow = (String, String, String, String, i64, Option<String>, i64, String, String);
+
     let workspace_id_str = id.to_string();
 
-    let row = sqlx::query!(
+    let row: WorkspaceRow = sqlx::query_as(
         r#"
         SELECT workspace_id, host_id, path, display_name, is_favorited,
                last_used_at, exists_on_host, created_at, updated_at
         FROM workspaces
-        WHERE workspace_id = ?
+        WHERE workspace_id = $1
         "#,
-        workspace_id_str,
     )
+    .bind(&workspace_id_str)
     .fetch_optional(&state.db)
     .await?
     .ok_or(ServerError::NotFound(format!("Workspace {}", id)))?;
 
     Ok(Json(Workspace {
         workspace_id: id,
-        host_id: parse_uuid(&row.host_id, "host_id")?,
-        path: row.path,
-        display_name: row.display_name,
-        is_favorited: row.is_favorited != 0,
-        last_used_at: row.last_used_at.and_then(|s| {
+        host_id: parse_uuid(&row.1, "host_id")?,
+        path: row.2,
+        display_name: row.3,
+        is_favorited: row.4 != 0,
+        last_used_at: row.5.and_then(|s| {
             chrono::DateTime::parse_from_rfc3339(&s)
                 .ok()
                 .map(|d| d.with_timezone(&chrono::Utc))
         }),
-        exists_on_host: row.exists_on_host != 0,
-        created_at: chrono::DateTime::parse_from_rfc3339(&row.created_at)
+        exists_on_host: row.6 != 0,
+        created_at: chrono::DateTime::parse_from_rfc3339(&row.7)
             .map_err(|e| ServerError::Internal(format!("Invalid created_at: {}", e)))?
             .with_timezone(&chrono::Utc),
-        updated_at: chrono::DateTime::parse_from_rfc3339(&row.updated_at)
+        updated_at: chrono::DateTime::parse_from_rfc3339(&row.8)
             .map_err(|e| ServerError::Internal(format!("Invalid updated_at: {}", e)))?
             .with_timezone(&chrono::Utc),
     }))
@@ -249,52 +251,56 @@ pub async fn update_workspace(
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateWorkspaceRequest>,
 ) -> Result<Json<Workspace>> {
+    type WorkspaceRow = (String, String, String, String, i64, Option<String>, i64, String, String);
+
     let workspace_id_str = id.to_string();
 
     // Fetch existing
-    let existing = sqlx::query!(
+    let existing: WorkspaceRow = sqlx::query_as(
         r#"
         SELECT workspace_id, host_id, path, display_name, is_favorited,
                last_used_at, exists_on_host, created_at, updated_at
         FROM workspaces
-        WHERE workspace_id = ?
+        WHERE workspace_id = $1
         "#,
-        workspace_id_str,
     )
+    .bind(&workspace_id_str)
     .fetch_optional(&state.db)
     .await?
     .ok_or(ServerError::NotFound(format!("Workspace {}", id)))?;
 
-    let display_name = req.display_name.unwrap_or(existing.display_name);
-    let is_favorited = req.is_favorited.unwrap_or(existing.is_favorited != 0);
+    let display_name = req.display_name.unwrap_or(existing.3.clone());
+    let is_favorited = req.is_favorited.unwrap_or(existing.4 != 0);
     let is_favorited_int = if is_favorited { 1 } else { 0 };
+    let updated_at = chrono::Utc::now().to_rfc3339();
 
-    sqlx::query!(
+    sqlx::query(
         r#"
         UPDATE workspaces
-        SET display_name = ?, is_favorited = ?, updated_at = datetime('now')
-        WHERE workspace_id = ?
+        SET display_name = $1, is_favorited = $2, updated_at = $3
+        WHERE workspace_id = $4
         "#,
-        display_name,
-        is_favorited_int,
-        workspace_id_str,
     )
+    .bind(&display_name)
+    .bind(is_favorited_int)
+    .bind(&updated_at)
+    .bind(&workspace_id_str)
     .execute(&state.db)
     .await?;
 
     Ok(Json(Workspace {
         workspace_id: id,
-        host_id: parse_uuid(&existing.host_id, "host_id")?,
-        path: existing.path,
+        host_id: parse_uuid(&existing.1, "host_id")?,
+        path: existing.2,
         display_name,
         is_favorited,
-        last_used_at: existing.last_used_at.and_then(|s| {
+        last_used_at: existing.5.and_then(|s| {
             chrono::DateTime::parse_from_rfc3339(&s)
                 .ok()
                 .map(|d| d.with_timezone(&chrono::Utc))
         }),
-        exists_on_host: existing.exists_on_host != 0,
-        created_at: chrono::DateTime::parse_from_rfc3339(&existing.created_at)
+        exists_on_host: existing.6 != 0,
+        created_at: chrono::DateTime::parse_from_rfc3339(&existing.7)
             .map_err(|e| ServerError::Internal(format!("Invalid created_at: {}", e)))?
             .with_timezone(&chrono::Utc),
         updated_at: chrono::Utc::now(),
@@ -310,12 +316,12 @@ pub async fn delete_workspace(
 ) -> Result<Json<serde_json::Value>> {
     let workspace_id_str = id.to_string();
 
-    sqlx::query!(
+    sqlx::query(
         r#"
-        DELETE FROM workspaces WHERE workspace_id = ?
+        DELETE FROM workspaces WHERE workspace_id = $1
         "#,
-        workspace_id_str,
     )
+    .bind(&workspace_id_str)
     .execute(&state.db)
     .await?;
 

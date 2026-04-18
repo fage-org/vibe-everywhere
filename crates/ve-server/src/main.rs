@@ -46,8 +46,25 @@ async fn main() -> Result<()> {
         "Starting Vibe Everywhere server"
     );
 
-    // Initialize database
+    // Initialize database based on feature
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
     let db = db::create_sqlite_pool(&config).await?;
+
+    #[cfg(feature = "postgres")]
+    let db = {
+        let backend = config.database_backend();
+        match backend {
+            config::DatabaseBackend::Postgres => {
+                db::create_postgres_pool(&config).await?
+            }
+            config::DatabaseBackend::Sqlite => {
+                // Also support SQLite when postgres feature is enabled
+                db::create_sqlite_pool(&config).await?
+            }
+        }
+    };
+
+    // Run migrations
     db::run_migrations(&db).await?;
 
     // Initialize WebSocket hub
