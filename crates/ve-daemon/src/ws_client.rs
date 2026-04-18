@@ -2,6 +2,7 @@
 //!
 //! Manages the persistent WebSocket connection between ve-daemon and ve-server.
 
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -19,6 +20,7 @@ use ve_shared::proto::{AckPayload, DaemonToServer, ErrorPayload, SessionControlA
 use crate::agent::DriverEvent;
 use crate::config::Config;
 use crate::error::{AckError, DaemonError};
+use crate::file_ops::FileOps;
 use crate::session_registry::SessionRegistry;
 use crate::Result;
 
@@ -46,11 +48,19 @@ pub struct WsClient {
     event_tx: Option<mpsc::Sender<DriverEvent>>,
     /// WebSocket sender for sending acks (wrapped in Arc for sharing)
     ws_sender: Option<Arc<tokio::sync::Mutex<WsSender>>>,
+    /// File operations handler (workspace roots collected from sessions)
+    file_ops: Option<FileOps>,
 }
 
 impl WsClient {
     /// Create a new WebSocket client
     pub fn new(config: Arc<Config>, host_id: Uuid, token: String) -> Self {
+        // Initialize FileOps with empty workspace roots (will be updated when sessions are created)
+        let file_ops = FileOps::new(
+            vec![],
+            config.file_read_text_limit_bytes as usize,
+            config.file_tree_max_nodes,
+        );
         Self {
             config,
             host_id,
@@ -59,6 +69,7 @@ impl WsClient {
             event_rx: None,
             event_tx: None,
             ws_sender: None,
+            file_ops: Some(file_ops),
         }
     }
 
@@ -70,6 +81,12 @@ impl WsClient {
         registry: Arc<SessionRegistry>,
     ) -> Self {
         let (event_tx, event_rx) = mpsc::channel(64);
+        // Initialize FileOps with empty workspace roots (will be updated when sessions are created)
+        let file_ops = FileOps::new(
+            vec![],
+            config.file_read_text_limit_bytes as usize,
+            config.file_tree_max_nodes,
+        );
         Self {
             config,
             host_id,
@@ -78,6 +95,7 @@ impl WsClient {
             event_rx: Some(event_rx),
             event_tx: Some(event_tx),
             ws_sender: None,
+            file_ops: Some(file_ops),
         }
     }
 
@@ -708,13 +726,133 @@ impl WsClient {
         Ok(())
     }
 
-    async fn handle_file_tree_request(&self, _envelope: &WsEnvelope) -> Result<()> {
-        info!("Received file_tree_request (handler not implemented yet)");
+    async fn handle_file_tree_request(&self, envelope: &WsEnvelope) -> Result<()> {
+        let request_id = match &envelope.request_id {
+            Some(id) => id.clone(),
+            None => {
+                warn!("file_tree_request missing request_id");
+                return Ok(());
+            }
+        };
+
+        let workspace_path = envelope.payload.get("workspace_path")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+
+        let file_ops = match &self.file_ops {
+            Some(ops) => ops,
+            None => {
+                self.send_error(&request_id, &AckError::InternalError, "FileOps not configured").await;
+                return Ok(());
+            }
+        };
+
+        // If workspace_path is provided, update FileOps with this root
+        let effective_ops = if !workspace_path.is_empty() {
+            let path = PathBuf::from(workspace_path);
+            if path.exists() {
+                FileOps::new(
+                    vec![path],
+                    self.config.file_read_text_limit_bytes as usize,
+                    self.config.file_tree_max_nodes,
+                )
+            } else {
+                self.send_error(&request_id, &AckError::WorkspaceInvalid, &format!("Workspace path does not exist: {}", workspace_path)).await;
+                return Ok(());
+            }
+        } else {
+            file_ops.clone()
+        };
+
+        let start_path = if workspace_path.is_empty() {
+            PathBuf::from(".")
+        } else {
+            PathBuf::from(workspace_path)
+        };
+
+        match effective_ops.collect_tree(&start_path, 10) {
+            Ok(tree) => {
+                let tree_json = serde_json::to_value(&tree).unwrap_or(serde_json::Value::Null);
+                let response = DaemonToServer::FileTreeResponse {
+                    request_id,
+                    session_id: Uuid::nil(),
+                    tree: tree_json,
+                };
+                let envelope = WsEnvelope::new("file_tree_response", &response);
+                if let Ok(json) = serde_json::to_string(&envelope) {
+                    if let Some(ref ws_sender) = self.ws_sender {
+                        let mut sender = ws_sender.lock().await;
+                        if let Err(e) = sender.send(WsMessage::Text(json.into())).await {
+                            warn!(error = %e, "Failed to send file tree response");
+                        }
+                    }
+                }
+                debug!("Sent file tree response");
+            }
+            Err(e) => {
+                warn!(error = %e, "Failed to collect file tree");
+                self.send_error(&request_id, &e.to_ack_error(), &e.to_string()).await;
+            }
+        }
+
         Ok(())
     }
 
-    async fn handle_file_content_request(&self, _envelope: &WsEnvelope) -> Result<()> {
-        info!("Received file_content_request (handler not implemented yet)");
+    async fn handle_file_content_request(&self, envelope: &WsEnvelope) -> Result<()> {
+        let request_id = match &envelope.request_id {
+            Some(id) => id.clone(),
+            None => {
+                warn!("file_content_request missing request_id");
+                return Ok(());
+            }
+        };
+
+        let file_path = envelope.payload.get("file_path")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+
+        if file_path.is_empty() {
+            self.send_error(&request_id, &AckError::InternalError, "file_path is required").await;
+            return Ok(());
+        }
+
+        // Extract workspace from file path (parent directory or use configured roots)
+        let path = PathBuf::from(file_path);
+        let workspace_root = path.parent()
+            .map(|p| p.to_path_buf())
+            .unwrap_or_else(|| PathBuf::from("."));
+
+        let file_ops = FileOps::new(
+            vec![workspace_root],
+            self.config.file_read_text_limit_bytes as usize,
+            self.config.file_tree_max_nodes,
+        );
+
+        match file_ops.read_text_file(&path) {
+            Ok(content) => {
+                let response = DaemonToServer::FileContentResponse {
+                    request_id,
+                    file_path: file_path.to_string(),
+                    content: content.content,
+                    file_type: format!("{:?}", content.file_type).to_lowercase(),
+                };
+                let envelope = WsEnvelope::new("file_content_response", &response);
+                if let Ok(json) = serde_json::to_string(&envelope) {
+                    if let Some(ref ws_sender) = self.ws_sender {
+                        let mut sender = ws_sender.lock().await;
+                        if let Err(e) = sender.send(WsMessage::Text(json.into())).await {
+                            warn!(error = %e, "Failed to send file content response");
+                        }
+                    }
+                }
+                debug!("Sent file content response");
+            }
+            Err(e) => {
+                warn!(error = %e, "Failed to read file content");
+                self.send_error(&request_id, &e.to_ack_error(), &e.to_string()).await;
+            }
+        }
+
         Ok(())
     }
 
@@ -770,7 +908,7 @@ mod tests {
 
         // Should grow exponentially
         let backoff1 = calculate_backoff(min, max, 1);
-        let backoff2 = calculate_backoff(min, max, 2);
+        let _backoff2 = calculate_backoff(min, max, 2);
         let backoff3 = calculate_backoff(min, max, 3);
 
         // Allow for jitter, but trend should be increasing

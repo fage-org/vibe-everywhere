@@ -254,3 +254,53 @@ pub enum SessionMessageType {
     Error,
     Permission,
 }
+
+// ============================================================================
+// File Tree Types
+// ============================================================================
+
+/// Node in file tree
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct FileTreeNode {
+    /// File or directory name
+    pub name: String,
+    /// Full path relative to workspace root
+    pub path: String,
+    /// Whether this is a directory
+    pub is_dir: bool,
+    /// File type classification
+    pub file_type: FileType,
+    /// File size in bytes (None for directories)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub size: Option<u64>,
+    /// Children (for directories)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub children: Option<Vec<FileTreeNode>>,
+}
+
+/// File type classification
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "lowercase")]
+pub enum FileType {
+    Text,
+    Binary,
+    Unknown,
+}
+
+/// File content response
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct FileContent {
+    /// File path
+    pub path: String,
+    /// File content (text only)
+    pub content: String,
+    /// File type
+    pub file_type: FileType,
+    /// Whether content was truncated
+    pub truncated: bool,
+    /// Total file size in bytes
+    pub total_size: u64,
+}

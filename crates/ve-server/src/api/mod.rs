@@ -4,6 +4,7 @@
 
 pub mod archives;
 pub mod auth;
+pub mod files;
 pub mod hosts;
 pub mod permissions;
 pub mod sessions;

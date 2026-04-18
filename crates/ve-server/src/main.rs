@@ -82,6 +82,8 @@ async fn main() -> Result<()> {
         .route("/api/hosts", get(api::hosts::list_hosts))
         .route("/api/hosts/:id", get(api::hosts::get_host))
         .route("/api/hosts/:id", post(api::hosts::unbind_host))
+        .route("/api/hosts/:id/files/tree", get(api::files::get_file_tree))
+        .route("/api/hosts/:id/files/content", get(api::files::get_file_content))
         .route("/api/workspaces", get(api::workspaces::list_workspaces))
         .route("/api/workspaces", post(api::workspaces::create_workspace))
         .route("/api/workspaces/:id", get(api::workspaces::get_workspace))

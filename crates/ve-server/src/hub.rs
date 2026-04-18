@@ -2,14 +2,16 @@
 //!
 //! Event routing center: manages connection pools, subscriptions, and message distribution.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
+use std::time::Duration;
 
 use dashmap::DashMap;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot, Mutex};
 use tracing::{debug, info, warn};
 use uuid::Uuid;
 
-use ve_shared::proto::{ClientMessage, DaemonMessage, WsEnvelope};
+use ve_shared::proto::{ClientMessage, DaemonMessage, DaemonToServer, WsEnvelope};
 
 /// Default bounded channel capacity for WebSocket connections
 pub const WS_CHANNEL_CAPACITY: usize = 256;
@@ -46,6 +48,9 @@ pub struct Hub {
 
     /// Reverse mapping: device_id -> set of subscribed session_ids
     device_subscriptions: DashMap<Uuid, HashSet<Uuid>>,
+
+    /// Pending requests waiting for response (request_id -> response channel)
+    pending_requests: Arc<Mutex<HashMap<String, oneshot::Sender<DaemonToServer>>>>,
 }
 
 impl Hub {
@@ -56,6 +61,7 @@ impl Hub {
             client_connections: DashMap::new(),
             session_subscribers: DashMap::new(),
             device_subscriptions: DashMap::new(),
+            pending_requests: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -225,6 +231,66 @@ impl Hub {
     #[allow(dead_code)]
     pub fn connected_clients(&self) -> Vec<Uuid> {
         self.client_connections.iter().map(|e| *e.key()).collect()
+    }
+
+    /// Get the sender for a daemon connection
+    pub async fn get_daemon_sender(&self, host_id: &Uuid) -> Option<WsSender> {
+        self.daemon_connections.get(host_id).map(|c| c.sender.clone())
+    }
+
+    /// Send a request to daemon and wait for response
+    pub async fn send_and_wait(
+        &self,
+        _host_id: &Uuid,
+        sender: WsSender,
+        request: DaemonMessage,
+        request_id: String,
+        timeout: Duration,
+    ) -> std::result::Result<DaemonToServer, Box<dyn std::error::Error + Send + Sync>> {
+        let (tx, rx) = oneshot::channel();
+
+        // Store pending request
+        self.pending_requests.lock().await.insert(request_id.clone(), tx);
+
+        // Send request
+        let envelope = WsEnvelope::from(request);
+        match sender.send(envelope).await {
+            Ok(()) => {}
+            Err(e) => {
+                // Remove pending request on send failure
+                self.pending_requests.lock().await.remove(&request_id);
+                return Err(Box::new(e));
+            }
+        }
+
+        // Wait for response with timeout
+        match tokio::time::timeout(timeout, rx).await {
+            Ok(Ok(response)) => Ok(response),
+            Ok(Err(_)) => {
+                // Channel closed
+                self.pending_requests.lock().await.remove(&request_id);
+                Err("Response channel closed".into())
+            }
+            Err(_) => {
+                // Timeout
+                self.pending_requests.lock().await.remove(&request_id);
+                Err("Request timeout".into())
+            }
+        }
+    }
+
+    /// Handle incoming response and complete pending request
+    #[allow(dead_code)]
+    pub async fn handle_response(&self, response: DaemonToServer) {
+        let request_id = match &response {
+            DaemonToServer::FileTreeResponse { request_id, .. } => request_id.clone(),
+            DaemonToServer::FileContentResponse { request_id, .. } => request_id.clone(),
+            _ => return,
+        };
+
+        if let Some(tx) = self.pending_requests.lock().await.remove(&request_id) {
+            let _ = tx.send(response);
+        }
     }
 }
 

@@ -42,6 +42,9 @@ pub enum ServerError {
     #[error("Resource not found: {0}")]
     NotFound(String),
 
+    #[error("Host not found")]
+    HostNotFound,
+
     #[error("Invalid request: {0}")]
     BadRequest(String),
 
@@ -84,6 +87,7 @@ impl IntoResponse for ServerError {
             ServerError::InvalidToken => (StatusCode::UNAUTHORIZED, "Invalid token".to_string()),
             ServerError::TokenExpired => (StatusCode::UNAUTHORIZED, "Token expired".to_string()),
             ServerError::NotFound(msg) => (StatusCode::NOT_FOUND, msg.clone()),
+            ServerError::HostNotFound => (StatusCode::NOT_FOUND, "Host not found".to_string()),
             ServerError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
             ServerError::Conflict(msg) => (StatusCode::CONFLICT, msg.clone()),
             ServerError::PairCodeExpired => (StatusCode::GONE, "Pairing code expired".to_string()),
