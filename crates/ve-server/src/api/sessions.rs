@@ -360,24 +360,27 @@ pub async fn get_session(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Session>> {
+    // Type alias to avoid clippy type_complexity warning
+    type SessionRow = (
+        String,  // session_id
+        String,  // title
+        String,  // host_id
+        String,  // workspace_id
+        String,  // agent_type
+        String,  // status
+        Option<String>,  // last_activity_at
+        Option<String>,  // latest_summary
+        i64,  // unread_event_count
+        i64,  // pending_permission_count
+        i64,  // can_resume_cross_device
+        Option<String>,  // claude_session_id
+        String,  // created_at
+        String,  // updated_at
+    );
+
     let session_id_str = id.to_string();
 
-    let row: (
-        String,
-        String,
-        String,
-        String,
-        String,
-        String,
-        Option<String>,
-        Option<String>,
-        i64,
-        i64,
-        i64,
-        Option<String>,
-        String,
-        String,
-    ) = sqlx::query_as(
+    let row: SessionRow = sqlx::query_as(
         r#"
         SELECT session_id, title, host_id, workspace_id, agent_type, status,
                last_activity_at, latest_summary, unread_event_count, pending_permission_count,
