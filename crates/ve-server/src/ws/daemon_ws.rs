@@ -384,14 +384,18 @@ async fn handle_session_event(
 
     tx.commit().await?;
 
-    state.hub.broadcast_to_session(
-        &session_id,
-        ve_shared::proto::ClientMessage::SessionEvent {
-            session_id,
-            event_type,
-            data: payload,
-        },
-    );
+    state
+        .hub
+        .broadcast_to_session(
+            &state.db,
+            &session_id,
+            ve_shared::proto::ClientMessage::SessionEvent {
+                session_id,
+                event_type,
+                data: payload,
+            },
+        )
+        .await;
 
     Ok(())
 }
@@ -487,16 +491,20 @@ async fn handle_permission_request(
 
     tx.commit().await?;
 
-    state.hub.broadcast_to_session(
-        &session_id,
-        ve_shared::proto::ClientMessage::PermissionRequest {
-            permission_id,
-            session_id,
-            risk_type,
-            summary,
-            target,
-        },
-    );
+    state
+        .hub
+        .broadcast_to_session(
+            &state.db,
+            &session_id,
+            ve_shared::proto::ClientMessage::PermissionRequest {
+                permission_id,
+                session_id,
+                risk_type,
+                summary,
+                target,
+            },
+        )
+        .await;
 
     tracing::info!(%permission_id, %session_id, ?risk_type, "Permission request received");
 
@@ -559,14 +567,18 @@ async fn handle_session_status_update(
         tx.commit().await?;
         archive_session_with_metadata(state, session_id, close_reason, summary.clone()).await?;
 
-        state.hub.broadcast_to_session(
-            &session_id,
-            ve_shared::proto::ClientMessage::SessionStatusChanged {
-                session_id,
-                new_status: utils::parse_session_status(status),
-                close_reason: Some(utils::parse_close_reason(close_reason)),
-            },
-        );
+        state
+            .hub
+            .broadcast_to_session(
+                &state.db,
+                &session_id,
+                ve_shared::proto::ClientMessage::SessionStatusChanged {
+                    session_id,
+                    new_status: utils::parse_session_status(status),
+                    close_reason: Some(utils::parse_close_reason(close_reason)),
+                },
+            )
+            .await;
     } else {
         let updated_at = chrono::Utc::now().to_rfc3339();
         sqlx::query(
@@ -586,14 +598,18 @@ async fn handle_session_status_update(
 
         tx.commit().await?;
 
-        state.hub.broadcast_to_session(
-            &session_id,
-            ve_shared::proto::ClientMessage::SessionStatusChanged {
-                session_id,
-                new_status: utils::parse_session_status(status),
-                close_reason: None,
-            },
-        );
+        state
+            .hub
+            .broadcast_to_session(
+                &state.db,
+                &session_id,
+                ve_shared::proto::ClientMessage::SessionStatusChanged {
+                    session_id,
+                    new_status: utils::parse_session_status(status),
+                    close_reason: None,
+                },
+            )
+            .await;
     }
 
     tracing::debug!(%session_id, %status, "Session status updated");
@@ -1160,6 +1176,24 @@ mod tests {
         .await
         .unwrap();
 
+        sqlx::query(
+            "INSERT INTO client_devices (device_id, device_name, device_type, server_url) VALUES ($1, $2, $3, $4)",
+        )
+        .bind(device_id.to_string())
+        .bind("device")
+        .bind("desktop")
+        .bind("http://localhost")
+        .execute(&state.db)
+        .await
+        .unwrap();
+
+        sqlx::query("INSERT INTO device_session_access (device_id, session_id) VALUES ($1, $2)")
+            .bind(device_id.to_string())
+            .bind(session_id.to_string())
+            .execute(&state.db)
+            .await
+            .unwrap();
+
         state.hub.register_client(device_id, tx);
         state.hub.subscribe_session(device_id, session_id);
 
@@ -1481,6 +1515,24 @@ mod tests {
         .await
         .unwrap();
 
+        sqlx::query(
+            "INSERT INTO client_devices (device_id, device_name, device_type, server_url) VALUES ($1, $2, $3, $4)",
+        )
+        .bind(device_id.to_string())
+        .bind("device")
+        .bind("desktop")
+        .bind("http://localhost")
+        .execute(&state.db)
+        .await
+        .unwrap();
+
+        sqlx::query("INSERT INTO device_session_access (device_id, session_id) VALUES ($1, $2)")
+            .bind(device_id.to_string())
+            .bind(session_id.to_string())
+            .execute(&state.db)
+            .await
+            .unwrap();
+
         state.hub.register_client(device_id, tx);
         state.hub.subscribe_session(device_id, session_id);
 
@@ -1541,6 +1593,24 @@ mod tests {
             .bind("test")
             .bind(host_id.to_string())
             .bind(workspace_id.to_string())
+            .execute(&state.db)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO client_devices (device_id, device_name, device_type, server_url) VALUES ($1, $2, $3, $4)",
+        )
+        .bind(device_id.to_string())
+        .bind("device")
+        .bind("desktop")
+        .bind("http://localhost")
+        .execute(&state.db)
+        .await
+        .unwrap();
+
+        sqlx::query("INSERT INTO device_session_access (device_id, session_id) VALUES ($1, $2)")
+            .bind(device_id.to_string())
+            .bind(session_id.to_string())
             .execute(&state.db)
             .await
             .unwrap();

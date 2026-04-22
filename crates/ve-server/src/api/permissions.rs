@@ -446,19 +446,20 @@ async fn respond_permission_by_id(
     .execute(&mut *tx)
     .await?;
 
-    tx.commit().await?;
+    let daemon_message = DaemonMessage::PermissionResponse {
+        permission_id: id,
+        session_id,
+        decision: req.decision,
+    };
 
-    state
-        .hub
-        .send_to_daemon(
-            &host_id,
-            DaemonMessage::PermissionResponse {
-                permission_id: id,
-                session_id,
-                decision: req.decision,
-            },
-        )
-        .await;
+    if !state.hub.send_to_daemon(&host_id, daemon_message).await {
+        tx.rollback().await?;
+        return Err(ServerError::Conflict(
+            "Failed to deliver permission response".to_string(),
+        ));
+    }
+
+    tx.commit().await?;
 
     tracing::info!(%id, ?req.decision, "Permission responded");
 

@@ -19,62 +19,22 @@ use crate::state::AppState;
 use crate::utils::parse_uuid;
 
 async fn ensure_legacy_client_access(state: &AppState, device_id: Uuid) -> Result<()> {
-    let legacy_acl = sqlx::query_scalar::<_, Option<i64>>(
+    let device_exists = sqlx::query_scalar::<_, i64>(
         r#"
-        SELECT legacy_acl
+        SELECT 1
         FROM client_devices
         WHERE device_id = $1
         "#,
     )
     .bind(device_id.to_string())
     .fetch_optional(&state.db)
-    .await?
-    .flatten();
+    .await?;
 
-    let Some(legacy_acl) = legacy_acl else {
-        return Err(ServerError::Unauthorized);
-    };
-
-    if legacy_acl == 0 {
-        return Ok(());
+    if device_exists.is_some() {
+        Ok(())
+    } else {
+        Err(ServerError::Unauthorized)
     }
-
-    sqlx::query(
-        r#"
-        INSERT INTO device_host_access (device_id, host_id)
-        SELECT $1, hosts.host_id
-        FROM hosts
-        WHERE hosts.pair_status = 'paired'
-          AND NOT EXISTS (
-              SELECT 1
-              FROM device_host_access
-              WHERE device_id = $1 AND host_id = hosts.host_id
-          )
-        "#,
-    )
-    .bind(device_id.to_string())
-    .execute(&state.db)
-    .await?;
-
-    sqlx::query(
-        r#"
-        INSERT INTO device_session_access (device_id, session_id)
-        SELECT $1, sessions.session_id
-        FROM sessions
-        INNER JOIN hosts ON hosts.host_id = sessions.host_id
-        WHERE hosts.pair_status = 'paired'
-          AND NOT EXISTS (
-              SELECT 1
-              FROM device_session_access
-              WHERE device_id = $1 AND session_id = sessions.session_id
-          )
-        "#,
-    )
-    .bind(device_id.to_string())
-    .execute(&state.db)
-    .await?;
-
-    Ok(())
 }
 
 #[derive(Debug, Clone, Copy)]

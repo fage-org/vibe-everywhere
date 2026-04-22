@@ -4,10 +4,12 @@ use axum::{
     http::{header, Request, StatusCode},
 };
 
+use futures::{SinkExt, StreamExt};
 use http_body_util::BodyExt;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::net::TcpListener;
-use tokio_tungstenite::connect_async;
+use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tower::ServiceExt;
 use uuid::Uuid;
 
@@ -992,7 +994,7 @@ async fn get_file_content_sanitizes_daemon_error_details() {
 }
 
 #[tokio::test]
-async fn list_hosts_grants_legacy_access_for_formal_client_when_acl_is_empty() {
+async fn list_hosts_does_not_grant_legacy_access_for_formal_client_when_acl_is_empty() {
     let (app, state, jwt_manager) = setup_app().await;
     let device_id = Uuid::new_v4();
     sqlx::query(
@@ -1026,7 +1028,7 @@ async fn list_hosts_grants_legacy_access_for_formal_client_when_acl_is_empty() {
 
     assert_eq!(response.status(), StatusCode::OK);
     let body_text = response_body_text(response).await;
-    assert!(body_text.contains(&paired_host_id.to_string()));
+    assert!(!body_text.contains(&paired_host_id.to_string()));
     assert!(!body_text.contains(&pending_host_id.to_string()));
 
     let paired_access_count: i64 = sqlx::query_scalar(
@@ -1037,7 +1039,7 @@ async fn list_hosts_grants_legacy_access_for_formal_client_when_acl_is_empty() {
     .fetch_one(&state.db)
     .await
     .unwrap();
-    assert_eq!(paired_access_count, 1);
+    assert_eq!(paired_access_count, 0);
 
     let pending_access_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM device_host_access WHERE device_id = $1 AND host_id = $2",
@@ -1051,7 +1053,7 @@ async fn list_hosts_grants_legacy_access_for_formal_client_when_acl_is_empty() {
 }
 
 #[tokio::test]
-async fn get_archive_grants_legacy_session_access_for_formal_client_when_acl_is_empty() {
+async fn get_archive_does_not_grant_legacy_session_access_for_formal_client_when_acl_is_empty() {
     let (app, state, jwt_manager) = setup_app().await;
     let device_id = Uuid::new_v4();
     sqlx::query(
@@ -1125,7 +1127,7 @@ async fn get_archive_grants_legacy_session_access_for_formal_client_when_acl_is_
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
     let body_text = response_body_text(response).await;
     assert!(body_text.contains(&paired_archive_id.to_string()));
     assert!(!body_text.contains(&pending_archive_id.to_string()));
@@ -1138,7 +1140,7 @@ async fn get_archive_grants_legacy_session_access_for_formal_client_when_acl_is_
     .fetch_one(&state.db)
     .await
     .unwrap();
-    assert_eq!(paired_session_access_count, 1);
+    assert_eq!(paired_session_access_count, 0);
 
     let pending_session_access_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM device_session_access WHERE device_id = $1 AND session_id = $2",
@@ -1200,7 +1202,7 @@ async fn list_hosts_does_not_grant_legacy_access_for_modern_device_without_acl()
 }
 
 #[tokio::test]
-async fn list_hosts_backfills_older_paired_hosts_even_after_partial_legacy_acl_exists() {
+async fn list_hosts_does_not_backfill_older_paired_hosts_even_after_partial_legacy_acl_exists() {
     let (app, state, jwt_manager) = setup_app().await;
     let device_id = Uuid::new_v4();
     sqlx::query(
@@ -1253,7 +1255,7 @@ async fn list_hosts_backfills_older_paired_hosts_even_after_partial_legacy_acl_e
 
     assert_eq!(response.status(), StatusCode::OK);
     let body_text = response_body_text(response).await;
-    assert!(body_text.contains(&paired_host_id.to_string()));
+    assert!(!body_text.contains(&paired_host_id.to_string()));
     assert!(body_text.contains(&newly_paired_host_id.to_string()));
 
     let backfilled_access_count: i64 = sqlx::query_scalar(
@@ -1264,7 +1266,86 @@ async fn list_hosts_backfills_older_paired_hosts_even_after_partial_legacy_acl_e
     .fetch_one(&state.db)
     .await
     .unwrap();
-    assert_eq!(backfilled_access_count, 1);
+    assert_eq!(backfilled_access_count, 0);
+}
+
+#[tokio::test]
+async fn ws_session_subscription_stops_receiving_after_access_revocation() {
+    let (app, state, jwt_manager) = setup_app().await;
+    let device_id = Uuid::new_v4();
+    let (
+        _paired_host_id,
+        _pending_host_id,
+        _paired_workspace_id,
+        _pending_workspace_id,
+        session_id,
+        _pending_session_id,
+    ) = seed_legacy_sessions_without_acl(&state).await;
+
+    sqlx::query(
+        "INSERT INTO client_devices (device_id, device_name, device_type, server_url) VALUES ($1, $2, $3, $4)",
+    )
+    .bind(device_id.to_string())
+    .bind("device")
+    .bind("desktop")
+    .bind("http://localhost")
+    .execute(&state.db)
+    .await
+    .unwrap();
+
+    sqlx::query("INSERT INTO device_session_access (device_id, session_id) VALUES ($1, $2)")
+        .bind(device_id.to_string())
+        .bind(session_id.to_string())
+        .execute(&state.db)
+        .await
+        .unwrap();
+
+    let token = jwt_manager
+        .create_client_token(device_id, "device")
+        .unwrap();
+    let (base_url, server_handle) = run_app_for_ws(app).await;
+    let (mut ws, _) = connect_async(format!("{base_url}/ws/client?token={token}"))
+        .await
+        .unwrap();
+
+    ws.send(Message::Text(
+        serde_json::json!({
+            "type": "subscribe_session",
+            "payload": { "session_id": session_id.to_string() }
+        })
+        .to_string()
+        .into(),
+    ))
+    .await
+    .unwrap();
+
+    sqlx::query("DELETE FROM device_session_access WHERE device_id = $1 AND session_id = $2")
+        .bind(device_id.to_string())
+        .bind(session_id.to_string())
+        .execute(&state.db)
+        .await
+        .unwrap();
+
+    state
+        .hub
+        .broadcast_to_session(
+            &state.db,
+            &session_id,
+            ve_shared::proto::ClientMessage::SessionStatusChanged {
+                session_id,
+                new_status: ve_shared::types::SessionStatus::Running,
+                close_reason: None,
+            },
+        )
+        .await;
+
+    let next = tokio::time::timeout(Duration::from_millis(200), ws.next()).await;
+    server_handle.abort();
+
+    assert!(
+        next.is_err(),
+        "revoked subscriber still received websocket message"
+    );
 }
 
 #[tokio::test]

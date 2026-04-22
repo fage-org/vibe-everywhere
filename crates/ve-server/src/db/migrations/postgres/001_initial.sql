@@ -138,7 +138,7 @@ CREATE INDEX IF NOT EXISTS idx_pairing_codes_expires_at ON pairing_codes(expires
 -- Idempotency keys table (for duplicate request protection)
 CREATE TABLE IF NOT EXISTS idempotency_keys (
     key          VARCHAR(128) PRIMARY KEY NOT NULL,
-    session_id   UUID NOT NULL,
+    session_id   VARCHAR(64) NOT NULL,
     request_hash VARCHAR(64),
     result_type  VARCHAR(50) NOT NULL DEFAULT 'session',
     created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),

@@ -191,7 +191,6 @@ pub async fn daemon_hello(
     tx.commit().await?;
 
     tracing::info!(%host_id, "Daemon hello received");
-    tracing::debug!(%host_id, %pair_code, "Pair code generated");
 
     Ok(Json(DaemonHelloResponse {
         host_id,
@@ -213,9 +212,10 @@ pub async fn pairing_status(
         .get("x-pairing-secret")
         .and_then(|value| value.to_str().ok())
         .ok_or(ServerError::Unauthorized)?;
-    let row: (String, String, Option<String>, String) = sqlx::query_as(
+    let row: (String, String, Option<String>, String, i64) = sqlx::query_as(
         r#"
-        SELECT hosts.pair_status, hosts.host_name, pairing_codes.pairing_secret, pairing_codes.expires_at
+        SELECT hosts.pair_status, hosts.host_name, pairing_codes.pairing_secret, pairing_codes.expires_at,
+               pairing_codes.used
         FROM pairing_codes
         JOIN hosts ON hosts.host_id = pairing_codes.host_id
         WHERE pairing_codes.host_id = $1
@@ -240,12 +240,32 @@ pub async fn pairing_status(
     }
 
     if row.0 == "paired" {
+        let clear_secret = sqlx::query(
+            r#"
+            UPDATE pairing_codes
+            SET pairing_secret = NULL
+            WHERE host_id = $1 AND pairing_secret = $2
+            "#,
+        )
+        .bind(&host_id_str)
+        .bind(pairing_secret)
+        .execute(&state.db)
+        .await?;
+
+        if clear_secret.rows_affected() == 0 {
+            return Err(ServerError::Unauthorized);
+        }
+
         let jwt_manager = JwtManager::new(&state.config.jwt_secret, state.config.jwt_expiration());
         let daemon_token = jwt_manager.create_daemon_token(query.host_id, &row.1)?;
         return Ok(Json(PairingStatusResponse {
             status: "paired".to_string(),
             daemon_token: Some(daemon_token),
         }));
+    }
+
+    if row.4 != 0 {
+        return Err(ServerError::PairCodeUsed);
     }
 
     Ok(Json(PairingStatusResponse {
@@ -395,42 +415,6 @@ pub async fn pair(
     )
     .bind(&host_id_str)
     .bind(&now_str)
-    .execute(&mut *tx)
-    .await?;
-
-    sqlx::query(
-        r#"
-        INSERT INTO device_host_access (device_id, host_id)
-        SELECT legacy_devices.device_id, $2
-        FROM client_devices AS legacy_devices
-        WHERE legacy_devices.legacy_acl = 1
-          AND NOT EXISTS (
-              SELECT 1 FROM device_host_access WHERE device_id = legacy_devices.device_id AND host_id = $2
-          )
-        "#,
-    )
-    .bind(&device_id_str)
-    .bind(&host_id_str)
-    .execute(&mut *tx)
-    .await?;
-
-    sqlx::query(
-        r#"
-        INSERT INTO device_session_access (device_id, session_id)
-        SELECT legacy_devices.device_id, sessions.session_id
-        FROM client_devices AS legacy_devices
-        CROSS JOIN sessions
-        WHERE legacy_devices.legacy_acl = 1
-          AND sessions.host_id = $2
-          AND NOT EXISTS (
-              SELECT 1
-              FROM device_session_access
-              WHERE device_id = legacy_devices.device_id AND session_id = sessions.session_id
-          )
-        "#,
-    )
-    .bind(&device_id_str)
-    .bind(&host_id_str)
     .execute(&mut *tx)
     .await?;
 

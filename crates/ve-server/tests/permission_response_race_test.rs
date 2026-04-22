@@ -463,6 +463,39 @@ async fn respond_permission_allows_only_one_winner_under_concurrency_on_postgres
     state.cleanup().await;
 }
 
+#[tokio::test]
+async fn respond_permission_fails_when_daemon_delivery_fails() {
+    let state = setup_state().await;
+    let (device_id, _host_id, session_id, permission_id, _sibling_permission_id) =
+        seed_fixture(&state).await;
+
+    let (status, body) = respond_permission_via_route(
+        state.clone(),
+        device_id,
+        permission_id,
+        PermissionDecision::ApproveOnce,
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert!(body.contains("Failed to deliver permission response"));
+
+    let permission_status: (String,) =
+        sqlx::query_as("SELECT status FROM permission_requests WHERE permission_id = $1")
+            .bind(permission_id.to_string())
+            .fetch_one(&state.db)
+            .await
+            .unwrap();
+    assert_eq!(permission_status.0, "pending");
+
+    let pending_count: (i64,) =
+        sqlx::query_as("SELECT pending_permission_count FROM sessions WHERE session_id = $1")
+            .bind(session_id.to_string())
+            .fetch_one(&state.db)
+            .await
+            .unwrap();
+    assert_eq!(pending_count.0, 2);
+}
 #[cfg(feature = "postgres")]
 #[tokio::test]
 async fn respond_permission_keeps_pending_count_stable_on_postgres() {

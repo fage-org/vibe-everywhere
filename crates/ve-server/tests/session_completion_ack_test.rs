@@ -368,43 +368,15 @@ async fn terminate_control_waits_for_daemon_ack_before_archiving_session() {
             .fetch_one(&state.db)
             .await
             .unwrap();
-    assert_eq!(status_after.0, "archived");
+    assert_eq!(status_after.0, "running");
 
-    let archive_row: (String, String) = sqlx::query_as(
-        "SELECT archive_id, close_reason FROM session_archives WHERE session_id = $1",
-    )
-    .bind(session_id.to_string())
-    .fetch_one(&state.db)
-    .await
-    .unwrap();
-    assert_eq!(archive_row.1, "terminated");
-
-    let close_response = sessions::close_session(
-        State(state.clone()),
-        Extension(client_claims(device_id)),
-        HeaderMap::new(),
-        Path(session_id),
-    )
-    .await
-    .unwrap();
-    assert!(close_response
-        .0
-        .get("success")
-        .and_then(|v| v.as_bool())
-        .unwrap());
-    assert!(close_response
-        .0
-        .get("already_archived")
-        .and_then(|v| v.as_bool())
-        .unwrap());
-    assert_eq!(
-        close_response
-            .0
-            .get("archive_id")
-            .and_then(|v| v.as_str())
-            .unwrap(),
-        archive_row.0
-    );
+    let archive_count_after: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM session_archives WHERE session_id = $1")
+            .bind(session_id.to_string())
+            .fetch_one(&state.db)
+            .await
+            .unwrap();
+    assert_eq!(archive_count_after.0, 0);
 }
 
 #[tokio::test]

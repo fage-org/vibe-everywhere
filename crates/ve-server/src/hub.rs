@@ -3,12 +3,15 @@ use std::time::Duration;
 
 use dashmap::DashMap;
 use tokio::sync::{mpsc, oneshot, Mutex};
+use tokio::time::{timeout_at, Instant};
 use tracing::{debug, info, warn};
 use uuid::Uuid;
 
 use ve_shared::proto::{
     AckPayload, ClientMessage, DaemonMessage, DaemonToServer, ErrorPayload, WsEnvelope,
 };
+
+use crate::db::DbPool;
 
 /// Default bounded channel capacity for WebSocket connections
 pub const WS_CHANNEL_CAPACITY: usize = 256;
@@ -174,12 +177,28 @@ impl Hub {
     pub fn unsubscribe_session(&self, device_id: &Uuid, session_id: &Uuid) {
         debug!(%device_id, %session_id, "Unsubscribing from session");
 
-        if let Some(mut subscribers) = self.session_subscribers.get_mut(session_id) {
-            subscribers.remove(device_id);
+        let remove_session_entry =
+            if let Some(mut subscribers) = self.session_subscribers.get_mut(session_id) {
+                subscribers.remove(device_id);
+                subscribers.is_empty()
+            } else {
+                false
+            };
+
+        if remove_session_entry {
+            self.session_subscribers.remove(session_id);
         }
 
-        if let Some(mut sessions) = self.device_subscriptions.get_mut(device_id) {
-            sessions.remove(session_id);
+        let remove_device_entry =
+            if let Some(mut sessions) = self.device_subscriptions.get_mut(device_id) {
+                sessions.remove(session_id);
+                sessions.is_empty()
+            } else {
+                false
+            };
+
+        if remove_device_entry {
+            self.device_subscriptions.remove(device_id);
         }
     }
 
@@ -245,28 +264,68 @@ impl Hub {
         }
     }
 
-    /// Broadcast a message to all clients subscribed to a session
+    /// Broadcast a message to all currently authorized clients subscribed to a session.
     ///
     /// Uses try_send for non-blocking behavior with bounded channels.
     /// Messages may be dropped if client channels are full.
-    pub fn broadcast_to_session(&self, session_id: &Uuid, message: ClientMessage) {
-        if let Some(subscribers) = self.session_subscribers.get(session_id) {
-            let envelope = WsEnvelope::from(message.clone());
-            for device_id in subscribers.iter() {
-                if let Some(conn) = self.client_connections.get(device_id) {
-                    match conn.sender.try_send(envelope.clone()) {
-                        Ok(()) => {}
-                        Err(mpsc::error::TrySendError::Full(_)) => {
-                            warn!(%device_id, "Client channel full, dropping broadcast");
-                        }
-                        Err(mpsc::error::TrySendError::Closed(_)) => {
-                            warn!(%device_id, "Client channel closed");
-                        }
+    pub async fn broadcast_to_session(
+        &self,
+        db: &DbPool,
+        session_id: &Uuid,
+        message: ClientMessage,
+    ) {
+        let Some(subscribers) = self.session_subscribers.get(session_id) else {
+            return;
+        };
+
+        let device_ids: Vec<Uuid> = subscribers.iter().copied().collect();
+        drop(subscribers);
+
+        let session_id_str = session_id.to_string();
+        let mut delivered = 0usize;
+
+        for device_id in device_ids {
+            let still_authorized = match sqlx::query_scalar::<_, i64>(
+                r#"
+                SELECT 1
+                FROM device_session_access
+                WHERE device_id = $1 AND session_id = $2
+                "#,
+            )
+            .bind(device_id.to_string())
+            .bind(&session_id_str)
+            .fetch_optional(db)
+            .await
+            {
+                Ok(row) => row.is_some(),
+                Err(error) => {
+                    warn!(%device_id, %session_id, error = %error, "Skipping session broadcast auth check due to database error");
+                    continue;
+                }
+            };
+
+            if !still_authorized {
+                self.unsubscribe_session(&device_id, session_id);
+                continue;
+            }
+
+            if let Some(conn) = self.client_connections.get(&device_id) {
+                let envelope = WsEnvelope::from(message.clone());
+                match conn.sender.try_send(envelope) {
+                    Ok(()) => {
+                        delivered += 1;
+                    }
+                    Err(mpsc::error::TrySendError::Full(_)) => {
+                        warn!(%device_id, "Client channel full, dropping broadcast");
+                    }
+                    Err(mpsc::error::TrySendError::Closed(_)) => {
+                        warn!(%device_id, "Client channel closed");
                     }
                 }
             }
-            debug!(%session_id, count = subscribers.len(), "Broadcast to session subscribers");
         }
+
+        debug!(%session_id, delivered, "Broadcast to authorized session subscribers");
     }
 
     /// Check if a daemon is connected
@@ -372,12 +431,18 @@ impl Hub {
             }
         }
 
-        if let Err(error) = sender.send(WsEnvelope::from(request)).await {
+        let deadline = Instant::now() + timeout;
+
+        if timeout_at(deadline, sender.send(WsEnvelope::from(request)))
+            .await
+            .map_err(|_| "Request timeout")?
+            .is_err()
+        {
             self.pending_requests.lock().await.remove(&request_id);
-            return Err(Box::new(error));
+            return Err("Response channel closed".into());
         }
 
-        match tokio::time::timeout(timeout, rx).await {
+        match timeout_at(deadline, rx).await {
             Ok(Ok(Ok(response))) => Ok(response),
             Ok(Ok(Err(reason))) => Err(reason.into()),
             Ok(Err(_)) => {
@@ -428,6 +493,8 @@ impl Default for Hub {
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
+
+    use futures::FutureExt;
 
     use super::*;
 
@@ -488,40 +555,138 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn register_daemon_fails_requests_sent_on_replaced_connection() {
+    async fn send_and_wait_times_out_when_daemon_channel_stays_full() {
         let hub = Arc::new(Hub::new());
         let host_id = Uuid::new_v4();
         let request_id = Uuid::new_v4().to_string();
-        let (stale_tx, mut stale_rx) = mpsc::channel(1);
-        hub.register_daemon(host_id, stale_tx).await;
+        let (tx, mut rx) = mpsc::channel(1);
+        hub.register_daemon(host_id, tx).await;
 
-        let pending_hub = hub.clone();
-        let pending_request_id = request_id.clone();
-        let pending_host_id = host_id;
-        let pending = tokio::spawn(async move {
-            pending_hub
-                .send_and_wait(
-                    &pending_host_id,
-                    DaemonMessage::FileTreeRequest {
-                        request_id: pending_request_id.clone(),
-                        session_id: Uuid::nil(),
-                        workspace_path: "/tmp".to_string(),
-                        relative_path: None,
-                    },
-                    pending_request_id,
-                    Duration::from_secs(5),
-                )
-                .await
-        });
+        rx.recv().now_or_never();
+        hub.send_to_daemon(
+            &host_id,
+            DaemonMessage::FileTreeRequest {
+                request_id: Uuid::new_v4().to_string(),
+                session_id: Uuid::nil(),
+                workspace_path: "/tmp".to_string(),
+                relative_path: None,
+            },
+        )
+        .await;
 
-        let _ = stale_rx
-            .recv()
+        let error = hub
+            .send_and_wait(
+                &host_id,
+                DaemonMessage::FileTreeRequest {
+                    request_id: request_id.clone(),
+                    session_id: Uuid::nil(),
+                    workspace_path: "/tmp".to_string(),
+                    relative_path: None,
+                },
+                request_id,
+                Duration::from_millis(50),
+            )
             .await
-            .expect("stale daemon should receive request");
-        let (active_tx, _active_rx) = mpsc::channel(1);
-        hub.register_daemon(host_id, active_tx).await;
+            .unwrap_err()
+            .to_string();
 
-        let error = pending.await.unwrap().unwrap_err().to_string();
-        assert!(error.contains("handoff"));
+        assert!(error.contains("Request timeout"));
+    }
+
+    #[tokio::test]
+    async fn broadcast_to_session_prunes_revoked_subscribers() {
+        let temp_db = std::env::temp_dir().join(format!("ve-hub-test-{}.db", Uuid::new_v4()));
+        let database_url = format!("sqlite:{}?mode=rwc", temp_db.display());
+        crate::db::install_drivers();
+        let pool = crate::db::DbPool::connect(&database_url).await.unwrap();
+        crate::db::run_migrations(&pool, crate::config::DatabaseBackend::Sqlite)
+            .await
+            .unwrap();
+
+        let hub = Hub::new();
+        let device_id = Uuid::new_v4();
+        let host_id = Uuid::new_v4();
+        let workspace_id = Uuid::new_v4();
+        let session_id = Uuid::new_v4();
+        let (tx, mut rx) = mpsc::channel(1);
+        let now = chrono::Utc::now().to_rfc3339();
+
+        sqlx::query(
+            "INSERT INTO client_devices (device_id, device_name, device_type, server_url) VALUES ($1, $2, $3, $4)",
+        )
+        .bind(device_id.to_string())
+        .bind("device")
+        .bind("desktop")
+        .bind("http://localhost")
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO hosts (host_id, host_name, platform, pair_status, created_at, updated_at) VALUES ($1, $2, $3, 'paired', $4, $4)",
+        )
+        .bind(host_id.to_string())
+        .bind("host")
+        .bind("linux")
+        .bind(&now)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO workspaces (workspace_id, host_id, path, display_name, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $5)",
+        )
+        .bind(workspace_id.to_string())
+        .bind(host_id.to_string())
+        .bind("/tmp/project")
+        .bind("project")
+        .bind(&now)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO sessions (session_id, title, host_id, workspace_id, agent_type, status, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, 'running', $6, $6)",
+        )
+        .bind(session_id.to_string())
+        .bind("session")
+        .bind(host_id.to_string())
+        .bind(workspace_id.to_string())
+        .bind("claude_code")
+        .bind(&now)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        sqlx::query("INSERT INTO device_session_access (device_id, session_id) VALUES ($1, $2)")
+            .bind(device_id.to_string())
+            .bind(session_id.to_string())
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        hub.register_client(device_id, tx);
+        hub.subscribe_session(device_id, session_id);
+
+        sqlx::query("DELETE FROM device_session_access WHERE device_id = $1 AND session_id = $2")
+            .bind(device_id.to_string())
+            .bind(session_id.to_string())
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        hub.broadcast_to_session(
+            &pool,
+            &session_id,
+            ClientMessage::SessionStatusChanged {
+                session_id,
+                new_status: ve_shared::types::SessionStatus::Running,
+                close_reason: None,
+            },
+        )
+        .await;
+
+        assert!(rx.try_recv().is_err());
+        assert!(hub.device_subscriptions.get(&device_id).is_none());
     }
 }

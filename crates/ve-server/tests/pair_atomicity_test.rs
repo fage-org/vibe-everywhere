@@ -253,7 +253,7 @@ async fn pair_rejects_second_redemption_after_success() {
 }
 
 #[tokio::test]
-async fn pair_grants_new_host_access_to_legacy_devices_and_requester_only() {
+async fn pair_grants_new_host_access_only_to_requester_device() {
     let state = setup_state().await;
     let legacy_device_id = Uuid::new_v4();
     let requester_device_id = Uuid::new_v4();
@@ -300,7 +300,7 @@ async fn pair_grants_new_host_access_to_legacy_devices_and_requester_only() {
 
     assert_eq!(
         host_access_count(&state, legacy_device_id, host_id).await,
-        1
+        0
     );
     assert_eq!(
         host_access_count(&state, requester_device_id, host_id).await,

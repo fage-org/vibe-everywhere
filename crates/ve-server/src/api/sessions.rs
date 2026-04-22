@@ -841,6 +841,11 @@ async fn list_messages_for_session(
     query: MessageListQuery,
 ) -> Result<Json<Paginated<SessionMessage>>> {
     let page = query.page.unwrap_or(1);
+    if page == 0 {
+        return Err(ServerError::BadRequest(
+            "page must be greater than 0".to_string(),
+        ));
+    }
     let limit = query.limit.unwrap_or(50).min(100);
     let offset = (page - 1) * limit;
     let session_id_str = id.to_string();
@@ -998,9 +1003,7 @@ async fn persist_control_success(
             .execute(&state.db)
             .await?;
         }
-        SessionControlAction::Terminate => {
-            archive_session_with_metadata(state, session_id, "terminated", None).await?;
-        }
+        SessionControlAction::Terminate => {}
         SessionControlAction::Restart => {
             sqlx::query(
                 r#"
@@ -3845,5 +3848,85 @@ mod tests {
             ServerError::Conflict(message)
                 if message == format!("Session {} is archived without an archive record", session_id)
         ));
+    }
+
+    #[tokio::test]
+    async fn list_messages_rejects_page_zero() {
+        let state = setup_state().await;
+        let device_id = Uuid::new_v4();
+        let host_id = Uuid::new_v4();
+        let workspace_id = Uuid::new_v4();
+        let session_id = Uuid::new_v4();
+        let now = chrono::Utc::now().to_rfc3339();
+
+        sqlx::query(
+            "INSERT INTO client_devices (device_id, device_name, device_type, server_url) VALUES ($1, $2, $3, $4)",
+        )
+        .bind(device_id.to_string())
+        .bind("device")
+        .bind("desktop")
+        .bind("http://localhost")
+        .execute(&state.db)
+        .await
+        .unwrap();
+
+        sqlx::query("INSERT INTO hosts (host_id, host_name, platform) VALUES ($1, $2, $3)")
+            .bind(host_id.to_string())
+            .bind("host")
+            .bind("linux")
+            .execute(&state.db)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO workspaces (workspace_id, host_id, path, display_name) VALUES ($1, $2, $3, $4)",
+        )
+        .bind(workspace_id.to_string())
+        .bind(host_id.to_string())
+        .bind("/tmp")
+        .bind("tmp")
+        .execute(&state.db)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO sessions (session_id, title, host_id, workspace_id, agent_type, status, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, 'running', $6, $6)",
+        )
+        .bind(session_id.to_string())
+        .bind("test")
+        .bind(host_id.to_string())
+        .bind(workspace_id.to_string())
+        .bind("claude_code")
+        .bind(&now)
+        .execute(&state.db)
+        .await
+        .unwrap();
+
+        sqlx::query("INSERT INTO device_session_access (device_id, session_id) VALUES ($1, $2)")
+            .bind(device_id.to_string())
+            .bind(session_id.to_string())
+            .execute(&state.db)
+            .await
+            .unwrap();
+
+        let error = list_messages(
+            State(state.clone()),
+            Extension(Claims::for_client(
+                device_id,
+                "device",
+                chrono::Duration::hours(1),
+            )),
+            Path(session_id),
+            Query(MessageListQuery {
+                page: Some(0),
+                limit: None,
+            }),
+        )
+        .await
+        .unwrap_err();
+
+        assert!(
+            matches!(error, ServerError::BadRequest(message) if message == "page must be greater than 0")
+        );
     }
 }

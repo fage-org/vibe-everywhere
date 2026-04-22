@@ -129,7 +129,7 @@ async fn pairing_status_returns_pending_before_pair_completes() {
 }
 
 #[tokio::test]
-async fn pairing_status_returns_daemon_token_after_pair_completes() {
+async fn pairing_status_returns_daemon_token_once_after_pair_completes() {
     let state = setup_state().await;
     let device_id = Uuid::new_v4();
     seed_registered_device(&state, device_id).await;
@@ -160,7 +160,7 @@ async fn pairing_status_returns_daemon_token_after_pair_completes() {
     .unwrap();
 
     let response = pairing_status(
-        State(state),
+        State(state.clone()),
         pairing_headers(&hello.pairing_secret),
         Query(PairingStatusQuery {
             host_id: hello.host_id,
@@ -172,6 +172,19 @@ async fn pairing_status_returns_daemon_token_after_pair_completes() {
 
     assert_eq!(response.status, "paired");
     assert!(response.daemon_token.is_some());
+
+    let error = pairing_status(
+        State(state),
+        pairing_headers(&hello.pairing_secret),
+        Query(PairingStatusQuery {
+            host_id: hello.host_id,
+        }),
+    )
+    .await
+    .unwrap_err();
+
+    let response = error.into_response();
+    assert_eq!(response.status(), axum::http::StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]

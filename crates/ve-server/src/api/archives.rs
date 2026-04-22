@@ -109,6 +109,11 @@ async fn list_archives_for_device(
 ) -> Result<Json<Paginated<SessionArchive>>> {
     let device_id_str = device_id.to_string();
     let page = query.page.unwrap_or(1);
+    if page == 0 {
+        return Err(ServerError::BadRequest(
+            "page must be greater than 0".to_string(),
+        ));
+    }
     let limit = query.limit.unwrap_or(20).min(100);
     let offset = (page - 1) * limit;
 
@@ -454,17 +459,48 @@ async fn batch_delete_archives_for_device(
             continue;
         }
 
-        let result = sqlx::query(
-            r#"
-            DELETE FROM session_archives WHERE archive_id = $1
-            "#,
-        )
-        .bind(&archive_id_str)
-        .execute(&state.db)
+        let result = async {
+            let mut tx = state.db.begin().await?;
+
+            let delete_archive = sqlx::query(
+                r#"
+                DELETE FROM session_archives WHERE archive_id = $1
+                "#,
+            )
+            .bind(&archive_id_str)
+            .execute(&mut *tx)
+            .await?;
+
+            if delete_archive.rows_affected() == 0 {
+                tx.rollback().await?;
+                return Ok(false);
+            }
+
+            sqlx::query(
+                r#"
+                DELETE FROM device_session_access WHERE session_id = $1
+                "#,
+            )
+            .bind(&session_id_raw)
+            .execute(&mut *tx)
+            .await?;
+
+            sqlx::query(
+                r#"
+                DELETE FROM sessions WHERE session_id = $1 AND status = 'archived'
+                "#,
+            )
+            .bind(&session_id_raw)
+            .execute(&mut *tx)
+            .await?;
+
+            tx.commit().await?;
+            Ok::<bool, ServerError>(true)
+        }
         .await;
 
         match result {
-            Ok(res) if res.rows_affected() > 0 => {
+            Ok(true) => {
                 deleted_count += 1;
             }
             _ => {
@@ -896,6 +932,106 @@ mod tests {
 
         assert!(
             matches!(error, ServerError::NotFound(message) if message == format!("Archive {}", archive_id))
+        );
+    }
+
+    #[tokio::test]
+    async fn batch_delete_archives_removes_archived_session_invariant_together() {
+        let state = setup_state().await;
+        let device_id = Uuid::new_v4();
+        let host_id = Uuid::new_v4();
+        let workspace_id = Uuid::new_v4();
+        let session_id = Uuid::new_v4();
+        let archive_id = Uuid::new_v4();
+
+        insert_archive_fixture(
+            &state,
+            device_id,
+            host_id,
+            workspace_id,
+            session_id,
+            archive_id,
+        )
+        .await;
+
+        let response = batch_delete_archives(
+            State(state.clone()),
+            Extension(Claims::for_client(
+                device_id,
+                "device",
+                chrono::Duration::hours(1),
+            )),
+            Json(BatchDeleteRequest {
+                archive_ids: vec![archive_id],
+            }),
+        )
+        .await
+        .unwrap()
+        .0;
+
+        assert_eq!(response.deleted_count, 1);
+        assert!(response.failed_ids.is_empty());
+
+        let archive_count: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM session_archives WHERE archive_id = $1")
+                .bind(archive_id.to_string())
+                .fetch_one(&state.db)
+                .await
+                .unwrap();
+        assert_eq!(archive_count.0, 0);
+
+        let session_count: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM sessions WHERE session_id = $1")
+                .bind(session_id.to_string())
+                .fetch_one(&state.db)
+                .await
+                .unwrap();
+        assert_eq!(session_count.0, 0);
+
+        let access_count: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM device_session_access WHERE session_id = $1")
+                .bind(session_id.to_string())
+                .fetch_one(&state.db)
+                .await
+                .unwrap();
+        assert_eq!(access_count.0, 0);
+    }
+
+    #[tokio::test]
+    async fn list_archives_rejects_page_zero() {
+        let state = setup_state().await;
+        let device_id = Uuid::new_v4();
+
+        sqlx::query(
+            "INSERT INTO client_devices (device_id, device_name, device_type, server_url) VALUES ($1, $2, $3, $4)",
+        )
+        .bind(device_id.to_string())
+        .bind("device")
+        .bind("desktop")
+        .bind("http://localhost")
+        .execute(&state.db)
+        .await
+        .unwrap();
+
+        let error = list_archives(
+            State(state.clone()),
+            Extension(Claims::for_client(
+                device_id,
+                "device",
+                chrono::Duration::hours(1),
+            )),
+            Query(ArchiveListQuery {
+                host_id: None,
+                workspace_id: None,
+                page: Some(0),
+                limit: None,
+            }),
+        )
+        .await
+        .unwrap_err();
+
+        assert!(
+            matches!(error, ServerError::BadRequest(message) if message == "page must be greater than 0")
         );
     }
 }
