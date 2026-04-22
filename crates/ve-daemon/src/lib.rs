@@ -21,6 +21,7 @@ pub mod credentials;
 pub mod error;
 pub mod file_ops;
 pub mod pairing;
+pub mod pairing_identity;
 pub mod session_registry;
 pub mod session_runner;
 pub mod ws_client;
@@ -31,8 +32,11 @@ pub use credentials::Credentials;
 pub use error::{AckError, DaemonError};
 pub use file_ops::FileOps;
 pub use pairing::Pairing;
+pub use pairing_identity::PairingIdentity;
 pub use session_registry::SessionRegistry;
-pub use session_runner::{ApprovalRule, PendingPermission, RunnerCommand, RunnerState, SessionRunner, SessionRunnerHandle};
+pub use session_runner::{
+    ApprovalRule, PendingPermission, RunnerCommand, RunnerState, SessionRunner, SessionRunnerHandle,
+};
 pub use ws_client::WsClient;
 
 /// Result type alias for daemon operations

@@ -15,7 +15,24 @@ use ve_shared::proto::WsEnvelope;
 use crate::config::Config;
 use crate::credentials::Credentials;
 use crate::error::DaemonError;
+use crate::pairing_identity::PairingIdentity;
 use crate::Result;
+
+#[derive(Debug, serde::Deserialize)]
+struct DaemonHelloApiResponse {
+    host_id: Uuid,
+    #[allow(dead_code)]
+    status: String,
+    pair_code: String,
+    qr_payload: String,
+    pairing_secret: String,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct PairingStatusApiResponse {
+    status: String,
+    daemon_token: Option<String>,
+}
 
 /// Pairing state machine
 pub struct Pairing {
@@ -39,10 +56,7 @@ impl Pairing {
     /// 2. Display the pair code to the user
     /// 3. Wait for pairing to complete (polling or WebSocket)
     /// 4. Return the credentials
-    pub async fn start(
-        &self,
-        shutdown_rx: broadcast::Receiver<()>,
-    ) -> Result<Credentials> {
+    pub async fn start(&self, shutdown_rx: broadcast::Receiver<()>) -> Result<Credentials> {
         info!("Starting pairing process");
 
         // 1. Call daemon-hello to register and get pair code
@@ -53,6 +67,8 @@ impl Pairing {
 
         // Generate a local pair code (server can override)
         let local_pair_code = generate_pair_code();
+        let identity = PairingIdentity::load_or_create(&self.config.installation_path())?;
+        let proof = identity.proof()?;
 
         let response = self
             .http_client
@@ -61,6 +77,7 @@ impl Pairing {
                 "pair_code": local_pair_code,
                 "host_name": self.config.host_name,
                 "platform": self.config.platform,
+                "pairing_proof": proof,
             }))
             .send()
             .await
@@ -76,33 +93,19 @@ impl Pairing {
             });
         }
 
-        let json: serde_json::Value = response.json().await.map_err(|e| {
-            DaemonError::PairingFailed {
-                reason: format!("Failed to parse response: {}", e),
-            }
-        })?;
+        let json: DaemonHelloApiResponse =
+            response
+                .json()
+                .await
+                .map_err(|e| DaemonError::PairingFailed {
+                    reason: format!("Failed to parse response: {}", e),
+                })?;
 
-        let host_id = json
-            .get("host_id")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| DaemonError::PairingFailed {
-                reason: "Missing host_id in response".to_string(),
-            })?;
+        let host_id = json.host_id;
+        let pair_code = json.pair_code;
+        let qr_payload = Some(json.qr_payload);
+        let pairing_secret = json.pairing_secret;
 
-        let host_id = Uuid::parse_str(host_id).map_err(|_| DaemonError::TokenParse)?;
-
-        // The server may generate its own pair code, or use ours
-        let pair_code = json
-            .get("pair_code")
-            .and_then(|v| v.as_str())
-            .unwrap_or(&local_pair_code);
-
-        let qr_payload = json
-            .get("qr_payload")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string());
-
-        // 2. Display pair code to user
         info!(
             pair_code = %pair_code,
             qr_payload = ?qr_payload,
@@ -119,7 +122,8 @@ impl Pairing {
         eprintln!();
 
         // 3. Wait for pairing completion
-        self.wait_for_pairing(host_id, pair_code, shutdown_rx).await
+        self.wait_for_pairing(host_id, &pair_code, &pairing_secret, shutdown_rx)
+            .await
     }
 
     /// Wait for pairing to complete
@@ -130,15 +134,13 @@ impl Pairing {
         &self,
         host_id: Uuid,
         pair_code: &str,
+        pairing_secret: &str,
         mut shutdown_rx: broadcast::Receiver<()>,
     ) -> Result<Credentials> {
         // Try WebSocket with pair_code authentication first
         // Note: This requires server support for ?pair_code= auth
         // If not supported, we'll fall back to polling
-        match self
-            .wait_via_websocket(pair_code, &mut shutdown_rx)
-            .await
-        {
+        match self.wait_via_websocket(pair_code, &mut shutdown_rx).await {
             Ok(creds) => return Ok(creds),
             Err(DaemonError::WsConnect(_)) => {
                 warn!("WebSocket authentication with pair_code not supported, falling back to polling");
@@ -149,7 +151,8 @@ impl Pairing {
         }
 
         // Fallback: Polling for pairing status
-        self.poll_for_credentials(host_id, shutdown_rx).await
+        self.poll_for_credentials(host_id, pairing_secret, shutdown_rx)
+            .await
     }
 
     /// Wait for pairing via WebSocket (preferred method)
@@ -267,33 +270,24 @@ impl Pairing {
     /// Poll for credentials (fallback method)
     ///
     /// Polls the server periodically to check if pairing has completed.
-    /// This requires a server endpoint that returns the token after pairing.
-    ///
-    /// NOTE: This method requires server support (GET /api/auth/pairing-status).
-    /// Currently not implemented - WebSocket pairing is the only supported method.
     async fn poll_for_credentials(
         &self,
-        _host_id: Uuid,
+        host_id: Uuid,
+        pairing_secret: &str,
         mut shutdown_rx: broadcast::Receiver<()>,
     ) -> Result<Credentials> {
-        // Server does not yet provide a polling endpoint for pairing status.
-        // We wait here with a timeout, checking periodically for shutdown.
-        warn!(
-            "Polling-based pairing is not supported. \
-             Server needs to provide GET /api/auth/pairing-status endpoint."
+        let status_url = format!(
+            "{}/api/auth/pairing-status?host_id={}",
+            self.config.server_url.trim_end_matches('/'),
+            host_id,
         );
-
-        let timeout = Duration::from_secs(300); // 5 minutes
-        let check_interval = Duration::from_secs(30);
+        let timeout = Duration::from_secs(300);
+        let check_interval = Duration::from_secs(2);
         let start = std::time::Instant::now();
 
         loop {
             if start.elapsed() > timeout {
-                return Err(DaemonError::PairingFailed {
-                    reason: "Polling-based pairing not supported and pairing timed out. \
-                             Please ensure WebSocket connection is available."
-                        .to_string(),
-                });
+                return Err(DaemonError::PairingTimeout);
             }
 
             tokio::select! {
@@ -303,10 +297,55 @@ impl Pairing {
                     });
                 }
                 _ = tokio::time::sleep(check_interval) => {
-                    // Server endpoint not yet available, continue waiting
+                    let response = self.http_client
+                        .get(&status_url)
+                        .header("x-pairing-secret", pairing_secret)
+                        .send()
+                        .await
+                        .map_err(|e| DaemonError::PairingFailed {
+                            reason: format!("Polling request failed: {}", e),
+                        })?;
+
+                    if response.status() == reqwest::StatusCode::GONE {
+                        return Err(DaemonError::PairCodeInvalid);
+                    }
+
+                    if response.status() == reqwest::StatusCode::UNAUTHORIZED {
+                        return Err(DaemonError::PairingFailed {
+                            reason: "Pairing polling was rejected by server".to_string(),
+                        });
+                    }
+
+                    if !response.status().is_success() {
+                        let status = response.status();
+                        let body = response.text().await.unwrap_or_default();
+                        return Err(DaemonError::PairingFailed {
+                            reason: format!("Polling returned {}: {}", status, body),
+                        });
+                    }
+
+                    let status: PairingStatusApiResponse = response
+                        .json()
+                        .await
+                        .map_err(|e| DaemonError::PairingFailed {
+                            reason: format!("Failed to parse pairing status: {}", e),
+                        })?;
+
+                    if status.status == "paired" {
+                        let daemon_token = status.daemon_token.ok_or_else(|| DaemonError::PairingFailed {
+                            reason: "Missing daemon_token in paired status".to_string(),
+                        })?;
+                        return Ok(Credentials::new(
+                            host_id.to_string(),
+                            daemon_token,
+                            self.config.server_url.clone(),
+                        ));
+                    }
+
                     info!(
                         elapsed_seconds = start.elapsed().as_secs(),
-                        "Waiting for pairing... (polling not implemented)"
+                        host_id = %host_id,
+                        "Waiting for pairing confirmation"
                     );
                 }
             }

@@ -9,6 +9,7 @@ use axum::{
 };
 use serde_json::json;
 use thiserror::Error;
+use tracing::error;
 
 /// Main error type for the server
 #[derive(Debug, Error)]
@@ -57,6 +58,9 @@ pub enum ServerError {
     #[error("Pairing code already used")]
     PairCodeUsed,
 
+    #[error("Too many requests: {0}")]
+    TooManyRequests(String),
+
     #[error("Session already archived")]
     SessionArchived,
 
@@ -95,6 +99,7 @@ impl IntoResponse for ServerError {
                 StatusCode::CONFLICT,
                 "Pairing code already used".to_string(),
             ),
+            ServerError::TooManyRequests(msg) => (StatusCode::TOO_MANY_REQUESTS, msg.clone()),
             ServerError::SessionArchived => {
                 (StatusCode::CONFLICT, "Session already archived".to_string())
             }
@@ -106,18 +111,22 @@ impl IntoResponse for ServerError {
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "Database error".to_string(),
             ),
-            ServerError::Internal(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),
-            ServerError::InternalUuidParse(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),
-            ServerError::Config(_) => (
+            ServerError::Internal(_)
+            | ServerError::InternalUuidParse(_)
+            | ServerError::Config(_)
+            | ServerError::Jwt(_)
+            | ServerError::Time(_)
+            | ServerError::InvalidJwtSecret(_) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                "Configuration error".to_string(),
+                "Internal server error".to_string(),
             ),
-            ServerError::Jwt(_) => (StatusCode::INTERNAL_SERVER_ERROR, "JWT error".to_string()),
-            ServerError::Time(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Time error".to_string()),
             ServerError::Json(_) => (StatusCode::BAD_REQUEST, "Invalid JSON".to_string()),
-            ServerError::InvalidJwtSecret(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),
             ServerError::Validation(e) => (StatusCode::BAD_REQUEST, e.to_string()),
         };
+
+        if status.is_server_error() {
+            error!(error = %self, "Request failed");
+        }
 
         let body = Json(json!({
             "error": error_message,
@@ -162,5 +171,25 @@ impl<T: serde::Serialize> ApiResponse<T> {
 impl<T: serde::Serialize> IntoResponse for ApiResponse<T> {
     fn into_response(self) -> Response {
         Json(self).into_response()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn internal_errors_do_not_expose_details_in_response() {
+        let response =
+            ServerError::Internal("secret db failure details".to_string()).into_response();
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let body_text = String::from_utf8(body.to_vec()).unwrap();
+
+        assert!(body_text.contains("Internal server error"));
+        assert!(!body_text.contains("secret db failure details"));
     }
 }

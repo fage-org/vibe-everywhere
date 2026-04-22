@@ -21,6 +21,7 @@ pub enum DeviceType {
 pub enum Platform {
     Linux,
     Macos,
+    Windows,
     Wsl,
 }
 
@@ -65,6 +66,8 @@ pub enum PairStatus {
 pub enum SessionStatus {
     #[default]
     Running,
+    Pending,
+    Dispatching,
     WaitingApproval,
     Paused,
     Error,
@@ -82,7 +85,12 @@ impl SessionStatus {
     pub fn can_close(&self) -> bool {
         matches!(
             self,
-            Self::Running | Self::WaitingApproval | Self::Paused | Self::Error
+            Self::Running
+                | Self::Pending
+                | Self::Dispatching
+                | Self::WaitingApproval
+                | Self::Paused
+                | Self::Error
         )
     }
 }

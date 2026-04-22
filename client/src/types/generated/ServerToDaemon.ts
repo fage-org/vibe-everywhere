@@ -9,7 +9,11 @@ export type ServerToDaemon = { "type": "create_session", "payload": {
 /**
  * Unique request ID for correlation and acknowledgment
  */
-request_id: string, session_id: string, workspace_path: string, agent_type: string, initial_message: string, } } | { "type": "send_message", "payload": { 
+request_id: string, session_id: string, workspace_path: string, agent_type: string, initial_message: string, } } | { "type": "rerun_session", "payload": { 
+/**
+ * Unique request ID for correlation and acknowledgment
+ */
+request_id: string, session_id: string, workspace_path: string, agent_type: string, claude_session_id: string, } } | { "type": "send_message", "payload": { 
 /**
  * Unique request ID for correlation and acknowledgment
  */

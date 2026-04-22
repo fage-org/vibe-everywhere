@@ -24,7 +24,10 @@ fn cors_origins_parses_multiple_origins() {
         .filter(|s| !s.is_empty())
         .collect();
 
-    assert_eq!(origins, vec!["https://example.com", "https://app.example.com"]);
+    assert_eq!(
+        origins,
+        vec!["https://example.com", "https://app.example.com"]
+    );
 }
 
 #[test]
@@ -36,7 +39,10 @@ fn cors_origins_trims_whitespace() {
         .filter(|s| !s.is_empty())
         .collect();
 
-    assert_eq!(origins, vec!["https://example.com", "https://app.example.com"]);
+    assert_eq!(
+        origins,
+        vec!["https://example.com", "https://app.example.com"]
+    );
 }
 
 #[test]
@@ -72,7 +78,10 @@ fn cors_origins_filter_empty_elements() {
         .filter(|s| !s.is_empty())
         .collect();
 
-    assert_eq!(origins, vec!["https://example.com", "https://app.example.com"]);
+    assert_eq!(
+        origins,
+        vec!["https://example.com", "https://app.example.com"]
+    );
 }
 
 #[test]

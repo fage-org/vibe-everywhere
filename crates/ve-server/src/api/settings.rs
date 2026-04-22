@@ -2,16 +2,12 @@
 //!
 //! Notification preferences and settings endpoints.
 
-use axum::{
-    extract::{Path, State},
-    Json,
-};
+use axum::{extract::State, Extension, Json};
 use serde::Deserialize;
 use std::sync::Arc;
-use uuid::Uuid;
+use ve_shared::{jwt::Claims, models::NotificationPreference};
 
-use ve_shared::models::NotificationPreference;
-
+use crate::authz::require_client_device_id;
 use crate::error::{Result, ServerError};
 use crate::state::AppState;
 use crate::validation::validate_device_id_format;
@@ -20,9 +16,10 @@ use crate::validation::validate_device_id_format;
 ///
 /// Get notification preferences for a device.
 pub async fn get_notification_preferences(
+    Extension(claims): Extension<Claims>,
     State(state): State<Arc<AppState>>,
-    Path(device_id): Path<Uuid>,
 ) -> Result<Json<NotificationPreference>> {
+    let device_id = require_client_device_id(&claims)?;
     // Validate device_id format
     let device_id_str = device_id.to_string();
     validate_device_id_format(&device_id_str)?;
@@ -87,10 +84,11 @@ pub struct UpdateNotificationPreferencesRequest {
 ///
 /// Update notification preferences for a device.
 pub async fn update_notification_preferences(
+    Extension(claims): Extension<Claims>,
     State(state): State<Arc<AppState>>,
-    Path(device_id): Path<Uuid>,
     Json(req): Json<UpdateNotificationPreferencesRequest>,
 ) -> Result<Json<NotificationPreference>> {
+    let device_id = require_client_device_id(&claims)?;
     // Validate device_id format
     let device_id_str = device_id.to_string();
     validate_device_id_format(&device_id_str)?;
@@ -192,5 +190,5 @@ pub async fn update_notification_preferences(
     tracing::info!(%device_id, "Notification preferences updated");
 
     // Return updated preferences
-    get_notification_preferences(State(state), Path(device_id)).await
+    get_notification_preferences(Extension(claims), State(state)).await
 }

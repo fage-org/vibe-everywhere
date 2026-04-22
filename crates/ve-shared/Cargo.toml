@@ -13,3 +13,5 @@ jsonwebtoken = { workspace = true }
 thiserror = { workspace = true }
 anyhow = { workspace = true }
 ts-rs = { workspace = true }
+hex = { workspace = true }
+ed25519-dalek = { workspace = true }

@@ -14,9 +14,10 @@ use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use ve_shared::jwt::{JwtManager, TokenType};
+use ve_shared::jwt::JwtManager;
 use ve_shared::proto::WsEnvelope;
 
+use crate::authz::{decode_ws_claims, require_client_device_id, require_session_access};
 use crate::error::ServerError;
 use crate::hub::WS_CHANNEL_CAPACITY;
 use crate::state::AppState;
@@ -35,18 +36,9 @@ pub async fn ws_client_handler(
     Query(auth): Query<WsAuthQuery>,
     State(state): State<Arc<AppState>>,
 ) -> Result<Response, ServerError> {
-    // Verify JWT
     let jwt_manager = JwtManager::new(&state.config.jwt_secret, state.config.jwt_expiration());
-
-    let claims = jwt_manager.decode(&auth.token)?;
-
-    if claims.r#type != TokenType::Client {
-        return Err(ServerError::InvalidToken);
-    }
-
-    let device_id = claims
-        .subject_uuid()
-        .map_err(|_| ServerError::InvalidToken)?;
+    let claims = decode_ws_claims(&jwt_manager, &auth.token)?;
+    let device_id = require_client_device_id(&claims)?;
 
     tracing::info!(%device_id, "Client WebSocket connection request");
 
@@ -119,6 +111,7 @@ async fn handle_client_message(
                 .ok_or_else(|| ServerError::BadRequest("Missing session_id".to_string()))?;
             let session_id = Uuid::parse_str(session_id_str)
                 .map_err(|_| ServerError::BadRequest("Invalid session_id".to_string()))?;
+            require_session_access(state, device_id, session_id).await?;
             state.hub.subscribe_session(device_id, session_id);
             tracing::debug!(%device_id, %session_id, "Client subscribed to session");
         }

@@ -40,6 +40,15 @@ pub struct RegisterDeviceResponse {
     pub token: String,
 }
 
+/// Response after a successful pairing
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct PairResponse {
+    pub host_id: Uuid,
+    pub host_name: String,
+    pub token: String,
+}
+
 /// Remote host information
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]

@@ -7,6 +7,7 @@ use thiserror::Error;
 /// Maximum lengths for various fields
 pub const MAX_DEVICE_NAME_LENGTH: usize = 255;
 pub const MAX_HOST_NAME_LENGTH: usize = 255;
+pub const PAIR_CODE_LENGTH: usize = 6;
 pub const MAX_TITLE_LENGTH: usize = 500;
 pub const MAX_CONTENT_LENGTH: usize = 100000; // 100KB
 
@@ -62,6 +63,22 @@ pub fn validate_host_name(name: &str) -> Result<(), ValidationError> {
     Ok(())
 }
 
+/// Validate pair code
+pub fn validate_pair_code(code: &str) -> Result<(), ValidationError> {
+    if code.len() != PAIR_CODE_LENGTH {
+        return Err(ValidationError::InvalidChars { field: "pair_code" });
+    }
+
+    if !code
+        .bytes()
+        .all(|byte| matches!(byte, b'A'..=b'H' | b'J'..=b'N' | b'P'..=b'Z' | b'2'..=b'9'))
+    {
+        return Err(ValidationError::InvalidChars { field: "pair_code" });
+    }
+
+    Ok(())
+}
+
 /// Validate session title
 pub fn validate_title(title: &str) -> Result<(), ValidationError> {
     let trimmed = title.trim();
@@ -95,7 +112,10 @@ pub fn validate_content(content: &str) -> Result<(), ValidationError> {
 /// Validate batch operation size
 pub fn validate_batch_size(size: usize, field: &'static str) -> Result<(), ValidationError> {
     if size > MAX_BATCH_DELETE_SIZE {
-        return Err(ValidationError::TooMany { field, max: MAX_BATCH_DELETE_SIZE });
+        return Err(ValidationError::TooMany {
+            field,
+            max: MAX_BATCH_DELETE_SIZE,
+        });
     }
     Ok(())
 }

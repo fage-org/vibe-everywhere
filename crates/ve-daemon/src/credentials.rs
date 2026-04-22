@@ -67,6 +67,21 @@ impl Credentials {
         &self.daemon_token
     }
 
+    /// Validate that credentials are still bound to the configured server URL.
+    pub fn validate_server_url(&self, configured_server_url: &str) -> Result<()> {
+        let stored = self.server_url.trim_end_matches('/');
+        let configured = configured_server_url.trim_end_matches('/');
+
+        if stored == configured {
+            Ok(())
+        } else {
+            Err(DaemonError::ConfigInvalid(format!(
+                "credentials are bound to server_url {}, but current config uses {}; re-pair this daemon",
+                self.server_url, configured_server_url
+            )))
+        }
+    }
+
     /// Load credentials from file
     ///
     /// Returns `Ok(None)` if the file doesn't exist.
@@ -78,8 +93,7 @@ impl Credentials {
 
         let content = std::fs::read_to_string(path).map_err(DaemonError::ConfigRead)?;
 
-        let creds: Self =
-            serde_json::from_str(&content).map_err(|_| DaemonError::TokenParse)?;
+        let creds: Self = serde_json::from_str(&content).map_err(|_| DaemonError::TokenParse)?;
 
         Ok(Some(creds))
     }
@@ -94,10 +108,9 @@ impl Credentials {
             std::fs::create_dir_all(parent).map_err(DaemonError::ConfigRead)?;
         }
 
-        let content =
-            serde_json::to_string_pretty(self).map_err(|e| {
-                DaemonError::ConfigInvalid(format!("Failed to serialize credentials: {}", e))
-            })?;
+        let content = serde_json::to_string_pretty(self).map_err(|e| {
+            DaemonError::ConfigInvalid(format!("Failed to serialize credentials: {}", e))
+        })?;
 
         std::fs::write(path, content).map_err(DaemonError::ConfigRead)?;
 
@@ -248,11 +261,17 @@ mod tests {
         let metadata = std::fs::metadata(&path).unwrap();
         let mode = metadata.permissions().mode() & 0o777;
 
-        assert_eq!(mode, 0o600, "Credentials file should have 0o600 permissions");
+        assert_eq!(
+            mode, 0o600,
+            "Credentials file should have 0o600 permissions"
+        );
 
         // Check permission validation
         let warning = Credentials::check_permissions(&path).unwrap();
-        assert!(warning.is_none(), "Should have no warning for correct permissions");
+        assert!(
+            warning.is_none(),
+            "Should have no warning for correct permissions"
+        );
     }
 
     #[test]
@@ -279,6 +298,35 @@ mod tests {
     }
 
     #[test]
+    fn test_validate_server_url_accepts_equivalent_trailing_slash() {
+        let creds = Credentials::new(
+            "host-server".to_string(),
+            "token-server".to_string(),
+            "https://server.example.com/".to_string(),
+        );
+
+        creds
+            .validate_server_url("https://server.example.com")
+            .unwrap();
+    }
+
+    #[test]
+    fn test_validate_server_url_rejects_mismatch() {
+        let creds = Credentials::new(
+            "host-server".to_string(),
+            "token-server".to_string(),
+            "https://server-a.example.com".to_string(),
+        );
+
+        let error = creds
+            .validate_server_url("https://server-b.example.com")
+            .unwrap_err();
+
+        assert!(error.to_string().contains("server_url"));
+        assert!(error.to_string().contains("re-pair"));
+    }
+
+    #[test]
     fn test_expose_token_returns_actual_value() {
         let creds = Credentials::new(
             "host-expose".to_string(),
@@ -286,7 +334,6 @@ mod tests {
             "https://expose.com".to_string(),
         );
 
-        // expose_token should return the actual token
         assert_eq!(creds.expose_token(), "my-secret-token");
     }
 }

@@ -11,9 +11,9 @@ use tracing::warn;
 pub use claude_code::ClaudeCodeDriver;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use ve_shared::proto::SessionControlAction;
-use ve_shared::types::SessionStatus;
 use ve_shared::models::PermissionDecision;
+use ve_shared::proto::SessionControlAction;
+use ve_shared::types::{CloseReason, SessionStatus};
 
 use crate::Result;
 
@@ -50,13 +50,11 @@ pub enum DriverEvent {
         session_id: Uuid,
         status: SessionStatus,
         summary: Option<String>,
+        close_reason: Option<CloseReason>,
     },
 
     /// 致命错误
-    FatalError {
-        session_id: Uuid,
-        message: String,
-    },
+    FatalError { session_id: Uuid, message: String },
 
     /// Claude session ID received (for --resume support)
     ClaudeSessionId {
@@ -92,7 +90,12 @@ pub trait AgentDriver: Send + Sync {
     async fn close(&mut self, session_id: Uuid) -> Result<()>;
 
     /// 重新运行会话 (使用 --resume 参数)
-    async fn rerun(&mut self, session_id: Uuid, claude_session_id: &str) -> Result<()>;
+    async fn rerun(
+        &mut self,
+        session_id: Uuid,
+        workspace_path: &str,
+        claude_session_id: &str,
+    ) -> Result<()>;
 }
 
 /// Mock Agent Driver (用于测试)
@@ -109,21 +112,28 @@ impl MockDriver {
 #[async_trait]
 impl AgentDriver for MockDriver {
     async fn start(&mut self, config: DriverConfig) -> Result<()> {
-        self.event_tx.send(DriverEvent::StatusUpdate {
-            session_id: config.session_id,
-            status: SessionStatus::Running,
-            summary: None,
-        }).await.ok();
+        self.event_tx
+            .send(DriverEvent::StatusUpdate {
+                session_id: config.session_id,
+                status: SessionStatus::Running,
+                summary: None,
+                close_reason: None,
+            })
+            .await
+            .ok();
         Ok(())
     }
 
     async fn send_message(&mut self, session_id: Uuid, content: &str) -> Result<()> {
         // 模拟回复
-        self.event_tx.send(DriverEvent::SessionEvent {
-            session_id,
-            event_type: "user_message".to_string(),
-            data: serde_json::json!({ "content": content }),
-        }).await.ok();
+        self.event_tx
+            .send(DriverEvent::SessionEvent {
+                session_id,
+                event_type: "user_message".to_string(),
+                data: serde_json::json!({ "content": content }),
+            })
+            .await
+            .ok();
         Ok(())
     }
 
@@ -133,11 +143,18 @@ impl AgentDriver for MockDriver {
             SessionControlAction::Terminate => SessionStatus::Archived,
             _ => SessionStatus::Running,
         };
-        self.event_tx.send(DriverEvent::StatusUpdate {
-            session_id,
-            status,
-            summary: None,
-        }).await.ok();
+        self.event_tx
+            .send(DriverEvent::StatusUpdate {
+                session_id,
+                status,
+                summary: None,
+                close_reason: match action {
+                    SessionControlAction::Terminate => Some(CloseReason::Terminated),
+                    _ => None,
+                },
+            })
+            .await
+            .ok();
         Ok(())
     }
 
@@ -155,21 +172,34 @@ impl AgentDriver for MockDriver {
     }
 
     async fn close(&mut self, session_id: Uuid) -> Result<()> {
-        self.event_tx.send(DriverEvent::StatusUpdate {
-            session_id,
-            status: SessionStatus::Archived,
-            summary: Some("Session closed".to_string()),
-        }).await.ok();
+        self.event_tx
+            .send(DriverEvent::StatusUpdate {
+                session_id,
+                status: SessionStatus::Archived,
+                summary: Some("Session closed".to_string()),
+                close_reason: Some(CloseReason::UserClosed),
+            })
+            .await
+            .ok();
         Ok(())
     }
 
-    async fn rerun(&mut self, session_id: Uuid, _claude_session_id: &str) -> Result<()> {
+    async fn rerun(
+        &mut self,
+        session_id: Uuid,
+        _workspace_path: &str,
+        _claude_session_id: &str,
+    ) -> Result<()> {
         // 模拟 rerun
-        self.event_tx.send(DriverEvent::StatusUpdate {
-            session_id,
-            status: SessionStatus::Running,
-            summary: Some("Session resumed".to_string()),
-        }).await.ok();
+        self.event_tx
+            .send(DriverEvent::StatusUpdate {
+                session_id,
+                status: SessionStatus::Running,
+                summary: Some("Session resumed".to_string()),
+                close_reason: None,
+            })
+            .await
+            .ok();
         Ok(())
     }
 }

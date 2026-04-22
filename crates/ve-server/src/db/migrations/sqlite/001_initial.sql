@@ -7,8 +7,8 @@ CREATE TABLE IF NOT EXISTS client_devices (
     device_name     TEXT NOT NULL,
     device_type     TEXT NOT NULL CHECK (device_type IN ('mobile', 'desktop')),
     authorized_at   TEXT NOT NULL DEFAULT (datetime('now')),
+    legacy_acl      INTEGER NOT NULL DEFAULT 1,
     server_url      TEXT NOT NULL,
-    token_hash      TEXT,
     last_seen_at    TEXT,
     created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS client_devices (
 CREATE TABLE IF NOT EXISTS hosts (
     host_id         TEXT PRIMARY KEY NOT NULL,
     host_name       TEXT NOT NULL,
-    platform        TEXT NOT NULL CHECK (platform IN ('linux', 'macos', 'wsl')),
+    platform        TEXT NOT NULL CHECK (platform IN ('linux', 'macos', 'windows', 'wsl')),
     online_status   TEXT NOT NULL DEFAULT 'unknown' CHECK (online_status IN ('online', 'offline', 'unknown')),
     daemon_status   TEXT NOT NULL DEFAULT 'disconnected' CHECK (daemon_status IN ('healthy', 'connecting', 'disconnected', 'error')),
     last_active_at  TEXT,
@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     workspace_id              TEXT NOT NULL REFERENCES workspaces(workspace_id),
     agent_type                TEXT NOT NULL DEFAULT 'claude_code',
     status                    TEXT NOT NULL DEFAULT 'running'
-                              CHECK (status IN ('running', 'waiting_approval', 'paused', 'error', 'closing', 'archived')),
+                              CHECK (status IN ('running', 'pending', 'dispatching', 'waiting_approval', 'paused', 'error', 'closing', 'archived')),
     last_activity_at          TEXT,
     latest_summary            TEXT,
     unread_event_count        INTEGER NOT NULL DEFAULT 0,
@@ -121,14 +121,15 @@ CREATE TABLE IF NOT EXISTS notification_preferences (
 
 -- Pairing codes table (for temporary pairing state)
 CREATE TABLE IF NOT EXISTS pairing_codes (
-    pair_code   TEXT PRIMARY KEY NOT NULL,
-    host_id     TEXT NOT NULL,
-    host_name   TEXT NOT NULL,
-    platform    TEXT NOT NULL,
-    qr_payload  TEXT,
-    expires_at  TEXT NOT NULL,
-    used        INTEGER NOT NULL DEFAULT 0,
-    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+    pair_code       TEXT PRIMARY KEY NOT NULL,
+    host_id         TEXT NOT NULL,
+    host_name       TEXT NOT NULL,
+    platform        TEXT NOT NULL,
+    qr_payload      TEXT,
+    pairing_secret  TEXT,
+    expires_at      TEXT NOT NULL,
+    used            INTEGER NOT NULL DEFAULT 0,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_pairing_codes_expires_at ON pairing_codes(expires_at);

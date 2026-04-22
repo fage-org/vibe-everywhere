@@ -5,11 +5,13 @@
 
 pub mod jwt;
 pub mod models;
+pub mod pairing_proof;
 pub mod proto;
 pub mod types;
 
 pub use jwt::*;
 pub use models::*;
+pub use pairing_proof::*;
 pub use proto::*;
 pub use types::*;
 

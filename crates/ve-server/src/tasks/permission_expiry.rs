@@ -15,7 +15,10 @@ use crate::config::Config;
 ///
 /// This task runs periodically to check for permission requests that have
 /// exceeded their TTL and marks them as expired.
-pub fn start_permission_expiry_task(db: DbPool, config: Arc<Config>) -> tokio::task::JoinHandle<()> {
+pub fn start_permission_expiry_task(
+    db: DbPool,
+    config: Arc<Config>,
+) -> tokio::task::JoinHandle<()> {
     let check_interval = Duration::from_secs(config.permission_expiry_check_secs);
     let permission_ttl_secs = config.permission_ttl_secs;
 
@@ -24,8 +27,7 @@ pub fn start_permission_expiry_task(db: DbPool, config: Arc<Config>) -> tokio::t
 
         info!(
             check_interval_secs = check_interval.as_secs(),
-            permission_ttl_secs,
-            "Permission expiry task started"
+            permission_ttl_secs, "Permission expiry task started"
         );
 
         loop {
@@ -34,7 +36,10 @@ pub fn start_permission_expiry_task(db: DbPool, config: Arc<Config>) -> tokio::t
             match expire_stale_permissions(&db, permission_ttl_secs).await {
                 Ok(affected) => {
                     if affected > 0 {
-                        info!(rows_affected = affected, "Expired stale permission requests");
+                        info!(
+                            rows_affected = affected,
+                            "Expired stale permission requests"
+                        );
                     }
                 }
                 Err(e) => {
@@ -65,7 +70,7 @@ async fn expire_stale_permissions(db: &DbPool, ttl_secs: u64) -> Result<usize, s
         SET status = 'expired'
         WHERE status = 'pending'
           AND created_at < $1
-        "#
+        "#,
     )
     .bind(&expiry_threshold_str)
     .execute(&mut *tx)
@@ -88,16 +93,13 @@ async fn expire_stale_permissions(db: &DbPool, ttl_secs: u64) -> Result<usize, s
                 SELECT DISTINCT session_id FROM permission_requests
                 WHERE status = 'expired'
             )
-            "#
+            "#,
         )
         .bind(&now)
         .execute(&mut *tx)
         .await?;
 
-        info!(
-            rows_affected,
-            "Updated sessions after expiring permissions"
-        );
+        info!(rows_affected, "Updated sessions after expiring permissions");
     }
 
     tx.commit().await?;

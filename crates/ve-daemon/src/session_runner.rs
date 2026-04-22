@@ -6,12 +6,12 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 use ve_shared::models::PermissionDecision;
 use ve_shared::proto::SessionControlAction;
-use ve_shared::types::SessionStatus;
+use ve_shared::types::{CloseReason, SessionStatus};
 
 use crate::agent::{create_driver, AgentDriver, DriverConfig, DriverEvent};
 use crate::config::Config;
@@ -36,11 +36,15 @@ pub enum RunnerCommand {
     /// 发送消息
     SendMessage {
         content: String,
+        completion: Option<oneshot::Sender<Result<()>>>,
     },
     /// 执行控制动作
     Control {
         action: SessionControlAction,
+        completion: Option<oneshot::Sender<Result<()>>>,
     },
+    /// 使用已有 Claude session 重新创建并恢复会话
+    Rerun { claude_session_id: String },
     /// 注册权限请求（存储元数据用于 session 级授权缓存）
     RegisterPermission {
         permission_id: Uuid,
@@ -54,11 +58,11 @@ pub enum RunnerCommand {
         decision: PermissionDecision,
     },
     /// 设置 Claude session ID (for --resume support)
-    SetClaudeSessionId {
-        claude_session_id: String,
-    },
+    SetClaudeSessionId { claude_session_id: String },
     /// 关闭会话
-    Close,
+    Close {
+        completion: Option<oneshot::Sender<Result<()>>>,
+    },
 }
 
 /// 会话运行器句柄
@@ -81,8 +85,12 @@ pub struct SessionRunner {
     workspace_path: String,
     /// Agent 类型
     agent_type: String,
+    /// 初始消息
+    initial_message: Option<String>,
     /// 配置引用
     config: Arc<Config>,
+    /// 启动完成通知
+    startup_completion: Option<oneshot::Sender<Result<()>>>,
 
     /// 当前状态
     state: RunnerState,
@@ -105,6 +113,9 @@ pub struct SessionRunner {
 
     /// Claude session ID (for --resume/rerun support)
     claude_session_id: Option<String>,
+
+    /// 初始 resume 目标（用于 archived rerun）
+    startup_claude_session_id: Option<String>,
 }
 
 /// 授权规则
@@ -136,9 +147,7 @@ fn matches_pattern(pattern: &str, target: &str) -> bool {
                 // ? matches exactly one character
                 match_helper(&pattern[1..], &target[1..])
             }
-            (Some(p), Some(t)) if *p == *t => {
-                match_helper(&pattern[1..], &target[1..])
-            }
+            (Some(p), Some(t)) if *p == *t => match_helper(&pattern[1..], &target[1..]),
             _ => false,
         }
     }
@@ -147,13 +156,24 @@ fn matches_pattern(pattern: &str, target: &str) -> bool {
 }
 
 impl SessionRunner {
+    fn build_driver_config(&self) -> DriverConfig {
+        DriverConfig {
+            session_id: self.session_id,
+            workspace_path: self.workspace_path.clone(),
+            agent_type: self.agent_type.clone(),
+            initial_message: self.initial_message.clone(),
+        }
+    }
+
     /// 创建新的会话运行器
     pub fn new(
         session_id: Uuid,
         workspace_path: String,
         agent_type: String,
+        initial_message: Option<String>,
         config: Arc<Config>,
         event_tx: mpsc::Sender<DriverEvent>,
+        startup_completion: Option<oneshot::Sender<Result<()>>>,
     ) -> (Self, SessionRunnerHandle) {
         let (command_tx, command_rx) = mpsc::channel(16);
 
@@ -167,7 +187,9 @@ impl SessionRunner {
             session_id,
             workspace_path: workspace_path.clone(),
             agent_type: agent_type.clone(),
+            initial_message,
             config: config.clone(),
+            startup_completion,
             state: RunnerState::Starting,
             driver: create_driver(&agent_type, config, event_tx.clone()),
             command_rx,
@@ -176,8 +198,30 @@ impl SessionRunner {
             permission_timeouts: HashMap::new(),
             approval_cache: Vec::new(),
             claude_session_id: None,
+            startup_claude_session_id: None,
         };
 
+        (runner, handle)
+    }
+
+    pub fn new_rerun(
+        session_id: Uuid,
+        workspace_path: String,
+        agent_type: String,
+        claude_session_id: String,
+        config: Arc<Config>,
+        event_tx: mpsc::Sender<DriverEvent>,
+    ) -> (Self, SessionRunnerHandle) {
+        let (mut runner, handle) = Self::new(
+            session_id,
+            workspace_path,
+            agent_type,
+            None,
+            config,
+            event_tx,
+            None,
+        );
+        runner.startup_claude_session_id = Some(claude_session_id);
         (runner, handle)
     }
 
@@ -186,22 +230,36 @@ impl SessionRunner {
         info!(session_id = %self.session_id, "SessionRunner started");
 
         // 启动 agent
-        let config = DriverConfig {
-            session_id: self.session_id,
-            workspace_path: self.workspace_path.clone(),
-            agent_type: self.agent_type.clone(),
-            initial_message: None,
-        };
+        if let Some(claude_session_id) = self.startup_claude_session_id.clone() {
+            if let Err(e) = self
+                .driver
+                .rerun(self.session_id, &self.workspace_path, &claude_session_id)
+                .await
+            {
+                error!(error = %e, "Failed to rerun agent");
+                self.update_state(RunnerState::Error);
+                self.report_status(SessionStatus::Error, Some(e.to_string()), None)
+                    .await;
+                self.finish_startup(Err(e));
+                return;
+            }
+            self.claude_session_id = Some(claude_session_id);
+        } else {
+            let config = self.build_driver_config();
 
-        if let Err(e) = self.driver.start(config).await {
-            error!(error = %e, "Failed to start agent");
-            self.update_state(RunnerState::Error);
-            self.report_status(SessionStatus::Error, Some(e.to_string() as String)).await;
-            return;
+            if let Err(e) = self.driver.start(config).await {
+                error!(error = %e, "Failed to start agent");
+                self.update_state(RunnerState::Error);
+                self.report_status(SessionStatus::Error, Some(e.to_string()), None)
+                    .await;
+                self.finish_startup(Err(e));
+                return;
+            }
         }
 
         self.update_state(RunnerState::Running);
-        self.report_status(SessionStatus::Running, None).await;
+        self.report_status(SessionStatus::Running, None, None).await;
+        self.finish_startup(Ok(()));
 
         // 主循环
         loop {
@@ -237,22 +295,30 @@ impl SessionRunner {
         info!(session_id = %self.session_id, state = ?self.state, "SessionRunner ended");
     }
 
+    fn finish_startup(&mut self, result: Result<()>) {
+        if let Some(tx) = self.startup_completion.take() {
+            let _ = tx.send(result);
+        }
+    }
+
     /// 处理命令
     async fn handle_command(&mut self, cmd: RunnerCommand) -> Result<()> {
         match cmd {
-            RunnerCommand::SendMessage { content } => {
-                if self.state != RunnerState::Running {
-                    return Err(DaemonError::SessionInvalidStatus {
-                        current: format!("{:?}", self.state),
-                        expected: "Running".to_string(),
-                    });
-                }
-                self.driver.send_message(self.session_id, &content).await?;
-                debug!(session_id = %self.session_id, "Message sent to agent");
+            RunnerCommand::SendMessage {
+                content,
+                completion,
+            } => {
+                let result = self.handle_send_message(content).await;
+                Self::complete_command(completion, result);
             }
 
-            RunnerCommand::Control { action } => {
-                self.handle_control(action).await?;
+            RunnerCommand::Control { action, completion } => {
+                let result = self.handle_control(action).await;
+                Self::complete_command(completion, result);
+            }
+
+            RunnerCommand::Rerun { claude_session_id } => {
+                self.handle_rerun(claude_session_id).await?;
             }
 
             RunnerCommand::RegisterPermission {
@@ -302,7 +368,10 @@ impl SessionRunner {
                 }
             }
 
-            RunnerCommand::PermissionResponse { permission_id, decision } => {
+            RunnerCommand::PermissionResponse {
+                permission_id,
+                decision,
+            } => {
                 // Remove from pending and timeout tracking
                 if let Some(pending) = self.pending_permissions.remove(&permission_id) {
                     // Remove timeout entry
@@ -338,11 +407,32 @@ impl SessionRunner {
                 );
             }
 
-            RunnerCommand::Close => {
-                self.handle_close().await?;
+            RunnerCommand::Close { completion } => {
+                let result = self.handle_close().await;
+                Self::complete_command(completion, result);
             }
         }
 
+        Ok(())
+    }
+
+    fn complete_command(completion: Option<oneshot::Sender<Result<()>>>, result: Result<()>) {
+        if let Some(tx) = completion {
+            let _ = tx.send(result);
+        } else if let Err(error) = result {
+            error!(error = %error, "Failed to handle command");
+        }
+    }
+
+    async fn handle_send_message(&mut self, content: String) -> Result<()> {
+        if self.state != RunnerState::Running {
+            return Err(DaemonError::SessionInvalidStatus {
+                current: format!("{:?}", self.state),
+                expected: "Running".to_string(),
+            });
+        }
+        self.driver.send_message(self.session_id, &content).await?;
+        debug!(session_id = %self.session_id, "Message sent to agent");
         Ok(())
     }
 
@@ -352,7 +442,7 @@ impl SessionRunner {
             SessionControlAction::Pause => {
                 self.update_state(RunnerState::Paused);
                 self.driver.control(self.session_id, action).await?;
-                self.report_status(SessionStatus::Paused, None).await;
+                self.report_status(SessionStatus::Paused, None, None).await;
             }
             SessionControlAction::Interrupt => {
                 self.driver.control(self.session_id, action).await?;
@@ -360,24 +450,22 @@ impl SessionRunner {
             SessionControlAction::Terminate => {
                 self.driver.control(self.session_id, action).await?;
                 self.update_state(RunnerState::Closed);
-                self.report_status(SessionStatus::Archived, None).await;
+                self.report_status(SessionStatus::Archived, None, Some(CloseReason::Terminated))
+                    .await;
             }
             SessionControlAction::Rerun => {
-                // Check if claude_session_id is available
+                return Err(DaemonError::SessionInvalidStatus {
+                    current: format!("{:?}", self.state),
+                    expected: "archived rerun path only".to_string(),
+                });
+            }
+            SessionControlAction::Restart => {
                 if let Some(claude_sid) = self.claude_session_id.clone() {
-                    // Call driver.rerun with the stored claude_session_id
-                    self.driver.rerun(self.session_id, &claude_sid).await?;
-                    self.update_state(RunnerState::Running);
-                    self.report_status(SessionStatus::Running, Some("Session resumed".to_string())).await;
-                    info!(
-                        session_id = %self.session_id,
-                        claude_session_id = %claude_sid,
-                        "Session rerun successful"
-                    );
+                    self.handle_rerun(claude_sid).await?;
                 } else {
                     warn!(
                         session_id = %self.session_id,
-                        "Rerun requested but no claude_session_id available"
+                        "Restart requested but no claude_session_id available"
                     );
                     return Err(DaemonError::SessionRerunFailed {
                         reason: "No Claude session ID available".to_string(),
@@ -388,12 +476,33 @@ impl SessionRunner {
         Ok(())
     }
 
+    async fn handle_rerun(&mut self, claude_session_id: String) -> Result<()> {
+        self.driver
+            .rerun(self.session_id, &self.workspace_path, &claude_session_id)
+            .await?;
+        self.claude_session_id = Some(claude_session_id.clone());
+        self.update_state(RunnerState::Running);
+        self.report_status(
+            SessionStatus::Running,
+            Some("Session resumed".to_string()),
+            None,
+        )
+        .await;
+        info!(
+            session_id = %self.session_id,
+            claude_session_id = %claude_session_id,
+            "Session rerun successful"
+        );
+        Ok(())
+    }
+
     /// 处理关闭
     async fn handle_close(&mut self) -> Result<()> {
         self.update_state(RunnerState::Closing);
         self.driver.close(self.session_id).await?;
         self.update_state(RunnerState::Closed);
-        self.report_status(SessionStatus::Archived, None).await;
+        self.report_status(SessionStatus::Archived, None, Some(CloseReason::UserClosed))
+            .await;
         Ok(())
     }
 
@@ -409,11 +518,17 @@ impl SessionRunner {
     }
 
     /// 上报状态变更
-    async fn report_status(&self, status: SessionStatus, summary: Option<String>) {
+    async fn report_status(
+        &self,
+        status: SessionStatus,
+        summary: Option<String>,
+        close_reason: Option<CloseReason>,
+    ) {
         let event = DriverEvent::StatusUpdate {
             session_id: self.session_id,
             status,
             summary,
+            close_reason,
         };
         if self.event_tx.send(event).await.is_err() {
             warn!(session_id = %self.session_id, "Failed to send status update");
@@ -477,15 +592,61 @@ impl SessionRunnerHandle {
     /// 发送消息命令
     pub async fn send_message(&self, content: String) -> Result<()> {
         self.command_tx
-            .send(RunnerCommand::SendMessage { content })
+            .send(RunnerCommand::SendMessage {
+                content,
+                completion: None,
+            })
             .await
             .map_err(|_| DaemonError::ChannelSendFailed("command channel".to_string()))
+    }
+
+    pub async fn send_message_and_wait(
+        &self,
+        content: String,
+        timeout: std::time::Duration,
+    ) -> Result<()> {
+        let (tx, rx) = oneshot::channel();
+        self.command_tx
+            .send(RunnerCommand::SendMessage {
+                content,
+                completion: Some(tx),
+            })
+            .await
+            .map_err(|_| DaemonError::ChannelSendFailed("command channel".to_string()))?;
+        wait_for_command_completion(rx, timeout).await
     }
 
     /// 发送控制命令
     pub async fn send_control(&self, action: SessionControlAction) -> Result<()> {
         self.command_tx
-            .send(RunnerCommand::Control { action })
+            .send(RunnerCommand::Control {
+                action,
+                completion: None,
+            })
+            .await
+            .map_err(|_| DaemonError::ChannelSendFailed("command channel".to_string()))
+    }
+
+    pub async fn send_control_and_wait(
+        &self,
+        action: SessionControlAction,
+        timeout: std::time::Duration,
+    ) -> Result<()> {
+        let (tx, rx) = oneshot::channel();
+        self.command_tx
+            .send(RunnerCommand::Control {
+                action,
+                completion: Some(tx),
+            })
+            .await
+            .map_err(|_| DaemonError::ChannelSendFailed("command channel".to_string()))?;
+        wait_for_command_completion(rx, timeout).await
+    }
+
+    /// 使用已有 Claude session 重新运行
+    pub async fn send_rerun(&self, claude_session_id: String) -> Result<()> {
+        self.command_tx
+            .send(RunnerCommand::Rerun { claude_session_id })
             .await
             .map_err(|_| DaemonError::ChannelSendFailed("command channel".to_string()))
     }
@@ -493,9 +654,20 @@ impl SessionRunnerHandle {
     /// 发送关闭命令
     pub async fn send_close(&self) -> Result<()> {
         self.command_tx
-            .send(RunnerCommand::Close)
+            .send(RunnerCommand::Close { completion: None })
             .await
             .map_err(|_| DaemonError::ChannelSendFailed("command channel".to_string()))
+    }
+
+    pub async fn send_close_and_wait(&self, timeout: std::time::Duration) -> Result<()> {
+        let (tx, rx) = oneshot::channel();
+        self.command_tx
+            .send(RunnerCommand::Close {
+                completion: Some(tx),
+            })
+            .await
+            .map_err(|_| DaemonError::ChannelSendFailed("command channel".to_string()))?;
+        wait_for_command_completion(rx, timeout).await
     }
 
     /// 注册权限请求（存储元数据用于 session 级授权缓存）
@@ -541,6 +713,22 @@ impl SessionRunnerHandle {
     }
 }
 
+async fn wait_for_command_completion(
+    rx: oneshot::Receiver<Result<()>>,
+    timeout: std::time::Duration,
+) -> Result<()> {
+    match tokio::time::timeout(timeout, rx).await {
+        Ok(Ok(result)) => result,
+        Ok(Err(_)) => Err(DaemonError::InternalTaskError(
+            "Command completion channel closed".to_string(),
+        )),
+        Err(_) => Err(DaemonError::SessionInvalidStatus {
+            current: "timeout".to_string(),
+            expected: "command completion".to_string(),
+        }),
+    }
+}
+
 /// 待处理的权限请求
 #[derive(Debug, Clone)]
 pub struct PendingPermission {
@@ -557,9 +745,186 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_runner_state_debug() {
-        let state = RunnerState::Running;
-        assert_eq!(format!("{:?}", state), "Running");
+    fn test_build_driver_config_preserves_initial_message() {
+        let config = Arc::new(Config {
+            server_url: "https://test.com".to_string(),
+            host_name: "test".to_string(),
+            platform: "linux".to_string(),
+            config_dir: std::path::PathBuf::from("/tmp"),
+            log_format: "pretty".to_string(),
+            log_level: "info".to_string(),
+            heartbeat_interval_secs: 30,
+            heartbeat_timeout_secs: 90,
+            ack_timeout_secs: 30,
+            permission_timeout_secs: 60,
+            reconnect_backoff_min_ms: 1000,
+            reconnect_backoff_max_ms: 30000,
+            max_parallel_sessions: 4,
+            file_read_text_limit_bytes: 262_144,
+            file_tree_max_nodes: 20_000,
+            claude_command: "claude".to_string(),
+            default_model: "claude-sonnet-4-20250514".to_string(),
+        });
+        let (event_tx, _event_rx) = mpsc::channel(16);
+        let session_id = Uuid::new_v4();
+        let (runner, _handle) = SessionRunner::new(
+            session_id,
+            "/workspace".to_string(),
+            "claude_code".to_string(),
+            Some("Hello".to_string()),
+            config,
+            event_tx,
+            None,
+        );
+
+        let driver_config = runner.build_driver_config();
+
+        assert_eq!(driver_config.session_id, session_id);
+        assert_eq!(driver_config.initial_message, Some("Hello".to_string()));
+        assert_eq!(driver_config.workspace_path, "/workspace");
+    }
+
+    #[test]
+    fn rerun_control_is_rejected_for_live_runner_path() {
+        let error = tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(async {
+                let config = Arc::new(Config {
+                    server_url: "https://test.com".to_string(),
+                    host_name: "test".to_string(),
+                    platform: "linux".to_string(),
+                    config_dir: std::path::PathBuf::from("/tmp"),
+                    log_format: "pretty".to_string(),
+                    log_level: "info".to_string(),
+                    heartbeat_interval_secs: 30,
+                    heartbeat_timeout_secs: 90,
+                    ack_timeout_secs: 30,
+                    permission_timeout_secs: 60,
+                    reconnect_backoff_min_ms: 1000,
+                    reconnect_backoff_max_ms: 30000,
+                    max_parallel_sessions: 4,
+                    file_read_text_limit_bytes: 262_144,
+                    file_tree_max_nodes: 20_000,
+                    claude_command: "claude".to_string(),
+                    default_model: "claude-sonnet-4-20250514".to_string(),
+                });
+                let (event_tx, _event_rx) = mpsc::channel(16);
+                let session_id = Uuid::new_v4();
+                let (mut runner, _handle) = SessionRunner::new(
+                    session_id,
+                    "/workspace".to_string(),
+                    "claude_code".to_string(),
+                    None,
+                    config,
+                    event_tx,
+                    None,
+                );
+                runner.handle_control(SessionControlAction::Rerun).await
+            })
+            .unwrap_err();
+
+        assert!(matches!(error, DaemonError::SessionInvalidStatus { .. }));
+    }
+
+    #[tokio::test]
+    async fn terminate_reports_archived_with_terminated_reason() {
+        let config = Arc::new(Config {
+            server_url: "https://test.com".to_string(),
+            host_name: "test".to_string(),
+            platform: "linux".to_string(),
+            config_dir: std::path::PathBuf::from("/tmp"),
+            log_format: "pretty".to_string(),
+            log_level: "info".to_string(),
+            heartbeat_interval_secs: 30,
+            heartbeat_timeout_secs: 90,
+            ack_timeout_secs: 30,
+            permission_timeout_secs: 60,
+            reconnect_backoff_min_ms: 1000,
+            reconnect_backoff_max_ms: 30000,
+            max_parallel_sessions: 4,
+            file_read_text_limit_bytes: 262_144,
+            file_tree_max_nodes: 20_000,
+            claude_command: "claude".to_string(),
+            default_model: "claude-sonnet-4-20250514".to_string(),
+        });
+        let (event_tx, mut event_rx) = mpsc::channel(16);
+        let session_id = Uuid::new_v4();
+        let (mut runner, _handle) = SessionRunner::new(
+            session_id,
+            "/workspace".to_string(),
+            "mock".to_string(),
+            None,
+            config,
+            event_tx,
+            None,
+        );
+        runner.state = RunnerState::Running;
+
+        runner
+            .handle_control(SessionControlAction::Terminate)
+            .await
+            .unwrap();
+
+        let event = event_rx.recv().await.unwrap();
+        assert!(matches!(
+            event,
+            DriverEvent::StatusUpdate {
+                session_id: actual_session_id,
+                status: SessionStatus::Archived,
+                close_reason: Some(CloseReason::Terminated),
+                ..
+            } if actual_session_id == session_id
+        ));
+        assert_eq!(runner.state, RunnerState::Closed);
+    }
+
+    #[tokio::test]
+    async fn close_reports_archived_with_user_closed_reason() {
+        let config = Arc::new(Config {
+            server_url: "https://test.com".to_string(),
+            host_name: "test".to_string(),
+            platform: "linux".to_string(),
+            config_dir: std::path::PathBuf::from("/tmp"),
+            log_format: "pretty".to_string(),
+            log_level: "info".to_string(),
+            heartbeat_interval_secs: 30,
+            heartbeat_timeout_secs: 90,
+            ack_timeout_secs: 30,
+            permission_timeout_secs: 60,
+            reconnect_backoff_min_ms: 1000,
+            reconnect_backoff_max_ms: 30000,
+            max_parallel_sessions: 4,
+            file_read_text_limit_bytes: 262_144,
+            file_tree_max_nodes: 20_000,
+            claude_command: "claude".to_string(),
+            default_model: "claude-sonnet-4-20250514".to_string(),
+        });
+        let (event_tx, mut event_rx) = mpsc::channel(16);
+        let session_id = Uuid::new_v4();
+        let (mut runner, _handle) = SessionRunner::new(
+            session_id,
+            "/workspace".to_string(),
+            "mock".to_string(),
+            None,
+            config,
+            event_tx,
+            None,
+        );
+        runner.state = RunnerState::Running;
+
+        runner.handle_close().await.unwrap();
+
+        let event = event_rx.recv().await.unwrap();
+        assert!(matches!(
+            event,
+            DriverEvent::StatusUpdate {
+                session_id: actual_session_id,
+                status: SessionStatus::Archived,
+                close_reason: Some(CloseReason::UserClosed),
+                ..
+            } if actual_session_id == session_id
+        ));
+        assert_eq!(runner.state, RunnerState::Closed);
     }
 
     #[test]
@@ -653,5 +1018,39 @@ mod tests {
         // Pattern with multiple * works:
         assert!(matches_pattern("*.txt", "file.txt"));
         assert!(matches_pattern("*test*", "mytestfile"));
+    }
+
+    #[tokio::test]
+    async fn send_message_and_wait_times_out_without_runner_completion() {
+        let (command_tx, mut command_rx) = mpsc::channel(1);
+        let handle = SessionRunnerHandle {
+            command_tx,
+            state: RunnerState::Running,
+            session_id: Uuid::new_v4(),
+        };
+
+        let request = tokio::spawn(async move {
+            handle
+                .send_message_and_wait("hello".to_string(), std::time::Duration::from_millis(20))
+                .await
+        });
+
+        let command = command_rx.recv().await.expect("runner command");
+        match command {
+            RunnerCommand::SendMessage {
+                content,
+                completion: Some(_),
+            } => assert_eq!(content, "hello"),
+            other => panic!("unexpected command: {other:?}"),
+        }
+
+        let error = request.await.unwrap().unwrap_err();
+        assert!(matches!(
+            error,
+            DaemonError::SessionInvalidStatus {
+                current,
+                expected,
+            } if current == "timeout" && expected == "command completion"
+        ));
     }
 }

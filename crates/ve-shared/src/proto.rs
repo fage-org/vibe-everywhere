@@ -80,8 +80,8 @@ pub enum ServerToClient {
     },
     SessionStatusChanged {
         session_id: Uuid,
-        old_status: SessionStatus,
         new_status: SessionStatus,
+        close_reason: Option<crate::types::CloseReason>,
     },
     HostStatusChanged {
         host_id: Uuid,
@@ -149,6 +149,7 @@ pub enum DaemonToServer {
         data: serde_json::Value,
     },
     PermissionRequest {
+        permission_id: Uuid,
         session_id: Uuid,
         risk_type: RiskType,
         summary: String,
@@ -158,6 +159,7 @@ pub enum DaemonToServer {
         session_id: Uuid,
         status: SessionStatus,
         summary: Option<String>,
+        close_reason: Option<crate::types::CloseReason>,
     },
     FileTreeResponse {
         request_id: String,
@@ -170,6 +172,11 @@ pub enum DaemonToServer {
         file_path: String,
         content: String,
         file_type: String,
+    },
+    Error {
+        request_id: String,
+        error_code: String,
+        error_message: String,
     },
 }
 
@@ -190,6 +197,14 @@ pub enum ServerToDaemon {
         workspace_path: String,
         agent_type: String,
         initial_message: String,
+    },
+    RerunSession {
+        /// Unique request ID for correlation and acknowledgment
+        request_id: String,
+        session_id: Uuid,
+        workspace_path: String,
+        agent_type: String,
+        claude_session_id: String,
     },
     SendMessage {
         /// Unique request ID for correlation and acknowledgment
@@ -217,10 +232,13 @@ pub enum ServerToDaemon {
         request_id: String,
         session_id: Uuid,
         workspace_path: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        relative_path: Option<String>,
     },
     FileContentRequest {
         request_id: String,
-        file_path: String,
+        workspace_path: String,
+        relative_path: String,
     },
     Pong,
     /// Pairing success notification (WS delivery mode)
@@ -236,13 +254,28 @@ pub type DaemonMessage = ServerToDaemon;
 impl From<DaemonMessage> for WsEnvelope {
     fn from(msg: DaemonMessage) -> Self {
         let (msg_type, request_id) = match &msg {
-            DaemonMessage::CreateSession { request_id, .. } => ("create_session", Some(request_id.clone())),
-            DaemonMessage::SendMessage { request_id, .. } => ("send_message", Some(request_id.clone())),
-            DaemonMessage::SessionControl { request_id, .. } => ("session_control", Some(request_id.clone())),
-            DaemonMessage::CloseSession { request_id, .. } => ("close_session", Some(request_id.clone())),
+            DaemonMessage::CreateSession { request_id, .. } => {
+                ("create_session", Some(request_id.clone()))
+            }
+            DaemonMessage::RerunSession { request_id, .. } => {
+                ("rerun_session", Some(request_id.clone()))
+            }
+            DaemonMessage::SendMessage { request_id, .. } => {
+                ("send_message", Some(request_id.clone()))
+            }
+            DaemonMessage::SessionControl { request_id, .. } => {
+                ("session_control", Some(request_id.clone()))
+            }
+            DaemonMessage::CloseSession { request_id, .. } => {
+                ("close_session", Some(request_id.clone()))
+            }
             DaemonMessage::PermissionResponse { .. } => ("permission_response", None),
-            DaemonMessage::FileTreeRequest { request_id, .. } => ("file_tree_request", Some(request_id.clone())),
-            DaemonMessage::FileContentRequest { request_id, .. } => ("file_content_request", Some(request_id.clone())),
+            DaemonMessage::FileTreeRequest { request_id, .. } => {
+                ("file_tree_request", Some(request_id.clone()))
+            }
+            DaemonMessage::FileContentRequest { request_id, .. } => {
+                ("file_content_request", Some(request_id.clone()))
+            }
             DaemonMessage::Pong => ("pong", None),
             DaemonMessage::Paired { .. } => ("paired", None),
         };
@@ -264,6 +297,7 @@ pub enum SessionControlAction {
     Terminate,
     Interrupt,
     Rerun,
+    Restart,
 }
 
 // ============================================================================
@@ -287,4 +321,43 @@ pub struct ErrorPayload {
     pub request_id: String,
     pub error_code: String,
     pub error_message: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn session_status_changed_serializes_with_optional_close_reason() {
+        let message = ServerToClient::SessionStatusChanged {
+            session_id: Uuid::nil(),
+            new_status: SessionStatus::Archived,
+            close_reason: Some(crate::types::CloseReason::Terminated),
+        };
+
+        let json = serde_json::to_value(&message).unwrap();
+        let payload = &json["payload"];
+
+        assert_eq!(payload["session_id"], Uuid::nil().to_string());
+        assert_eq!(payload["new_status"], "archived");
+        assert_eq!(payload["close_reason"], "terminated");
+        assert!(payload.get("old_status").is_none());
+    }
+
+    #[test]
+    fn daemon_permission_request_serializes_with_permission_id() {
+        let message = DaemonToServer::PermissionRequest {
+            permission_id: Uuid::nil(),
+            session_id: Uuid::new_v4(),
+            risk_type: RiskType::WriteFs,
+            summary: "needs permission".to_string(),
+            target: Some("/tmp".to_string()),
+        };
+
+        let json = serde_json::to_value(&message).unwrap();
+        let payload = &json["payload"];
+
+        assert_eq!(payload["permission_id"], Uuid::nil().to_string());
+        assert_eq!(payload["risk_type"], "write_fs");
+    }
 }

@@ -68,7 +68,7 @@ pub struct Config {
     #[serde(default = "default_cors_origins")]
     pub cors_origins: Vec<String>,
 
-    /// Ack timeout in milliseconds (default: 10 seconds)
+    /// Ack timeout in milliseconds (default: 30 seconds)
     /// Reserved for daemon message acknowledgment retry logic.
     #[serde(default = "default_ack_timeout_ms")]
     #[allow(dead_code)]
@@ -156,7 +156,7 @@ fn default_cors_origins() -> Vec<String> {
 }
 
 fn default_ack_timeout_ms() -> u64 {
-    10000 // 10 seconds
+    30000 // 30 seconds
 }
 
 fn default_ack_max_retries() -> u32 {
@@ -192,6 +192,16 @@ pub enum DatabaseBackend {
     Postgres,
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_ack_timeout_matches_daemon_budget() {
+        assert_eq!(default_ack_timeout_ms(), 30_000);
+    }
+}
+
 impl Config {
     /// Load configuration from environment variables
     pub fn from_env() -> Result<Self> {
@@ -218,11 +228,17 @@ impl Config {
             .map_err(ServerError::Config)?
             .set_default("permission_ttl_secs", default_permission_ttl_secs())
             .map_err(ServerError::Config)?
-            .set_default("permission_expiry_check_secs", default_permission_expiry_check_secs())
+            .set_default(
+                "permission_expiry_check_secs",
+                default_permission_expiry_check_secs(),
+            )
             .map_err(ServerError::Config)?
             .set_default("idempotency_ttl_secs", default_idempotency_ttl_secs())
             .map_err(ServerError::Config)?
-            .set_default("idempotency_cleanup_secs", default_idempotency_cleanup_secs())
+            .set_default(
+                "idempotency_cleanup_secs",
+                default_idempotency_cleanup_secs(),
+            )
             .map_err(ServerError::Config)?
             .set_default("log_format", default_log_format())
             .map_err(ServerError::Config)?

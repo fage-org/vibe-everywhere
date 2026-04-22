@@ -27,8 +27,15 @@ use uuid::Uuid;
 use ve_daemon::config::Config;
 use ve_daemon::credentials::Credentials;
 use ve_daemon::pairing::Pairing;
+use ve_daemon::session_registry::SessionRegistry;
 use ve_daemon::ws_client::WsClient;
 use ve_daemon::DaemonError;
+
+fn build_ws_client(config: Arc<Config>, host_id: Uuid, token: String) -> WsClient {
+    let (event_tx, event_rx) = tokio::sync::mpsc::channel(64);
+    let registry = Arc::new(SessionRegistry::new(config.clone(), event_tx));
+    WsClient::with_registry(config, host_id, token, registry, event_rx)
+}
 
 #[tokio::main]
 async fn main() {
@@ -76,13 +83,15 @@ async fn run() -> Result<(), DaemonError> {
             warn!("{}", warning);
         }
 
+        creds.validate_server_url(&config.server_url)?;
+
         info!(host_id = %creds.host_id, "Found existing credentials, entering connection mode");
 
         // Parse host_id UUID
         let host_id = Uuid::parse_str(&creds.host_id).map_err(|_| DaemonError::TokenParse)?;
 
         // Create and run WebSocket client
-        let client = WsClient::new(config, host_id, creds.expose_token().to_string());
+        let client = build_ws_client(config, host_id, creds.expose_token().to_string());
         client.run(shutdown_rx).await?;
     } else {
         info!("No credentials found, entering pairing mode");
@@ -94,7 +103,7 @@ async fn run() -> Result<(), DaemonError> {
 
         // After pairing, start WebSocket client
         let host_id = Uuid::parse_str(&creds.host_id).map_err(|_| DaemonError::TokenParse)?;
-        let client = WsClient::new(config, host_id, creds.expose_token().to_string());
+        let client = build_ws_client(config, host_id, creds.expose_token().to_string());
         client.run(shutdown_tx.subscribe()).await?;
     }
 

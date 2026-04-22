@@ -35,15 +35,87 @@ const SKIP_DIRS: &[&str] = &[
 
 /// File extensions that are typically text files
 const TEXT_EXTENSIONS: &[&str] = &[
-    "txt", "md", "rs", "toml", "json", "yaml", "yml", "js", "ts", "tsx", "jsx",
-    "html", "css", "scss", "sass", "less", "py", "go", "java", "kt", "kts",
-    "c", "cpp", "h", "hpp", "cc", "cxx", "m", "mm", "swift", "rb", "php",
-    "sh", "bash", "zsh", "fish", "lua", "pl", "pm", "sql", "proto", "env",
-    "example", "cfg", "ini", "conf", "config", "xml", "svg", "vue", "svelte",
-    "astro", "dockerfile", "makefile", "cmake", "gradle", "properties",
-    "gitignore", "dockerignore", "editorconfig", "eslintrc", "prettierrc",
-    "lock", "sum", "mod", "work", "cabal", "hs", "scm", "lisp", "el", "clj",
-    "ex", "exs", "erl", "hrl", "scala", "cls", "java", "gradle", "mdx",
+    "txt",
+    "md",
+    "rs",
+    "toml",
+    "json",
+    "yaml",
+    "yml",
+    "js",
+    "ts",
+    "tsx",
+    "jsx",
+    "html",
+    "css",
+    "scss",
+    "sass",
+    "less",
+    "py",
+    "go",
+    "java",
+    "kt",
+    "kts",
+    "c",
+    "cpp",
+    "h",
+    "hpp",
+    "cc",
+    "cxx",
+    "m",
+    "mm",
+    "swift",
+    "rb",
+    "php",
+    "sh",
+    "bash",
+    "zsh",
+    "fish",
+    "lua",
+    "pl",
+    "pm",
+    "sql",
+    "proto",
+    "env",
+    "example",
+    "cfg",
+    "ini",
+    "conf",
+    "config",
+    "xml",
+    "svg",
+    "vue",
+    "svelte",
+    "astro",
+    "dockerfile",
+    "makefile",
+    "cmake",
+    "gradle",
+    "properties",
+    "gitignore",
+    "dockerignore",
+    "editorconfig",
+    "eslintrc",
+    "prettierrc",
+    "lock",
+    "sum",
+    "mod",
+    "work",
+    "cabal",
+    "hs",
+    "scm",
+    "lisp",
+    "el",
+    "clj",
+    "ex",
+    "exs",
+    "erl",
+    "hrl",
+    "scala",
+    "cls",
+    "java",
+    "gradle",
+    "mdx",
 ];
 
 /// File operations handler with workspace boundary validation
@@ -59,7 +131,11 @@ pub struct FileOps {
 
 impl FileOps {
     /// Create a new file operations handler
-    pub fn new(workspace_roots: Vec<PathBuf>, read_text_limit: usize, tree_max_nodes: usize) -> Self {
+    pub fn new(
+        workspace_roots: Vec<PathBuf>,
+        read_text_limit: usize,
+        tree_max_nodes: usize,
+    ) -> Self {
         Self {
             workspace_roots,
             read_text_limit,
@@ -95,7 +171,9 @@ impl FileOps {
         }
 
         // Path is outside all workspace roots
-        let first_root = self.workspace_roots.first()
+        let first_root = self
+            .workspace_roots
+            .first()
             .map(|r| r.to_string_lossy().to_string())
             .unwrap_or_else(|| "unknown".to_string());
         warn!(
@@ -247,11 +325,7 @@ impl FileOps {
             path: relative_path,
             is_dir,
             file_type,
-            size: if is_dir {
-                None
-            } else {
-                Some(metadata.len())
-            },
+            size: if is_dir { None } else { Some(metadata.len()) },
             children,
         })
     }
@@ -351,19 +425,21 @@ impl FileOps {
         }
 
         // Read file
-        let mut file = fs::File::open(&validated_path).map_err(|e| DaemonError::FileReadFailed {
-            path: path.to_string_lossy().to_string(),
-            source: e,
-        })?;
+        let mut file =
+            fs::File::open(&validated_path).map_err(|e| DaemonError::FileReadFailed {
+                path: path.to_string_lossy().to_string(),
+                source: e,
+            })?;
 
         let read_size = std::cmp::min(total_size, self.read_text_limit as u64) as usize;
         let truncated = total_size > self.read_text_limit as u64;
 
         let mut buffer = vec![0u8; read_size];
-        file.read_exact(&mut buffer).map_err(|e| DaemonError::FileReadFailed {
-            path: path.to_string_lossy().to_string(),
-            source: e,
-        })?;
+        file.read_exact(&mut buffer)
+            .map_err(|e| DaemonError::FileReadFailed {
+                path: path.to_string_lossy().to_string(),
+                source: e,
+            })?;
 
         // Convert to string (handle invalid UTF-8)
         let content = String::from_utf8_lossy(&buffer).to_string();
@@ -427,7 +503,14 @@ mod tests {
         fs::write(&file_path, "test content").unwrap();
 
         // Try path traversal: workspace/test.txt/../../../etc/passwd
-        let traversal_path = temp_dir.path().join("test.txt").join("..").join("..").join("..").join("etc").join("passwd");
+        let traversal_path = temp_dir
+            .path()
+            .join("test.txt")
+            .join("..")
+            .join("..")
+            .join("..")
+            .join("etc")
+            .join("passwd");
         let result = ops.validate_path(&traversal_path);
         assert!(result.is_err());
     }
@@ -550,9 +633,11 @@ mod tests {
 
         fn count_max_depth(node: &FileTreeNode, current: usize) -> usize {
             match &node.children {
-                Some(children) => {
-                    children.iter().map(|c| count_max_depth(c, current + 1)).max().unwrap_or(current)
-                }
+                Some(children) => children
+                    .iter()
+                    .map(|c| count_max_depth(c, current + 1))
+                    .max()
+                    .unwrap_or(current),
                 None => current,
             }
         }

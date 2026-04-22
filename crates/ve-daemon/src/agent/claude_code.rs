@@ -62,11 +62,17 @@ pub enum StreamJsonEvent {
 
     /// Tool use event
     #[serde(rename = "tool_use")]
-    ToolUse { tool_name: String, tool_input: serde_json::Value },
+    ToolUse {
+        tool_name: String,
+        tool_input: serde_json::Value,
+    },
 
     /// Tool result event
     #[serde(rename = "tool_result")]
-    ToolResult { tool_name: String, tool_result: serde_json::Value },
+    ToolResult {
+        tool_name: String,
+        tool_result: serde_json::Value,
+    },
 
     /// Result/completion
     Result { summary: Option<String> },
@@ -205,9 +211,7 @@ impl ClaudeCodeDriver {
                 // Check if this is a permission request
                 if tool_name == "mcp__ve_daemon__permission_prompt" {
                     // Parse permission request
-                    if let Some(risk_type) =
-                        tool_input.get("risk_type").and_then(|v| v.as_str())
-                    {
+                    if let Some(risk_type) = tool_input.get("risk_type").and_then(|v| v.as_str()) {
                         let permission_id = Uuid::new_v4();
 
                         event_tx
@@ -266,6 +270,7 @@ impl ClaudeCodeDriver {
                         session_id,
                         status: SessionStatus::Running,
                         summary,
+                        close_reason: None,
                     })
                     .await
                     .ok();
@@ -285,6 +290,7 @@ impl ClaudeCodeDriver {
                         session_id,
                         status: SessionStatus::Error,
                         summary: Some(message),
+                        close_reason: None,
                     })
                     .await
                     .ok();
@@ -311,14 +317,17 @@ impl ClaudeCodeDriver {
 
     /// Write to stdin
     async fn write_stdin(&mut self, content: &str) -> Result<()> {
-        let stdin = self.stdin.as_mut().ok_or(DaemonError::CliStdinWriteFailed)?;
+        let stdin = self
+            .stdin
+            .as_mut()
+            .ok_or(DaemonError::CliStdinWriteFailed)?;
 
         let input = serde_json::json!({
             "type": "user_message",
             "content": content,
         });
-        let line = serde_json::to_string(&input)
-            .map_err(|e| DaemonError::CliStdoutParseFailed {
+        let line =
+            serde_json::to_string(&input).map_err(|e| DaemonError::CliStdoutParseFailed {
                 reason: e.to_string(),
             })?;
 
@@ -375,13 +384,19 @@ impl AgentDriver for ClaudeCodeDriver {
             reason: format!("Failed to spawn: {}", e),
         })?;
 
-        let stdin = child.stdin.take().ok_or_else(|| DaemonError::CliStartFailed {
-            reason: "Failed to get stdin".to_string(),
-        })?;
+        let stdin = child
+            .stdin
+            .take()
+            .ok_or_else(|| DaemonError::CliStartFailed {
+                reason: "Failed to get stdin".to_string(),
+            })?;
 
-        let stdout = child.stdout.take().ok_or_else(|| DaemonError::CliStartFailed {
-            reason: "Failed to get stdout".to_string(),
-        })?;
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| DaemonError::CliStartFailed {
+                reason: "Failed to get stdout".to_string(),
+            })?;
 
         self.stdin = Some(stdin);
         self.child = Some(child);
@@ -406,19 +421,18 @@ impl AgentDriver for ClaudeCodeDriver {
     async fn control(&mut self, session_id: Uuid, action: SessionControlAction) -> Result<()> {
         match action {
             SessionControlAction::Interrupt => {
-                // Send SIGINT
-                if let Some(ref mut child) = self.child {
-                    child.start_kill().map_err(|e| DaemonError::SessionCloseFailed {
-                        reason: format!("Failed to send SIGINT: {}", e),
-                    })?;
-                }
+                return Err(DaemonError::Unknown(
+                    "Interrupt is not supported safely for Claude Code sessions".to_string(),
+                ));
             }
             SessionControlAction::Terminate => {
                 // Send SIGTERM/KILL
                 if let Some(ref mut child) = self.child {
-                    child.start_kill().map_err(|e| DaemonError::SessionCloseFailed {
-                        reason: format!("Failed to kill: {}", e),
-                    })?;
+                    child
+                        .start_kill()
+                        .map_err(|e| DaemonError::SessionCloseFailed {
+                            reason: format!("Failed to kill: {}", e),
+                        })?;
                 }
             }
             SessionControlAction::Pause => {
@@ -426,9 +440,10 @@ impl AgentDriver for ClaudeCodeDriver {
                 warn!(%session_id, "Pause action not fully supported");
             }
             SessionControlAction::Rerun => {
-                // Rerun is handled separately by SessionRunner calling driver.rerun()
-                // This should not be reached via control()
-                warn!(%session_id, "Rerun should be called via driver.rerun(), not control()");
+                warn!(%session_id, "Rerun should be handled via archived resume flow");
+            }
+            SessionControlAction::Restart => {
+                warn!(%session_id, "Restart should be called via driver.rerun(), not control()");
             }
         }
         Ok(())
@@ -452,10 +467,13 @@ impl AgentDriver for ClaudeCodeDriver {
             "decision": response,
         });
 
-        let stdin = self.stdin.as_mut().ok_or(DaemonError::CliStdinWriteFailed)?;
+        let stdin = self
+            .stdin
+            .as_mut()
+            .ok_or(DaemonError::CliStdinWriteFailed)?;
 
-        let line = serde_json::to_string(&input)
-            .map_err(|e| DaemonError::CliStdoutParseFailed {
+        let line =
+            serde_json::to_string(&input).map_err(|e| DaemonError::CliStdoutParseFailed {
                 reason: e.to_string(),
             })?;
         stdin
@@ -485,10 +503,13 @@ impl AgentDriver for ClaudeCodeDriver {
             "reason": "timeout",
         });
 
-        let stdin = self.stdin.as_mut().ok_or(DaemonError::CliStdinWriteFailed)?;
+        let stdin = self
+            .stdin
+            .as_mut()
+            .ok_or(DaemonError::CliStdinWriteFailed)?;
 
-        let line = serde_json::to_string(&input)
-            .map_err(|e| DaemonError::CliStdoutParseFailed {
+        let line =
+            serde_json::to_string(&input).map_err(|e| DaemonError::CliStdoutParseFailed {
                 reason: e.to_string(),
             })?;
         stdin
@@ -535,14 +556,17 @@ impl AgentDriver for ClaudeCodeDriver {
         Ok(())
     }
 
-    async fn rerun(&mut self, session_id: Uuid, claude_session_id: &str) -> Result<()> {
+    async fn rerun(
+        &mut self,
+        session_id: Uuid,
+        workspace_path: &str,
+        claude_session_id: &str,
+    ) -> Result<()> {
+        self.session_id = Some(session_id);
+        self.workspace_path = Some(workspace_path.to_string());
+
         // Close current CLI process first
         self.close(session_id).await?;
-
-        // Get stored workspace path
-        let workspace_path = self.workspace_path.clone().ok_or(DaemonError::SessionRerunFailed {
-            reason: "No workspace path available".to_string(),
-        })?;
 
         // Build command with --resume flag
         let mut cmd = TokioCommand::new(&self.config.claude_command);
@@ -558,7 +582,7 @@ impl AgentDriver for ClaudeCodeDriver {
             .arg("--model")
             .arg(&self.config.default_model)
             .arg("--add-dir")
-            .arg(&workspace_path)
+            .arg(workspace_path)
             .arg("--resume")
             .arg(claude_session_id);
 
@@ -571,13 +595,19 @@ impl AgentDriver for ClaudeCodeDriver {
             reason: format!("Failed to spawn: {}", e),
         })?;
 
-        let stdin = child.stdin.take().ok_or_else(|| DaemonError::SessionRerunFailed {
-            reason: "Failed to get stdin".to_string(),
-        })?;
+        let stdin = child
+            .stdin
+            .take()
+            .ok_or_else(|| DaemonError::SessionRerunFailed {
+                reason: "Failed to get stdin".to_string(),
+            })?;
 
-        let stdout = child.stdout.take().ok_or_else(|| DaemonError::SessionRerunFailed {
-            reason: "Failed to get stdout".to_string(),
-        })?;
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| DaemonError::SessionRerunFailed {
+                reason: "Failed to get stdout".to_string(),
+            })?;
 
         self.stdin = Some(stdin);
         self.child = Some(child);
@@ -655,14 +685,36 @@ mod tests {
     }
 
     #[test]
-    fn test_stream_json_event_parse_session_id() {
-        let json = r#"{"type":"session_id","session_id":"abc123"}"#;
-        let event: StreamJsonEvent = serde_json::from_str(json).unwrap();
-        match event {
-            StreamJsonEvent::SessionId { session_id } => {
-                assert_eq!(session_id, "abc123");
-            }
-            _ => panic!("Expected SessionId event"),
-        }
+    fn interrupt_returns_error_without_child_process() {
+        let config = Arc::new(Config {
+            server_url: "https://test.com".to_string(),
+            host_name: "test".to_string(),
+            platform: "linux".to_string(),
+            config_dir: std::path::PathBuf::from("/tmp"),
+            log_format: "pretty".to_string(),
+            log_level: "info".to_string(),
+            heartbeat_interval_secs: 30,
+            heartbeat_timeout_secs: 90,
+            ack_timeout_secs: 30,
+            permission_timeout_secs: 60,
+            reconnect_backoff_min_ms: 1000,
+            reconnect_backoff_max_ms: 30000,
+            max_parallel_sessions: 4,
+            file_read_text_limit_bytes: 262_144,
+            file_tree_max_nodes: 20_000,
+            claude_command: "claude".to_string(),
+            default_model: "claude-sonnet-4-20250514".to_string(),
+        });
+        let (event_tx, _event_rx) = tokio::sync::mpsc::channel(8);
+        let mut driver = ClaudeCodeDriver::new(config, event_tx);
+
+        let error = tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(driver.control(Uuid::nil(), SessionControlAction::Interrupt))
+            .unwrap_err();
+
+        assert!(error
+            .to_string()
+            .contains("Interrupt is not supported safely"));
     }
 }

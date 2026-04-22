@@ -3,4 +3,4 @@
 /**
  * Session control action
  */
-export type SessionControlAction = "pause" | "terminate" | "interrupt" | "rerun";
+export type SessionControlAction = "pause" | "terminate" | "interrupt" | "rerun" | "restart";

@@ -3,4 +3,4 @@
 /**
  * Session status
  */
-export type SessionStatus = "running" | "waiting_approval" | "paused" | "error" | "closing" | "archived";
+export type SessionStatus = "running" | "pending" | "dispatching" | "waiting_approval" | "paused" | "error" | "closing" | "archived";

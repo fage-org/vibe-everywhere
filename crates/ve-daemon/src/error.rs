@@ -241,7 +241,9 @@ impl DaemonError {
             Self::SessionNotFound { .. } => AckError::SessionNotFound,
             Self::SessionInvalidStatus { .. } => AckError::SessionInvalidState,
             Self::SessionArchived { .. } => AckError::SessionArchived,
-            Self::WorkspaceNotFound { .. } | Self::WorkspaceInvalid { .. } => AckError::WorkspaceInvalid,
+            Self::WorkspaceNotFound { .. } | Self::WorkspaceInvalid { .. } => {
+                AckError::WorkspaceInvalid
+            }
             Self::CliNotFound { .. }
             | Self::CliStartFailed { .. }
             | Self::CliExitError { .. }
@@ -325,10 +327,22 @@ mod tests {
 
     #[test]
     fn test_ack_error_code_mapping() {
-        assert_eq!(AckError::SessionNotFound.as_error_code(), "SESSION_NOT_FOUND");
-        assert_eq!(AckError::SessionInvalidState.as_error_code(), "SESSION_INVALID_STATE");
-        assert_eq!(AckError::SessionArchived.as_error_code(), "SESSION_ARCHIVED");
-        assert_eq!(AckError::WorkspaceInvalid.as_error_code(), "WORKSPACE_INVALID");
+        assert_eq!(
+            AckError::SessionNotFound.as_error_code(),
+            "SESSION_NOT_FOUND"
+        );
+        assert_eq!(
+            AckError::SessionInvalidState.as_error_code(),
+            "SESSION_INVALID_STATE"
+        );
+        assert_eq!(
+            AckError::SessionArchived.as_error_code(),
+            "SESSION_ARCHIVED"
+        );
+        assert_eq!(
+            AckError::WorkspaceInvalid.as_error_code(),
+            "WORKSPACE_INVALID"
+        );
         assert_eq!(AckError::InternalError.as_error_code(), "INTERNAL_ERROR");
         assert_eq!(AckError::CliNotRunning.as_error_code(), "CLI_NOT_RUNNING");
     }

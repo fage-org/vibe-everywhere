@@ -29,6 +29,7 @@ pub enum JwtError {
 #[serde(rename_all = "lowercase")]
 pub enum TokenType {
     Client,
+    ClientBootstrap,
     Daemon,
 }
 
@@ -54,6 +55,18 @@ impl Claims {
         Self {
             sub: device_id.to_string(),
             r#type: TokenType::Client,
+            name: device_name.to_string(),
+            iat: now.timestamp(),
+            exp: (now + expiration).timestamp(),
+        }
+    }
+
+    /// Create new claims for a bootstrap client device
+    pub fn for_client_bootstrap(device_id: Uuid, device_name: &str, expiration: Duration) -> Self {
+        let now = Utc::now();
+        Self {
+            sub: device_id.to_string(),
+            r#type: TokenType::ClientBootstrap,
             name: device_name.to_string(),
             iat: now.timestamp(),
             exp: (now + expiration).timestamp(),
@@ -128,6 +141,16 @@ impl JwtManager {
         self.encode(&claims)
     }
 
+    /// Create a token for a bootstrap client device
+    pub fn create_client_bootstrap_token(
+        &self,
+        device_id: Uuid,
+        device_name: &str,
+    ) -> Result<String, JwtError> {
+        let claims = Claims::for_client_bootstrap(device_id, device_name, self.expiration);
+        self.encode(&claims)
+    }
+
     /// Create a token for a daemon
     pub fn create_daemon_token(&self, host_id: Uuid, host_name: &str) -> Result<String, JwtError> {
         let claims = Claims::for_daemon(host_id, host_name, self.expiration);
@@ -145,6 +168,16 @@ mod tests {
         let claims = Claims::for_client(device_id, "Test Device", Duration::hours(1));
 
         assert_eq!(claims.r#type, TokenType::Client);
+        assert_eq!(claims.subject_uuid().unwrap(), device_id);
+        assert!(!claims.is_expired());
+    }
+
+    #[test]
+    fn test_client_bootstrap_claims() {
+        let device_id = Uuid::new_v4();
+        let claims = Claims::for_client_bootstrap(device_id, "Test Device", Duration::hours(1));
+
+        assert_eq!(claims.r#type, TokenType::ClientBootstrap);
         assert_eq!(claims.subject_uuid().unwrap(), device_id);
         assert!(!claims.is_expired());
     }
@@ -170,6 +203,21 @@ mod tests {
 
         assert_eq!(claims.subject_uuid().unwrap(), device_id);
         assert_eq!(claims.r#type, TokenType::Client);
+        assert_eq!(claims.name, "Test Device");
+    }
+
+    #[test]
+    fn test_bootstrap_jwt_roundtrip() {
+        let manager = JwtManager::new("test_secret_key_for_testing", Duration::hours(24));
+        let device_id = Uuid::new_v4();
+
+        let token = manager
+            .create_client_bootstrap_token(device_id, "Test Device")
+            .unwrap();
+        let claims = manager.decode(&token).unwrap();
+
+        assert_eq!(claims.subject_uuid().unwrap(), device_id);
+        assert_eq!(claims.r#type, TokenType::ClientBootstrap);
         assert_eq!(claims.name, "Test Device");
     }
 

@@ -63,7 +63,17 @@ impl IdempotencyKeyStore {
     /// Note: The database column is named `session_id` for historical reasons,
     /// but it's mapped to `result_ref` in the struct to support multiple resource types.
     pub async fn get(&self, key: &str) -> Result<Option<IdempotencyKeyRecord>> {
-        let row = sqlx::query_as::<_, (String, Option<String>, String, String, String, Option<String>)>(
+        let row = sqlx::query_as::<
+            _,
+            (
+                String,
+                Option<String>,
+                String,
+                String,
+                String,
+                Option<String>,
+            ),
+        >(
             r#"
             SELECT key, request_hash, session_id,
                    COALESCE(result_type, 'session') as result_type,
@@ -148,7 +158,9 @@ impl IdempotencyKeyStore {
             }
             Err(e) => {
                 // Check if it's a duplicate key error
-                if e.to_string().contains("UNIQUE constraint") || e.to_string().contains("PRIMARY KEY") {
+                if e.to_string().contains("UNIQUE constraint")
+                    || e.to_string().contains("PRIMARY KEY")
+                {
                     // Key already exists, fetch and return it
                     tracing::warn!(key = %key, "Idempotency key already exists, returning existing");
                     self.get(key).await?.ok_or_else(|| {

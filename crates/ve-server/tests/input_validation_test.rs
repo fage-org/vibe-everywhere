@@ -3,9 +3,8 @@
 //! Tests for input field length validation.
 
 use ve_server::validation::{
-    validate_device_name, validate_host_name, validate_title, validate_content,
-    ValidationError, MAX_DEVICE_NAME_LENGTH, MAX_HOST_NAME_LENGTH,
-    MAX_TITLE_LENGTH, MAX_CONTENT_LENGTH,
+    validate_content, validate_device_name, validate_host_name, validate_title, ValidationError,
+    MAX_CONTENT_LENGTH, MAX_DEVICE_NAME_LENGTH, MAX_HOST_NAME_LENGTH, MAX_TITLE_LENGTH,
 };
 
 #[test]
@@ -111,7 +110,9 @@ fn validate_accepts_whitespace_padded_valid() {
 
 #[test]
 fn validation_error_display_empty() {
-    let err = ValidationError::Empty { field: "test_field" };
+    let err = ValidationError::Empty {
+        field: "test_field",
+    };
     let msg = format!("{}", err);
     assert!(msg.contains("test_field"));
     assert!(msg.contains("empty"));
@@ -119,7 +120,10 @@ fn validation_error_display_empty() {
 
 #[test]
 fn validation_error_display_too_long() {
-    let err = ValidationError::TooLong { field: "test_field", max: 100 };
+    let err = ValidationError::TooLong {
+        field: "test_field",
+        max: 100,
+    };
     let msg = format!("{}", err);
     assert!(msg.contains("test_field"));
     assert!(msg.contains("100"));

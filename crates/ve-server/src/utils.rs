@@ -60,6 +60,8 @@ pub fn parse_uuid(input: &str, field_name: &str) -> Result<Uuid, ServerError> {
 pub fn parse_session_status(s: &str) -> ve_shared::types::SessionStatus {
     match s {
         "running" => ve_shared::types::SessionStatus::Running,
+        "pending" => ve_shared::types::SessionStatus::Pending,
+        "dispatching" => ve_shared::types::SessionStatus::Dispatching,
         "waiting_approval" => ve_shared::types::SessionStatus::WaitingApproval,
         "paused" => ve_shared::types::SessionStatus::Paused,
         "error" => ve_shared::types::SessionStatus::Error,
@@ -88,16 +90,22 @@ pub fn parse_message_type(s: &str) -> ve_shared::models::SessionMessageType {
     }
 }
 
-/// Parse control action string with warning for unknown values
-pub fn parse_control_action(s: &str) -> ve_shared::proto::SessionControlAction {
+/// Parse control action string, rejecting unknown values
+pub fn parse_control_action(
+    s: &str,
+) -> Result<ve_shared::proto::SessionControlAction, ServerError> {
     match s {
-        "pause" => ve_shared::proto::SessionControlAction::Pause,
-        "terminate" => ve_shared::proto::SessionControlAction::Terminate,
-        "interrupt" => ve_shared::proto::SessionControlAction::Interrupt,
-        "rerun" => ve_shared::proto::SessionControlAction::Rerun,
+        "pause" => Ok(ve_shared::proto::SessionControlAction::Pause),
+        "terminate" => Ok(ve_shared::proto::SessionControlAction::Terminate),
+        "interrupt" => Ok(ve_shared::proto::SessionControlAction::Interrupt),
+        "rerun" => Ok(ve_shared::proto::SessionControlAction::Rerun),
+        "restart" => Ok(ve_shared::proto::SessionControlAction::Restart),
         unknown => {
-            tracing::warn!(input = %unknown, "Unknown control action, defaulting to Interrupt");
-            ve_shared::proto::SessionControlAction::Interrupt
+            tracing::warn!(input = %unknown, "Unknown control action");
+            Err(ServerError::BadRequest(format!(
+                "Invalid control action: {}",
+                unknown
+            )))
         }
     }
 }
@@ -149,6 +157,7 @@ pub fn parse_platform(s: &str) -> ve_shared::types::Platform {
     match s {
         "linux" => ve_shared::types::Platform::Linux,
         "macos" => ve_shared::types::Platform::Macos,
+        "windows" => ve_shared::types::Platform::Windows,
         "wsl" => ve_shared::types::Platform::Wsl,
         unknown => {
             tracing::warn!(input = %unknown, "Unknown platform, defaulting to Linux");
@@ -267,14 +276,28 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_session_status_valid() {
+    fn test_parse_control_action_valid() {
         assert_eq!(
-            parse_session_status("running"),
-            ve_shared::types::SessionStatus::Running
+            parse_control_action("pause").unwrap(),
+            ve_shared::proto::SessionControlAction::Pause
         );
         assert_eq!(
-            parse_session_status("archived"),
-            ve_shared::types::SessionStatus::Archived
+            parse_control_action("rerun").unwrap(),
+            ve_shared::proto::SessionControlAction::Rerun
         );
+        assert_eq!(
+            parse_control_action("restart").unwrap(),
+            ve_shared::proto::SessionControlAction::Restart
+        );
+    }
+
+    #[test]
+    fn test_parse_control_action_invalid() {
+        let result = parse_control_action("abort");
+        assert!(result.is_err());
+        assert!(matches!(
+            result,
+            Err(ServerError::BadRequest(message)) if message == "Invalid control action: abort"
+        ));
     }
 }

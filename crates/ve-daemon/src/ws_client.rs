@@ -8,14 +8,13 @@ use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
 use tokio::sync::{broadcast, mpsc};
-use tokio_tungstenite::{
-    connect_async,
-    tungstenite::Message as WsMessage,
-};
+use tokio_tungstenite::{connect_async, tungstenite::Message as WsMessage};
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 use ve_shared::models::PermissionDecision;
-use ve_shared::proto::{AckPayload, DaemonToServer, ErrorPayload, SessionControlAction, WsEnvelope};
+use ve_shared::proto::{
+    AckPayload, DaemonToServer, ErrorPayload, SessionControlAction, WsEnvelope,
+};
 
 use crate::agent::DriverEvent;
 use crate::config::Config;
@@ -79,8 +78,8 @@ impl WsClient {
         host_id: Uuid,
         token: String,
         registry: Arc<SessionRegistry>,
+        event_rx: mpsc::Receiver<DriverEvent>,
     ) -> Self {
-        let (event_tx, event_rx) = mpsc::channel(64);
         // Initialize FileOps with empty workspace roots (will be updated when sessions are created)
         let file_ops = FileOps::new(
             vec![],
@@ -93,7 +92,7 @@ impl WsClient {
             token,
             registry: Some(registry),
             event_rx: Some(event_rx),
-            event_tx: Some(event_tx),
+            event_tx: None,
             ws_sender: None,
             file_ops: Some(file_ops),
         }
@@ -152,10 +151,7 @@ impl WsClient {
     ///
     /// Handles automatic reconnection with exponential backoff.
     /// Returns when shutdown signal is received or max retries exceeded.
-    pub async fn run(
-        mut self,
-        mut shutdown_rx: broadcast::Receiver<()>,
-    ) -> Result<()> {
+    pub async fn run(mut self, mut shutdown_rx: broadcast::Receiver<()>) -> Result<()> {
         let mut retry_count = 0u32;
         let max_retries = 10;
         let min_backoff = self.config.reconnect_backoff_min();
@@ -167,8 +163,7 @@ impl WsClient {
                     info!("WebSocket connection closed normally");
                     break;
                 }
-                Err(DaemonError::ConnectionTimeout)
-                | Err(DaemonError::WsDisconnected) => {
+                Err(DaemonError::ConnectionTimeout) | Err(DaemonError::WsDisconnected) => {
                     retry_count += 1;
                     if retry_count > max_retries {
                         error!(retry_count, "Max reconnection attempts reached");
@@ -236,11 +231,11 @@ impl WsClient {
             platform: self.config.platform.clone(),
         };
         let envelope = WsEnvelope::new("daemon_hello", &hello);
-        let json = serde_json::to_string(&envelope)
-            .map_err(DaemonError::WsMessageParse)?;
+        let json = serde_json::to_string(&envelope).map_err(DaemonError::WsMessageParse)?;
         {
             let mut s = sender.lock().await;
-            s.send(WsMessage::Text(json.into())).await
+            s.send(WsMessage::Text(json.into()))
+                .await
                 .map_err(|e| DaemonError::WsConnect(Box::new(e)))?;
         }
 
@@ -251,8 +246,7 @@ impl WsClient {
         let heartbeat_handle = tokio::spawn({
             let config = self.config.clone();
             async move {
-                let mut interval =
-                    tokio::time::interval(config.heartbeat_interval());
+                let mut interval = tokio::time::interval(config.heartbeat_interval());
                 loop {
                     interval.tick().await;
                     if heartbeat_tx.send(()).await.is_err() {
@@ -410,58 +404,97 @@ impl WsClient {
     }
 
     /// Handle driver event from session runners and return messages to send
-    fn handle_driver_event(
-        &self,
-        event: DriverEvent,
-    ) -> Vec<(String, serde_json::Value)> {
+    fn handle_driver_event(&self, event: DriverEvent) -> Vec<(String, serde_json::Value)> {
         let mut messages = Vec::new();
 
         match &event {
             DriverEvent::PermissionRequest {
-                permission_id: _,
+                permission_id,
                 session_id,
-                risk_type: _,
-                summary: _,
-                target: _,
+                risk_type,
+                summary,
+                target,
             } => {
-                // Permission registration happens in the async context of the caller
-                // (see the select! branch where this is called)
+                messages.push((
+                    "permission_request".to_string(),
+                    serde_json::json!({
+                        "permission_id": permission_id,
+                        "session_id": session_id,
+                        "risk_type": risk_type,
+                        "summary": summary,
+                        "target": target,
+                    }),
+                ));
+            }
+            DriverEvent::SessionEvent {
+                session_id,
+                event_type,
+                data,
+            } => {
+                messages.push((
+                    "session_event".to_string(),
+                    serde_json::json!({
+                        "session_id": session_id,
+                        "event_type": event_type,
+                        "data": data,
+                    }),
+                ));
+            }
+            DriverEvent::StatusUpdate {
+                session_id,
+                status,
+                summary,
+                close_reason,
+            } => {
+                messages.push((
+                    "session_status_update".to_string(),
+                    serde_json::json!({
+                        "session_id": session_id,
+                        "status": status,
+                        "summary": summary,
+                        "close_reason": close_reason,
+                    }),
+                ));
 
-                // Prepare message to forward to server
-                let event_json = serde_json::to_value(&event).unwrap_or(serde_json::json!({}));
-                messages.push(("session_event".to_string(), serde_json::json!({
-                    "session_id": session_id,
-                    "event_type": "permission_request",
-                    "data": event_json,
-                })));
+                if let Some(registry) = &self.registry {
+                    if matches!(
+                        status,
+                        ve_shared::types::SessionStatus::Archived
+                            | ve_shared::types::SessionStatus::Error
+                    ) {
+                        let session_id = *session_id;
+                        let registry = registry.clone();
+                        tokio::spawn(async move {
+                            registry.remove(&session_id).await;
+                        });
+                    }
+                }
             }
-            DriverEvent::SessionEvent { session_id, event_type, data } => {
-                messages.push(("session_event".to_string(), serde_json::json!({
-                    "session_id": session_id,
-                    "event_type": event_type,
-                    "data": data,
-                })));
+            DriverEvent::FatalError {
+                session_id,
+                message,
+            } => {
+                messages.push((
+                    "session_event".to_string(),
+                    serde_json::json!({
+                        "session_id": session_id,
+                        "event_type": "fatal_error",
+                        "data": { "message": message },
+                    }),
+                ));
             }
-            DriverEvent::StatusUpdate { session_id, status, summary } => {
-                messages.push(("session_status_update".to_string(), serde_json::json!({
-                    "session_id": session_id,
-                    "status": status,
-                    "summary": summary,
-                })));
-            }
-            DriverEvent::FatalError { session_id, message } => {
-                messages.push(("session_event".to_string(), serde_json::json!({
-                    "session_id": session_id,
-                    "event_type": "fatal_error",
-                    "data": { "message": message },
-                })));
-            }
-            DriverEvent::ClaudeSessionId { session_id, claude_session_id } => {
-                messages.push(("session_event".to_string(), serde_json::json!({
-                    "session_id": session_id,
-                    "event_type": "claude_session_id",
-                    "data": { "claude_session_id": claude_session_id },
-                })));
+            DriverEvent::ClaudeSessionId {
+                session_id,
+                claude_session_id,
+            } => {
+                messages.push((
+                    "session_event".to_string(),
+                    serde_json::json!({
+                        "session_id": session_id,
+                        "event_type": "claude_session_id",
+                        "data": { "claude_session_id": claude_session_id },
+                    }),
+                ));
             }
         }
 
@@ -478,6 +511,9 @@ impl WsClient {
         match envelope.r#type.as_str() {
             "create_session" => {
                 self.handle_create_session(&envelope).await?;
+            }
+            "rerun_session" => {
+                self.handle_rerun_session(&envelope).await?;
             }
             "send_message" => {
                 self.handle_send_message(&envelope).await?;
@@ -514,37 +550,59 @@ impl WsClient {
     // Message handlers
 
     async fn handle_create_session(&self, envelope: &WsEnvelope) -> Result<()> {
-        let request_id = envelope.request_id.clone()
+        let request_id = envelope
+            .request_id
+            .clone()
             .ok_or(DaemonError::RequestIdMissing)?;
 
-        let session_id = envelope.payload.get("session_id")
+        let session_id = envelope
+            .payload
+            .get("session_id")
             .and_then(|v| v.as_str())
             .ok_or_else(|| DaemonError::WsPayloadMissing("session_id".to_string()))?;
         let session_id = Uuid::parse_str(session_id)
             .map_err(|_| DaemonError::WsPayloadMissing("invalid session_id".to_string()))?;
 
-        let workspace_path = envelope.payload.get("workspace_path")
+        let workspace_path = envelope
+            .payload
+            .get("workspace_path")
             .and_then(|v| v.as_str())
             .ok_or_else(|| DaemonError::WsPayloadMissing("workspace_path".to_string()))?
             .to_string();
 
-        let agent_type = envelope.payload.get("agent_type")
+        let agent_type = envelope
+            .payload
+            .get("agent_type")
             .and_then(|v| v.as_str())
             .unwrap_or("claude_code")
             .to_string();
+
+        let initial_message = envelope
+            .payload
+            .get("initial_message")
+            .and_then(|v| v.as_str())
+            .map(ToString::to_string);
 
         // Check if registry is available
         let registry = match &self.registry {
             Some(r) => r,
             None => {
                 warn!("Received create_session but registry not configured");
-                self.send_error(&request_id, &AckError::InternalError, "Registry not configured").await;
+                self.send_error(
+                    &request_id,
+                    &AckError::InternalError,
+                    "Registry not configured",
+                )
+                .await;
                 return Ok(());
             }
         };
 
         // Create session
-        match registry.create(session_id, workspace_path, agent_type).await {
+        match registry
+            .create(session_id, workspace_path, agent_type, initial_message)
+            .await
+        {
             Ok(_) => {
                 info!(%session_id, "Session created successfully");
                 self.send_ack(&request_id, true, None).await;
@@ -552,7 +610,76 @@ impl WsClient {
             Err(e) => {
                 warn!(%session_id, error = %e, "Failed to create session");
                 let ack_error = e.to_ack_error();
-                self.send_error(&request_id, &ack_error, &e.to_string()).await;
+                self.send_error(&request_id, &ack_error, &e.to_string())
+                    .await;
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn handle_rerun_session(&self, envelope: &WsEnvelope) -> Result<()> {
+        let request_id = envelope
+            .request_id
+            .clone()
+            .ok_or(DaemonError::RequestIdMissing)?;
+
+        let session_id = envelope
+            .payload
+            .get("session_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| DaemonError::WsPayloadMissing("session_id".to_string()))?;
+        let session_id = Uuid::parse_str(session_id)
+            .map_err(|_| DaemonError::WsPayloadMissing("invalid session_id".to_string()))?;
+
+        let workspace_path = envelope
+            .payload
+            .get("workspace_path")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| DaemonError::WsPayloadMissing("workspace_path".to_string()))?
+            .to_string();
+
+        let agent_type = envelope
+            .payload
+            .get("agent_type")
+            .and_then(|v| v.as_str())
+            .unwrap_or("claude_code")
+            .to_string();
+
+        let claude_session_id = envelope
+            .payload
+            .get("claude_session_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| DaemonError::WsPayloadMissing("claude_session_id".to_string()))?
+            .to_string();
+
+        let registry = match &self.registry {
+            Some(r) => r,
+            None => {
+                warn!("Received rerun_session but registry not configured");
+                self.send_error(
+                    &request_id,
+                    &AckError::InternalError,
+                    "Registry not configured",
+                )
+                .await;
+                return Ok(());
+            }
+        };
+
+        match registry
+            .create_rerun(session_id, workspace_path, agent_type, claude_session_id)
+            .await
+        {
+            Ok(_) => {
+                info!(%session_id, "Session rerun created successfully");
+                self.send_ack(&request_id, true, None).await;
+            }
+            Err(e) => {
+                warn!(%session_id, error = %e, "Failed to create rerun session");
+                let ack_error = e.to_ack_error();
+                self.send_error(&request_id, &ack_error, &e.to_string())
+                    .await;
             }
         }
 
@@ -568,13 +695,17 @@ impl WsClient {
             }
         };
 
-        let session_id = envelope.payload.get("session_id")
+        let session_id = envelope
+            .payload
+            .get("session_id")
             .and_then(|v| v.as_str())
             .ok_or_else(|| DaemonError::WsPayloadMissing("session_id".to_string()))?;
         let session_id = Uuid::parse_str(session_id)
             .map_err(|_| DaemonError::WsPayloadMissing("invalid session_id".to_string()))?;
 
-        let content = envelope.payload.get("content")
+        let content = envelope
+            .payload
+            .get("content")
             .and_then(|v| v.as_str())
             .ok_or_else(|| DaemonError::WsPayloadMissing("content".to_string()))?
             .to_string();
@@ -582,25 +713,39 @@ impl WsClient {
         let registry = match &self.registry {
             Some(r) => r,
             None => {
-                self.send_error(&request_id, &AckError::InternalError, "Registry not configured").await;
+                self.send_error(
+                    &request_id,
+                    &AckError::InternalError,
+                    "Registry not configured",
+                )
+                .await;
                 return Ok(());
             }
         };
 
         if let Some(handle) = registry.get(&session_id).await {
-            match handle.send_message(content).await {
+            match handle
+                .send_message_and_wait(content, self.config.ack_timeout())
+                .await
+            {
                 Ok(()) => {
                     debug!(%session_id, "Message sent to session");
                     self.send_ack(&request_id, true, None).await;
                 }
                 Err(e) => {
                     warn!(%session_id, error = %e, "Failed to send message");
-                    self.send_error(&request_id, &e.to_ack_error(), &e.to_string()).await;
+                    self.send_error(&request_id, &e.to_ack_error(), &e.to_string())
+                        .await;
                 }
             }
         } else {
             warn!(%session_id, "Session not found for send_message");
-            self.send_error(&request_id, &AckError::SessionNotFound, &format!("Session {} not found", session_id)).await;
+            self.send_error(
+                &request_id,
+                &AckError::SessionNotFound,
+                &format!("Session {} not found", session_id),
+            )
+            .await;
         }
 
         Ok(())
@@ -615,24 +760,42 @@ impl WsClient {
             }
         };
 
-        let session_id = envelope.payload.get("session_id")
+        let session_id = envelope
+            .payload
+            .get("session_id")
             .and_then(|v| v.as_str())
             .ok_or_else(|| DaemonError::WsPayloadMissing("session_id".to_string()))?;
         let session_id = Uuid::parse_str(session_id)
             .map_err(|_| DaemonError::WsPayloadMissing("invalid session_id".to_string()))?;
 
-        let action_str = envelope.payload.get("action")
+        let action_str = envelope
+            .payload
+            .get("action")
             .and_then(|v| v.as_str())
             .ok_or_else(|| DaemonError::WsPayloadMissing("action".to_string()))?;
 
         let action = match action_str {
             "pause" => SessionControlAction::Pause,
             "terminate" => SessionControlAction::Terminate,
-            "interrupt" => SessionControlAction::Interrupt,
+            "interrupt" => {
+                self.send_error(
+                    &request_id,
+                    &AckError::SessionInvalidState,
+                    "Interrupt is not supported safely for Claude Code sessions",
+                )
+                .await;
+                return Ok(());
+            }
             "rerun" => SessionControlAction::Rerun,
+            "restart" => SessionControlAction::Restart,
             _ => {
                 warn!(action = %action_str, "Unknown session control action");
-                self.send_error(&request_id, &AckError::InternalError, &format!("Unknown action: {}", action_str)).await;
+                self.send_error(
+                    &request_id,
+                    &AckError::InternalError,
+                    &format!("Unknown action: {}", action_str),
+                )
+                .await;
                 return Ok(());
             }
         };
@@ -640,25 +803,39 @@ impl WsClient {
         let registry = match &self.registry {
             Some(r) => r,
             None => {
-                self.send_error(&request_id, &AckError::InternalError, "Registry not configured").await;
+                self.send_error(
+                    &request_id,
+                    &AckError::InternalError,
+                    "Registry not configured",
+                )
+                .await;
                 return Ok(());
             }
         };
 
         if let Some(handle) = registry.get(&session_id).await {
-            match handle.send_control(action).await {
+            match handle
+                .send_control_and_wait(action, self.config.ack_timeout())
+                .await
+            {
                 Ok(()) => {
                     debug!(%session_id, ?action, "Control sent to session");
                     self.send_ack(&request_id, true, None).await;
                 }
                 Err(e) => {
                     warn!(%session_id, error = %e, "Failed to send control");
-                    self.send_error(&request_id, &e.to_ack_error(), &e.to_string()).await;
+                    self.send_error(&request_id, &e.to_ack_error(), &e.to_string())
+                        .await;
                 }
             }
         } else {
             warn!(%session_id, "Session not found for session_control");
-            self.send_error(&request_id, &AckError::SessionNotFound, &format!("Session {} not found", session_id)).await;
+            self.send_error(
+                &request_id,
+                &AckError::SessionNotFound,
+                &format!("Session {} not found", session_id),
+            )
+            .await;
         }
 
         Ok(())
@@ -673,7 +850,9 @@ impl WsClient {
             }
         };
 
-        let session_id = envelope.payload.get("session_id")
+        let session_id = envelope
+            .payload
+            .get("session_id")
             .and_then(|v| v.as_str())
             .ok_or_else(|| DaemonError::WsPayloadMissing("session_id".to_string()))?;
         let session_id = Uuid::parse_str(session_id)
@@ -682,7 +861,12 @@ impl WsClient {
         let registry = match &self.registry {
             Some(r) => r,
             None => {
-                self.send_error(&request_id, &AckError::InternalError, "Registry not configured").await;
+                self.send_error(
+                    &request_id,
+                    &AckError::InternalError,
+                    "Registry not configured",
+                )
+                .await;
                 return Ok(());
             }
         };
@@ -695,11 +879,17 @@ impl WsClient {
             }
             Err(DaemonError::SessionNotFound { .. }) => {
                 warn!(%session_id, "Session not found for close_session");
-                self.send_error(&request_id, &AckError::SessionNotFound, &format!("Session {} not found", session_id)).await;
+                self.send_error(
+                    &request_id,
+                    &AckError::SessionNotFound,
+                    &format!("Session {} not found", session_id),
+                )
+                .await;
             }
             Err(e) => {
                 warn!(%session_id, error = %e, "Failed to close session");
-                self.send_error(&request_id, &e.to_ack_error(), &e.to_string()).await;
+                self.send_error(&request_id, &e.to_ack_error(), &e.to_string())
+                    .await;
             }
         }
 
@@ -707,19 +897,25 @@ impl WsClient {
     }
 
     async fn handle_permission_response(&self, envelope: &WsEnvelope) -> Result<()> {
-        let permission_id = envelope.payload.get("permission_id")
+        let permission_id = envelope
+            .payload
+            .get("permission_id")
             .and_then(|v| v.as_str())
             .ok_or_else(|| DaemonError::WsPayloadMissing("permission_id".to_string()))?;
         let permission_id = Uuid::parse_str(permission_id)
             .map_err(|_| DaemonError::WsPayloadMissing("invalid permission_id".to_string()))?;
 
-        let session_id = envelope.payload.get("session_id")
+        let session_id = envelope
+            .payload
+            .get("session_id")
             .and_then(|v| v.as_str())
             .ok_or_else(|| DaemonError::WsPayloadMissing("session_id".to_string()))?;
         let session_id = Uuid::parse_str(session_id)
             .map_err(|_| DaemonError::WsPayloadMissing("invalid session_id".to_string()))?;
 
-        let decision_str = envelope.payload.get("decision")
+        let decision_str = envelope
+            .payload
+            .get("decision")
             .and_then(|v| v.as_str())
             .ok_or_else(|| DaemonError::WsPayloadMissing("decision".to_string()))?;
 
@@ -736,7 +932,9 @@ impl WsClient {
         // Get session handle and send permission response
         if let Some(ref registry) = self.registry {
             if let Some(handle) = registry.get(&session_id).await {
-                handle.send_permission_response(permission_id, decision).await?;
+                handle
+                    .send_permission_response(permission_id, decision)
+                    .await?;
                 debug!(%session_id, %permission_id, ?decision, "Permission response sent to session");
             } else {
                 warn!(%session_id, "Session not found for permission_response");
@@ -755,42 +953,48 @@ impl WsClient {
             }
         };
 
-        let workspace_path = envelope.payload.get("workspace_path")
+        let workspace_path = envelope
+            .payload
+            .get("workspace_path")
             .and_then(|v| v.as_str())
             .unwrap_or("");
+        let relative_path = envelope
+            .payload
+            .get("relative_path")
+            .and_then(|v| v.as_str());
 
-        let file_ops = match &self.file_ops {
-            Some(ops) => ops,
-            None => {
-                self.send_error(&request_id, &AckError::InternalError, "FileOps not configured").await;
-                return Ok(());
-            }
+        if workspace_path.is_empty() {
+            self.send_error(
+                &request_id,
+                &AckError::WorkspaceInvalid,
+                "workspace_path is required",
+            )
+            .await;
+            return Ok(());
+        }
+
+        let workspace_root = PathBuf::from(workspace_path);
+        if !workspace_root.exists() {
+            self.send_error(
+                &request_id,
+                &AckError::WorkspaceInvalid,
+                &format!("Workspace path does not exist: {workspace_path}"),
+            )
+            .await;
+            return Ok(());
+        }
+
+        let file_ops = FileOps::new(
+            vec![workspace_root.clone()],
+            self.config.file_read_text_limit_bytes as usize,
+            self.config.file_tree_max_nodes,
+        );
+        let start_path = match relative_path {
+            Some(path) if !path.is_empty() => workspace_root.join(path),
+            _ => workspace_root.clone(),
         };
 
-        // If workspace_path is provided, update FileOps with this root
-        let effective_ops = if !workspace_path.is_empty() {
-            let path = PathBuf::from(workspace_path);
-            if path.exists() {
-                FileOps::new(
-                    vec![path],
-                    self.config.file_read_text_limit_bytes as usize,
-                    self.config.file_tree_max_nodes,
-                )
-            } else {
-                self.send_error(&request_id, &AckError::WorkspaceInvalid, &format!("Workspace path does not exist: {}", workspace_path)).await;
-                return Ok(());
-            }
-        } else {
-            file_ops.clone()
-        };
-
-        let start_path = if workspace_path.is_empty() {
-            PathBuf::from(".")
-        } else {
-            PathBuf::from(workspace_path)
-        };
-
-        match effective_ops.collect_tree(&start_path, 10) {
+        match file_ops.collect_tree(&start_path, 10) {
             Ok(tree) => {
                 let tree_json = serde_json::to_value(&tree).unwrap_or(serde_json::Value::Null);
                 let response = DaemonToServer::FileTreeResponse {
@@ -811,7 +1015,8 @@ impl WsClient {
             }
             Err(e) => {
                 warn!(error = %e, "Failed to collect file tree");
-                self.send_error(&request_id, &e.to_ack_error(), &e.to_string()).await;
+                self.send_error(&request_id, &e.to_ack_error(), &e.to_string())
+                    .await;
             }
         }
 
@@ -827,32 +1032,60 @@ impl WsClient {
             }
         };
 
-        let file_path = envelope.payload.get("file_path")
+        let workspace_path = envelope
+            .payload
+            .get("workspace_path")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        let relative_path = envelope
+            .payload
+            .get("relative_path")
             .and_then(|v| v.as_str())
             .unwrap_or("");
 
-        if file_path.is_empty() {
-            self.send_error(&request_id, &AckError::InternalError, "file_path is required").await;
+        if workspace_path.is_empty() {
+            self.send_error(
+                &request_id,
+                &AckError::WorkspaceInvalid,
+                "workspace_path is required",
+            )
+            .await;
             return Ok(());
         }
 
-        // Extract workspace from file path (parent directory or use configured roots)
-        let path = PathBuf::from(file_path);
-        let workspace_root = path.parent()
-            .map(|p| p.to_path_buf())
-            .unwrap_or_else(|| PathBuf::from("."));
+        if relative_path.is_empty() {
+            self.send_error(
+                &request_id,
+                &AckError::InternalError,
+                "relative_path is required",
+            )
+            .await;
+            return Ok(());
+        }
+
+        let workspace_root = PathBuf::from(workspace_path);
+        if !workspace_root.exists() {
+            self.send_error(
+                &request_id,
+                &AckError::WorkspaceInvalid,
+                &format!("Workspace path does not exist: {workspace_path}"),
+            )
+            .await;
+            return Ok(());
+        }
 
         let file_ops = FileOps::new(
-            vec![workspace_root],
+            vec![workspace_root.clone()],
             self.config.file_read_text_limit_bytes as usize,
             self.config.file_tree_max_nodes,
         );
+        let path = workspace_root.join(relative_path);
 
         match file_ops.read_text_file(&path) {
             Ok(content) => {
                 let response = DaemonToServer::FileContentResponse {
                     request_id,
-                    file_path: file_path.to_string(),
+                    file_path: relative_path.to_string(),
                     content: content.content,
                     file_type: format!("{:?}", content.file_type).to_lowercase(),
                 };
@@ -869,7 +1102,8 @@ impl WsClient {
             }
             Err(e) => {
                 warn!(error = %e, "Failed to read file content");
-                self.send_error(&request_id, &e.to_ack_error(), &e.to_string()).await;
+                self.send_error(&request_id, &e.to_ack_error(), &e.to_string())
+                    .await;
             }
         }
 
@@ -935,5 +1169,48 @@ mod tests {
         // (With jitter, individual values might not always increase,
         // but the base values do: 1s, 2s, 4s)
         assert!(backoff1 < backoff3);
+    }
+
+    #[test]
+    fn handle_driver_event_emits_dedicated_permission_request_with_same_id() {
+        let client = WsClient::new(
+            Arc::new(crate::config::Config {
+                server_url: "https://example.com".to_string(),
+                host_name: "host".to_string(),
+                platform: "linux".to_string(),
+                config_dir: std::path::PathBuf::from("/tmp"),
+                log_format: "pretty".to_string(),
+                log_level: "info".to_string(),
+                heartbeat_interval_secs: 30,
+                heartbeat_timeout_secs: 90,
+                ack_timeout_secs: 30,
+                permission_timeout_secs: 60,
+                reconnect_backoff_min_ms: 1000,
+                reconnect_backoff_max_ms: 30000,
+                max_parallel_sessions: 4,
+                file_read_text_limit_bytes: 262_144,
+                file_tree_max_nodes: 20_000,
+                claude_command: "claude".to_string(),
+                default_model: "claude-sonnet-4-20250514".to_string(),
+            }),
+            Uuid::new_v4(),
+            "token".to_string(),
+        );
+        let permission_id = Uuid::new_v4();
+        let session_id = Uuid::new_v4();
+
+        let messages = client.handle_driver_event(DriverEvent::PermissionRequest {
+            permission_id,
+            session_id,
+            risk_type: "write_fs".to_string(),
+            summary: "need access".to_string(),
+            target: Some("/tmp".to_string()),
+        });
+
+        assert_eq!(messages.len(), 1);
+        let (msg_type, payload) = &messages[0];
+        assert_eq!(msg_type, "permission_request");
+        assert_eq!(payload["permission_id"], permission_id.to_string());
+        assert_eq!(payload["session_id"], session_id.to_string());
     }
 }

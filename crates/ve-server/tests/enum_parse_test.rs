@@ -6,6 +6,8 @@
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum TestSessionStatus {
     Running,
+    Pending,
+    Dispatching,
     WaitingApproval,
     Paused,
     Error,
@@ -41,6 +43,7 @@ enum TestCloseReason {
 enum TestPlatform {
     Linux,
     Macos,
+    Windows,
     Wsl,
 }
 
@@ -82,6 +85,7 @@ enum TestControlAction {
     Terminate,
     Interrupt,
     Rerun,
+    Restart,
 }
 
 /// Parse result containing the parsed value and whether it was unknown
@@ -104,6 +108,8 @@ impl<T> std::ops::Deref for ParsedEnum<T> {
 fn parse_session_status(s: &str) -> ParsedEnum<TestSessionStatus> {
     let (value, was_unknown) = match s {
         "running" => (TestSessionStatus::Running, false),
+        "pending" => (TestSessionStatus::Pending, false),
+        "dispatching" => (TestSessionStatus::Dispatching, false),
         "waiting_approval" => (TestSessionStatus::WaitingApproval, false),
         "paused" => (TestSessionStatus::Paused, false),
         "error" => (TestSessionStatus::Error, false),
@@ -144,6 +150,7 @@ fn parse_platform(s: &str) -> ParsedEnum<TestPlatform> {
     let (value, was_unknown) = match s {
         "linux" => (TestPlatform::Linux, false),
         "macos" => (TestPlatform::Macos, false),
+        "windows" => (TestPlatform::Windows, false),
         "wsl" => (TestPlatform::Wsl, false),
         unknown => {
             tracing::warn!(input = %unknown, "Unknown platform, defaulting to Linux");
@@ -270,21 +277,37 @@ fn parse_message_type(s: &str) -> ParsedEnum<TestMessageType> {
 }
 
 /// Parse control action with unknown detection
-fn parse_control_action(s: &str) -> ParsedEnum<TestControlAction> {
-    let (value, was_unknown) = match s {
-        "pause" => (TestControlAction::Pause, false),
-        "terminate" => (TestControlAction::Terminate, false),
-        "interrupt" => (TestControlAction::Interrupt, false),
-        "rerun" => (TestControlAction::Rerun, false),
+fn parse_control_action(s: &str) -> Result<ParsedEnum<TestControlAction>, String> {
+    match s {
+        "pause" => Ok(ParsedEnum {
+            value: TestControlAction::Pause,
+            was_unknown: false,
+            original_input: s.to_string(),
+        }),
+        "terminate" => Ok(ParsedEnum {
+            value: TestControlAction::Terminate,
+            was_unknown: false,
+            original_input: s.to_string(),
+        }),
+        "interrupt" => Ok(ParsedEnum {
+            value: TestControlAction::Interrupt,
+            was_unknown: false,
+            original_input: s.to_string(),
+        }),
+        "rerun" => Ok(ParsedEnum {
+            value: TestControlAction::Rerun,
+            was_unknown: false,
+            original_input: s.to_string(),
+        }),
+        "restart" => Ok(ParsedEnum {
+            value: TestControlAction::Restart,
+            was_unknown: false,
+            original_input: s.to_string(),
+        }),
         unknown => {
-            tracing::warn!(input = %unknown, "Unknown control action, defaulting to Interrupt");
-            (TestControlAction::Interrupt, true)
+            tracing::warn!(input = %unknown, "Unknown control action");
+            Err(format!("Invalid control action: {}", unknown))
         }
-    };
-    ParsedEnum {
-        value,
-        was_unknown,
-        original_input: s.to_string(),
     }
 }
 
@@ -297,6 +320,13 @@ mod tests {
     fn parse_valid_session_status_running() {
         let result = parse_session_status("running");
         assert_eq!(*result, TestSessionStatus::Running);
+        assert!(!result.was_unknown);
+    }
+
+    #[test]
+    fn parse_valid_session_status_dispatching() {
+        let result = parse_session_status("dispatching");
+        assert_eq!(*result, TestSessionStatus::Dispatching);
         assert!(!result.was_unknown);
     }
 
@@ -388,8 +418,15 @@ mod tests {
     }
 
     #[test]
-    fn parse_unknown_platform_defaults_to_linux() {
+    fn parse_valid_platform_windows() {
         let result = parse_platform("windows");
+        assert_eq!(*result, TestPlatform::Windows);
+        assert!(!result.was_unknown);
+    }
+
+    #[test]
+    fn parse_unknown_platform_defaults_to_linux() {
+        let result = parse_platform("unknown");
         assert_eq!(*result, TestPlatform::Linux);
         assert!(result.was_unknown);
     }
@@ -515,22 +552,22 @@ mod tests {
     // Control Action Tests
     #[test]
     fn parse_valid_control_action_pause() {
-        let result = parse_control_action("pause");
+        let result = parse_control_action("pause").unwrap();
         assert_eq!(*result, TestControlAction::Pause);
         assert!(!result.was_unknown);
     }
 
     #[test]
     fn parse_valid_control_action_terminate() {
-        let result = parse_control_action("terminate");
+        let result = parse_control_action("terminate").unwrap();
         assert_eq!(*result, TestControlAction::Terminate);
         assert!(!result.was_unknown);
     }
 
     #[test]
-    fn parse_unknown_control_action_defaults_to_interrupt() {
+    fn parse_unknown_control_action_returns_error() {
         let result = parse_control_action("abort");
-        assert_eq!(*result, TestControlAction::Interrupt);
-        assert!(result.was_unknown);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "Invalid control action: abort");
     }
 }

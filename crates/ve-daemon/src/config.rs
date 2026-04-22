@@ -159,10 +159,7 @@ impl Config {
         let builder = builder
             .set_default("config_dir", config_dir.to_string_lossy().to_string())
             .map_err(|e| DaemonError::ConfigInvalid(e.to_string()))?
-            .set_default(
-                "heartbeat_interval_secs",
-                default_heartbeat_interval(),
-            )
+            .set_default("heartbeat_interval_secs", default_heartbeat_interval())
             .map_err(|e| DaemonError::ConfigInvalid(e.to_string()))?
             .set_default("heartbeat_timeout_secs", default_heartbeat_timeout())
             .map_err(|e| DaemonError::ConfigInvalid(e.to_string()))?
@@ -170,22 +167,16 @@ impl Config {
             .map_err(|e| DaemonError::ConfigInvalid(e.to_string()))?
             .set_default("permission_timeout_secs", default_permission_timeout())
             .map_err(|e| DaemonError::ConfigInvalid(e.to_string()))?
-            .set_default(
-                "reconnect_backoff_min_ms",
-                default_reconnect_backoff_min(),
-            )
+            .set_default("reconnect_backoff_min_ms", default_reconnect_backoff_min())
+            .map_err(|e| DaemonError::ConfigInvalid(e.to_string()))?
+            .set_default("reconnect_backoff_max_ms", default_reconnect_backoff_max())
             .map_err(|e| DaemonError::ConfigInvalid(e.to_string()))?
             .set_default(
-                "reconnect_backoff_max_ms",
-                default_reconnect_backoff_max(),
+                "max_parallel_sessions",
+                default_max_parallel_sessions() as u64,
             )
             .map_err(|e| DaemonError::ConfigInvalid(e.to_string()))?
-            .set_default("max_parallel_sessions", default_max_parallel_sessions() as u64)
-            .map_err(|e| DaemonError::ConfigInvalid(e.to_string()))?
-            .set_default(
-                "file_read_text_limit_bytes",
-                default_file_read_limit(),
-            )
+            .set_default("file_read_text_limit_bytes", default_file_read_limit())
             .map_err(|e| DaemonError::ConfigInvalid(e.to_string()))?
             .set_default("file_tree_max_nodes", default_file_tree_max_nodes() as u64)
             .map_err(|e| DaemonError::ConfigInvalid(e.to_string()))?
@@ -280,6 +271,10 @@ impl Config {
     /// Get credentials file path
     pub fn credentials_path(&self) -> PathBuf {
         self.config_dir.join("credentials.json")
+    }
+
+    pub fn installation_path(&self) -> PathBuf {
+        self.config_dir.join("installation.json")
     }
 
     /// Check if JSON log format is enabled
@@ -452,7 +447,10 @@ mod tests {
 
         let result = config.validate();
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("heartbeat_timeout"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("heartbeat_timeout"));
     }
 
     #[test]

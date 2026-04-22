@@ -3,24 +3,25 @@
 //! Workspace CRUD endpoints.
 
 use axum::{
-    extract::{Path, Query, State},
-    Json,
+    extract::{Path, State},
+    Extension, Json,
 };
 use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use ve_shared::models::{CreateWorkspaceRequest, Workspace};
+use ve_shared::{
+    jwt::Claims,
+    models::{CreateWorkspaceRequest, Workspace},
+};
 
+use crate::authz::{
+    authorize_workspace_create, require_client_device_id, require_host_access, ClientAccess,
+    WorkspaceAccess, WorkspaceCollectionAccess,
+};
 use crate::error::{Result, ServerError};
 use crate::state::AppState;
 use crate::utils::parse_uuid;
-
-/// Workspace list query parameters
-#[derive(Debug, Deserialize)]
-pub struct WorkspaceListQuery {
-    pub host_id: Option<Uuid>,
-}
 
 /// Database record for workspace
 struct WorkspaceRecord {
@@ -64,8 +65,8 @@ impl WorkspaceRecord {
 /// List workspaces, optionally filtered by host.
 #[allow(clippy::type_complexity)]
 pub async fn list_workspaces(
+    access: WorkspaceCollectionAccess,
     State(state): State<Arc<AppState>>,
-    Query(query): Query<WorkspaceListQuery>,
 ) -> Result<Json<Vec<Workspace>>> {
     let rows: Vec<(
         String,
@@ -77,29 +78,35 @@ pub async fn list_workspaces(
         i64,
         String,
         String,
-    )> = if let Some(host_id) = query.host_id {
-        let host_id_str = host_id.to_string();
+    )> = if let Some(host_id) = access.host_id {
         sqlx::query_as(
             r#"
-                SELECT workspace_id, host_id, path, display_name, is_favorited,
-                       last_used_at, exists_on_host, created_at, updated_at
+                SELECT workspaces.workspace_id, workspaces.host_id, workspaces.path, workspaces.display_name,
+                       workspaces.is_favorited, workspaces.last_used_at, workspaces.exists_on_host,
+                       workspaces.created_at, workspaces.updated_at
                 FROM workspaces
-                WHERE host_id = $1
-                ORDER BY is_favorited DESC, last_used_at DESC
+                INNER JOIN device_host_access ON device_host_access.host_id = workspaces.host_id
+                WHERE workspaces.host_id = $1 AND device_host_access.device_id = $2
+                ORDER BY workspaces.is_favorited DESC, workspaces.last_used_at DESC
                 "#,
         )
-        .bind(host_id_str)
+        .bind(host_id.to_string())
+        .bind(access.device_id.to_string())
         .fetch_all(&state.db)
         .await?
     } else {
         sqlx::query_as(
             r#"
-                SELECT workspace_id, host_id, path, display_name, is_favorited,
-                       last_used_at, exists_on_host, created_at, updated_at
+                SELECT workspaces.workspace_id, workspaces.host_id, workspaces.path, workspaces.display_name,
+                       workspaces.is_favorited, workspaces.last_used_at, workspaces.exists_on_host,
+                       workspaces.created_at, workspaces.updated_at
                 FROM workspaces
-                ORDER BY is_favorited DESC, last_used_at DESC
+                INNER JOIN device_host_access ON device_host_access.host_id = workspaces.host_id
+                WHERE device_host_access.device_id = $1
+                ORDER BY workspaces.is_favorited DESC, workspaces.last_used_at DESC
                 "#,
         )
+        .bind(access.device_id.to_string())
         .fetch_all(&state.db)
         .await?
     };
@@ -141,9 +148,11 @@ pub async fn list_workspaces(
 ///
 /// Create a new workspace.
 pub async fn create_workspace(
+    client: ClientAccess,
     State(state): State<Arc<AppState>>,
     Json(req): Json<CreateWorkspaceRequest>,
 ) -> Result<Json<Workspace>> {
+    authorize_workspace_create(&state, client.device_id, &req).await?;
     let workspace_id = Uuid::new_v4();
     let workspace_id_str = workspace_id.to_string();
     let host_id_str = req.host_id.to_string();
@@ -194,11 +203,64 @@ pub async fn create_workspace(
 /// GET /api/workspaces/:id
 ///
 /// Get a specific workspace.
+pub async fn get_workspace_route(
+    access: WorkspaceAccess,
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<Workspace>> {
+    get_workspace_by_id(state, access.workspace_id).await
+}
+
 pub async fn get_workspace(
     State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Workspace>> {
-    type WorkspaceRow = (String, String, String, String, i64, Option<String>, i64, String, String);
+    type WorkspaceRow = (
+        String,
+        String,
+        String,
+        String,
+        i64,
+        Option<String>,
+        i64,
+        String,
+        String,
+    );
+
+    let workspace_id_str = id.to_string();
+
+    let row: WorkspaceRow = sqlx::query_as(
+        r#"
+        SELECT workspace_id, host_id, path, display_name, is_favorited,
+               last_used_at, exists_on_host, created_at, updated_at
+        FROM workspaces
+        WHERE workspace_id = $1
+        "#,
+    )
+    .bind(&workspace_id_str)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(ServerError::NotFound(format!("Workspace {}", id)))?;
+
+    let device_id = require_client_device_id(&claims)?;
+    let host_id = parse_uuid(&row.1, "host_id")?;
+    require_host_access(&state, device_id, host_id).await?;
+
+    get_workspace_by_id(state, id).await
+}
+
+async fn get_workspace_by_id(state: Arc<AppState>, id: Uuid) -> Result<Json<Workspace>> {
+    type WorkspaceRow = (
+        String,
+        String,
+        String,
+        String,
+        i64,
+        Option<String>,
+        i64,
+        String,
+        String,
+    );
 
     let workspace_id_str = id.to_string();
 
@@ -246,12 +308,71 @@ pub struct UpdateWorkspaceRequest {
 /// POST /api/workspaces/:id
 ///
 /// Update workspace details.
+pub async fn update_workspace_route(
+    access: WorkspaceAccess,
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<UpdateWorkspaceRequest>,
+) -> Result<Json<Workspace>> {
+    update_workspace_by_id(state, access.workspace_id, req).await
+}
+
 pub async fn update_workspace(
     State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateWorkspaceRequest>,
 ) -> Result<Json<Workspace>> {
-    type WorkspaceRow = (String, String, String, String, i64, Option<String>, i64, String, String);
+    type WorkspaceRow = (
+        String,
+        String,
+        String,
+        String,
+        i64,
+        Option<String>,
+        i64,
+        String,
+        String,
+    );
+
+    let workspace_id_str = id.to_string();
+
+    // Fetch existing
+    let existing: WorkspaceRow = sqlx::query_as(
+        r#"
+        SELECT workspace_id, host_id, path, display_name, is_favorited,
+               last_used_at, exists_on_host, created_at, updated_at
+        FROM workspaces
+        WHERE workspace_id = $1
+        "#,
+    )
+    .bind(&workspace_id_str)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(ServerError::NotFound(format!("Workspace {}", id)))?;
+
+    let device_id = require_client_device_id(&claims)?;
+    let host_id = parse_uuid(&existing.1, "host_id")?;
+    require_host_access(&state, device_id, host_id).await?;
+
+    update_workspace_by_id(state, id, req).await
+}
+
+async fn update_workspace_by_id(
+    state: Arc<AppState>,
+    id: Uuid,
+    req: UpdateWorkspaceRequest,
+) -> Result<Json<Workspace>> {
+    type WorkspaceRow = (
+        String,
+        String,
+        String,
+        String,
+        i64,
+        Option<String>,
+        i64,
+        String,
+        String,
+    );
 
     let workspace_id_str = id.to_string();
 
@@ -310,10 +431,38 @@ pub async fn update_workspace(
 /// DELETE /api/workspaces/:id
 ///
 /// Delete a workspace.
+pub async fn delete_workspace_route(
+    access: WorkspaceAccess,
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<serde_json::Value>> {
+    delete_workspace_by_id(state, access.workspace_id).await
+}
+
 pub async fn delete_workspace(
     State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>> {
+    let workspace_id_str = id.to_string();
+
+    let workspace_host: (String,) = sqlx::query_as(
+        r#"
+        SELECT host_id FROM workspaces WHERE workspace_id = $1
+        "#,
+    )
+    .bind(&workspace_id_str)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(ServerError::NotFound(format!("Workspace {}", id)))?;
+
+    let device_id = require_client_device_id(&claims)?;
+    let host_id = parse_uuid(&workspace_host.0, "host_id")?;
+    require_host_access(&state, device_id, host_id).await?;
+
+    delete_workspace_by_id(state, id).await
+}
+
+async fn delete_workspace_by_id(state: Arc<AppState>, id: Uuid) -> Result<Json<serde_json::Value>> {
     let workspace_id_str = id.to_string();
 
     sqlx::query(

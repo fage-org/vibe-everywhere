@@ -10,14 +10,14 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use std::sync::Arc;
-use ve_shared::jwt::JwtManager;
+use ve_shared::jwt::{JwtManager, TokenType};
 
 /// Public routes that don't require authentication
 const PUBLIC_ROUTES: &[&str] = &[
     "/healthz",
     "/api/auth/register-device",
     "/api/auth/daemon-hello",
-    "/api/auth/pair",
+    "/api/auth/pairing-status",
     "/ws/client",
     "/ws/daemon",
 ];
@@ -37,6 +37,13 @@ fn is_public_route(uri: &Uri) -> bool {
     }
 
     false
+}
+
+fn route_allows_token_type(uri: &Uri, token_type: &TokenType) -> bool {
+    match uri.path() {
+        "/api/auth/pair" => matches!(token_type, TokenType::ClientBootstrap),
+        _ => matches!(token_type, TokenType::Client),
+    }
 }
 
 /// Authentication middleware
@@ -66,11 +73,17 @@ pub async fn auth_middleware(
         .ok_or(AuthError::InvalidFormat)?;
 
     // Validate token and extract claims
-    let claims = jwt_manager.decode(token).map_err(|_| AuthError::InvalidToken)?;
+    let claims = jwt_manager
+        .decode(token)
+        .map_err(|_| AuthError::InvalidToken)?;
 
     // Check if token is expired
     if claims.is_expired() {
         return Err(AuthError::Expired);
+    }
+
+    if !route_allows_token_type(request.uri(), &claims.r#type) {
+        return Err(AuthError::InvalidTokenType);
     }
 
     // Inject claims into request extensions
@@ -85,6 +98,7 @@ pub enum AuthError {
     MissingToken,
     InvalidFormat,
     InvalidToken,
+    InvalidTokenType,
     Expired,
 }
 
@@ -92,8 +106,15 @@ impl IntoResponse for AuthError {
     fn into_response(self) -> Response {
         let (status, message) = match self {
             AuthError::MissingToken => (StatusCode::UNAUTHORIZED, "Missing authorization token"),
-            AuthError::InvalidFormat => (StatusCode::UNAUTHORIZED, "Invalid authorization header format"),
+            AuthError::InvalidFormat => (
+                StatusCode::UNAUTHORIZED,
+                "Invalid authorization header format",
+            ),
             AuthError::InvalidToken => (StatusCode::UNAUTHORIZED, "Invalid token"),
+            AuthError::InvalidTokenType => (
+                StatusCode::UNAUTHORIZED,
+                "Token is not allowed for this route",
+            ),
             AuthError::Expired => (StatusCode::UNAUTHORIZED, "Token expired"),
         };
 
@@ -138,5 +159,21 @@ mod tests {
     fn test_is_public_route_nested_protected() {
         let uri: Uri = "/api/sessions/123".parse().unwrap();
         assert!(!is_public_route(&uri));
+    }
+
+    #[test]
+    fn test_route_allows_bootstrap_token_for_pair() {
+        let uri: Uri = "/api/auth/pair".parse().unwrap();
+        assert!(route_allows_token_type(&uri, &TokenType::ClientBootstrap));
+        assert!(!route_allows_token_type(&uri, &TokenType::Client));
+        assert!(!route_allows_token_type(&uri, &TokenType::Daemon));
+    }
+
+    #[test]
+    fn test_route_allows_only_client_token_for_protected_routes() {
+        let uri: Uri = "/api/sessions".parse().unwrap();
+        assert!(route_allows_token_type(&uri, &TokenType::Client));
+        assert!(!route_allows_token_type(&uri, &TokenType::ClientBootstrap));
+        assert!(!route_allows_token_type(&uri, &TokenType::Daemon));
     }
 }

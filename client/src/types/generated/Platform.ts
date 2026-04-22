@@ -3,4 +3,4 @@
 /**
  * Host platform
  */
-export type Platform = "linux" | "macos" | "wsl";
+export type Platform = "linux" | "macos" | "windows" | "wsl";

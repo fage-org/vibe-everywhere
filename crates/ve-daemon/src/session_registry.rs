@@ -5,9 +5,10 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use tokio::sync::RwLock;
+use tokio::sync::{oneshot, RwLock};
 use tracing::{info, warn};
 use uuid::Uuid;
+use ve_shared::proto::SessionControlAction;
 
 use crate::agent::DriverEvent;
 use crate::config::Config;
@@ -41,6 +42,7 @@ impl SessionRegistry {
         session_id: Uuid,
         workspace_path: String,
         agent_type: String,
+        initial_message: Option<String>,
     ) -> Result<()> {
         // 使用单个 write lock 进行原子性的检查-插入操作
         let mut runners = self.runners.write().await;
@@ -59,27 +61,88 @@ impl SessionRegistry {
             });
         }
 
-        // 创建运行器
+        let (startup_tx, startup_rx) = oneshot::channel();
         let (runner, handle) = SessionRunner::new(
             session_id,
             workspace_path,
             agent_type,
+            initial_message,
             self.config.clone(),
             self.event_tx.clone(),
+            Some(startup_tx),
         );
 
-        // 在同一个 write lock 内注册
         runners.insert(session_id, handle);
-
-        // 释放锁后再启动运行器任务
         drop(runners);
 
-        // 启动运行器任务
         tokio::spawn(async move {
             runner.run().await;
         });
 
-        info!(%session_id, "Session created and started");
+        match tokio::time::timeout(self.config.ack_timeout(), startup_rx).await {
+            Ok(Ok(Ok(()))) => {
+                info!(%session_id, "Session created and started");
+                Ok(())
+            }
+            Ok(Ok(Err(error))) => {
+                self.remove(&session_id).await;
+                Err(error)
+            }
+            Ok(Err(_)) => {
+                self.remove(&session_id).await;
+                Err(DaemonError::InternalTaskError(
+                    "Session startup channel closed".to_string(),
+                ))
+            }
+            Err(_) => {
+                self.remove(&session_id).await;
+                Err(DaemonError::SessionInvalidStatus {
+                    current: "timeout".to_string(),
+                    expected: "session startup completion".to_string(),
+                })
+            }
+        }
+    }
+
+    /// 创建恢复会话
+    pub async fn create_rerun(
+        &self,
+        session_id: Uuid,
+        workspace_path: String,
+        agent_type: String,
+        claude_session_id: String,
+    ) -> Result<()> {
+        let mut runners = self.runners.write().await;
+
+        if runners.contains_key(&session_id) {
+            return Err(DaemonError::SessionCreateFailed {
+                reason: "Session already exists".to_string(),
+            });
+        }
+
+        if runners.len() >= self.config.max_parallel_sessions {
+            return Err(DaemonError::MaxSessionsReached {
+                max: self.config.max_parallel_sessions,
+            });
+        }
+
+        let (runner, handle) = SessionRunner::new_rerun(
+            session_id,
+            workspace_path,
+            agent_type,
+            claude_session_id,
+            self.config.clone(),
+            self.event_tx.clone(),
+        );
+
+        runners.insert(session_id, handle);
+        drop(runners);
+
+        tokio::spawn(async move {
+            runner.run().await;
+        });
+
+        info!(%session_id, "Session rerun created and started");
         Ok(())
     }
 
@@ -97,7 +160,40 @@ impl SessionRegistry {
         }
     }
 
-    /// 获取所有活跃会话 ID
+    pub async fn send_message_and_wait(&self, session_id: Uuid, content: String) -> Result<()> {
+        let handle = self
+            .get(&session_id)
+            .await
+            .ok_or(DaemonError::SessionNotFound {
+                session_id: session_id.to_string(),
+            })?;
+        handle
+            .send_message_and_wait(content, self.config.ack_timeout())
+            .await
+    }
+
+    pub async fn send_control_and_wait(
+        &self,
+        session_id: Uuid,
+        action: SessionControlAction,
+    ) -> Result<()> {
+        let handle = self
+            .get(&session_id)
+            .await
+            .ok_or(DaemonError::SessionNotFound {
+                session_id: session_id.to_string(),
+            })?;
+        handle
+            .send_control_and_wait(action, self.config.ack_timeout())
+            .await?;
+
+        if action == SessionControlAction::Terminate {
+            self.remove(&session_id).await;
+        }
+
+        Ok(())
+    }
+
     pub async fn list_active_session_ids(&self) -> Vec<Uuid> {
         let runners = self.runners.read().await;
         runners.keys().copied().collect()
@@ -133,7 +229,9 @@ impl SessionRegistry {
         match handle {
             Some(handle) => {
                 // 发送关闭命令
-                handle.send_close().await?;
+                handle
+                    .send_close_and_wait(self.config.ack_timeout())
+                    .await?;
 
                 // 成功后才移除
                 let mut runners = self.runners.write().await;
@@ -186,7 +284,12 @@ mod tests {
 
         let session_id = Uuid::new_v4();
         let result = registry
-            .create(session_id, "/workspace".to_string(), "claude_code".to_string())
+            .create(
+                session_id,
+                "/workspace".to_string(),
+                "claude_code".to_string(),
+                None,
+            )
             .await;
         assert!(result.is_ok());
 
@@ -202,13 +305,23 @@ mod tests {
 
         let session_id = Uuid::new_v4();
         registry
-            .create(session_id, "/workspace".to_string(), "claude_code".to_string())
+            .create(
+                session_id,
+                "/workspace".to_string(),
+                "claude_code".to_string(),
+                None,
+            )
             .await
             .unwrap();
 
         // 第二次创建相同 session_id 应该失败
         let result = registry
-            .create(session_id, "/workspace".to_string(), "claude_code".to_string())
+            .create(
+                session_id,
+                "/workspace".to_string(),
+                "claude_code".to_string(),
+                None,
+            )
             .await;
         assert!(result.is_err());
     }
@@ -241,7 +354,12 @@ mod tests {
         for _ in 0..2 {
             let session_id = Uuid::new_v4();
             registry
-                .create(session_id, "/workspace".to_string(), "claude_code".to_string())
+                .create(
+                    session_id,
+                    "/workspace".to_string(),
+                    "claude_code".to_string(),
+                    None,
+                )
                 .await
                 .unwrap();
         }
@@ -249,7 +367,12 @@ mod tests {
         // 第 3 个会话应该失败
         let session_id = Uuid::new_v4();
         let result = registry
-            .create(session_id, "/workspace".to_string(), "claude_code".to_string())
+            .create(
+                session_id,
+                "/workspace".to_string(),
+                "claude_code".to_string(),
+                None,
+            )
             .await;
         assert!(result.is_err());
     }
@@ -262,7 +385,12 @@ mod tests {
 
         let session_id = Uuid::new_v4();
         registry
-            .create(session_id, "/workspace".to_string(), "claude_code".to_string())
+            .create(
+                session_id,
+                "/workspace".to_string(),
+                "claude_code".to_string(),
+                None,
+            )
             .await
             .unwrap();
 
@@ -281,7 +409,12 @@ mod tests {
 
         let session_id = Uuid::new_v4();
         registry
-            .create(session_id, "/workspace".to_string(), "claude_code".to_string())
+            .create(
+                session_id,
+                "/workspace".to_string(),
+                "claude_code".to_string(),
+                None,
+            )
             .await
             .unwrap();
 
@@ -302,14 +435,24 @@ mod tests {
         // 并发创建相同 session_id
         let handle1 = tokio::spawn(async move {
             registry_clone
-                .create(session_id, "/workspace".to_string(), "claude_code".to_string())
+                .create(
+                    session_id,
+                    "/workspace".to_string(),
+                    "claude_code".to_string(),
+                    None,
+                )
                 .await
         });
 
         let registry_clone = registry.clone();
         let handle2 = tokio::spawn(async move {
             registry_clone
-                .create(session_id, "/workspace".to_string(), "claude_code".to_string())
+                .create(
+                    session_id,
+                    "/workspace".to_string(),
+                    "claude_code".to_string(),
+                    None,
+                )
                 .await
         });
 
@@ -317,8 +460,15 @@ mod tests {
         let result2 = handle2.await.unwrap();
 
         // 必须只有一个成功
-        let success_count = [result1.is_ok(), result2.is_ok()].iter().filter(|&&x| x).count();
-        assert_eq!(success_count, 1, "Only one create should succeed, but got {}", success_count);
+        let success_count = [result1.is_ok(), result2.is_ok()]
+            .iter()
+            .filter(|&&x| x)
+            .count();
+        assert_eq!(
+            success_count, 1,
+            "Only one create should succeed, but got {}",
+            success_count
+        );
 
         // 确认只有一个 session 被创建
         assert_eq!(registry.active_count().await, 1);
@@ -334,7 +484,12 @@ mod tests {
         // 创建会话
         let session_id = Uuid::new_v4();
         registry
-            .create(session_id, "/workspace".to_string(), "claude_code".to_string())
+            .create(
+                session_id,
+                "/workspace".to_string(),
+                "claude_code".to_string(),
+                None,
+            )
             .await
             .unwrap();
 
