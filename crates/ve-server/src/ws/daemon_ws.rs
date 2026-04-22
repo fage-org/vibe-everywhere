@@ -68,7 +68,13 @@ async fn handle_daemon_socket(socket: WebSocket, state: Arc<AppState>, host_id: 
     // Spawn task to send messages
     let send_task = tokio::spawn(async move {
         while let Some(msg) = rx.recv().await {
-            let json = serde_json::to_string(&msg).unwrap();
+            let json = match serde_json::to_string(&msg) {
+                Ok(j) => j,
+                Err(e) => {
+                    tracing::warn!(error = %e, "Failed to serialize daemon message, dropping");
+                    continue;
+                }
+            };
             if sender.send(Message::Text(json.into())).await.is_err() {
                 break;
             }
@@ -368,13 +374,14 @@ async fn handle_session_event(
                 r#"
                 UPDATE sessions
                 SET claude_session_id = $2,
-                    can_resume_cross_device = 1,
-                    updated_at = $3
-                WHERE session_id = $1 AND host_id = $4 AND status != 'archived'
+                    can_resume_cross_device = $3,
+                    updated_at = $4
+                WHERE session_id = $1 AND host_id = $5 AND status != 'archived'
                 "#,
             )
             .bind(session_id.to_string())
             .bind(claude_session_id)
+            .bind(true)
             .bind(&updated_at)
             .bind(host_id.to_string())
             .execute(&mut *tx)

@@ -2,10 +2,11 @@
 import type { CloseReason } from "./CloseReason";
 import type { DaemonStatus } from "./DaemonStatus";
 import type { OnlineStatus } from "./OnlineStatus";
+import type { PermissionDecision } from "./PermissionDecision";
 import type { RiskType } from "./RiskType";
 import type { SessionStatus } from "./SessionStatus";
 
 /**
  * Server-to-client message types
  */
-export type ServerToClient = { "type": "session_event", "payload": { session_id: string, event_type: string, data: unknown, } } | { "type": "permission_request", "payload": { permission_id: string, session_id: string, risk_type: RiskType, summary: string, target: string | null, } } | { "type": "session_status_changed", "payload": { session_id: string, new_status: SessionStatus, close_reason: CloseReason | null, } } | { "type": "host_status_changed", "payload": { host_id: string, online_status: OnlineStatus, daemon_status: DaemonStatus, } } | { "type": "notification", "payload": { notification_type: string, title: string, body: string, session_id: string | null, } } | { "type": "pong" } | { "type": "ack", "payload": { request_id: string, success: boolean, error: string | null, } };
+export type ServerToClient = { "type": "session_event", "payload": { session_id: string, event_type: string, data: unknown, } } | { "type": "permission_request", "payload": { permission_id: string, session_id: string, risk_type: RiskType, summary: string, target: string | null, } } | { "type": "permission_response", "payload": { permission_id: string, session_id: string, decision: PermissionDecision, } } | { "type": "session_status_changed", "payload": { session_id: string, new_status: SessionStatus, close_reason: CloseReason | null, } } | { "type": "host_status_changed", "payload": { host_id: string, online_status: OnlineStatus, daemon_status: DaemonStatus, } } | { "type": "notification", "payload": { notification_type: string, title: string, body: string, session_id: string | null, } } | { "type": "pong" } | { "type": "ack", "payload": { request_id: string, success: boolean, error: string | null, } };

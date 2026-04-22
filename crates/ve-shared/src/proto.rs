@@ -78,6 +78,11 @@ pub enum ServerToClient {
         summary: String,
         target: Option<String>,
     },
+    PermissionResponse {
+        permission_id: Uuid,
+        session_id: Uuid,
+        decision: crate::models::PermissionDecision,
+    },
     SessionStatusChanged {
         session_id: Uuid,
         new_status: SessionStatus,
@@ -113,6 +118,7 @@ impl From<ClientMessage> for WsEnvelope {
         let msg_type = match &msg {
             ClientMessage::SessionEvent { .. } => "session_event",
             ClientMessage::PermissionRequest { .. } => "permission_request",
+            ClientMessage::PermissionResponse { .. } => "permission_response",
             ClientMessage::SessionStatusChanged { .. } => "session_status_changed",
             ClientMessage::HostStatusChanged { .. } => "host_status_changed",
             ClientMessage::Notification { .. } => "notification",

@@ -34,7 +34,7 @@ pub struct ClaudeCodeDriver {
     stdin: Option<ChildStdin>,
 
     /// Event sender channel
-    event_tx: tokio::sync::mpsc::Sender<DriverEvent>,
+    event_tx: tokio::sync::broadcast::Sender<DriverEvent>,
 
     /// Current session ID
     session_id: Option<Uuid>,
@@ -102,7 +102,7 @@ pub struct ContentBlock {
 
 impl ClaudeCodeDriver {
     /// Create a new Claude Code Driver
-    pub fn new(config: Arc<Config>, event_tx: tokio::sync::mpsc::Sender<DriverEvent>) -> Self {
+    pub fn new(config: Arc<Config>, event_tx: tokio::sync::broadcast::Sender<DriverEvent>) -> Self {
         Self {
             config,
             child: None,
@@ -167,7 +167,7 @@ impl ClaudeCodeDriver {
 
     /// Handle a stream-json event from CLI
     async fn handle_stream_event(
-        event_tx: &tokio::sync::mpsc::Sender<DriverEvent>,
+        event_tx: &tokio::sync::broadcast::Sender<DriverEvent>,
         session_id: Uuid,
         event: StreamJsonEvent,
     ) -> Result<()> {
@@ -179,7 +179,6 @@ impl ClaudeCodeDriver {
                         event_type: "log".to_string(),
                         data: serde_json::json!({ "content": content }),
                     })
-                    .await
                     .ok();
             }
 
@@ -199,7 +198,6 @@ impl ClaudeCodeDriver {
                             event_type: "agent_reply".to_string(),
                             data: serde_json::json!({ "content": text }),
                         })
-                        .await
                         .ok();
                 }
             }
@@ -229,7 +227,6 @@ impl ClaudeCodeDriver {
                                     .and_then(|v| v.as_str())
                                     .map(|s| s.to_string()),
                             })
-                            .await
                             .ok();
                     }
                 } else {
@@ -242,7 +239,6 @@ impl ClaudeCodeDriver {
                                 "tool_input": tool_input,
                             }),
                         })
-                        .await
                         .ok();
                 }
             }
@@ -260,7 +256,6 @@ impl ClaudeCodeDriver {
                             "tool_result": tool_result,
                         }),
                     })
-                    .await
                     .ok();
             }
 
@@ -272,7 +267,6 @@ impl ClaudeCodeDriver {
                         summary,
                         close_reason: None,
                     })
-                    .await
                     .ok();
             }
 
@@ -282,7 +276,6 @@ impl ClaudeCodeDriver {
                         session_id,
                         message: message.clone(),
                     })
-                    .await
                     .ok();
 
                 event_tx
@@ -292,7 +285,6 @@ impl ClaudeCodeDriver {
                         summary: Some(message),
                         close_reason: None,
                     })
-                    .await
                     .ok();
             }
 
@@ -307,7 +299,6 @@ impl ClaudeCodeDriver {
                         session_id,
                         claude_session_id: claude_sid.clone(),
                     })
-                    .await
                     .ok();
             }
         }
@@ -705,7 +696,7 @@ mod tests {
             claude_command: "claude".to_string(),
             default_model: "claude-sonnet-4-20250514".to_string(),
         });
-        let (event_tx, _event_rx) = tokio::sync::mpsc::channel(8);
+        let (event_tx, _event_rx) = tokio::sync::broadcast::channel(8);
         let mut driver = ClaudeCodeDriver::new(config, event_tx);
 
         let error = tokio::runtime::Runtime::new()

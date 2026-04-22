@@ -30,6 +30,11 @@ pub fn start_permission_expiry_task(
             permission_ttl_secs, "Permission expiry task started"
         );
 
+        // Run immediately on startup, then on each tick
+        if let Err(e) = expire_stale_permissions(&db, permission_ttl_secs).await {
+            error!(error = %e, "Failed to run initial permission expiry");
+        }
+
         loop {
             ticker.tick().await;
 

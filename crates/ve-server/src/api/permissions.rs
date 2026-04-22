@@ -461,6 +461,20 @@ async fn respond_permission_by_id(
 
     tx.commit().await?;
 
+    // Broadcast permission response to subscribed clients
+    state
+        .hub
+        .broadcast_to_session(
+            &state.db,
+            &session_id,
+            ve_shared::proto::ClientMessage::PermissionResponse {
+                permission_id: id,
+                session_id,
+                decision: req.decision,
+            },
+        )
+        .await;
+
     tracing::info!(%id, ?req.decision, "Permission responded");
 
     Ok(Json(PermissionRequest {

@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
-use tokio::sync::{broadcast, mpsc};
+use tokio::sync::broadcast;
 use tokio_tungstenite::{connect_async, tungstenite::Message as WsMessage};
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
@@ -41,10 +41,8 @@ pub struct WsClient {
     token: String,
     /// Session registry
     registry: Option<Arc<SessionRegistry>>,
-    /// Event receiver from session runners
-    event_rx: Option<mpsc::Receiver<DriverEvent>>,
-    /// Event sender (clone for session runners)
-    event_tx: Option<mpsc::Sender<DriverEvent>>,
+    /// Broadcast sender for runner events (used to subscribe on each reconnect)
+    event_tx: Option<broadcast::Sender<DriverEvent>>,
     /// WebSocket sender for sending acks (wrapped in Arc for sharing)
     ws_sender: Option<Arc<tokio::sync::Mutex<WsSender>>>,
     /// File operations handler (workspace roots collected from sessions)
@@ -65,7 +63,6 @@ impl WsClient {
             host_id,
             token,
             registry: None,
-            event_rx: None,
             event_tx: None,
             ws_sender: None,
             file_ops: Some(file_ops),
@@ -78,7 +75,7 @@ impl WsClient {
         host_id: Uuid,
         token: String,
         registry: Arc<SessionRegistry>,
-        event_rx: mpsc::Receiver<DriverEvent>,
+        event_tx: broadcast::Sender<DriverEvent>,
     ) -> Self {
         // Initialize FileOps with empty workspace roots (will be updated when sessions are created)
         let file_ops = FileOps::new(
@@ -91,15 +88,14 @@ impl WsClient {
             host_id,
             token,
             registry: Some(registry),
-            event_rx: Some(event_rx),
-            event_tx: None,
+            event_tx: Some(event_tx),
             ws_sender: None,
             file_ops: Some(file_ops),
         }
     }
 
     /// Get event sender for session runners
-    pub fn event_sender(&self) -> Option<mpsc::Sender<DriverEvent>> {
+    pub fn event_sender(&self) -> Option<broadcast::Sender<DriverEvent>> {
         self.event_tx.clone()
     }
 
@@ -191,6 +187,17 @@ impl WsClient {
                 Err(e) => {
                     error!(error = %e, "Unexpected error, reconnecting...");
                     retry_count += 1;
+                    if retry_count > max_retries {
+                        error!(retry_count, "Max reconnection attempts reached");
+                        return Err(DaemonError::ReconnectLimitExceeded {
+                            attempts: max_retries,
+                        });
+                    }
+                    let backoff = calculate_backoff(min_backoff, max_backoff, retry_count);
+                    tokio::select! {
+                        _ = tokio::time::sleep(backoff) => {}
+                        _ = shutdown_rx.recv() => break 'connection_loop,
+                    }
                 }
             }
         }
@@ -198,7 +205,10 @@ impl WsClient {
         Ok(())
     }
 
-    /// Establish connection and run message loop
+    /// Run a single connected session.
+    ///
+    /// On connection failure, restores `event_rx` so the caller can retry
+    /// without losing the event channel.
     async fn connect_and_run(&mut self) -> Result<()> {
         // Build WebSocket URL with token
         let ws_url = format!(
@@ -218,13 +228,22 @@ impl WsClient {
 
         info!("WebSocket connected");
 
-        let (sender, mut receiver) = ws_stream.split();
+        // Subscribe a fresh broadcast receiver for this connection.
+        // Because broadcast receivers are cloneable, each reconnect gets
+        // a new receiver without consuming any persistent state.
+        let mut event_rx = self
+            .event_tx
+            .as_ref()
+            .map(|tx| tx.subscribe())
+            .unwrap_or_else(|| {
+                let (_tx, rx) = broadcast::channel(1);
+                rx
+            });
 
-        // Wrap sender in Arc<Mutex> for sharing between main loop and handlers
+        let (sender, mut receiver) = ws_stream.split();
         let sender = Arc::new(tokio::sync::Mutex::new(sender));
         self.ws_sender = Some(sender.clone());
 
-        // Send daemon_hello
         let hello = DaemonToServer::DaemonHello {
             host_id: self.host_id,
             host_name: self.config.host_name.clone(),
@@ -238,10 +257,8 @@ impl WsClient {
                 .await
                 .map_err(|e| DaemonError::WsConnect(Box::new(e)))?;
         }
-
         info!(host_id = %self.host_id, "Sent daemon_hello");
 
-        // Start heartbeat task
         let (heartbeat_tx, mut heartbeat_rx) = tokio::sync::mpsc::channel::<()>(1);
         let heartbeat_handle = tokio::spawn({
             let config = self.config.clone();
@@ -256,12 +273,8 @@ impl WsClient {
             }
         });
 
-        // Main message loop
         let mut last_pong = std::time::Instant::now();
         let heartbeat_timeout = self.config.heartbeat_timeout();
-
-        // Take event_rx out of Option for the duration of this connection
-        let mut event_rx = self.event_rx.take();
 
         loop {
             tokio::select! {
@@ -288,58 +301,60 @@ impl WsClient {
                 }
 
                 // Handle events from session runners
-                event = async {
-                    if let Some(ref mut rx) = event_rx {
-                        rx.recv().await
-                    } else {
-                        std::future::pending().await
-                    }
-                } => {
-                    if let Some(event) = event {
-                        // Handle permission registration for session-level approval cache
-                        if let DriverEvent::PermissionRequest {
-                            permission_id,
-                            session_id,
-                            risk_type,
-                            summary,
-                            target,
-                        } = &event
-                        {
-                            if let Some(ref registry) = self.registry {
-                                if let Some(handle) = registry.get(session_id).await {
-                                    let _ = handle.register_permission(
-                                        *permission_id,
-                                        risk_type.clone(),
-                                        target.clone(),
-                                        summary.clone(),
-                                    ).await;
+                event = event_rx.recv() => {
+                    match event {
+                        Ok(event) => {
+                            // Handle permission registration for session-level approval cache
+                            if let DriverEvent::PermissionRequest {
+                                permission_id,
+                                session_id,
+                                risk_type,
+                                summary,
+                                target,
+                            } = &event
+                            {
+                                if let Some(ref registry) = self.registry {
+                                    if let Some(handle) = registry.get(session_id).await {
+                                        let _ = handle.register_permission(
+                                            *permission_id,
+                                            risk_type.clone(),
+                                            target.clone(),
+                                            summary.clone(),
+                                        ).await;
+                                    }
+                                }
+                            }
+
+                            // Handle ClaudeSessionId event for --resume support
+                            if let DriverEvent::ClaudeSessionId {
+                                session_id,
+                                claude_session_id,
+                            } = &event
+                            {
+                                if let Some(ref registry) = self.registry {
+                                    if let Some(handle) = registry.get(session_id).await {
+                                        let _ = handle.set_claude_session_id(claude_session_id.clone()).await;
+                                    }
+                                }
+                            }
+
+                            // Process event and send messages
+                            let messages = self.handle_driver_event(event);
+                            for (msg_type, payload) in messages {
+                                let envelope = WsEnvelope::new(&msg_type, &payload);
+                                if let Ok(json) = serde_json::to_string(&envelope) {
+                                    let mut s = sender.lock().await;
+                                    if s.send(WsMessage::Text(json.into())).await.is_err() {
+                                        warn!("Failed to forward event to server");
+                                    }
                                 }
                             }
                         }
-
-                        // Handle ClaudeSessionId event for --resume support
-                        if let DriverEvent::ClaudeSessionId {
-                            session_id,
-                            claude_session_id,
-                        } = &event
-                        {
-                            if let Some(ref registry) = self.registry {
-                                if let Some(handle) = registry.get(session_id).await {
-                                    let _ = handle.set_claude_session_id(claude_session_id.clone()).await;
-                                }
-                            }
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                            warn!(lagged = n, "Event receiver lagged, missed events");
                         }
-
-                        // Process event and send messages
-                        let messages = self.handle_driver_event(event);
-                        for (msg_type, payload) in messages {
-                            let envelope = WsEnvelope::new(&msg_type, &payload);
-                            if let Ok(json) = serde_json::to_string(&envelope) {
-                                let mut s = sender.lock().await;
-                                if s.send(WsMessage::Text(json.into())).await.is_err() {
-                                    warn!("Failed to forward event to server");
-                                }
-                            }
+                        Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                            warn!("Event channel closed");
                         }
                     }
                 }

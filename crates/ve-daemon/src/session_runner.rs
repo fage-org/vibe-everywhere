@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{broadcast, mpsc, oneshot};
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 use ve_shared::models::PermissionDecision;
@@ -99,8 +99,8 @@ pub struct SessionRunner {
 
     /// 命令接收通道
     command_rx: mpsc::Receiver<RunnerCommand>,
-    /// 事件发送通道 (给 WS 客户端)
-    event_tx: mpsc::Sender<DriverEvent>,
+    /// 事件发送通道 (broadcast, 给 WS 客户端)
+    event_tx: broadcast::Sender<DriverEvent>,
 
     /// 等待中的权限请求（存储元数据用于 session 级授权缓存）
     pending_permissions: HashMap<Uuid, PendingPermission>,
@@ -172,7 +172,7 @@ impl SessionRunner {
         agent_type: String,
         initial_message: Option<String>,
         config: Arc<Config>,
-        event_tx: mpsc::Sender<DriverEvent>,
+        event_tx: broadcast::Sender<DriverEvent>,
         startup_completion: Option<oneshot::Sender<Result<()>>>,
     ) -> (Self, SessionRunnerHandle) {
         let (command_tx, command_rx) = mpsc::channel(16);
@@ -191,7 +191,8 @@ impl SessionRunner {
             config: config.clone(),
             startup_completion,
             state: RunnerState::Starting,
-            driver: create_driver(&agent_type, config, event_tx.clone()),
+            driver: create_driver(&agent_type, config, event_tx.clone())
+                .expect("Unsupported agent type"),
             command_rx,
             event_tx,
             pending_permissions: HashMap::new(),
@@ -210,7 +211,8 @@ impl SessionRunner {
         agent_type: String,
         claude_session_id: String,
         config: Arc<Config>,
-        event_tx: mpsc::Sender<DriverEvent>,
+        event_tx: broadcast::Sender<DriverEvent>,
+        startup_completion: Option<oneshot::Sender<Result<()>>>,
     ) -> (Self, SessionRunnerHandle) {
         let (mut runner, handle) = Self::new(
             session_id,
@@ -219,7 +221,7 @@ impl SessionRunner {
             None,
             config,
             event_tx,
-            None,
+            startup_completion,
         );
         runner.startup_claude_session_id = Some(claude_session_id);
         (runner, handle)
@@ -318,7 +320,12 @@ impl SessionRunner {
             }
 
             RunnerCommand::Rerun { claude_session_id } => {
-                self.handle_rerun(claude_session_id).await?;
+                if let Err(e) = self.handle_rerun(claude_session_id).await {
+                    error!(error = %e, "Failed to handle rerun");
+                    self.update_state(RunnerState::Error);
+                    self.report_status(SessionStatus::Error, Some(e.to_string()), None)
+                        .await;
+                }
             }
 
             RunnerCommand::RegisterPermission {
@@ -530,7 +537,7 @@ impl SessionRunner {
             summary,
             close_reason,
         };
-        if self.event_tx.send(event).await.is_err() {
+        if self.event_tx.send(event).is_err() {
             warn!(session_id = %self.session_id, "Failed to send status update");
         }
     }
@@ -765,7 +772,7 @@ mod tests {
             claude_command: "claude".to_string(),
             default_model: "claude-sonnet-4-20250514".to_string(),
         });
-        let (event_tx, _event_rx) = mpsc::channel(16);
+        let (event_tx, _event_rx) = broadcast::channel(16);
         let session_id = Uuid::new_v4();
         let (runner, _handle) = SessionRunner::new(
             session_id,
@@ -808,7 +815,7 @@ mod tests {
                     claude_command: "claude".to_string(),
                     default_model: "claude-sonnet-4-20250514".to_string(),
                 });
-                let (event_tx, _event_rx) = mpsc::channel(16);
+                let (event_tx, _event_rx) = broadcast::channel(16);
                 let session_id = Uuid::new_v4();
                 let (mut runner, _handle) = SessionRunner::new(
                     session_id,
@@ -847,12 +854,12 @@ mod tests {
             claude_command: "claude".to_string(),
             default_model: "claude-sonnet-4-20250514".to_string(),
         });
-        let (event_tx, mut event_rx) = mpsc::channel(16);
+        let (event_tx, mut event_rx) = broadcast::channel(16);
         let session_id = Uuid::new_v4();
         let (mut runner, _handle) = SessionRunner::new(
             session_id,
             "/workspace".to_string(),
-            "mock".to_string(),
+            "claude_code".to_string(),
             None,
             config,
             event_tx,
@@ -899,12 +906,12 @@ mod tests {
             claude_command: "claude".to_string(),
             default_model: "claude-sonnet-4-20250514".to_string(),
         });
-        let (event_tx, mut event_rx) = mpsc::channel(16);
+        let (event_tx, mut event_rx) = broadcast::channel(16);
         let session_id = Uuid::new_v4();
         let (mut runner, _handle) = SessionRunner::new(
             session_id,
             "/workspace".to_string(),
-            "mock".to_string(),
+            "claude_code".to_string(),
             None,
             config,
             event_tx,

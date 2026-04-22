@@ -6,7 +6,6 @@ mod claude_code;
 
 use async_trait::async_trait;
 use std::sync::Arc;
-use tracing::warn;
 
 pub use claude_code::ClaudeCodeDriver;
 use serde::{Deserialize, Serialize};
@@ -15,6 +14,7 @@ use ve_shared::models::PermissionDecision;
 use ve_shared::proto::SessionControlAction;
 use ve_shared::types::{CloseReason, SessionStatus};
 
+use crate::error::DaemonError;
 use crate::Result;
 
 /// Agent 启动配置
@@ -100,11 +100,11 @@ pub trait AgentDriver: Send + Sync {
 
 /// Mock Agent Driver (用于测试)
 pub struct MockDriver {
-    event_tx: tokio::sync::mpsc::Sender<DriverEvent>,
+    event_tx: tokio::sync::broadcast::Sender<DriverEvent>,
 }
 
 impl MockDriver {
-    pub fn new(event_tx: tokio::sync::mpsc::Sender<DriverEvent>) -> Self {
+    pub fn new(event_tx: tokio::sync::broadcast::Sender<DriverEvent>) -> Self {
         Self { event_tx }
     }
 }
@@ -112,28 +112,21 @@ impl MockDriver {
 #[async_trait]
 impl AgentDriver for MockDriver {
     async fn start(&mut self, config: DriverConfig) -> Result<()> {
-        self.event_tx
-            .send(DriverEvent::StatusUpdate {
-                session_id: config.session_id,
-                status: SessionStatus::Running,
-                summary: None,
-                close_reason: None,
-            })
-            .await
-            .ok();
+        let _ = self.event_tx.send(DriverEvent::StatusUpdate {
+            session_id: config.session_id,
+            status: SessionStatus::Running,
+            summary: None,
+            close_reason: None,
+        });
         Ok(())
     }
 
     async fn send_message(&mut self, session_id: Uuid, content: &str) -> Result<()> {
-        // 模拟回复
-        self.event_tx
-            .send(DriverEvent::SessionEvent {
-                session_id,
-                event_type: "user_message".to_string(),
-                data: serde_json::json!({ "content": content }),
-            })
-            .await
-            .ok();
+        let _ = self.event_tx.send(DriverEvent::SessionEvent {
+            session_id,
+            event_type: "user_message".to_string(),
+            data: serde_json::json!({ "content": content }),
+        });
         Ok(())
     }
 
@@ -143,18 +136,15 @@ impl AgentDriver for MockDriver {
             SessionControlAction::Terminate => SessionStatus::Archived,
             _ => SessionStatus::Running,
         };
-        self.event_tx
-            .send(DriverEvent::StatusUpdate {
-                session_id,
-                status,
-                summary: None,
-                close_reason: match action {
-                    SessionControlAction::Terminate => Some(CloseReason::Terminated),
-                    _ => None,
-                },
-            })
-            .await
-            .ok();
+        let _ = self.event_tx.send(DriverEvent::StatusUpdate {
+            session_id,
+            status,
+            summary: None,
+            close_reason: match action {
+                SessionControlAction::Terminate => Some(CloseReason::Terminated),
+                _ => None,
+            },
+        });
         Ok(())
     }
 
@@ -172,15 +162,12 @@ impl AgentDriver for MockDriver {
     }
 
     async fn close(&mut self, session_id: Uuid) -> Result<()> {
-        self.event_tx
-            .send(DriverEvent::StatusUpdate {
-                session_id,
-                status: SessionStatus::Archived,
-                summary: Some("Session closed".to_string()),
-                close_reason: Some(CloseReason::UserClosed),
-            })
-            .await
-            .ok();
+        let _ = self.event_tx.send(DriverEvent::StatusUpdate {
+            session_id,
+            status: SessionStatus::Archived,
+            summary: Some("Session closed".to_string()),
+            close_reason: Some(CloseReason::UserClosed),
+        });
         Ok(())
     }
 
@@ -190,39 +177,26 @@ impl AgentDriver for MockDriver {
         _workspace_path: &str,
         _claude_session_id: &str,
     ) -> Result<()> {
-        // 模拟 rerun
-        self.event_tx
-            .send(DriverEvent::StatusUpdate {
-                session_id,
-                status: SessionStatus::Running,
-                summary: Some("Session resumed".to_string()),
-                close_reason: None,
-            })
-            .await
-            .ok();
+        let _ = self.event_tx.send(DriverEvent::StatusUpdate {
+            session_id,
+            status: SessionStatus::Running,
+            summary: Some("Session resumed".to_string()),
+            close_reason: None,
+        });
         Ok(())
     }
 }
 
 /// Create an Agent Driver based on the specified type
-///
-/// # Arguments
-/// * `agent_type` - The type of agent driver to create ("claude_code" or other)
-/// * `config` - Daemon configuration reference
-/// * `event_tx` - Channel for sending driver events
-///
-/// # Returns
-/// A boxed driver implementing `AgentDriver`
 pub fn create_driver(
     agent_type: &str,
     config: Arc<crate::config::Config>,
-    event_tx: tokio::sync::mpsc::Sender<DriverEvent>,
-) -> Box<dyn AgentDriver> {
+    event_tx: tokio::sync::broadcast::Sender<DriverEvent>,
+) -> Result<Box<dyn AgentDriver>> {
     match agent_type {
-        "claude_code" => Box::new(ClaudeCodeDriver::new(config, event_tx)),
-        _ => {
-            warn!(agent_type, "Unknown agent type, using mock driver");
-            Box::new(MockDriver::new(event_tx))
-        }
+        "claude_code" => Ok(Box::new(ClaudeCodeDriver::new(config, event_tx))),
+        _ => Err(DaemonError::AgentUnsupported {
+            agent_type: agent_type.to_string(),
+        }),
     }
 }

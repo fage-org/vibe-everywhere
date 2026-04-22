@@ -139,6 +139,9 @@ pub enum DaemonError {
     FileNotText { path: String },
 
     // ========== Agent Layer ==========
+    #[error("不支持的 agent 类型: {agent_type}")]
+    AgentUnsupported { agent_type: String },
+
     #[error("CLI 可执行文件未找到: {command}")]
     CliNotFound { command: String },
 

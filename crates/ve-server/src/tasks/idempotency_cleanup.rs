@@ -29,6 +29,11 @@ pub fn start_idempotency_cleanup_task(
             "Idempotency cleanup task started"
         );
 
+        // Run immediately on startup, then on each tick
+        if let Err(e) = cleanup_expired_keys(&db).await {
+            error!(error = %e, "Failed to run initial idempotency cleanup");
+        }
+
         loop {
             ticker.tick().await;
 

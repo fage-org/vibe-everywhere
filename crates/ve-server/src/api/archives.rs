@@ -478,10 +478,11 @@ async fn batch_delete_archives_for_device(
 
             sqlx::query(
                 r#"
-                DELETE FROM device_session_access WHERE session_id = $1
+                DELETE FROM device_session_access WHERE session_id = $1 AND device_id = $2
                 "#,
             )
             .bind(&session_id_raw)
+            .bind(device_id.to_string())
             .execute(&mut *tx)
             .await?;
 

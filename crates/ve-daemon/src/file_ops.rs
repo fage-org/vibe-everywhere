@@ -253,9 +253,14 @@ impl FileOps {
                     error = %e,
                     "Failed to get metadata, skipping"
                 );
-                return Err(DaemonError::FileReadFailed {
-                    path: current_path.to_string_lossy().to_string(),
-                    source: e,
+                // Return an empty node instead of erroring
+                return Ok(FileTreeNode {
+                    name,
+                    path: relative_path,
+                    is_dir: false,
+                    file_type: FileType::Unknown,
+                    size: None,
+                    children: None,
                 });
             }
         };
@@ -299,7 +304,13 @@ impl FileOps {
                             node_count,
                         ) {
                             Ok(child) => child_nodes.push(child),
-                            Err(e) => return Err(e),
+                            Err(e) => {
+                                warn!(
+                                    path = %entry_path.display(),
+                                    error = %e,
+                                    "Failed to collect child, skipping"
+                                );
+                            }
                         }
                     }
                 }

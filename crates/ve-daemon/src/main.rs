@@ -32,9 +32,10 @@ use ve_daemon::ws_client::WsClient;
 use ve_daemon::DaemonError;
 
 fn build_ws_client(config: Arc<Config>, host_id: Uuid, token: String) -> WsClient {
-    let (event_tx, event_rx) = tokio::sync::mpsc::channel(64);
-    let registry = Arc::new(SessionRegistry::new(config.clone(), event_tx));
-    WsClient::with_registry(config, host_id, token, registry, event_rx)
+    // Use broadcast channel so a fresh receiver can be subscribed on each reconnect.
+    let (event_tx, _event_rx) = tokio::sync::broadcast::channel(64);
+    let registry = Arc::new(SessionRegistry::new(config.clone(), event_tx.clone()));
+    WsClient::with_registry(config, host_id, token, registry, event_tx)
 }
 
 #[tokio::main]

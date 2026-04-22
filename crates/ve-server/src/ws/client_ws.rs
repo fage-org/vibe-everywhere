@@ -60,7 +60,13 @@ async fn handle_client_socket(socket: WebSocket, state: Arc<AppState>, device_id
     // Spawn task to send messages
     let send_task = tokio::spawn(async move {
         while let Some(msg) = rx.recv().await {
-            let json = serde_json::to_string(&msg).unwrap();
+            let json = match serde_json::to_string(&msg) {
+                Ok(j) => j,
+                Err(e) => {
+                    tracing::warn!(error = %e, "Failed to serialize client message, dropping");
+                    continue;
+                }
+            };
             if sender.send(Message::Text(json.into())).await.is_err() {
                 break;
             }

@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use tokio::sync::{oneshot, RwLock};
+use tokio::sync::{broadcast, oneshot, RwLock};
 use tracing::{info, warn};
 use uuid::Uuid;
 use ve_shared::proto::SessionControlAction;
@@ -22,13 +22,13 @@ pub struct SessionRegistry {
     runners: RwLock<HashMap<Uuid, SessionRunnerHandle>>,
     /// 配置引用
     config: Arc<Config>,
-    /// 事件发送通道
-    event_tx: tokio::sync::mpsc::Sender<DriverEvent>,
+    /// 事件发送通道 (broadcast)
+    event_tx: broadcast::Sender<DriverEvent>,
 }
 
 impl SessionRegistry {
     /// 创建新的注册中心
-    pub fn new(config: Arc<Config>, event_tx: tokio::sync::mpsc::Sender<DriverEvent>) -> Self {
+    pub fn new(config: Arc<Config>, event_tx: broadcast::Sender<DriverEvent>) -> Self {
         Self {
             runners: RwLock::new(HashMap::new()),
             config,
@@ -95,6 +95,11 @@ impl SessionRegistry {
                 ))
             }
             Err(_) => {
+                // 超时：发送 Close 命令让 runner 退出，然后移除
+                let handle = self.get(&session_id).await;
+                if let Some(handle) = handle {
+                    let _ = handle.send_close().await;
+                }
                 self.remove(&session_id).await;
                 Err(DaemonError::SessionInvalidStatus {
                     current: "timeout".to_string(),
@@ -126,6 +131,7 @@ impl SessionRegistry {
             });
         }
 
+        let (startup_tx, startup_rx) = oneshot::channel();
         let (runner, handle) = SessionRunner::new_rerun(
             session_id,
             workspace_path,
@@ -133,6 +139,7 @@ impl SessionRegistry {
             claude_session_id,
             self.config.clone(),
             self.event_tx.clone(),
+            Some(startup_tx),
         );
 
         runners.insert(session_id, handle);
@@ -142,8 +149,33 @@ impl SessionRegistry {
             runner.run().await;
         });
 
-        info!(%session_id, "Session rerun created and started");
-        Ok(())
+        match tokio::time::timeout(self.config.ack_timeout(), startup_rx).await {
+            Ok(Ok(Ok(()))) => {
+                info!(%session_id, "Session rerun created and started");
+                Ok(())
+            }
+            Ok(Ok(Err(error))) => {
+                self.remove(&session_id).await;
+                Err(error)
+            }
+            Ok(Err(_)) => {
+                self.remove(&session_id).await;
+                Err(DaemonError::InternalTaskError(
+                    "Session rerun startup channel closed".to_string(),
+                ))
+            }
+            Err(_) => {
+                let handle = self.get(&session_id).await;
+                if let Some(handle) = handle {
+                    let _ = handle.send_close().await;
+                }
+                self.remove(&session_id).await;
+                Err(DaemonError::SessionInvalidStatus {
+                    current: "timeout".to_string(),
+                    expected: "session rerun startup completion".to_string(),
+                })
+            }
+        }
     }
 
     /// 获取会话句柄
@@ -252,7 +284,6 @@ impl SessionRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::sync::mpsc;
 
     fn create_test_config() -> Arc<Config> {
         Arc::new(Config {
@@ -279,7 +310,7 @@ mod tests {
     #[tokio::test]
     async fn test_registry_create_and_get() {
         let config = create_test_config();
-        let (event_tx, _event_rx) = mpsc::channel(16);
+        let (event_tx, _event_rx) = broadcast::channel(16);
         let registry = SessionRegistry::new(config, event_tx);
 
         let session_id = Uuid::new_v4();
@@ -300,7 +331,7 @@ mod tests {
     #[tokio::test]
     async fn test_registry_duplicate_create() {
         let config = create_test_config();
-        let (event_tx, _event_rx) = mpsc::channel(16);
+        let (event_tx, _event_rx) = broadcast::channel(16);
         let registry = SessionRegistry::new(config, event_tx);
 
         let session_id = Uuid::new_v4();
@@ -347,7 +378,7 @@ mod tests {
             claude_command: "claude".to_string(),
             default_model: "claude-sonnet-4-20250514".to_string(),
         });
-        let (event_tx, _event_rx) = mpsc::channel(16);
+        let (event_tx, _event_rx) = broadcast::channel(16);
         let registry = SessionRegistry::new(config, event_tx);
 
         // 创建 2 个会话
@@ -380,7 +411,7 @@ mod tests {
     #[tokio::test]
     async fn test_registry_remove() {
         let config = create_test_config();
-        let (event_tx, _event_rx) = mpsc::channel(16);
+        let (event_tx, _event_rx) = broadcast::channel(16);
         let registry = SessionRegistry::new(config, event_tx);
 
         let session_id = Uuid::new_v4();
@@ -402,7 +433,7 @@ mod tests {
     #[tokio::test]
     async fn test_registry_active_count() {
         let config = create_test_config();
-        let (event_tx, _event_rx) = mpsc::channel(16);
+        let (event_tx, _event_rx) = broadcast::channel(16);
         let registry = SessionRegistry::new(config, event_tx);
 
         assert_eq!(registry.active_count().await, 0);
@@ -426,7 +457,7 @@ mod tests {
     #[tokio::test]
     async fn test_registry_concurrent_create_same_session_id() {
         let config = create_test_config();
-        let (event_tx, _event_rx) = mpsc::channel(16);
+        let (event_tx, _event_rx) = broadcast::channel(16);
         let registry = Arc::new(SessionRegistry::new(config, event_tx));
 
         let session_id = Uuid::new_v4();
@@ -478,7 +509,7 @@ mod tests {
     #[tokio::test]
     async fn test_registry_close_and_remove_existing_session() {
         let config = create_test_config();
-        let (event_tx, _event_rx) = mpsc::channel(16);
+        let (event_tx, _event_rx) = broadcast::channel(16);
         let registry = SessionRegistry::new(config, event_tx);
 
         // 创建会话
@@ -509,7 +540,7 @@ mod tests {
     #[tokio::test]
     async fn test_registry_close_nonexistent_session() {
         let config = create_test_config();
-        let (event_tx, _event_rx) = mpsc::channel(16);
+        let (event_tx, _event_rx) = broadcast::channel(16);
         let registry = SessionRegistry::new(config, event_tx);
 
         let session_id = Uuid::new_v4();
