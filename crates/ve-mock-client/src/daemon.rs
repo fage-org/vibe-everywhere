@@ -52,7 +52,10 @@ reconnect_max_secs = 2
             .env("VIBE_DAEMON__LOG_LEVEL", "debug")
             .env("VIBE_DAEMON__RECONNECT_BACKOFF_MIN_MS", "1000")
             .env("VIBE_DAEMON__RECONNECT_BACKOFF_MAX_MS", "2000")
-            .env("VIBE_DAEMON__CONFIG_DIR", temp_dir.to_string_lossy().as_ref())
+            .env(
+                "VIBE_DAEMON__CONFIG_DIR",
+                temp_dir.to_string_lossy().as_ref(),
+            )
             // Override default model for test environments where Anthropic models may be unavailable
             .env("VIBE_DAEMON__DEFAULT_MODEL", "sonnet");
         if mock_mode {

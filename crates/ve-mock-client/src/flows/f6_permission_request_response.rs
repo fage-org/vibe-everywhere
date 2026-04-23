@@ -228,9 +228,14 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
         .await
         .map_err(|e| anyhow::anyhow!("re-respond already-responded permission: {e}"))?;
     // Idempotent: re-responding returns the original state (ApprovedOnce), not the new decision
-    assert_eq!(re_result.status, ve_shared::types::PermissionStatus::ApprovedOnce);
+    assert_eq!(
+        re_result.status,
+        ve_shared::types::PermissionStatus::ApprovedOnce
+    );
 
-    tracing::info!("Idempotent re-respond verified: returns original state regardless of new decision");
+    tracing::info!(
+        "Idempotent re-respond verified: returns original state regardless of new decision"
+    );
 
     Ok(())
 }

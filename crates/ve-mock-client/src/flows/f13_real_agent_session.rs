@@ -76,16 +76,11 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
         let agent_messages: Vec<_> = messages
             .items
             .iter()
-            .filter(|m| {
-                m.message_type == SessionMessageType::Assistant && !m.content.is_empty()
-            })
+            .filter(|m| m.message_type == SessionMessageType::Assistant && !m.content.is_empty())
             .collect();
 
         if !agent_messages.is_empty() {
-            tracing::info!(
-                count = agent_messages.len(),
-                "Agent messages found"
-            );
+            tracing::info!(count = agent_messages.len(), "Agent messages found");
             got_reply = true;
             break;
         }

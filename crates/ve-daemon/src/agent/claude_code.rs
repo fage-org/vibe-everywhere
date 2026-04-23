@@ -101,6 +101,10 @@ pub struct ContentBlock {
     #[serde(rename = "type")]
     pub content_type: String,
     pub text: Option<String>,
+    /// Tool name (for tool_use blocks)
+    pub name: Option<String>,
+    /// Tool input (for tool_use blocks)
+    pub input: Option<serde_json::Value>,
 }
 
 impl ClaudeCodeDriver {
@@ -191,8 +195,21 @@ impl ClaudeCodeDriver {
                     let text = message
                         .content
                         .iter()
-                        .filter_map(|c| c.text.as_ref())
-                        .cloned()
+                        .filter_map(|c| {
+                            // Extract text blocks
+                            if let Some(t) = c.text.as_ref() {
+                                return Some(t.clone());
+                            }
+                            // For tool_use blocks, include a readable summary
+                            if c.content_type == "tool_use" {
+                                let name = c.name.as_deref().unwrap_or("unknown");
+                                let input = c.input.as_ref()
+                                    .map(|v| serde_json::to_string(v).unwrap_or_default())
+                                    .unwrap_or_default();
+                                return Some(format!("[Using tool: {name}] {input}"));
+                            }
+                            None
+                        })
                         .collect::<Vec<_>>()
                         .join("");
 

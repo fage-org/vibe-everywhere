@@ -356,7 +356,9 @@ pub struct ControlSessionResponse {
 #[ts(export)]
 pub struct CloseSessionResponse {
     pub success: bool,
+    #[serde(default)]
     pub close_requested: bool,
+    #[serde(default)]
     pub already_archived: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub archive_id: Option<Uuid>,

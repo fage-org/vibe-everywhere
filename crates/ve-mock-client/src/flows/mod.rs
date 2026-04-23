@@ -182,6 +182,54 @@ impl FlowRegistry {
             requires_real_agent: true,
             run_fn: |ctx| Box::pin(crate::flows::f13_real_agent_session::run(ctx)),
         });
+
+        self.register(Flow {
+            id: "f14".to_string(),
+            description: "Real agent multi-turn conversation".to_string(),
+            requires_agent: true,
+            requires_real_agent: true,
+            run_fn: |ctx| Box::pin(crate::flows::f14_real_multi_turn::run(ctx)),
+        });
+
+        self.register(Flow {
+            id: "f15".to_string(),
+            description: "Real agent permission review/authorization".to_string(),
+            requires_agent: true,
+            requires_real_agent: true,
+            run_fn: |ctx| Box::pin(crate::flows::f15_real_permission::run(ctx)),
+        });
+
+        self.register(Flow {
+            id: "f16".to_string(),
+            description: "Real agent file browsing and tool calls".to_string(),
+            requires_agent: true,
+            requires_real_agent: true,
+            run_fn: |ctx| Box::pin(crate::flows::f16_real_file_browsing::run(ctx)),
+        });
+
+        self.register(Flow {
+            id: "f17".to_string(),
+            description: "Real agent session control and termination".to_string(),
+            requires_agent: true,
+            requires_real_agent: true,
+            run_fn: |ctx| Box::pin(crate::flows::f17_real_session_control::run(ctx)),
+        });
+
+        self.register(Flow {
+            id: "f18".to_string(),
+            description: "Real agent session archival lifecycle".to_string(),
+            requires_agent: true,
+            requires_real_agent: true,
+            run_fn: |ctx| Box::pin(crate::flows::f18_real_archival::run(ctx)),
+        });
+
+        self.register(Flow {
+            id: "f19".to_string(),
+            description: "Real agent error handling and exception paths".to_string(),
+            requires_agent: true,
+            requires_real_agent: true,
+            run_fn: |ctx| Box::pin(crate::flows::f19_real_error_handling::run(ctx)),
+        });
     }
 
     fn register(&mut self, flow: Flow) {
@@ -194,6 +242,13 @@ impl FlowRegistry {
 pub mod f10_settings;
 pub mod f11_daemon_reconnection;
 pub mod f12_background_tasks;
+pub mod f13_real_agent_session;
+pub mod f14_real_multi_turn;
+pub mod f15_real_permission;
+pub mod f16_real_file_browsing;
+pub mod f17_real_session_control;
+pub mod f18_real_archival;
+pub mod f19_real_error_handling;
 pub mod f1_device_registration_pairing;
 pub mod f2_host_workspace_crud;
 pub mod f3_session_create_execute;
@@ -203,4 +258,3 @@ pub mod f6_permission_request_response;
 pub mod f7_session_archival;
 pub mod f8_file_browsing;
 pub mod f9_archive_browse_delete;
-pub mod f13_real_agent_session;
