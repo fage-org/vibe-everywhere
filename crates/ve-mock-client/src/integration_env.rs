@@ -27,7 +27,8 @@ pub struct IntegrationEnv {
 
 impl IntegrationEnv {
     /// Create a full integration environment: temp dir + server + daemon + pairing.
-    pub async fn new() -> Result<Self> {
+    /// When `mock_mode` is false, the daemon uses real Claude Code instead of MockDriver.
+    pub async fn new(mock_mode: bool) -> Result<Self> {
         let temp_dir = tempfile::tempdir().context("creating temp directory")?;
         let temp_path = temp_dir.path();
 
@@ -41,7 +42,7 @@ impl IntegrationEnv {
         let pool = server.pool.clone();
 
         // Start daemon (without credentials → enters pairing mode)
-        let daemon = IntegrationDaemon::spawn(&server_url, temp_path)
+        let daemon = IntegrationDaemon::spawn(&server_url, temp_path, mock_mode)
             .await
             .context("starting test daemon")?;
 

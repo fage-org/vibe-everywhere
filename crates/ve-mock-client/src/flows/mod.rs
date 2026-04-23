@@ -49,6 +49,7 @@ pub struct Flow {
     pub id: String,
     pub description: String,
     pub requires_agent: bool,
+    pub requires_real_agent: bool,
     #[allow(clippy::type_complexity)]
     pub run_fn: fn(
         Arc<TestContext>,
@@ -82,6 +83,7 @@ impl FlowRegistry {
             id: "f1".to_string(),
             description: "Device registration & pairing".to_string(),
             requires_agent: false,
+            requires_real_agent: false,
             run_fn: |ctx| Box::pin(crate::flows::f1_device_registration_pairing::run(ctx)),
         });
 
@@ -89,6 +91,7 @@ impl FlowRegistry {
             id: "f2".to_string(),
             description: "Host & Workspace CRUD".to_string(),
             requires_agent: false,
+            requires_real_agent: false,
             run_fn: |ctx| Box::pin(crate::flows::f2_host_workspace_crud::run(ctx)),
         });
 
@@ -96,6 +99,7 @@ impl FlowRegistry {
             id: "f3".to_string(),
             description: "Session create & execute".to_string(),
             requires_agent: true,
+            requires_real_agent: false,
             run_fn: |ctx| Box::pin(crate::flows::f3_session_create_execute::run(ctx)),
         });
 
@@ -103,6 +107,7 @@ impl FlowRegistry {
             id: "f4".to_string(),
             description: "Session message flow".to_string(),
             requires_agent: false,
+            requires_real_agent: false,
             run_fn: |ctx| Box::pin(crate::flows::f4_session_message::run(ctx)),
         });
 
@@ -110,6 +115,7 @@ impl FlowRegistry {
             id: "f5".to_string(),
             description: "Session control (pause/restart)".to_string(),
             requires_agent: true,
+            requires_real_agent: false,
             run_fn: |ctx| Box::pin(crate::flows::f5_session_control::run(ctx)),
         });
 
@@ -117,6 +123,7 @@ impl FlowRegistry {
             id: "f6".to_string(),
             description: "Permission request/response".to_string(),
             requires_agent: true,
+            requires_real_agent: false,
             run_fn: |ctx| Box::pin(crate::flows::f6_permission_request_response::run(ctx)),
         });
 
@@ -124,6 +131,7 @@ impl FlowRegistry {
             id: "f7".to_string(),
             description: "Session archival".to_string(),
             requires_agent: true,
+            requires_real_agent: false,
             run_fn: |ctx| Box::pin(crate::flows::f7_session_archival::run(ctx)),
         });
 
@@ -131,6 +139,7 @@ impl FlowRegistry {
             id: "f8".to_string(),
             description: "File browsing".to_string(),
             requires_agent: true,
+            requires_real_agent: false,
             run_fn: |ctx| Box::pin(crate::flows::f8_file_browsing::run(ctx)),
         });
 
@@ -138,6 +147,7 @@ impl FlowRegistry {
             id: "f9".to_string(),
             description: "Archive browse & delete".to_string(),
             requires_agent: false,
+            requires_real_agent: false,
             run_fn: |ctx| Box::pin(crate::flows::f9_archive_browse_delete::run(ctx)),
         });
 
@@ -145,6 +155,7 @@ impl FlowRegistry {
             id: "f10".to_string(),
             description: "Settings — get/update notification preferences".to_string(),
             requires_agent: false,
+            requires_real_agent: false,
             run_fn: |ctx| Box::pin(crate::flows::f10_settings::run(ctx)),
         });
 
@@ -152,6 +163,7 @@ impl FlowRegistry {
             id: "f11".to_string(),
             description: "Daemon reconnection".to_string(),
             requires_agent: false,
+            requires_real_agent: false,
             run_fn: |ctx| Box::pin(crate::flows::f11_daemon_reconnection::run(ctx)),
         });
 
@@ -159,7 +171,16 @@ impl FlowRegistry {
             id: "f12".to_string(),
             description: "Background tasks".to_string(),
             requires_agent: false,
+            requires_real_agent: false,
             run_fn: |ctx| Box::pin(crate::flows::f12_background_tasks::run(ctx)),
+        });
+
+        self.register(Flow {
+            id: "f13".to_string(),
+            description: "Real agent session (Claude Code E2E)".to_string(),
+            requires_agent: true,
+            requires_real_agent: true,
+            run_fn: |ctx| Box::pin(crate::flows::f13_real_agent_session::run(ctx)),
         });
     }
 
@@ -182,3 +203,4 @@ pub mod f6_permission_request_response;
 pub mod f7_session_archival;
 pub mod f8_file_browsing;
 pub mod f9_archive_browse_delete;
+pub mod f13_real_agent_session;

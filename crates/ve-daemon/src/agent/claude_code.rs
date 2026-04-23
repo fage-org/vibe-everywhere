@@ -49,16 +49,19 @@ pub struct ClaudeCodeDriver {
     pending_permissions: HashMap<String, tokio::sync::oneshot::Sender<PermissionDecision>>,
 }
 
-/// Stream-JSON event types from Claude CLI
+/// Stream-JSON event types from Claude CLI (supports both verbose and non-verbose formats)
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type")]
-#[serde(rename_all = "snake_case")]
+#[serde(tag = "type", rename_all = "snake_case")]
 pub enum StreamJsonEvent {
-    /// Partial output (streaming)
+    /// Partial output (streaming) — non-verbose format
     Partial { content: String },
 
-    /// Complete message
+    /// Complete message — non-verbose format: `{"type":"message",...}`
     Message { message: ClaudeMessage },
+
+    /// Assistant message — verbose format: `{"type":"assistant","message":{...}}`
+    #[serde(rename = "assistant")]
+    Assistant { message: ClaudeMessage },
 
     /// Tool use event
     #[serde(rename = "tool_use")]
@@ -182,7 +185,8 @@ impl ClaudeCodeDriver {
                     .ok();
             }
 
-            StreamJsonEvent::Message { message } => {
+            StreamJsonEvent::Message { message }
+            | StreamJsonEvent::Assistant { message } => {
                 if message.role == "assistant" {
                     let text = message
                         .content
@@ -314,8 +318,13 @@ impl ClaudeCodeDriver {
             .ok_or(DaemonError::CliStdinWriteFailed)?;
 
         let input = serde_json::json!({
-            "type": "user_message",
-            "content": content,
+            "type": "user",
+            "message": {
+                "role": "user",
+                "content": [
+                    { "type": "text", "text": content }
+                ]
+            }
         });
         let line =
             serde_json::to_string(&input).map_err(|e| DaemonError::CliStdoutParseFailed {
@@ -349,6 +358,7 @@ impl AgentDriver for ClaudeCodeDriver {
         // Build command
         let mut cmd = TokioCommand::new(&self.config.claude_command);
         cmd.arg("-p")
+            .arg("--verbose")
             .arg("--output-format")
             .arg("stream-json")
             .arg("--input-format")
@@ -361,10 +371,8 @@ impl AgentDriver for ClaudeCodeDriver {
             .arg(&self.config.default_model)
             .arg("--add-dir")
             .arg(&config.workspace_path);
-
-        if let Some(msg) = config.initial_message {
-            cmd.arg(&msg);
-        }
+        // Note: initial_message is sent via stdin below, not as a CLI arg,
+        // because --input-format stream-json makes the CLI ignore positional messages.
 
         cmd.stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -394,6 +402,11 @@ impl AgentDriver for ClaudeCodeDriver {
 
         // Spawn stdout reader task
         self.spawn_stdout_reader(stdout, config.session_id);
+
+        // Send initial message via stdin (required by --input-format stream-json)
+        if let Some(msg) = config.initial_message {
+            self.write_stdin(&msg).await?;
+        }
 
         info!(
             session_id = %config.session_id,

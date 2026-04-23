@@ -14,8 +14,9 @@ pub struct IntegrationDaemon {
 }
 
 impl IntegrationDaemon {
-    /// Spawn a ve-daemon subprocess pointing at the test server
-    pub async fn spawn(server_url: &str, temp_dir: &Path) -> Result<Self> {
+    /// Spawn a ve-daemon subprocess pointing at the test server.
+    /// When `mock_mode` is false, the daemon runs with real Claude Code (no VIBE_DAEMON__MOCK_MODE env var).
+    pub async fn spawn(server_url: &str, temp_dir: &Path, mock_mode: bool) -> Result<Self> {
         let config_path = temp_dir.join("daemon-config.toml");
         // Use a persistent path for logs so they survive temp dir cleanup
         let log_path = PathBuf::from("/tmp/ve-mock-daemon.log");
@@ -43,15 +44,21 @@ reconnect_max_secs = 2
 
         // Spawn subprocess with environment variables (daemon reads VIBE_DAEMON__* env vars).
         // The config_dir is set to temp_dir so credentials also land there.
-        let process = Command::new(&daemon_bin)
-            .env("VIBE_DAEMON__SERVER_URL", server_url)
+        // VIBE_DAEMON__MOCK_MODE is only set when mock_mode is true, allowing real Claude Code testing.
+        let mut cmd = Command::new(&daemon_bin);
+        cmd.env("VIBE_DAEMON__SERVER_URL", server_url)
             .env("VIBE_DAEMON__HOST_NAME", "test-host")
             .env("VIBE_DAEMON__PLATFORM", "linux")
             .env("VIBE_DAEMON__LOG_LEVEL", "debug")
             .env("VIBE_DAEMON__RECONNECT_BACKOFF_MIN_MS", "1000")
             .env("VIBE_DAEMON__RECONNECT_BACKOFF_MAX_MS", "2000")
-            .env("VIBE_DAEMON__MOCK_MODE", "true")
             .env("VIBE_DAEMON__CONFIG_DIR", temp_dir.to_string_lossy().as_ref())
+            // Override default model for test environments where Anthropic models may be unavailable
+            .env("VIBE_DAEMON__DEFAULT_MODEL", "sonnet");
+        if mock_mode {
+            cmd.env("VIBE_DAEMON__MOCK_MODE", "true");
+        }
+        let process = cmd
             .stdout(Stdio::from(log_file.try_clone()?))
             .stderr(Stdio::from(log_file))
             .spawn()

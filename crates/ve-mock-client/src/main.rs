@@ -46,6 +46,10 @@ struct Args {
     #[arg(long)]
     skip_agent: bool,
 
+    /// Use real Claude Code agent instead of mock mode (requires `claude` CLI installed)
+    #[arg(long)]
+    real_agent: bool,
+
     /// Number of flows to run concurrently (default: 1 = sequential)
     #[arg(long, default_value = "1")]
     concurrency: usize,
@@ -58,6 +62,7 @@ struct FlowTaskArgs {
     daemon_token: Option<String>,
     host_id: Option<String>,
     skip_agent: bool,
+    real_agent: bool,
 }
 
 #[tokio::main]
@@ -118,6 +123,7 @@ async fn main() -> anyhow::Result<()> {
         daemon_token: args.daemon_token,
         host_id: args.host_id,
         skip_agent: args.skip_agent,
+        real_agent: args.real_agent,
     };
 
     let results = run_flows_concurrent(&registry, &flow_indices, &task_args, concurrency).await;
@@ -147,6 +153,7 @@ async fn run_flows_concurrent(
             let flow = &flows[*idx];
             let flow_id = flow.id.clone();
             let flow_requires_agent = flow.requires_agent;
+            let flow_requires_real_agent = flow.requires_real_agent;
             let run_fn = flow.run_fn;
             let sem = Arc::clone(&semaphore);
             let args = FlowTaskArgs {
@@ -156,6 +163,7 @@ async fn run_flows_concurrent(
                 daemon_token: task_args.daemon_token.clone(),
                 host_id: task_args.host_id.clone(),
                 skip_agent: task_args.skip_agent,
+                real_agent: task_args.real_agent,
             };
 
             tokio::spawn(async move {
@@ -163,6 +171,10 @@ async fn run_flows_concurrent(
 
                 if args.skip_agent && flow_requires_agent {
                     return FlowResult::skipped(&flow_id, "skipped by --skip-agent");
+                }
+
+                if !args.real_agent && flow_requires_real_agent {
+                    return FlowResult::skipped(&flow_id, "requires --real-agent");
                 }
 
                 tracing::info!("=== Running {} ===", flow_id);
@@ -179,7 +191,9 @@ async fn run_flows_concurrent(
                         .expect("failed to create remote context");
                     run_fn(Arc::new(ctx)).await
                 } else {
-                    match TestContext::new_integration().await {
+                    // mock_mode is the inverse of real_agent
+                    let mock_mode = !args.real_agent;
+                    match TestContext::new_integration(mock_mode).await {
                         Ok(ctx) => run_fn(Arc::new(ctx)).await,
                         Err(e) => FlowResult::fail(&flow_id, &format!("setup failed: {e}")),
                     }

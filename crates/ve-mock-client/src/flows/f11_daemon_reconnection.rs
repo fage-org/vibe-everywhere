@@ -81,7 +81,7 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
     tracing::info!("Daemon disconnected from Hub");
 
     // Step 4: Restart the daemon
-    let _new_daemon = crate::daemon::IntegrationDaemon::spawn(&ctx.server_url, temp_dir_path)
+    let _new_daemon = crate::daemon::IntegrationDaemon::spawn(&ctx.server_url, temp_dir_path, true)
         .await
         .map_err(|e| anyhow::anyhow!("restart daemon: {e}"))?;
 

@@ -37,8 +37,9 @@ pub struct TestContext {
 impl TestContext {
     /// Create a new integration test context with real server and daemon.
     /// Performs full pairing setup: daemon-hello → register-device → pair → WS connect.
-    pub async fn new_integration() -> Result<Self> {
-        let mut env = IntegrationEnv::new()
+    /// When `mock_mode` is false, the daemon uses real Claude Code instead of MockDriver.
+    pub async fn new_integration(mock_mode: bool) -> Result<Self> {
+        let mut env = IntegrationEnv::new(mock_mode)
             .await
             .context("creating integration environment")?;
 

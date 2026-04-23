@@ -389,6 +389,28 @@ async fn handle_session_event(
         }
     }
 
+    if event_type == "agent_reply" {
+        if let Some(content) = payload
+            .get("data")
+            .and_then(|v| v.get("content"))
+            .and_then(|v| v.as_str())
+        {
+            let message_id = uuid::Uuid::new_v4().to_string();
+            sqlx::query(
+                r#"
+                INSERT INTO session_messages (message_id, session_id, message_type, content)
+                VALUES ($1, $2, 'assistant', $3)
+                "#,
+            )
+            .bind(&message_id)
+            .bind(session_id.to_string())
+            .bind(content)
+            .execute(&mut *tx)
+            .await?;
+            tracing::info!(%session_id, message_id, "Agent reply saved to session_messages");
+        }
+    }
+
     tx.commit().await?;
 
     state
