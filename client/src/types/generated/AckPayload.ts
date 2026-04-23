@@ -3,4 +3,4 @@
 /**
  * Acknowledgment payload for daemon responses
  */
-export type AckPayload = { request_id: string, success: boolean, error: string | null, };
+export type AckPayload = { request_id: string, success: boolean, error?: string | null, };

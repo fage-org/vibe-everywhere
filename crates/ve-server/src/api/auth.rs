@@ -45,7 +45,9 @@ pub async fn register_device(
     }
     if !req.server_url.starts_with("http://") && !req.server_url.starts_with("https://") {
         return Err(ServerError::Validation(
-            crate::validation::ValidationError::InvalidChars { field: "server_url" },
+            crate::validation::ValidationError::InvalidChars {
+                field: "server_url",
+            },
         ));
     }
 

@@ -27,6 +27,19 @@ impl MockClient {
         }
     }
 
+    /// Create a client without authentication (for unauthenticated endpoints
+    /// like POST /api/auth/register-device).
+    pub fn unauthenticated(server_url: String) -> Self {
+        Self {
+            http: Client::builder()
+                .connect_timeout(std::time::Duration::from_secs(10))
+                .build()
+                .unwrap(),
+            server_url,
+            token: String::new(),
+        }
+    }
+
     // ---- Auth API ----
 
     pub async fn register_device(
@@ -41,7 +54,9 @@ impl MockClient {
             "device_type": device_type,
             "server_url": server_url,
         });
-        let resp = self.post_json_value_raw("/api/auth/register-device", body, Some(idempotency_key)).await?;
+        let resp = self
+            .post_json_value_raw("/api/auth/register-device", body, Some(idempotency_key))
+            .await?;
         serde_json::from_value(resp).with_context(|| "parsing register-device response")
     }
 
@@ -53,7 +68,7 @@ impl MockClient {
         let url = format!("/api/auth/pairing-status?host_id={host_id}");
         let resp = self
             .http
-            .request(Method::GET, &format!("{}{}", self.server_url, url))
+            .request(Method::GET, format!("{}{}", self.server_url, url))
             .header("Authorization", format!("Bearer {}", self.token))
             .header("x-pairing-secret", pairing_secret)
             .send()
@@ -71,7 +86,9 @@ impl MockClient {
 
     pub async fn pair(&self, pair_code: &str) -> Result<PairResponse> {
         let body = serde_json::json!({ "pair_code": pair_code });
-        let resp = self.post_json_value_raw("/api/auth/pair", body, None).await?;
+        let resp = self
+            .post_json_value_raw("/api/auth/pair", body, None)
+            .await?;
         serde_json::from_value(resp).context("parsing pair response")
     }
 

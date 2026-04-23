@@ -3,6 +3,10 @@
 //! NOTE: This flow is marked as `integration-read-path`. It creates test fixtures
 //! directly in the database to verify server-side background task functions.
 //! It does NOT exercise the full daemon → WS → server → DB write chain.
+//!
+//! TODO(ECC-MEDIUM-02): Add a flow that launches the real background task scheduler
+//! with a short tick interval and observes DB side effects, instead of calling
+//! task functions directly with pre-inserted fixtures.
 
 use std::sync::Arc;
 

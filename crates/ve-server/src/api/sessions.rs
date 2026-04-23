@@ -2064,6 +2064,7 @@ mod tests {
         assert_eq!(before.0, after.0);
     }
 
+    #[allow(dead_code)]
     async fn insert_device_and_accessible_sessions(
         state: &Arc<AppState>,
         device_id: Uuid,

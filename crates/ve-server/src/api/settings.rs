@@ -109,7 +109,9 @@ pub async fn update_notification_preferences(
 
     // Use atomic upsert to avoid check-then-insert race under concurrency
     let enabled_int = req.enabled.map(|b| if b { 1 } else { 0 });
-    let perm_int = req.permission_request_enabled.map(|b| if b { 1 } else { 0 });
+    let perm_int = req
+        .permission_request_enabled
+        .map(|b| if b { 1 } else { 0 });
     let comp_int = req.task_completed_enabled.map(|b| if b { 1 } else { 0 });
     let fail_int = req.task_failed_enabled.map(|b| if b { 1 } else { 0 });
     let err_int = req.session_error_enabled.map(|b| if b { 1 } else { 0 });

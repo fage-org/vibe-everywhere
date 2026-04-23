@@ -3,4 +3,4 @@
 /**
  * WebSocket message envelope
  */
-export type WsEnvelope = { type: string, payload: unknown, timestamp: string, request_id: string | null, };
+export type WsEnvelope = { type: string, payload: unknown, timestamp: string, request_id?: string | null, };

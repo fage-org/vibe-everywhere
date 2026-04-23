@@ -9,7 +9,10 @@ use http_body_util::BodyExt;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::TcpListener;
-use tokio_tungstenite::{connect_async, tungstenite::Message};
+use tokio_tungstenite::{
+    connect_async,
+    tungstenite::{client::IntoClientRequest, Message},
+};
 use tower::ServiceExt;
 use uuid::Uuid;
 
@@ -1308,9 +1311,16 @@ async fn ws_session_subscription_stops_receiving_after_access_revocation() {
         .create_client_token(device_id, "device")
         .unwrap();
     let (base_url, server_handle) = run_app_for_ws(app).await;
-    let (mut ws, _) = connect_async(format!("{base_url}/ws/client?token={token}"))
-        .await
+    let mut ws_request = format!("{base_url}/ws/client")
+        .into_client_request()
         .unwrap();
+    ws_request.headers_mut().insert(
+        "Authorization",
+        format!("Bearer {token}")
+            .parse::<tokio_tungstenite::tungstenite::http::HeaderValue>()
+            .unwrap(),
+    );
+    let (mut ws, _) = connect_async(ws_request).await.unwrap();
 
     ws.send(Message::Text(
         serde_json::json!({
@@ -1357,9 +1367,16 @@ async fn ws_client_rejects_invalid_token_with_unauthorized_instead_of_jwt_500() 
     let (app, _state, _jwt_manager) = setup_app().await;
     let (base_url, server_handle) = run_app_for_ws(app).await;
 
-    let error = connect_async(format!("{base_url}/ws/client?token=invalid_token"))
-        .await
-        .unwrap_err();
+    let url = format!("{base_url}/ws/client");
+    let mut request = url.into_client_request().unwrap();
+    request.headers_mut().insert(
+        "Authorization",
+        "Bearer invalid_token"
+            .parse::<tokio_tungstenite::tungstenite::http::HeaderValue>()
+            .unwrap(),
+    );
+
+    let error = connect_async(request).await.unwrap_err();
     server_handle.abort();
 
     let response = match error {
@@ -1378,9 +1395,16 @@ async fn ws_daemon_rejects_invalid_token_with_unauthorized_instead_of_jwt_500() 
     let (app, _state, _jwt_manager) = setup_app().await;
     let (base_url, server_handle) = run_app_for_ws(app).await;
 
-    let error = connect_async(format!("{base_url}/ws/daemon?token=invalid_token"))
-        .await
-        .unwrap_err();
+    let url = format!("{base_url}/ws/daemon");
+    let mut request = url.into_client_request().unwrap();
+    request.headers_mut().insert(
+        "Authorization",
+        "Bearer invalid_token"
+            .parse::<tokio_tungstenite::tungstenite::http::HeaderValue>()
+            .unwrap(),
+    );
+
+    let error = connect_async(request).await.unwrap_err();
     server_handle.abort();
 
     let response = match error {

@@ -3,6 +3,9 @@
 //! NOTE: This flow is marked as `integration-read-path`. It creates test fixtures
 //! directly in the database to verify the read-side API path (list/respond/query).
 //! It does NOT exercise the full daemon → WS → server → DB write chain.
+//!
+//! TODO(ECC-MEDIUM-01): Add a flow that drives the real daemon → WS → server write
+//! chain for permission requests via a mock driver or injected daemon event.
 
 use std::sync::Arc;
 

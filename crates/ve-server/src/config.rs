@@ -192,16 +192,6 @@ pub enum DatabaseBackend {
     Postgres,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn default_ack_timeout_matches_daemon_budget() {
-        assert_eq!(default_ack_timeout_ms(), 30_000);
-    }
-}
-
 impl Config {
     /// Load configuration from environment variables
     pub fn from_env() -> Result<Self> {
@@ -369,5 +359,15 @@ impl Config {
         } else {
             DatabaseBackend::Sqlite
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_ack_timeout_matches_daemon_budget() {
+        assert_eq!(default_ack_timeout_ms(), 30_000);
     }
 }

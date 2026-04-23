@@ -19,7 +19,8 @@ pub async fn run(ctx: Arc<TestContext>) -> FlowResult {
 async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
     let client = &ctx.client;
 
-    // Integration setup already completed pairing. Verify the state is correct.
+    // Integration setup completed pairing via the REAL /api/auth/register-device
+    // and /api/auth/pair endpoints (ECC HIGH-03 fix). Verify the state is correct.
 
     // Step 1: Verify host_id exists
     let host_id = ctx

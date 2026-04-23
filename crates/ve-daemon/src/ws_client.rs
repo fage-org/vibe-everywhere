@@ -8,7 +8,10 @@ use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
 use tokio::sync::broadcast;
-use tokio_tungstenite::{connect_async, tungstenite::Message as WsMessage};
+use tokio_tungstenite::{
+    connect_async,
+    tungstenite::{client::IntoClientRequest, Message as WsMessage},
+};
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 use ve_shared::models::PermissionDecision;
@@ -48,7 +51,6 @@ pub struct WsClient {
     /// File operations handler (workspace roots collected from sessions)
     file_ops: Option<FileOps>,
 }
-
 
 /// Wait for SIGTERM shutdown signal.
 /// Returns immediately on non-Unix platforms (no-op).
@@ -225,21 +227,32 @@ impl WsClient {
     /// On connection failure, restores `event_rx` so the caller can retry
     /// without losing the event channel.
     async fn connect_and_run(&mut self) -> Result<()> {
-        // Build WebSocket URL with token, converting http(s):// to ws(s)://
+        // Build WebSocket URL, converting http(s):// to ws(s)://
         let ws_base = self
             .config
             .server_url
             .trim_end_matches('/')
             .replacen("http://", "ws://", 1)
             .replacen("https://", "wss://", 1);
-        let ws_url = format!("{}/ws/daemon?token={}", ws_base, self.token);
+        let ws_url = format!("{}/ws/daemon", ws_base);
 
         // Log server URL without exposing token
         let server_display = self.config.server_url.trim_end_matches('/');
         info!(server = %server_display, "Connecting to server...");
 
+        // Build request with Authorization header (no token in URL)
+        let mut request = ws_url
+            .into_client_request()
+            .map_err(|e| DaemonError::WsConnect(Box::new(e)))?;
+        request.headers_mut().insert(
+            "Authorization",
+            format!("Bearer {}", self.token)
+                .parse::<tokio_tungstenite::tungstenite::http::HeaderValue>()
+                .expect("Bearer token should be a valid header value"),
+        );
+
         // Connect WebSocket
-        let (ws_stream, _) = connect_async(&ws_url)
+        let (ws_stream, _) = connect_async(request)
             .await
             .map_err(|e| DaemonError::WsConnect(Box::new(e)))?;
 

@@ -5,12 +5,14 @@
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
-        Query, State,
+        State,
     },
     response::Response,
 };
+use axum_extra::headers::authorization::Bearer;
+use axum_extra::headers::Authorization;
+use axum_extra::TypedHeader;
 use futures::{SinkExt, StreamExt};
-use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -22,22 +24,16 @@ use crate::error::ServerError;
 use crate::hub::WS_CHANNEL_CAPACITY;
 use crate::state::AppState;
 
-/// WebSocket authentication query parameters
-#[derive(Debug, Deserialize)]
-pub struct WsAuthQuery {
-    pub token: String,
-}
-
-/// GET /ws/client?token=<jwt>
+/// GET /ws/client with Authorization: Bearer <jwt> header
 ///
 /// WebSocket upgrade handler for client connections.
 pub async fn ws_client_handler(
     ws: WebSocketUpgrade,
-    Query(auth): Query<WsAuthQuery>,
+    TypedHeader(auth): TypedHeader<Authorization<Bearer>>,
     State(state): State<Arc<AppState>>,
 ) -> Result<Response, ServerError> {
     let jwt_manager = JwtManager::new(&state.config.jwt_secret, state.config.jwt_expiration());
-    let claims = decode_ws_claims(&jwt_manager, &auth.token)?;
+    let claims = decode_ws_claims(&jwt_manager, auth.token())?;
     let device_id = require_client_device_id(&claims)?;
 
     tracing::info!(%device_id, "Client WebSocket connection request");

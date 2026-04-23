@@ -188,6 +188,7 @@ async fn run_flows_concurrent(
                         .as_ref()
                         .and_then(|s| uuid::Uuid::parse_str(s).ok());
                     let ctx = TestContext::new_remote(server_url, host_name, client_token, host_id)
+                        .await
                         .expect("failed to create remote context");
                     run_fn(Arc::new(ctx)).await
                 } else {

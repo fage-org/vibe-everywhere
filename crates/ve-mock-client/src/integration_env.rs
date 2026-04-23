@@ -53,24 +53,20 @@ impl IntegrationEnv {
 
         tracing::info!(%host_id, %pair_code, "Daemon hello received, pair_code available");
 
-        // Step 2: Register a test device and get bootstrap token
-        let device_id = Uuid::new_v4();
-        let bootstrap_token = jwt_manager
-            .create_client_bootstrap_token(device_id, "mock-client")
-            .context("creating bootstrap JWT")?;
+        // Step 2: Register a test device via the REAL /api/auth/register-device endpoint
+        let unauth_client = MockClient::unauthenticated(server_url.clone());
+        let reg_response = unauth_client
+            .register_device(
+                "mock-client",
+                ve_shared::types::DeviceType::Desktop,
+                &server_url,
+                "integration-test",
+            )
+            .await
+            .context("register-device via real endpoint")?;
 
-        // Insert device record (normally done by register-device endpoint)
-        let device_id_str = device_id.to_string();
-        sqlx::query(
-            "INSERT INTO client_devices (device_id, device_name, device_type, server_url) VALUES ($1, $2, $3, $4)",
-        )
-        .bind(&device_id_str)
-        .bind("mock-client")
-        .bind("desktop")
-        .bind(&server_url)
-        .execute(&pool)
-        .await
-        .context("inserting test device")?;
+        let device_id = reg_response.device_id;
+        let bootstrap_token = reg_response.token;
 
         // Step 3: Complete pairing by calling POST /api/auth/pair
         let client_token = complete_pairing(&server_url, &pair_code, &bootstrap_token)

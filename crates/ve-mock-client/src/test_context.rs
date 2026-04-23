@@ -67,9 +67,9 @@ impl TestContext {
 
     /// Create a remote test context connecting to existing server with a valid client token.
     /// Auto-discovers `host_id` via `list_hosts()` if not provided.
-    pub fn new_remote(
+    pub async fn new_remote(
         server_url: String,
-        _host_name: String,
+        host_name: String,
         client_token: String,
         host_id: Option<Uuid>,
     ) -> Result<Self> {
@@ -79,15 +79,21 @@ impl TestContext {
         let discovered_host_id = if let Some(id) = host_id {
             id
         } else {
-            let rt = tokio::runtime::Runtime::new()
-                .context("creating tokio runtime for host discovery")?;
-            let hosts = rt
-                .block_on(client.list_hosts())
+            let hosts = client
+                .list_hosts()
+                .await
                 .context("auto-discovering host_id via list_hosts")?;
             if hosts.hosts.is_empty() {
                 anyhow::bail!("No hosts found — provide --host-id explicitly");
             }
-            hosts.hosts[0].host_id
+            hosts
+                .hosts
+                .iter()
+                .find(|h| h.host_name == host_name)
+                .map(|h| h.host_id)
+                .ok_or_else(|| {
+                    anyhow::anyhow!("Host '{host_name}' not found — provide --host-id explicitly")
+                })?
         };
 
         Ok(Self {

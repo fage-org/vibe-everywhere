@@ -189,8 +189,7 @@ impl ClaudeCodeDriver {
                     .ok();
             }
 
-            StreamJsonEvent::Message { message }
-            | StreamJsonEvent::Assistant { message } => {
+            StreamJsonEvent::Message { message } | StreamJsonEvent::Assistant { message } => {
                 if message.role == "assistant" {
                     let text = message
                         .content
@@ -203,7 +202,9 @@ impl ClaudeCodeDriver {
                             // For tool_use blocks, include a readable summary
                             if c.content_type == "tool_use" {
                                 let name = c.name.as_deref().unwrap_or("unknown");
-                                let input = c.input.as_ref()
+                                let input = c
+                                    .input
+                                    .as_ref()
                                     .map(|v| serde_json::to_string(v).unwrap_or_default())
                                     .unwrap_or_default();
                                 return Some(format!("[Using tool: {name}] {input}"));

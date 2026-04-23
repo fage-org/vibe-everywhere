@@ -111,7 +111,17 @@ pub fn build_app(state: Arc<AppState>, jwt_manager: Arc<JwtManager>, config: &Co
             middleware::auth::auth_middleware,
         ))
         .layer(build_cors_layer(config))
-        .layer(TraceLayer::new_for_http())
+        .layer(
+            TraceLayer::new_for_http().make_span_with(|request: &axum::http::Request<_>| {
+                let path = request.uri().path();
+                tracing::info_span!(
+                    "http_request",
+                    method = %request.method(),
+                    uri = %path,
+                    version = ?request.version(),
+                )
+            }),
+        )
         .with_state(state)
         .with_state(jwt_manager)
 }

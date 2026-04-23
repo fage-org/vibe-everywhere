@@ -19,6 +19,7 @@ pub struct WsEnvelope {
     pub payload: serde_json::Value,
     pub timestamp: DateTime<Utc>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
     pub request_id: Option<String>,
 }
 
@@ -98,6 +99,7 @@ pub enum ServerToClient {
         title: String,
         body: String,
         #[serde(skip_serializing_if = "Option::is_none")]
+        #[ts(optional = nullable)]
         session_id: Option<Uuid>,
     },
     Pong,
@@ -106,6 +108,7 @@ pub enum ServerToClient {
         request_id: String,
         success: bool,
         #[serde(skip_serializing_if = "Option::is_none")]
+        #[ts(optional = nullable)]
         error: Option<String>,
     },
 }
@@ -239,6 +242,7 @@ pub enum ServerToDaemon {
         session_id: Uuid,
         workspace_path: String,
         #[serde(skip_serializing_if = "Option::is_none")]
+        #[ts(optional = nullable)]
         relative_path: Option<String>,
     },
     FileContentRequest {
@@ -417,6 +421,7 @@ pub struct AckPayload {
     pub request_id: String,
     pub success: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
     pub error: Option<String>,
 }
 
