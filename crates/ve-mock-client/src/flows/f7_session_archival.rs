@@ -1,4 +1,8 @@
 //! F7: Session archival
+//!
+//! NOTE: This flow is marked as `integration-read-path`. It creates test fixtures
+//! directly in the database to verify the read-side API path (list/get archives).
+//! It does NOT exercise the full daemon → WS → server → DB write chain.
 
 use std::sync::Arc;
 
@@ -37,7 +41,7 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
     let ws_path = ctx.workspace_path(&ws_name);
 
     let created_ws = client
-        .create_workspace(host_id, &ws_name, &ws_path, None)
+        .create_workspace(host_id, &ws_path, None)
         .await
         .map_err(|e| anyhow::anyhow!("create workspace: {e}"))?;
 
@@ -74,7 +78,8 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
             if err_msg.contains("failed to connect") || err_msg.contains("connection refused") {
                 anyhow::bail!("Close session failed with network error: {e}");
             }
-            tracing::info!(error = %e, "Close session returned HTTP error (acceptable)");
+            // HTTP 4xx/5xx are real errors — the endpoint should respond
+            anyhow::bail!("Close session returned HTTP error: {e}");
         }
     }
 

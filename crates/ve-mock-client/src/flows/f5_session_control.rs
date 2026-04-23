@@ -33,7 +33,7 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
     let ws_path = ctx.workspace_path(&ws_name);
 
     let created_ws = client
-        .create_workspace(host_id, &ws_name, &ws_path, None)
+        .create_workspace(host_id, &ws_path, None)
         .await
         .map_err(|e| anyhow::anyhow!("create workspace: {e}"))?;
 
@@ -67,7 +67,8 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
             if err_msg.contains("failed to connect") || err_msg.contains("connection refused") {
                 anyhow::bail!("Pause control failed with network error (server unreachable): {e}");
             }
-            tracing::info!(error = %e, "Pause returned HTTP error (acceptable without real agent)");
+            // HTTP 4xx/5xx are real errors — the endpoint should respond
+            anyhow::bail!("Pause control returned HTTP error: {e}");
         }
     }
 
@@ -117,7 +118,8 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
             if err_msg.contains("failed to connect") || err_msg.contains("connection refused") {
                 anyhow::bail!("Close session failed with network error: {e}");
             }
-            tracing::info!(error = %e, "Close session returned HTTP error (acceptable)");
+            // HTTP 4xx/5xx are real errors — the endpoint should respond
+            anyhow::bail!("Close session returned HTTP error: {e}");
         }
     }
 

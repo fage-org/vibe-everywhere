@@ -1,4 +1,8 @@
 //! F9: Archive browse & delete
+//!
+//! NOTE: This flow is marked as `integration-read-path`. It creates test fixtures
+//! directly in the database to verify the read-side API path (browse/delete archives).
+//! It does NOT exercise the full daemon → WS → server → DB write chain.
 
 use std::sync::Arc;
 

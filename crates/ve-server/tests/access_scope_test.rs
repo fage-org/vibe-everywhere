@@ -633,6 +633,8 @@ async fn list_workspaces_with_visible_host_filter_only_returns_accessible_worksp
         WorkspaceCollectionAccess {
             device_id,
             host_id: Some(visible_host_id),
+            page: 1,
+            limit: 20,
         },
         State(state.clone()),
     )
@@ -640,11 +642,11 @@ async fn list_workspaces_with_visible_host_filter_only_returns_accessible_worksp
     .unwrap()
     .0;
 
-    assert_eq!(response.len(), 1);
-    assert_eq!(response[0].workspace_id, visible_workspace_id);
-    assert_ne!(response[0].workspace_id, hidden_workspace_id);
-    assert_eq!(response[0].host_id, visible_host_id);
-    assert_ne!(response[0].host_id, hidden_host_id);
+    assert_eq!(response.items.len(), 1);
+    assert_eq!(response.items[0].workspace_id, visible_workspace_id);
+    assert_ne!(response.items[0].workspace_id, hidden_workspace_id);
+    assert_eq!(response.items[0].host_id, visible_host_id);
+    assert_ne!(response.items[0].host_id, hidden_host_id);
 }
 
 #[tokio::test]
@@ -658,6 +660,8 @@ async fn list_workspaces_without_host_filter_only_returns_accessible_workspaces(
         WorkspaceCollectionAccess {
             device_id,
             host_id: None,
+            page: 1,
+            limit: 20,
         },
         State(state.clone()),
     )
@@ -665,10 +669,10 @@ async fn list_workspaces_without_host_filter_only_returns_accessible_workspaces(
     .unwrap()
     .0;
 
-    assert_eq!(response.len(), 1);
-    assert_eq!(response[0].workspace_id, visible_workspace_id);
-    assert_ne!(response[0].workspace_id, hidden_workspace_id);
-    assert_ne!(response[0].host_id, hidden_host_id);
+    assert_eq!(response.items.len(), 1);
+    assert_eq!(response.items[0].workspace_id, visible_workspace_id);
+    assert_ne!(response.items[0].workspace_id, hidden_workspace_id);
+    assert_ne!(response.items[0].host_id, hidden_host_id);
 }
 
 #[tokio::test]

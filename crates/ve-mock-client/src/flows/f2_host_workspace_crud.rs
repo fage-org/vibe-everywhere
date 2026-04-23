@@ -48,7 +48,7 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
     let ws_path = ctx.workspace_path(&ws_name);
 
     let created = client
-        .create_workspace(host_id, &ws_name, &ws_path, Some("Test workspace"))
+        .create_workspace(host_id, &ws_path, Some(&ws_name))
         .await
         .map_err(|e| anyhow::anyhow!("create_workspace: {e}"))?;
 
@@ -118,7 +118,7 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
     // Step 8: Error path — create workspace with invalid host_id
     let bad_host_id = uuid::Uuid::new_v4();
     let result = client
-        .create_workspace(bad_host_id, "bad-host", "/tmp/bad", None)
+        .create_workspace(bad_host_id, "/tmp/bad", Some("bad-host"))
         .await;
     if result.is_ok() {
         anyhow::bail!("Expected error for non-existent host_id, but got OK");

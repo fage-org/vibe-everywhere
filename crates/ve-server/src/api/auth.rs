@@ -34,6 +34,21 @@ pub async fn register_device(
     // Validate device name
     validate_device_name(&req.device_name)?;
 
+    // Validate server_url format
+    if req.server_url.len() > 2048 {
+        return Err(ServerError::Validation(
+            crate::validation::ValidationError::TooLong {
+                field: "server_url",
+                max: 2048,
+            },
+        ));
+    }
+    if !req.server_url.starts_with("http://") && !req.server_url.starts_with("https://") {
+        return Err(ServerError::Validation(
+            crate::validation::ValidationError::InvalidChars { field: "server_url" },
+        ));
+    }
+
     if !state.auth_throttle.allow_register_device(remote_addr.ip()) {
         return Err(ServerError::TooManyRequests(
             "Too many device registration attempts from this source".to_string(),

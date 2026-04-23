@@ -51,6 +51,8 @@ pub struct HostCollectionAccess {
 pub struct WorkspaceCollectionAccess {
     pub device_id: Uuid,
     pub host_id: Option<Uuid>,
+    pub page: u32,
+    pub limit: u32,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -81,6 +83,18 @@ pub struct ArchiveAccess {
 #[derive(Debug, Deserialize)]
 struct HostScopedQuery {
     host_id: Option<Uuid>,
+    #[serde(default = "default_page")]
+    page: u32,
+    #[serde(default = "default_limit")]
+    limit: u32,
+}
+
+fn default_page() -> u32 {
+    1
+}
+
+fn default_limit() -> u32 {
+    20
 }
 
 #[derive(Debug, Deserialize)]
@@ -300,6 +314,8 @@ where
         Ok(Self {
             device_id,
             host_id: query.host_id,
+            page: query.page,
+            limit: query.limit,
         })
     }
 }

@@ -36,7 +36,7 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
     fixtures::create_test_workspace(&ws_path)?;
 
     let created_ws = client
-        .create_workspace(host_id, &ws_name, &ws_path, None)
+        .create_workspace(host_id, &ws_path, None)
         .await
         .map_err(|e| anyhow::anyhow!("create workspace: {e}"))?;
 

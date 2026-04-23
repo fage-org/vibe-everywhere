@@ -27,20 +27,20 @@ closed_by: string,
 /**
  * Latest session summary at close time
  */
-final_summary: string | null, 
+final_summary?: string | null, 
 /**
  * Claude Code CLI's internal session-id if available
  */
-claude_session_id: string | null, 
+claude_session_id?: string | null, 
 /**
  * Session statistics
  */
-statistics: ArchiveStatistics | null, 
+statistics?: ArchiveStatistics | null, 
 /**
  * Git commit SHA at close time
  */
-last_commit_sha: string | null, 
+last_commit_sha?: string | null, 
 /**
  * Git commit message at close time
  */
-last_commit_message: string | null, };
+last_commit_message?: string | null, };

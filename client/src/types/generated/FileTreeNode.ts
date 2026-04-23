@@ -24,8 +24,8 @@ file_type: FileType,
 /**
  * File size in bytes (None for directories)
  */
-size: bigint | null, 
+size?: bigint | null, 
 /**
  * Children (for directories)
  */
-children: Array<FileTreeNode> | null, };
+children?: Array<FileTreeNode> | null, };

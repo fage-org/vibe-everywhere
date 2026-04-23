@@ -33,7 +33,7 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
     let ws_path = ctx.workspace_path(&ws_name);
 
     let created_ws = client
-        .create_workspace(host_id, &ws_name, &ws_path, None)
+        .create_workspace(host_id, &ws_path, None)
         .await
         .map_err(|e| anyhow::anyhow!("create workspace: {e}"))?;
 

@@ -34,7 +34,7 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
     let ws_path = ctx.workspace_path(&ws_name);
 
     let created_ws = client
-        .create_workspace(host_id, &ws_name, &ws_path, None)
+        .create_workspace(host_id, &ws_path, None)
         .await
         .map_err(|e| anyhow::anyhow!("create workspace: {e}"))?;
 
@@ -152,11 +152,15 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
     match close_result {
         Ok(resp) => {
             if !resp.success {
-                tracing::warn!("Close session did not return success: {resp:?}");
+                anyhow::bail!("Close session did not return success: {resp:?}");
             }
         }
         Err(e) => {
-            tracing::info!(error = %e, "Close session returned HTTP error (acceptable)");
+            let err_msg = e.to_string();
+            if err_msg.contains("failed to connect") || err_msg.contains("connection refused") {
+                anyhow::bail!("Close session failed with network error: {e}");
+            }
+            anyhow::bail!("Close session returned HTTP error: {e}");
         }
     }
 

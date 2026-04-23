@@ -31,30 +31,48 @@ impl MockClient {
 
     pub async fn register_device(
         &self,
-        name: &str,
+        device_name: &str,
+        device_type: ve_shared::types::DeviceType,
         server_url: &str,
         idempotency_key: &str,
     ) -> Result<RegisterDeviceResponse> {
-        self.post_json(
-            "/api/auth/register-device",
-            &[("name", name), ("server_url", server_url)],
-            Some(idempotency_key),
-        )
-        .await
+        let body = serde_json::json!({
+            "device_name": device_name,
+            "device_type": device_type,
+            "server_url": server_url,
+        });
+        let resp = self.post_json_value_raw("/api/auth/register-device", body, Some(idempotency_key)).await?;
+        serde_json::from_value(resp).with_context(|| "parsing register-device response")
     }
 
-    pub async fn pairing_status(&self, device_id: Uuid) -> Result<PairingStatusResponse> {
-        self.get_json(&format!("/api/auth/pairing-status/{device_id}"))
+    pub async fn pairing_status(
+        &self,
+        host_id: Uuid,
+        pairing_secret: &str,
+    ) -> Result<PairingStatusResponse> {
+        let url = format!("/api/auth/pairing-status?host_id={host_id}");
+        let resp = self
+            .http
+            .request(Method::GET, &format!("{}{}", self.server_url, url))
+            .header("Authorization", format!("Bearer {}", self.token))
+            .header("x-pairing-secret", pairing_secret)
+            .send()
             .await
+            .with_context(|| format!("request to {url}"))?;
+        let status = resp.status();
+        let text = resp.text().await.context("reading response body")?;
+        if !status.is_success() {
+            return Err(anyhow::anyhow!(
+                "GET {url} failed with status {status}: {text}"
+            ));
+        }
+        serde_json::from_str(&text).with_context(|| format!("parsing JSON: {text}"))
     }
 
-    pub async fn pair(&self, device_id: Uuid) -> Result<PairResponse> {
-        self.post_json(
-            &format!("/api/auth/pair/{device_id}"),
-            &[] as &[(&str, &str)],
-            None,
-        )
-        .await
+    pub async fn pair(&self, pair_code: &str) -> Result<PairResponse> {
+        let body = serde_json::json!({ "pair_code": pair_code });
+        let resp = self.post_json_value_raw("/api/auth/pair", body, None).await?;
+        serde_json::from_value(resp).context("parsing pair response")
     }
 
     // ---- Hosts API ----
@@ -69,17 +87,15 @@ impl MockClient {
     pub async fn create_workspace(
         &self,
         host_id: Uuid,
-        name: &str,
         path: &str,
-        description: Option<&str>,
+        display_name: Option<&str>,
     ) -> Result<ve_shared::models::Workspace> {
         let mut body = serde_json::json!({
             "host_id": host_id,
-            "name": name,
             "path": path,
         });
-        if let Some(desc) = description {
-            body["description"] = serde_json::Value::String(desc.to_string());
+        if let Some(dn) = display_name {
+            body["display_name"] = serde_json::Value::String(dn.to_string());
         }
         let resp = self.post_json_value("/api/workspaces", body).await?;
         serde_json::from_value(resp).context("parsing create_workspace response")
@@ -320,14 +336,18 @@ impl MockClient {
 
     pub async fn update_notification_preferences(
         &self,
-        email_enabled: bool,
-        desktop_enabled: bool,
-        sound_enabled: bool,
+        enabled: bool,
+        permission_request_enabled: bool,
+        task_completed_enabled: bool,
+        task_failed_enabled: bool,
+        session_error_enabled: bool,
     ) -> Result<ve_shared::models::NotificationPreference> {
         let body = serde_json::json!({
-            "email_enabled": email_enabled,
-            "desktop_enabled": desktop_enabled,
-            "sound_enabled": sound_enabled,
+            "enabled": enabled,
+            "permission_request_enabled": permission_request_enabled,
+            "task_completed_enabled": task_completed_enabled,
+            "task_failed_enabled": task_failed_enabled,
+            "session_error_enabled": session_error_enabled,
         });
         let resp = self
             .put_json_value("/api/settings/notifications", body)
@@ -347,21 +367,6 @@ impl MockClient {
             ));
         }
         serde_json::from_str(&text).with_context(|| format!("parsing JSON: {text}"))
-    }
-
-    async fn post_json<T: for<'de> Deserialize<'de>>(
-        &self,
-        path: &str,
-        fields: &[(&str, &str)],
-        idempotency_key: Option<&str>,
-    ) -> Result<T> {
-        let mut body = serde_json::Map::new();
-        for (k, v) in fields {
-            body.insert(k.to_string(), serde_json::Value::String(v.to_string()));
-        }
-        let req = serde_json::Value::Object(body);
-        let value = self.post_json_value_raw(path, req, idempotency_key).await?;
-        serde_json::from_value(value).with_context(|| "parsing response JSON")
     }
 
     async fn post_json_value(
@@ -436,7 +441,7 @@ impl MockClient {
 #[derive(Debug, Deserialize)]
 pub struct RegisterDeviceResponse {
     pub device_id: Uuid,
-    pub device_secret: String,
+    pub token: String,
 }
 
 #[derive(Debug, Deserialize)]

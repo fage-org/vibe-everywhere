@@ -107,85 +107,34 @@ pub async fn update_notification_preferences(
         return Err(ServerError::NotFound(format!("Device {}", device_id)));
     }
 
-    // Check if preferences record exists
-    let existing: Option<(String,)> = sqlx::query_as(
+    // Use atomic upsert to avoid check-then-insert race under concurrency
+    let enabled_int = req.enabled.map(|b| if b { 1 } else { 0 });
+    let perm_int = req.permission_request_enabled.map(|b| if b { 1 } else { 0 });
+    let comp_int = req.task_completed_enabled.map(|b| if b { 1 } else { 0 });
+    let fail_int = req.task_failed_enabled.map(|b| if b { 1 } else { 0 });
+    let err_int = req.session_error_enabled.map(|b| if b { 1 } else { 0 });
+
+    sqlx::query(
         r#"
-        SELECT device_id FROM notification_preferences WHERE device_id = $1
+        INSERT INTO notification_preferences (device_id, enabled, permission_request_enabled,
+            task_completed_enabled, task_failed_enabled, session_error_enabled)
+        VALUES ($1, COALESCE($2, 1), COALESCE($3, 1), COALESCE($4, 1), COALESCE($5, 1), COALESCE($6, 1))
+        ON CONFLICT(device_id) DO UPDATE SET
+            enabled = COALESCE(EXCLUDED.enabled, notification_preferences.enabled),
+            permission_request_enabled = COALESCE(EXCLUDED.permission_request_enabled, notification_preferences.permission_request_enabled),
+            task_completed_enabled = COALESCE(EXCLUDED.task_completed_enabled, notification_preferences.task_completed_enabled),
+            task_failed_enabled = COALESCE(EXCLUDED.task_failed_enabled, notification_preferences.task_failed_enabled),
+            session_error_enabled = COALESCE(EXCLUDED.session_error_enabled, notification_preferences.session_error_enabled)
         "#,
     )
     .bind(&device_id_str)
-    .fetch_optional(&state.db)
+    .bind(enabled_int)
+    .bind(perm_int)
+    .bind(comp_int)
+    .bind(fail_int)
+    .bind(err_int)
+    .execute(&state.db)
     .await?;
-
-    if existing.is_none() {
-        // Insert new record
-        let enabled_int = if req.enabled.unwrap_or(true) { 1 } else { 0 };
-        let perm_int = if req.permission_request_enabled.unwrap_or(true) {
-            1
-        } else {
-            0
-        };
-        let comp_int = if req.task_completed_enabled.unwrap_or(true) {
-            1
-        } else {
-            0
-        };
-        let fail_int = if req.task_failed_enabled.unwrap_or(true) {
-            1
-        } else {
-            0
-        };
-        let err_int = if req.session_error_enabled.unwrap_or(true) {
-            1
-        } else {
-            0
-        };
-
-        sqlx::query(
-            r#"
-            INSERT INTO notification_preferences (device_id, enabled, permission_request_enabled,
-                task_completed_enabled, task_failed_enabled, session_error_enabled)
-            VALUES ($1, $2, $3, $4, $5, $6)
-            "#,
-        )
-        .bind(&device_id_str)
-        .bind(enabled_int)
-        .bind(perm_int)
-        .bind(comp_int)
-        .bind(fail_int)
-        .bind(err_int)
-        .execute(&state.db)
-        .await?;
-    } else {
-        // Update existing record
-        let enabled_int = req.enabled.map(|b| if b { 1 } else { 0 });
-        let perm_int = req
-            .permission_request_enabled
-            .map(|b| if b { 1 } else { 0 });
-        let comp_int = req.task_completed_enabled.map(|b| if b { 1 } else { 0 });
-        let fail_int = req.task_failed_enabled.map(|b| if b { 1 } else { 0 });
-        let err_int = req.session_error_enabled.map(|b| if b { 1 } else { 0 });
-
-        sqlx::query(
-            r#"
-            UPDATE notification_preferences
-            SET enabled = COALESCE($1, enabled),
-                permission_request_enabled = COALESCE($2, permission_request_enabled),
-                task_completed_enabled = COALESCE($3, task_completed_enabled),
-                task_failed_enabled = COALESCE($4, task_failed_enabled),
-                session_error_enabled = COALESCE($5, session_error_enabled)
-            WHERE device_id = $6
-            "#,
-        )
-        .bind(enabled_int)
-        .bind(perm_int)
-        .bind(comp_int)
-        .bind(fail_int)
-        .bind(err_int)
-        .bind(&device_id_str)
-        .execute(&state.db)
-        .await?;
-    }
 
     tracing::info!(%device_id, "Notification preferences updated");
 

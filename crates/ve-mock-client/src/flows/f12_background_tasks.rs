@@ -1,4 +1,8 @@
 //! F12: Background tasks — permission expiry and idempotency cleanup
+//!
+//! NOTE: This flow is marked as `integration-read-path`. It creates test fixtures
+//! directly in the database to verify server-side background task functions.
+//! It does NOT exercise the full daemon → WS → server → DB write chain.
 
 use std::sync::Arc;
 

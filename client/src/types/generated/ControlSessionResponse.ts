@@ -3,4 +3,4 @@
 /**
  * Session control response
  */
-export type ControlSessionResponse = { success: boolean, session_id: string | null, resumed_from_session_id: string | null, };
+export type ControlSessionResponse = { success: boolean, session_id?: string | null, resumed_from_session_id?: string | null, };

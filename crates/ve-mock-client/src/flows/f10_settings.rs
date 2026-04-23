@@ -38,7 +38,7 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
 
     // Step 2: Update notification preferences
     client
-        .update_notification_preferences(true, true, true)
+        .update_notification_preferences(true, true, true, true, true)
         .await
         .map_err(|e| anyhow::anyhow!("update notification preferences: {e}"))?;
 

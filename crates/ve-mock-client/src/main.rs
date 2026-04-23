@@ -30,9 +30,9 @@ struct Args {
     #[arg(long, requires = "remote")]
     host_name: Option<String>,
 
-    /// Remote daemon token (required with --remote)
+    /// Remote client token (required with --remote)
     #[arg(long, requires = "remote")]
-    daemon_token: Option<String>,
+    client_token: Option<String>,
 
     /// Remote daemon host ID (optional with --remote; auto-detected if omitted)
     #[arg(long)]
@@ -59,7 +59,7 @@ struct FlowTaskArgs {
     remote: bool,
     server_url: Option<String>,
     host_name: Option<String>,
-    daemon_token: Option<String>,
+    client_token: Option<String>,
     host_id: Option<String>,
     skip_agent: bool,
     real_agent: bool,
@@ -120,7 +120,7 @@ async fn main() -> anyhow::Result<()> {
         remote: args.remote,
         server_url: args.server_url,
         host_name: args.host_name,
-        daemon_token: args.daemon_token,
+        client_token: args.client_token,
         host_id: args.host_id,
         skip_agent: args.skip_agent,
         real_agent: args.real_agent,
@@ -160,7 +160,7 @@ async fn run_flows_concurrent(
                 remote: task_args.remote,
                 server_url: task_args.server_url.clone(),
                 host_name: task_args.host_name.clone(),
-                daemon_token: task_args.daemon_token.clone(),
+                client_token: task_args.client_token.clone(),
                 host_id: task_args.host_id.clone(),
                 skip_agent: task_args.skip_agent,
                 real_agent: task_args.real_agent,
@@ -182,12 +182,12 @@ async fn run_flows_concurrent(
                 let result = if args.remote {
                     let server_url = args.server_url.clone().expect("server_url required");
                     let host_name = args.host_name.clone().expect("host_name required");
-                    let daemon_token = args.daemon_token.clone().expect("daemon_token required");
+                    let client_token = args.client_token.clone().expect("client_token required");
                     let host_id = args
                         .host_id
                         .as_ref()
                         .and_then(|s| uuid::Uuid::parse_str(s).ok());
-                    let ctx = TestContext::new_remote(server_url, host_name, daemon_token, host_id)
+                    let ctx = TestContext::new_remote(server_url, host_name, client_token, host_id)
                         .expect("failed to create remote context");
                     run_fn(Arc::new(ctx)).await
                 } else {

@@ -13,6 +13,7 @@ use uuid::Uuid;
 use ve_shared::{
     jwt::Claims,
     models::{CreateWorkspaceRequest, Workspace},
+    types::Paginated,
 };
 
 use crate::authz::{
@@ -68,7 +69,10 @@ impl WorkspaceRecord {
 pub async fn list_workspaces(
     access: WorkspaceCollectionAccess,
     State(state): State<Arc<AppState>>,
-) -> Result<Json<Vec<Workspace>>> {
+) -> Result<Json<Paginated<Workspace>>> {
+    let offset = (access.page.saturating_sub(1) * access.limit) as i64;
+    let limit = access.limit as i64;
+
     let rows: Vec<(
         String,
         String,
@@ -79,20 +83,25 @@ pub async fn list_workspaces(
         i64,
         String,
         String,
+        i64,
     )> = if let Some(host_id) = access.host_id {
         sqlx::query_as(
             r#"
                 SELECT workspaces.workspace_id, workspaces.host_id, workspaces.path, workspaces.display_name,
                        workspaces.is_favorited, workspaces.last_used_at, workspaces.exists_on_host,
-                       workspaces.created_at, workspaces.updated_at
+                       workspaces.created_at, workspaces.updated_at,
+                       COUNT(*) OVER() as total_count
                 FROM workspaces
                 INNER JOIN device_host_access ON device_host_access.host_id = workspaces.host_id
                 WHERE workspaces.host_id = $1 AND device_host_access.device_id = $2
                 ORDER BY workspaces.is_favorited DESC, workspaces.last_used_at DESC
+                LIMIT $3 OFFSET $4
                 "#,
         )
         .bind(host_id.to_string())
         .bind(access.device_id.to_string())
+        .bind(limit)
+        .bind(offset)
         .fetch_all(&state.db)
         .await?
     } else {
@@ -100,17 +109,23 @@ pub async fn list_workspaces(
             r#"
                 SELECT workspaces.workspace_id, workspaces.host_id, workspaces.path, workspaces.display_name,
                        workspaces.is_favorited, workspaces.last_used_at, workspaces.exists_on_host,
-                       workspaces.created_at, workspaces.updated_at
+                       workspaces.created_at, workspaces.updated_at,
+                       COUNT(*) OVER() as total_count
                 FROM workspaces
                 INNER JOIN device_host_access ON device_host_access.host_id = workspaces.host_id
                 WHERE device_host_access.device_id = $1
                 ORDER BY workspaces.is_favorited DESC, workspaces.last_used_at DESC
+                LIMIT $2 OFFSET $3
                 "#,
         )
         .bind(access.device_id.to_string())
+        .bind(limit)
+        .bind(offset)
         .fetch_all(&state.db)
         .await?
     };
+
+    let total = rows.first().map(|r| r.9 as u64).unwrap_or(0);
 
     let workspaces: Result<Vec<Workspace>> = rows
         .into_iter()
@@ -125,6 +140,7 @@ pub async fn list_workspaces(
                 exists_on_host,
                 created_at,
                 updated_at,
+                _,
             )| {
                 WorkspaceRecord {
                     workspace_id,
@@ -142,7 +158,12 @@ pub async fn list_workspaces(
         )
         .collect();
 
-    Ok(Json(workspaces?))
+    Ok(Json(Paginated::new(
+        workspaces?,
+        total,
+        access.page,
+        access.limit,
+    )))
 }
 
 /// POST /api/workspaces

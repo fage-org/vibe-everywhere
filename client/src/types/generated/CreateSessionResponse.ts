@@ -4,4 +4,4 @@ import type { Session } from "./Session";
 /**
  * Create session response — may return a full session or a rerun redirect
  */
-export type CreateSessionResponse = { session_id: string, session: Session | null, resumed_from_session_id: string | null, };
+export type CreateSessionResponse = { session_id: string, session?: Session | null, resumed_from_session_id?: string | null, };

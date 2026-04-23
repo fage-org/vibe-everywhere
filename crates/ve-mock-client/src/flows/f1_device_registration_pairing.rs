@@ -73,14 +73,14 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
 
     tracing::info!("Pairing credentials consumed correctly");
 
-    // Step 5: Error path — pairing-status with invalid device_id
-    let bad_device_id = uuid::Uuid::new_v4();
-    let result = client.pairing_status(bad_device_id).await;
+    // Step 5: Error path — pairing-status with invalid host_id
+    let bad_host_id = uuid::Uuid::new_v4();
+    let result = client.pairing_status(bad_host_id, "invalid-secret").await;
     if result.is_ok() {
-        anyhow::bail!("Expected error for invalid device_id pairing-status, but got OK");
+        anyhow::bail!("Expected error for invalid host_id pairing-status, but got OK");
     }
 
-    tracing::info!("Error path verified: invalid device_id rejected");
+    tracing::info!("Error path verified: invalid host_id rejected");
 
     // Step 6: Verify the client token works (implicit from all above calls succeeding)
     tracing::info!("Client token authenticated successfully across all endpoints");

@@ -3,4 +3,4 @@
 /**
  * Close session response
  */
-export type CloseSessionResponse = { success: boolean, close_requested: boolean, already_archived: boolean, archive_id: string | null, };
+export type CloseSessionResponse = { success: boolean, close_requested: boolean, already_archived: boolean, archive_id?: string | null, };

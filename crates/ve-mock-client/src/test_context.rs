@@ -65,19 +65,35 @@ impl TestContext {
         })
     }
 
-    /// Create a remote test context connecting to existing server
+    /// Create a remote test context connecting to existing server with a valid client token.
+    /// Auto-discovers `host_id` via `list_hosts()` if not provided.
     pub fn new_remote(
         server_url: String,
         _host_name: String,
-        daemon_token: String,
+        client_token: String,
         host_id: Option<Uuid>,
     ) -> Result<Self> {
-        let client = MockClient::new(server_url.clone(), daemon_token);
+        let client = MockClient::new(server_url.clone(), client_token.clone());
+
+        // Auto-discover host_id if not provided
+        let discovered_host_id = if let Some(id) = host_id {
+            id
+        } else {
+            let rt = tokio::runtime::Runtime::new()
+                .context("creating tokio runtime for host discovery")?;
+            let hosts = rt
+                .block_on(client.list_hosts())
+                .context("auto-discovering host_id via list_hosts")?;
+            if hosts.hosts.is_empty() {
+                anyhow::bail!("No hosts found — provide --host-id explicitly");
+            }
+            hosts.hosts[0].host_id
+        };
 
         Ok(Self {
             mode: TestMode::Remote,
             server_url,
-            host_id,
+            host_id: Some(discovered_host_id),
             device_id: None,
             client,
             jwt_manager: None,

@@ -155,18 +155,23 @@ pub struct ArchiveMetadata {
     pub closed_by: String,
     /// Latest session summary at close time
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
     pub final_summary: Option<String>,
     /// Claude Code CLI's internal session-id if available
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
     pub claude_session_id: Option<String>,
     /// Session statistics
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
     pub statistics: Option<ArchiveStatistics>,
     /// Git commit SHA at close time
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
     pub last_commit_sha: Option<String>,
     /// Git commit message at close time
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
     pub last_commit_message: Option<String>,
 }
 
@@ -282,9 +287,11 @@ pub struct FileTreeNode {
     pub file_type: FileType,
     /// File size in bytes (None for directories)
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
     pub size: Option<u64>,
     /// Children (for directories)
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
     pub children: Option<Vec<FileTreeNode>>,
 }
 
@@ -327,8 +334,10 @@ pub struct SuccessResponse {
 pub struct CreateSessionResponse {
     pub session_id: Uuid,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
     pub session: Option<Session>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
     pub resumed_from_session_id: Option<Uuid>,
 }
 
@@ -346,8 +355,10 @@ pub struct SendMessageResponse {
 pub struct ControlSessionResponse {
     pub success: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
     pub session_id: Option<Uuid>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
     pub resumed_from_session_id: Option<Uuid>,
 }
 
@@ -361,6 +372,7 @@ pub struct CloseSessionResponse {
     #[serde(default)]
     pub already_archived: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
     pub archive_id: Option<Uuid>,
 }
 
