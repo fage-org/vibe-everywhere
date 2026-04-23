@@ -54,7 +54,7 @@ pub fn start_idempotency_cleanup_task(
 /// Remove expired idempotency keys from the database.
 ///
 /// Returns the number of keys that were deleted.
-async fn cleanup_expired_keys(db: &DbPool) -> Result<usize, sqlx::Error> {
+pub async fn cleanup_expired_keys(db: &DbPool) -> Result<usize, sqlx::Error> {
     let now = chrono::Utc::now().to_rfc3339();
 
     let result = sqlx::query(

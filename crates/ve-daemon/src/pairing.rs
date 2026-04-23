@@ -167,11 +167,14 @@ impl Pairing {
         use futures_util::StreamExt;
         use tokio_tungstenite::connect_async;
 
-        let ws_url = format!(
-            "{}/ws/daemon?pair_code={}",
-            self.config.server_url.trim_end_matches('/'),
-            pair_code
-        );
+        // Convert http(s):// to ws(s):// for WebSocket connection
+        let ws_base = self
+            .config
+            .server_url
+            .trim_end_matches('/')
+            .replacen("http://", "ws://", 1)
+            .replacen("https://", "wss://", 1);
+        let ws_url = format!("{}/ws/daemon?pair_code={}", ws_base, pair_code);
 
         info!(url = %ws_url, "Attempting WebSocket pairing...");
 

@@ -133,12 +133,12 @@ impl PermissionRecord {
             risk_type: utils::parse_risk_type(&self.risk_type),
             summary: self.summary.clone(),
             target: self.target.clone(),
-            created_at: chrono::DateTime::parse_from_rfc3339(&self.created_at)
+            created_at: utils::parse_sqlite_timestamp(&self.created_at)
                 .map_err(|e| ServerError::Internal(format!("Invalid created_at: {}", e)))?
                 .with_timezone(&chrono::Utc),
             status: utils::parse_permission_status(&self.status),
             responded_at: self.responded_at.as_ref().and_then(|s| {
-                chrono::DateTime::parse_from_rfc3339(s)
+                utils::parse_sqlite_timestamp(s)
                     .ok()
                     .map(|d| d.with_timezone(&chrono::Utc))
             }),
@@ -483,12 +483,12 @@ async fn respond_permission_by_id(
         risk_type: utils::parse_risk_type(&existing.risk_type),
         summary: existing.summary,
         target: existing.target,
-        created_at: chrono::DateTime::parse_from_rfc3339(&existing.created_at)
+        created_at: utils::parse_sqlite_timestamp(&existing.created_at)
             .map_err(|e| ServerError::Internal(format!("Invalid created_at: {}", e)))?
             .with_timezone(&chrono::Utc),
         status: utils::parse_permission_status(new_status),
         responded_at: Some(
-            chrono::DateTime::parse_from_rfc3339(&now)
+            utils::parse_sqlite_timestamp(&now)
                 .map_err(|e| ServerError::Internal(format!("Invalid responded_at: {}", e)))?
                 .with_timezone(&chrono::Utc),
         ),

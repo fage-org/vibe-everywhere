@@ -49,6 +49,21 @@ pub struct WsClient {
     file_ops: Option<FileOps>,
 }
 
+
+/// Wait for SIGTERM shutdown signal.
+/// Returns immediately on non-Unix platforms (no-op).
+#[cfg(unix)]
+async fn shutdown_signal() {
+    let mut signal = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+        .expect("Failed to install SIGTERM handler");
+    signal.recv().await;
+}
+
+#[cfg(not(unix))]
+async fn shutdown_signal() {
+    std::future::pending::<()>().await;
+}
+
 impl WsClient {
     /// Create a new WebSocket client
     pub fn new(config: Arc<Config>, host_id: Uuid, token: String) -> Self {
@@ -210,12 +225,14 @@ impl WsClient {
     /// On connection failure, restores `event_rx` so the caller can retry
     /// without losing the event channel.
     async fn connect_and_run(&mut self) -> Result<()> {
-        // Build WebSocket URL with token
-        let ws_url = format!(
-            "{}/ws/daemon?token={}",
-            self.config.server_url.trim_end_matches('/'),
-            self.token
-        );
+        // Build WebSocket URL with token, converting http(s):// to ws(s)://
+        let ws_base = self
+            .config
+            .server_url
+            .trim_end_matches('/')
+            .replacen("http://", "ws://", 1)
+            .replacen("https://", "wss://", 1);
+        let ws_url = format!("{}/ws/daemon?token={}", ws_base, self.token);
 
         // Log server URL without exposing token
         let server_display = self.config.server_url.trim_end_matches('/');
@@ -278,6 +295,12 @@ impl WsClient {
 
         loop {
             tokio::select! {
+                // Shutdown signal — exit immediately so daemon reconnection test passes
+                _ = shutdown_signal() => {
+                    info!("Shutdown signal received during connection, closing WebSocket");
+                    break;
+                }
+
                 // Heartbeat trigger
                 _ = heartbeat_rx.recv() => {
                     let active_sessions = if let Some(ref registry) = self.registry {
@@ -1207,6 +1230,7 @@ mod tests {
                 file_tree_max_nodes: 20_000,
                 claude_command: "claude".to_string(),
                 default_model: "claude-sonnet-4-20250514".to_string(),
+                mock_mode: false,
             }),
             Uuid::new_v4(),
             "token".to_string(),

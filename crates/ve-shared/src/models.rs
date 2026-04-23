@@ -313,3 +313,66 @@ pub struct FileContent {
     /// Total file size in bytes
     pub total_size: u64,
 }
+
+/// Generic success response for simple mutation endpoints
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct SuccessResponse {
+    pub success: bool,
+}
+
+/// Create session response — may return a full session or a rerun redirect
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct CreateSessionResponse {
+    pub session_id: Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session: Option<Session>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resumed_from_session_id: Option<Uuid>,
+}
+
+/// Send message response
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct SendMessageResponse {
+    pub success: bool,
+    pub message_id: Uuid,
+}
+
+/// Session control response
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct ControlSessionResponse {
+    pub success: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resumed_from_session_id: Option<Uuid>,
+}
+
+/// Close session response
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct CloseSessionResponse {
+    pub success: bool,
+    pub close_requested: bool,
+    pub already_archived: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub archive_id: Option<Uuid>,
+}
+
+/// Host list response
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct HostListResponse {
+    pub hosts: Vec<Host>,
+}
+
+/// Batch delete response
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct BatchDeleteResponse {
+    pub deleted_count: usize,
+    pub failed_ids: Vec<Uuid>,
+}

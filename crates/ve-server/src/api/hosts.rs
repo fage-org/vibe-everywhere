@@ -73,17 +73,17 @@ pub async fn list_hosts(
                 online_status: utils::parse_online_status(&row.3),
                 daemon_status: utils::parse_daemon_status(&row.4),
                 last_active_at: row.5.and_then(|s| {
-                    chrono::DateTime::parse_from_rfc3339(&s)
+                    utils::parse_sqlite_timestamp(&s)
                         .ok()
                         .map(|d| d.with_timezone(&chrono::Utc))
                 }),
                 pair_status: utils::parse_pair_status(&row.6),
                 pair_code: row.7,
                 qr_payload: row.8,
-                created_at: chrono::DateTime::parse_from_rfc3339(&row.9)
+                created_at: utils::parse_sqlite_timestamp(&row.9)
                     .map_err(|e| ServerError::Internal(format!("Invalid created_at: {}", e)))?
                     .with_timezone(&chrono::Utc),
-                updated_at: chrono::DateTime::parse_from_rfc3339(&row.10)
+                updated_at: utils::parse_sqlite_timestamp(&row.10)
                     .map_err(|e| ServerError::Internal(format!("Invalid updated_at: {}", e)))?
                     .with_timezone(&chrono::Utc),
             })
@@ -150,17 +150,17 @@ async fn get_host_by_id(state: Arc<AppState>, id: Uuid) -> Result<Json<Host>> {
         online_status: utils::parse_online_status(&row.3),
         daemon_status: utils::parse_daemon_status(&row.4),
         last_active_at: row.5.and_then(|s| {
-            chrono::DateTime::parse_from_rfc3339(&s)
+            utils::parse_sqlite_timestamp(&s)
                 .ok()
                 .map(|d| d.with_timezone(&chrono::Utc))
         }),
         pair_status: utils::parse_pair_status(&row.6),
         pair_code: row.7,
         qr_payload: row.8,
-        created_at: chrono::DateTime::parse_from_rfc3339(&row.9)
+        created_at: utils::parse_sqlite_timestamp(&row.9)
             .map_err(|e| ServerError::Internal(format!("Invalid created_at: {}", e)))?
             .with_timezone(&chrono::Utc),
-        updated_at: chrono::DateTime::parse_from_rfc3339(&row.10)
+        updated_at: utils::parse_sqlite_timestamp(&row.10)
             .map_err(|e| ServerError::Internal(format!("Invalid updated_at: {}", e)))?
             .with_timezone(&chrono::Utc),
     }))

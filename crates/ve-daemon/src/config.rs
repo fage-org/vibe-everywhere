@@ -78,6 +78,10 @@ pub struct Config {
     /// Log level
     #[serde(default = "default_log_level")]
     pub log_level: String,
+
+    /// Mock mode — skip agent startup, respond with ACK immediately
+    #[serde(default)]
+    pub mock_mode: bool,
 }
 
 fn default_config_dir() -> PathBuf {
@@ -187,6 +191,8 @@ impl Config {
             .set_default("log_format", default_log_format())
             .map_err(|e| DaemonError::ConfigInvalid(e.to_string()))?
             .set_default("log_level", default_log_level())
+            .map_err(|e| DaemonError::ConfigInvalid(e.to_string()))?
+            .set_default("mock_mode", false)
             .map_err(|e| DaemonError::ConfigInvalid(e.to_string()))?;
 
         // Try to load from config file
@@ -371,6 +377,7 @@ mod tests {
             file_tree_max_nodes: 20_000,
             claude_command: "claude".to_string(),
             default_model: "claude-sonnet-4-20250514".to_string(),
+            mock_mode: false,
         };
 
         assert!(config.is_json_logging());
@@ -402,6 +409,7 @@ mod tests {
             file_tree_max_nodes: 20_000,
             claude_command: "claude".to_string(),
             default_model: "claude-sonnet-4-20250514".to_string(),
+            mock_mode: false,
         };
 
         assert_eq!(config.log_level(), tracing::Level::INFO);
@@ -443,6 +451,7 @@ mod tests {
             file_tree_max_nodes: 20_000,
             claude_command: "claude".to_string(),
             default_model: "claude-sonnet-4-20250514".to_string(),
+            mock_mode: false,
         };
 
         let result = config.validate();
@@ -473,6 +482,7 @@ mod tests {
             file_tree_max_nodes: 20_000,
             claude_command: "claude".to_string(),
             default_model: "claude-sonnet-4-20250514".to_string(),
+            mock_mode: false,
         };
 
         let result = config.validate();
@@ -500,6 +510,7 @@ mod tests {
             file_tree_max_nodes: 20_000,
             claude_command: "claude".to_string(),
             default_model: "claude-sonnet-4-20250514".to_string(),
+            mock_mode: false,
         };
 
         assert!(config.validate().is_ok());

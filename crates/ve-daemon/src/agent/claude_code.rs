@@ -695,6 +695,7 @@ mod tests {
             file_tree_max_nodes: 20_000,
             claude_command: "claude".to_string(),
             default_model: "claude-sonnet-4-20250514".to_string(),
+            mock_mode: false,
         });
         let (event_tx, _event_rx) = tokio::sync::broadcast::channel(8);
         let mut driver = ClaudeCodeDriver::new(config, event_tx);

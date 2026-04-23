@@ -68,13 +68,13 @@ impl ArchiveRecord {
             archive_id: parse_uuid(&self.archive_id, "archive_id")?,
             session_id: parse_uuid(&self.session_id, "session_id")?,
             title: self.title.clone(),
-            closed_at: chrono::DateTime::parse_from_rfc3339(&self.closed_at)
+            closed_at: utils::parse_sqlite_timestamp(&self.closed_at)
                 .map_err(|e| ServerError::Internal(format!("Invalid closed_at: {}", e)))?
                 .with_timezone(&chrono::Utc),
             close_reason: utils::parse_close_reason(&self.close_reason),
             host_id: parse_uuid(&self.host_id, "host_id")?,
             workspace_id: parse_uuid(&self.workspace_id, "workspace_id")?,
-            created_at: chrono::DateTime::parse_from_rfc3339(&self.created_at)
+            created_at: utils::parse_sqlite_timestamp(&self.created_at)
                 .map_err(|e| ServerError::Internal(format!("Invalid created_at: {}", e)))?
                 .with_timezone(&chrono::Utc),
             metadata,

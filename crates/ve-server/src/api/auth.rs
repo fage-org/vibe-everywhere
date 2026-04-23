@@ -20,6 +20,7 @@ use ve_shared::pairing_proof::PairingProof;
 use crate::authz::require_bootstrap_device_id;
 use crate::error::{Result, ServerError};
 use crate::state::AppState;
+use crate::utils;
 use crate::validation::{validate_device_name, validate_host_name, validate_pair_code};
 
 /// POST /api/auth/register-device
@@ -230,7 +231,7 @@ pub async fn pairing_status(
         return Err(ServerError::Unauthorized);
     }
 
-    let expires_at = chrono::DateTime::parse_from_rfc3339(&row.3)
+    let expires_at = utils::parse_sqlite_timestamp(&row.3)
         .map_err(|e| ServerError::Internal(format!("Invalid expiration time: {}", e)))?
         .with_timezone(&chrono::Utc);
     let now = chrono::Utc::now();
@@ -351,7 +352,7 @@ pub async fn pair(
         return Err(ServerError::PairCodeUsed);
     }
 
-    let expires_at = chrono::DateTime::parse_from_rfc3339(&pairing.4)
+    let expires_at = utils::parse_sqlite_timestamp(&pairing.4)
         .map_err(|e| ServerError::Internal(format!("Invalid expiration time: {}", e)))?;
 
     if now > expires_at.with_timezone(&chrono::Utc) {

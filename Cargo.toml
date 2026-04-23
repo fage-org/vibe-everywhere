@@ -4,6 +4,7 @@ members = [
     "crates/ve-server",
     "crates/ve-shared",
     "crates/ve-daemon",
+    "crates/ve-mock-client",
     # "client/src-tauri",  # Will be added when client is implemented
 ]
 

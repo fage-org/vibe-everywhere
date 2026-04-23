@@ -193,6 +193,9 @@ pub fn create_driver(
     config: Arc<crate::config::Config>,
     event_tx: tokio::sync::broadcast::Sender<DriverEvent>,
 ) -> Result<Box<dyn AgentDriver>> {
+    if config.mock_mode {
+        return Ok(Box::new(MockDriver::new(event_tx)));
+    }
     match agent_type {
         "claude_code" => Ok(Box::new(ClaudeCodeDriver::new(config, event_tx))),
         _ => Err(DaemonError::AgentUnsupported {

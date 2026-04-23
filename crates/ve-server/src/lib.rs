@@ -102,7 +102,7 @@ pub fn build_app(state: Arc<AppState>, jwt_manager: Arc<JwtManager>, config: &Co
         )
         .route(
             "/api/settings/notifications",
-            post(api::settings::update_notification_preferences),
+            axum::routing::put(api::settings::update_notification_preferences),
         )
         .route("/ws/client", get(ws::client_ws::ws_client_handler))
         .route("/ws/daemon", get(ws::daemon_ws::ws_daemon_handler))

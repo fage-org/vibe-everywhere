@@ -187,7 +187,7 @@ async fn send_message_waits_for_daemon_ack_before_returning_success() {
         .unwrap()
         .unwrap()
         .unwrap();
-    assert!(response.0.get("success").and_then(|v| v.as_bool()).unwrap());
+    assert!(response.0.success);
 
     let stored_message: (String,) = sqlx::query_as(
         "SELECT content FROM session_messages WHERE session_id = $1 ORDER BY created_at DESC LIMIT 1",

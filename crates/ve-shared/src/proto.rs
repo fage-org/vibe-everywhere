@@ -259,34 +259,134 @@ pub type DaemonMessage = ServerToDaemon;
 
 impl From<DaemonMessage> for WsEnvelope {
     fn from(msg: DaemonMessage) -> Self {
-        let (msg_type, request_id) = match &msg {
-            DaemonMessage::CreateSession { request_id, .. } => {
-                ("create_session", Some(request_id.clone()))
-            }
-            DaemonMessage::RerunSession { request_id, .. } => {
-                ("rerun_session", Some(request_id.clone()))
-            }
-            DaemonMessage::SendMessage { request_id, .. } => {
-                ("send_message", Some(request_id.clone()))
-            }
-            DaemonMessage::SessionControl { request_id, .. } => {
-                ("session_control", Some(request_id.clone()))
-            }
-            DaemonMessage::CloseSession { request_id, .. } => {
-                ("close_session", Some(request_id.clone()))
-            }
-            DaemonMessage::PermissionResponse { .. } => ("permission_response", None),
-            DaemonMessage::FileTreeRequest { request_id, .. } => {
-                ("file_tree_request", Some(request_id.clone()))
-            }
-            DaemonMessage::FileContentRequest { request_id, .. } => {
-                ("file_content_request", Some(request_id.clone()))
-            }
-            DaemonMessage::Pong => ("pong", None),
-            DaemonMessage::Paired { .. } => ("paired", None),
+        let (msg_type, request_id, payload) = match &msg {
+            DaemonMessage::CreateSession {
+                request_id,
+                session_id,
+                workspace_path,
+                agent_type,
+                initial_message,
+            } => (
+                "create_session",
+                Some(request_id.clone()),
+                serde_json::json!({
+                    "session_id": session_id,
+                    "workspace_path": workspace_path,
+                    "agent_type": agent_type,
+                    "initial_message": initial_message,
+                }),
+            ),
+            DaemonMessage::RerunSession {
+                request_id,
+                session_id,
+                workspace_path,
+                agent_type,
+                claude_session_id,
+            } => (
+                "rerun_session",
+                Some(request_id.clone()),
+                serde_json::json!({
+                    "session_id": session_id,
+                    "workspace_path": workspace_path,
+                    "agent_type": agent_type,
+                    "claude_session_id": claude_session_id,
+                }),
+            ),
+            DaemonMessage::SendMessage {
+                request_id,
+                session_id,
+                content,
+            } => (
+                "send_message",
+                Some(request_id.clone()),
+                serde_json::json!({
+                    "session_id": session_id,
+                    "content": content,
+                }),
+            ),
+            DaemonMessage::SessionControl {
+                request_id,
+                session_id,
+                action,
+            } => (
+                "session_control",
+                Some(request_id.clone()),
+                serde_json::json!({
+                    "session_id": session_id,
+                    "action": action,
+                }),
+            ),
+            DaemonMessage::CloseSession {
+                request_id,
+                session_id,
+            } => (
+                "close_session",
+                Some(request_id.clone()),
+                serde_json::json!({
+                    "session_id": session_id,
+                }),
+            ),
+            DaemonMessage::PermissionResponse {
+                permission_id,
+                session_id,
+                decision,
+            } => (
+                "permission_response",
+                None,
+                serde_json::json!({
+                    "permission_id": permission_id,
+                    "session_id": session_id,
+                    "decision": decision,
+                }),
+            ),
+            DaemonMessage::FileTreeRequest {
+                request_id,
+                session_id,
+                workspace_path,
+                relative_path,
+            } => (
+                "file_tree_request",
+                Some(request_id.clone()),
+                serde_json::json!({
+                    "request_id": request_id,
+                    "session_id": session_id,
+                    "workspace_path": workspace_path,
+                    "relative_path": relative_path,
+                }),
+            ),
+            DaemonMessage::FileContentRequest {
+                request_id,
+                workspace_path,
+                relative_path,
+            } => (
+                "file_content_request",
+                Some(request_id.clone()),
+                serde_json::json!({
+                    "request_id": request_id,
+                    "workspace_path": workspace_path,
+                    "relative_path": relative_path,
+                }),
+            ),
+            DaemonMessage::Pong => ("pong", None, serde_json::json!({})),
+            DaemonMessage::Paired {
+                host_id,
+                daemon_token,
+            } => (
+                "paired",
+                None,
+                serde_json::json!({
+                    "host_id": host_id,
+                    "daemon_token": daemon_token,
+                }),
+            ),
         };
 
-        let mut envelope = WsEnvelope::new(msg_type, &msg);
+        let mut envelope = Self {
+            r#type: msg_type.to_string(),
+            payload,
+            timestamp: Utc::now(),
+            request_id: None,
+        };
         if let Some(id) = request_id {
             envelope = envelope.with_request_id(id);
         }

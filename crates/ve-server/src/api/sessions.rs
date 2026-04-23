@@ -137,7 +137,7 @@ impl SessionRecord {
             agent_type: self.agent_type.clone(),
             status: utils::parse_session_status(&self.status),
             last_activity_at: self.last_activity_at.as_ref().and_then(|s| {
-                chrono::DateTime::parse_from_rfc3339(s)
+                utils::parse_sqlite_timestamp(s)
                     .ok()
                     .map(|d| d.with_timezone(&chrono::Utc))
             }),
@@ -146,10 +146,10 @@ impl SessionRecord {
             pending_permission_count: self.pending_permission_count as i32,
             can_resume_cross_device: self.can_resume_cross_device != 0,
             claude_session_id: self.claude_session_id.clone(),
-            created_at: chrono::DateTime::parse_from_rfc3339(&self.created_at)
+            created_at: utils::parse_sqlite_timestamp(&self.created_at)
                 .map_err(|e| ServerError::Internal(format!("Invalid created_at: {}", e)))?
                 .with_timezone(&chrono::Utc),
-            updated_at: chrono::DateTime::parse_from_rfc3339(&self.updated_at)
+            updated_at: utils::parse_sqlite_timestamp(&self.updated_at)
                 .map_err(|e| ServerError::Internal(format!("Invalid updated_at: {}", e)))?
                 .with_timezone(&chrono::Utc),
         })
@@ -682,7 +682,7 @@ async fn get_session_by_id(state: Arc<AppState>, id: Uuid) -> Result<Json<Sessio
         agent_type: row.4,
         status: utils::parse_session_status(&row.5),
         last_activity_at: row.6.and_then(|s| {
-            chrono::DateTime::parse_from_rfc3339(&s)
+            utils::parse_sqlite_timestamp(&s)
                 .ok()
                 .map(|d| d.with_timezone(&chrono::Utc))
         }),
@@ -691,10 +691,10 @@ async fn get_session_by_id(state: Arc<AppState>, id: Uuid) -> Result<Json<Sessio
         pending_permission_count: row.9 as i32,
         can_resume_cross_device: row.10 != 0,
         claude_session_id: row.11,
-        created_at: chrono::DateTime::parse_from_rfc3339(&row.12)
+        created_at: utils::parse_sqlite_timestamp(&row.12)
             .map_err(|e| ServerError::Internal(format!("Invalid created_at: {}", e)))?
             .with_timezone(&chrono::Utc),
-        updated_at: chrono::DateTime::parse_from_rfc3339(&row.13)
+        updated_at: utils::parse_sqlite_timestamp(&row.13)
             .map_err(|e| ServerError::Internal(format!("Invalid updated_at: {}", e)))?
             .with_timezone(&chrono::Utc),
     }))
@@ -714,7 +714,7 @@ pub async fn send_message_route(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Json(req): Json<SendMessageRequest>,
-) -> Result<Json<serde_json::Value>> {
+) -> Result<Json<ve_shared::models::SendMessageResponse>> {
     send_message_for_session(state, headers, access.session_id, req).await
 }
 
@@ -724,7 +724,7 @@ pub async fn send_message(
     headers: HeaderMap,
     Path(id): Path<Uuid>,
     Json(req): Json<SendMessageRequest>,
-) -> Result<Json<serde_json::Value>> {
+) -> Result<Json<ve_shared::models::SendMessageResponse>> {
     let device_id = require_client_device_id(&claims)?;
     require_session_access(&state, device_id, id).await?;
     send_message_for_session(state, headers, id, req).await
@@ -735,7 +735,7 @@ async fn send_message_for_session(
     headers: HeaderMap,
     id: Uuid,
     req: SendMessageRequest,
-) -> Result<Json<serde_json::Value>> {
+) -> Result<Json<ve_shared::models::SendMessageResponse>> {
     // Extract trace_id for correlation
     let trace_id = extract_request_id(&headers);
 
@@ -801,9 +801,10 @@ async fn send_message_for_session(
 
     tracing::debug!(trace_id = %trace_id, session_id = %id, message_id = %message_id, "Message sent");
 
-    Ok(Json(
-        serde_json::json!({ "success": true, "message_id": message_id }),
-    ))
+    Ok(Json(ve_shared::models::SendMessageResponse {
+        success: true,
+        message_id,
+    }))
 }
 
 /// Message list query parameters
@@ -885,7 +886,7 @@ async fn list_messages_for_session(
                 session_id: id,
                 message_type: utils::parse_message_type(&row.2),
                 content: row.3,
-                created_at: chrono::DateTime::parse_from_rfc3339(&row.4)
+                created_at: utils::parse_sqlite_timestamp(&row.4)
                     .map_err(|e| ServerError::Internal(format!("Invalid created_at: {}", e)))?
                     .with_timezone(&chrono::Utc),
             })
@@ -1494,7 +1495,7 @@ pub(crate) async fn archive_session_with_metadata(
     .await?;
     let permission_count = permission_count_row.0 as u32;
 
-    let created_at = chrono::DateTime::parse_from_rfc3339(&session.8)
+    let created_at = utils::parse_sqlite_timestamp(&session.8)
         .map_err(|e| ServerError::Internal(format!("Invalid created_at: {}", e)))?;
     let duration_seconds = (chrono::Utc::now() - created_at.with_timezone(&chrono::Utc))
         .num_seconds()
@@ -2289,7 +2290,7 @@ mod tests {
 
         let outbound = daemon_rx.recv().await.unwrap();
         assert_eq!(outbound.r#type, "create_session");
-        let session_id = outbound.payload["payload"]["session_id"]
+        let session_id = outbound.payload["session_id"]
             .as_str()
             .unwrap()
             .parse::<Uuid>()
@@ -2410,7 +2411,7 @@ mod tests {
 
         let queued = daemon_rx.recv().await.unwrap();
         assert_eq!(queued.r#type, "create_session");
-        let session_id = queued.payload["payload"]["session_id"]
+        let session_id = queued.payload["session_id"]
             .as_str()
             .unwrap()
             .parse::<Uuid>()
@@ -2504,7 +2505,7 @@ mod tests {
 
         let queued = daemon_rx.recv().await.unwrap();
         assert_eq!(queued.r#type, "create_session");
-        let session_id = queued.payload["payload"]["session_id"]
+        let session_id = queued.payload["session_id"]
             .as_str()
             .unwrap()
             .parse::<Uuid>()
@@ -2576,7 +2577,7 @@ mod tests {
 
         let queued = daemon_rx.recv().await.unwrap();
         assert_eq!(queued.r#type, "rerun_session");
-        let new_session_id = queued.payload["payload"]["session_id"]
+        let new_session_id = queued.payload["session_id"]
             .as_str()
             .unwrap()
             .parse::<Uuid>()
@@ -2699,7 +2700,7 @@ mod tests {
 
         let queued = daemon_rx.recv().await.unwrap();
         assert_eq!(queued.r#type, "rerun_session");
-        let new_session_id = queued.payload["payload"]["session_id"]
+        let new_session_id = queued.payload["session_id"]
             .as_str()
             .unwrap()
             .parse::<Uuid>()
@@ -2840,7 +2841,7 @@ mod tests {
 
         let queued = daemon_rx.recv().await.unwrap();
         assert_eq!(queued.r#type, "rerun_session");
-        let new_session_id = queued.payload["payload"]["session_id"]
+        let new_session_id = queued.payload["session_id"]
             .as_str()
             .unwrap()
             .parse::<Uuid>()
@@ -3085,7 +3086,7 @@ mod tests {
 
         let queued = daemon_rx.recv().await.unwrap();
         assert_eq!(queued.r#type, "rerun_session");
-        let new_session_id = queued.payload["payload"]["session_id"]
+        let new_session_id = queued.payload["session_id"]
             .as_str()
             .unwrap()
             .parse::<Uuid>()
@@ -3176,7 +3177,7 @@ mod tests {
 
         let queued = daemon_rx.recv().await.unwrap();
         assert_eq!(queued.r#type, "rerun_session");
-        let new_session_id = queued.payload["payload"]["session_id"]
+        let new_session_id = queued.payload["session_id"]
             .as_str()
             .unwrap()
             .parse::<Uuid>()
@@ -3288,7 +3289,7 @@ mod tests {
 
         let queued = daemon_rx.recv().await.unwrap();
         assert_eq!(queued.r#type, "rerun_session");
-        let new_session_id = queued.payload["payload"]["session_id"]
+        let new_session_id = queued.payload["session_id"]
             .as_str()
             .unwrap()
             .parse::<Uuid>()
@@ -3369,7 +3370,7 @@ mod tests {
 
         let queued = daemon_rx.recv().await.unwrap();
         assert_eq!(queued.r#type, "rerun_session");
-        let first_session_id = queued.payload["payload"]["session_id"]
+        let first_session_id = queued.payload["session_id"]
             .as_str()
             .unwrap()
             .parse::<Uuid>()
@@ -3723,7 +3724,7 @@ mod tests {
             Some(false)
         );
         assert_eq!(
-            queued.payload["payload"]["session_id"],
+            queued.payload["session_id"],
             serde_json::json!(session_id.to_string())
         );
 

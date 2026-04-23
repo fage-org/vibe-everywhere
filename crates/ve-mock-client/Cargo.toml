@@ -1,0 +1,65 @@
+[package]
+name = "ve-mock-client"
+version = "0.1.0"
+edition = "2021"
+description = "Vibe Everywhere — Integration test client for ve-server + ve-daemon"
+
+[[bin]]
+name = "ve-mock-client"
+path = "src/main.rs"
+
+[dependencies]
+ve-shared = { path = "../ve-shared" }
+ve-server = { path = "../ve-server" }
+
+# axum for server spawning
+axum = { workspace = true }
+
+# Async runtime
+tokio = { workspace = true }
+
+# HTTP client
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+
+# WebSocket client
+tokio-tungstenite = { workspace = true }
+futures-util = "0.3"
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# CLI parsing
+clap = { version = "4", features = ["derive"] }
+
+# Error handling
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+# Time and UUID
+chrono = { workspace = true }
+uuid = { workspace = true }
+
+# Temp directory
+tempfile = "3"
+
+# HTTP types
+http = "1"
+http-body-util = "0.1"
+
+# Logging
+tracing = { workspace = true }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# TOML parsing
+toml = { workspace = true }
+
+# Database access for test context setup
+sqlx = { workspace = true, features = ["sqlite"] }
+
+# Unix process signals
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.29", features = ["signal"] }
+
+# URL encoding
+urlencoding = "2"

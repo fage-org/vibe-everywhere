@@ -59,7 +59,7 @@ pub fn start_permission_expiry_task(
 ///
 /// This task only guarantees server-side state convergence for read paths.
 /// It does not emit live client or daemon notifications.
-async fn expire_stale_permissions(db: &DbPool, ttl_secs: u64) -> Result<usize, sqlx::Error> {
+pub async fn expire_stale_permissions(db: &DbPool, ttl_secs: u64) -> Result<usize, sqlx::Error> {
     // Begin transaction
     let mut tx = db.begin().await?;
 

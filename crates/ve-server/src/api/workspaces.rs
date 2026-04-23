@@ -21,6 +21,7 @@ use crate::authz::{
 };
 use crate::error::{Result, ServerError};
 use crate::state::AppState;
+use crate::utils;
 use crate::utils::parse_uuid;
 
 /// Database record for workspace
@@ -45,15 +46,15 @@ impl WorkspaceRecord {
             display_name: self.display_name.clone(),
             is_favorited: self.is_favorited != 0,
             last_used_at: self.last_used_at.as_ref().and_then(|s| {
-                chrono::DateTime::parse_from_rfc3339(s)
+                utils::parse_sqlite_timestamp(s)
                     .ok()
                     .map(|d| d.with_timezone(&chrono::Utc))
             }),
             exists_on_host: self.exists_on_host != 0,
-            created_at: chrono::DateTime::parse_from_rfc3339(&self.created_at)
+            created_at: utils::parse_sqlite_timestamp(&self.created_at)
                 .map_err(|e| ServerError::Internal(format!("Invalid created_at: {}", e)))?
                 .with_timezone(&chrono::Utc),
-            updated_at: chrono::DateTime::parse_from_rfc3339(&self.updated_at)
+            updated_at: utils::parse_sqlite_timestamp(&self.updated_at)
                 .map_err(|e| ServerError::Internal(format!("Invalid updated_at: {}", e)))?
                 .with_timezone(&chrono::Utc),
         })
@@ -284,15 +285,15 @@ async fn get_workspace_by_id(state: Arc<AppState>, id: Uuid) -> Result<Json<Work
         display_name: row.3,
         is_favorited: row.4 != 0,
         last_used_at: row.5.and_then(|s| {
-            chrono::DateTime::parse_from_rfc3339(&s)
+            utils::parse_sqlite_timestamp(&s)
                 .ok()
                 .map(|d| d.with_timezone(&chrono::Utc))
         }),
         exists_on_host: row.6 != 0,
-        created_at: chrono::DateTime::parse_from_rfc3339(&row.7)
+        created_at: utils::parse_sqlite_timestamp(&row.7)
             .map_err(|e| ServerError::Internal(format!("Invalid created_at: {}", e)))?
             .with_timezone(&chrono::Utc),
-        updated_at: chrono::DateTime::parse_from_rfc3339(&row.8)
+        updated_at: utils::parse_sqlite_timestamp(&row.8)
             .map_err(|e| ServerError::Internal(format!("Invalid updated_at: {}", e)))?
             .with_timezone(&chrono::Utc),
     }))
@@ -416,12 +417,12 @@ async fn update_workspace_by_id(
         display_name,
         is_favorited,
         last_used_at: existing.5.and_then(|s| {
-            chrono::DateTime::parse_from_rfc3339(&s)
+            utils::parse_sqlite_timestamp(&s)
                 .ok()
                 .map(|d| d.with_timezone(&chrono::Utc))
         }),
         exists_on_host: existing.6 != 0,
-        created_at: chrono::DateTime::parse_from_rfc3339(&existing.7)
+        created_at: utils::parse_sqlite_timestamp(&existing.7)
             .map_err(|e| ServerError::Internal(format!("Invalid created_at: {}", e)))?
             .with_timezone(&chrono::Utc),
         updated_at: chrono::Utc::now(),

@@ -771,6 +771,7 @@ mod tests {
             file_tree_max_nodes: 20_000,
             claude_command: "claude".to_string(),
             default_model: "claude-sonnet-4-20250514".to_string(),
+            mock_mode: false,
         });
         let (event_tx, _event_rx) = broadcast::channel(16);
         let session_id = Uuid::new_v4();
@@ -814,6 +815,7 @@ mod tests {
                     file_tree_max_nodes: 20_000,
                     claude_command: "claude".to_string(),
                     default_model: "claude-sonnet-4-20250514".to_string(),
+                    mock_mode: false,
                 });
                 let (event_tx, _event_rx) = broadcast::channel(16);
                 let session_id = Uuid::new_v4();
@@ -853,6 +855,7 @@ mod tests {
             file_tree_max_nodes: 20_000,
             claude_command: "claude".to_string(),
             default_model: "claude-sonnet-4-20250514".to_string(),
+            mock_mode: false,
         });
         let (event_tx, mut event_rx) = broadcast::channel(16);
         let session_id = Uuid::new_v4();
@@ -905,6 +908,7 @@ mod tests {
             file_tree_max_nodes: 20_000,
             claude_command: "claude".to_string(),
             default_model: "claude-sonnet-4-20250514".to_string(),
+            mock_mode: false,
         });
         let (event_tx, mut event_rx) = broadcast::channel(16);
         let session_id = Uuid::new_v4();

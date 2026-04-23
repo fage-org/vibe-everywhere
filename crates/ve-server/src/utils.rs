@@ -56,6 +56,31 @@ pub fn parse_uuid(input: &str, field_name: &str) -> Result<Uuid, ServerError> {
     })
 }
 
+/// Parse a timestamp string that may be either RFC3339 or SQLite `datetime('now')` format.
+///
+/// SQLite's `datetime('now')` produces `YYYY-MM-DD HH:MM:SS` (space-separated, no T, no Z),
+/// while `chrono::DateTime::parse_from_rfc3339` expects `YYYY-MM-DDTHH:MM:SSZ`.
+/// This helper tries RFC3339 first, then falls back to SQLite format.
+pub fn parse_sqlite_timestamp(
+    s: &str,
+) -> Result<chrono::DateTime<chrono::FixedOffset>, ServerError> {
+    // Try RFC3339 first (e.g., "2026-04-23T00:20:11Z")
+    if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(s) {
+        return Ok(dt);
+    }
+    // Fallback: SQLite datetime('now') format (e.g., "2026-04-23 00:20:11")
+    let dt = chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").map_err(|e| {
+        tracing::error!(
+            input = %s,
+            error = %e,
+            "Failed to parse timestamp (tried RFC3339 and SQLite format)"
+        );
+        ServerError::Internal(format!("Invalid timestamp: '{}'", s))
+    })?;
+    // Assume UTC
+    Ok(dt.and_utc().fixed_offset())
+}
+
 /// Parse session status string with warning for unknown values
 pub fn parse_session_status(s: &str) -> ve_shared::types::SessionStatus {
     match s {

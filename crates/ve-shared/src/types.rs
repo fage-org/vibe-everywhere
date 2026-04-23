@@ -183,7 +183,7 @@ impl Default for Pagination {
 }
 
 /// Paginated response wrapper
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct Paginated<T: TS> {
     pub items: Vec<T>,

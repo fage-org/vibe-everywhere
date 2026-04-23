@@ -20,7 +20,7 @@ use ve_server::{
 use ve_shared::{
     jwt::JwtManager,
     models::{PermissionDecision, PermissionRequest},
-    proto::{DaemonMessage, WsEnvelope},
+    proto::WsEnvelope,
     types::PermissionStatus,
 };
 
@@ -312,19 +312,16 @@ async fn assert_single_winner_under_concurrency(state: Arc<AppState>) {
         .expect("daemon command");
     assert_eq!(outbound.r#type, "permission_response");
 
-    let payload: DaemonMessage = serde_json::from_value(outbound.payload.clone()).unwrap();
-    match payload {
-        DaemonMessage::PermissionResponse {
-            permission_id: actual_permission_id,
-            session_id: actual_session_id,
-            decision,
-        } => {
-            assert_eq!(actual_permission_id, permission_id);
-            assert_eq!(actual_session_id, session_id);
-            assert_eq!(decision, decision_for_status(winning_status));
-        }
-        other => panic!("unexpected daemon message: {other:?}"),
-    }
+    let actual_permission_id: Uuid =
+        serde_json::from_value(outbound.payload["permission_id"].clone()).unwrap();
+    let actual_session_id: Uuid =
+        serde_json::from_value(outbound.payload["session_id"].clone()).unwrap();
+    let decision: PermissionDecision =
+        serde_json::from_value(outbound.payload["decision"].clone()).unwrap();
+
+    assert_eq!(actual_permission_id, permission_id);
+    assert_eq!(actual_session_id, session_id);
+    assert_eq!(decision, decision_for_status(winning_status));
 
     assert!(
         tokio::time::timeout(std::time::Duration::from_millis(100), daemon_rx.recv())
@@ -383,18 +380,14 @@ async fn assert_distinct_permissions_keep_count(state: Arc<AppState>) {
             .expect("daemon command");
         assert_eq!(outbound.r#type, "permission_response");
 
-        let payload: DaemonMessage = serde_json::from_value(outbound.payload.clone()).unwrap();
-        match payload {
-            DaemonMessage::PermissionResponse {
-                permission_id: actual_permission_id,
-                session_id: actual_session_id,
-                decision,
-            } => {
-                assert_eq!(actual_session_id, session_id);
-                received_messages.push((actual_permission_id, decision));
-            }
-            other => panic!("unexpected daemon message: {other:?}"),
-        }
+        let actual_permission_id: Uuid =
+            serde_json::from_value(outbound.payload["permission_id"].clone()).unwrap();
+        let actual_session_id: Uuid =
+            serde_json::from_value(outbound.payload["session_id"].clone()).unwrap();
+        let decision: PermissionDecision =
+            serde_json::from_value(outbound.payload["decision"].clone()).unwrap();
+        assert_eq!(actual_session_id, session_id);
+        received_messages.push((actual_permission_id, decision));
     }
 
     received_messages.sort_by_key(|(permission_id, _)| *permission_id);
