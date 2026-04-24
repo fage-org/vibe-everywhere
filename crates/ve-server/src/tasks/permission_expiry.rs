@@ -233,13 +233,10 @@ mod tests {
             .await
             .unwrap();
 
-        let affected = expire_stale_permissions(
-            &db,
-            "datetime('now', '-1800 seconds')",
-            "datetime('now')",
-        )
-        .await
-        .unwrap();
+        let affected =
+            expire_stale_permissions(&db, "datetime('now', '-1800 seconds')", "datetime('now')")
+                .await
+                .unwrap();
         assert_eq!(affected, 1);
 
         let stale_status: (String,) =
