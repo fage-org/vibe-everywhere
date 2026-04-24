@@ -231,7 +231,7 @@ pub async fn pairing_status(
     let row: (String, String, Option<String>, String, i64) = sqlx::query_as(
         r#"
         SELECT hosts.pair_status, hosts.host_name, pairing_codes.pairing_secret, CAST(pairing_codes.expires_at AS TEXT),
-               pairing_codes.used
+               CASE WHEN pairing_codes.used THEN 1 ELSE 0 END
         FROM pairing_codes
         JOIN hosts ON hosts.host_id = pairing_codes.host_id
         WHERE pairing_codes.host_id = $1
@@ -352,7 +352,7 @@ pub async fn pair(
 
     let pairing: (String, String, String, i64, String) = sqlx::query_as(
         r#"
-        SELECT pair_code, host_id, host_name, used, CAST(expires_at AS TEXT)
+        SELECT pair_code, host_id, host_name, CASE WHEN used THEN 1 ELSE 0 END, CAST(expires_at AS TEXT)
         FROM pairing_codes
         WHERE pair_code = $1
         "#,
@@ -381,8 +381,8 @@ pub async fn pair(
     let claim_result = sqlx::query(
         r#"
         UPDATE pairing_codes
-        SET used = 1
-        WHERE pair_code = $1 AND used = 0 AND expires_at > CURRENT_TIMESTAMP
+        SET used = TRUE
+        WHERE pair_code = $1 AND used = FALSE AND expires_at > CURRENT_TIMESTAMP
         "#,
     )
     .bind(&pair_code)
@@ -392,7 +392,7 @@ pub async fn pair(
     if claim_result.rows_affected() == 0 {
         let latest: (i64, String) = sqlx::query_as(
             r#"
-            SELECT used, CAST(expires_at AS TEXT)
+            SELECT CASE WHEN used THEN 1 ELSE 0 END, CAST(expires_at AS TEXT)
             FROM pairing_codes
             WHERE pair_code = $1
             "#,

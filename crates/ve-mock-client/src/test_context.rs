@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use uuid::Uuid;
+use ve_server::config::DatabaseBackend;
 use ve_shared::jwt::JwtManager;
 
 use crate::client::MockClient;
@@ -121,6 +122,12 @@ impl TestContext {
     /// Get the database pool (integration mode only)
     pub fn pool(&self) -> Option<&db::DbPool> {
         self.env.as_ref().map(|e| e.pool())
+    }
+
+    pub fn database_backend(&self) -> Option<DatabaseBackend> {
+        self.env
+            .as_ref()
+            .map(|e| e.server.config.database_backend())
     }
 
     /// Get the daemon PID (integration mode only)

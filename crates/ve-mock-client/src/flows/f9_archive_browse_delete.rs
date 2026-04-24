@@ -8,6 +8,16 @@ use std::sync::Arc;
 
 use crate::flows::FlowResult;
 use crate::test_context::TestContext;
+use ve_server::config::DatabaseBackend;
+
+struct ArchiveFixture {
+    device_id: uuid::Uuid,
+    host_id: uuid::Uuid,
+    workspace_id: uuid::Uuid,
+    session_id: uuid::Uuid,
+    archive_id: uuid::Uuid,
+    title: &'static str,
+}
 
 pub async fn run(ctx: Arc<TestContext>) -> FlowResult {
     let start = std::time::Instant::now();
@@ -34,6 +44,9 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
     let pool = ctx.pool().ok_or_else(|| {
         anyhow::anyhow!("F9 requires integration server pool (integration mode not set up)")
     })?;
+    let backend = ctx
+        .database_backend()
+        .ok_or_else(|| anyhow::anyhow!("F9 requires integration server backend"))?;
 
     // Step 1: List archives — should be empty initially
     let list = client
@@ -68,24 +81,30 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
 
     insert_archive(
         pool,
-        device_id,
-        host_id,
-        workspace_id,
-        session_id_1,
-        archive_id_1,
-        "archive-test-session-1",
+        backend,
+        ArchiveFixture {
+            device_id,
+            host_id,
+            workspace_id,
+            session_id: session_id_1,
+            archive_id: archive_id_1,
+            title: "archive-test-session-1",
+        },
     )
     .await
     .map_err(|e| anyhow::anyhow!("insert archive fixture 1: {e}"))?;
 
     insert_archive(
         pool,
-        device_id,
-        host_id,
-        workspace_id,
-        session_id_2,
-        archive_id_2,
-        "archive-test-session-2",
+        backend,
+        ArchiveFixture {
+            device_id,
+            host_id,
+            workspace_id,
+            session_id: session_id_2,
+            archive_id: archive_id_2,
+            title: "archive-test-session-2",
+        },
     )
     .await
     .map_err(|e| anyhow::anyhow!("insert archive fixture 2: {e}"))?;
@@ -204,47 +223,43 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
 /// Insert an archive fixture with all required referential integrity records
 async fn insert_archive(
     pool: &sqlx::AnyPool,
-    device_id: uuid::Uuid,
-    host_id: uuid::Uuid,
-    workspace_id: uuid::Uuid,
-    session_id: uuid::Uuid,
-    archive_id: uuid::Uuid,
-    title: &str,
+    backend: DatabaseBackend,
+    fixture: ArchiveFixture,
 ) -> anyhow::Result<()> {
-    let now = chrono::Utc::now().to_rfc3339();
+    let now_expr = match backend {
+        DatabaseBackend::Postgres => "CURRENT_TIMESTAMP",
+        DatabaseBackend::Sqlite => "datetime('now')",
+    };
 
     // Create session (archived status)
-    sqlx::query(
-        "INSERT INTO sessions (session_id, title, host_id, workspace_id, agent_type, status, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, 'archived', $6, $6)",
-    )
-    .bind(session_id.to_string())
-    .bind(title)
-    .bind(host_id.to_string())
-    .bind(workspace_id.to_string())
+    sqlx::query(&format!(
+        "INSERT INTO sessions (session_id, title, host_id, workspace_id, agent_type, status, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, 'archived', {now_expr}, {now_expr})",
+    ))
+    .bind(fixture.session_id.to_string())
+    .bind(fixture.title)
+    .bind(fixture.host_id.to_string())
+    .bind(fixture.workspace_id.to_string())
     .bind("claude_code")
-    .bind(&now)
     .execute(pool)
     .await?;
 
     // Create device_session_access
     sqlx::query("INSERT INTO device_session_access (device_id, session_id) VALUES ($1, $2)")
-        .bind(device_id.to_string())
-        .bind(session_id.to_string())
+        .bind(fixture.device_id.to_string())
+        .bind(fixture.session_id.to_string())
         .execute(pool)
         .await?;
 
     // Create archive record
-    sqlx::query(
-        "INSERT INTO session_archives (archive_id, session_id, title, closed_at, close_reason, host_id, workspace_id, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
-    )
-    .bind(archive_id.to_string())
-    .bind(session_id.to_string())
-    .bind(title)
-    .bind(&now)
+    sqlx::query(&format!(
+        "INSERT INTO session_archives (archive_id, session_id, title, closed_at, close_reason, host_id, workspace_id, created_at) VALUES ($1, $2, $3, {now_expr}, $4, $5, $6, {now_expr})",
+    ))
+    .bind(fixture.archive_id.to_string())
+    .bind(fixture.session_id.to_string())
+    .bind(fixture.title)
     .bind("user_closed")
-    .bind(host_id.to_string())
-    .bind(workspace_id.to_string())
-    .bind(&now)
+    .bind(fixture.host_id.to_string())
+    .bind(fixture.workspace_id.to_string())
     .execute(pool)
     .await?;
 

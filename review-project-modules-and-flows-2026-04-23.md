@@ -343,3 +343,47 @@
 - “mock-client 已支持 PostgreSQL” 这件事在 **入口能力** 上已成立；
 - 但在 **真实 PostgreSQL 运行时语义** 上，仓库当前仍存在 `HIGH` 级未关闭问题；
 - 因此 PostgreSQL 路径当前不能判定为 fully ready，必须先完成上述两类修复后再关闭该项。
+
+#### 8.5.6 修复后复测（2026-04-24，当前最新）
+
+> 本节覆盖 `8.5.2` 到 `8.5.5` 的阶段性 FAIL 结论，作为当前最新 PostgreSQL 状态。
+
+##### 8.5.6.1 本轮补充修复
+
+- `HIGH-PG-01`：**CLOSED**
+  - PostgreSQL migration runner 已统一使用 `sqlx::raw_sql(...)` 执行多语句 migration。
+  - 对应实现：`crates/ve-server/src/db/mod.rs`
+- `HIGH-PG-02`：**CLOSED**
+  - PostgreSQL 路径下涉及 `TIMESTAMPTZ` 的写入 / 比较已改为数据库原生时间表达式；
+  - mock-client 中直接写测试夹具的 flow 也已切换为按后端生成 SQL 时间表达式，不再把 RFC3339 文本直接塞进 PG `TIMESTAMPTZ` 列。
+  - 对应实现：`crates/ve-server/src/api/auth.rs`、`crates/ve-server/src/tasks/permission_expiry.rs`、`crates/ve-server/src/tasks/idempotency_cleanup.rs`、`crates/ve-mock-client/src/flows/f7_session_archival.rs`、`crates/ve-mock-client/src/flows/f9_archive_browse_delete.rs`、`crates/ve-mock-client/src/flows/f12_background_tasks.rs`
+- `PG-COMPAT-BOOL-01`：**CLOSED**
+  - PG `BOOLEAN` 与 SQLite `INTEGER` 在 AnyPool 下的解码漂移已收口；
+  - 读路径统一通过 `CASE WHEN ... THEN 1 ELSE 0 END` 映射到稳定的整型语义，再由 API 层转回布尔字段。
+  - 对应实现：`crates/ve-server/src/api/auth.rs`、`crates/ve-server/src/api/workspaces.rs`、`crates/ve-server/src/api/settings.rs`、`crates/ve-server/src/api/sessions.rs`
+- `PG-COMPAT-DECODE-01`：**CLOSED**
+  - PG `TIMESTAMPTZ` / `JSONB` 在 AnyPool 读路径上的解码问题已收口；
+  - 读路径统一改为 `CAST(... AS TEXT)`，归档元数据写入在 PG 下显式转 `jsonb`。
+  - 对应实现：`crates/ve-server/src/api/hosts.rs`、`crates/ve-server/src/api/archives.rs`、`crates/ve-server/src/api/sessions.rs`
+- `PG-TEST-COVERAGE-01`：**CLOSED**
+  - 新增 PostgreSQL 契约回归测试，覆盖 auth / workspace / settings / session 的布尔兼容路径。
+  - 对应实现：`crates/ve-server/tests/postgres_bool_compat_test.rs`
+
+##### 8.5.6.2 修复后实测结果
+
+- `VE_POSTGRES_TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:55432/vibe_test cargo test -p ve-server --features both --test permission_response_race_test -- --nocapture`：**PASS**
+- `VE_POSTGRES_TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:55432/vibe_test cargo test -p ve-server --features both --test postgres_bool_compat_test -- --nocapture`：**PASS**（4/4）
+- `cargo run -q -p ve-mock-client -- --database-url 'postgres://postgres:postgres@127.0.0.1:55432/vibe_test' --flows f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12 --output json`：**PASS**（12/12）
+- `cargo run -q -p ve-mock-client -- --database-url 'postgres://postgres:postgres@127.0.0.1:55432/vibe_test' --flows f2,f9 --concurrency 2 --output json`：**PASS**（2/2）
+
+##### 8.5.6.3 当前结论更新
+
+- 截至本轮修复与复测，`8.5` 中列出的 PostgreSQL active blocking issues 已全部关闭。
+- 当前 PostgreSQL 路径在以下范围内已确认可用：
+  - `ve-server` 并发权限响应测试；
+  - `ve-server` auth / workspace / settings / session 布尔兼容测试；
+  - `ve-mock-client` 默认回归 `F1-F12`；
+  - `ve-mock-client` 并发 smoke `f2,f9 --concurrency 2`。
+- 因此，当前最新状态应更新为：
+  - **No active PostgreSQL findings in tested flows**
+  - PostgreSQL 路径对当前仓库已落地的服务端 / daemon / harness 范围，可判定为 **ready for current test scope**。

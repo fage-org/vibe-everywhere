@@ -8,6 +8,7 @@ use std::time::{Duration, Instant};
 
 use crate::flows::FlowResult;
 use crate::test_context::TestContext;
+use ve_server::config::DatabaseBackend;
 
 pub async fn run(ctx: Arc<TestContext>) -> FlowResult {
     let start = std::time::Instant::now();
@@ -24,6 +25,9 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
     let pool = ctx
         .pool()
         .ok_or_else(|| anyhow::anyhow!("F12 requires integration server pool"))?;
+    let backend = ctx
+        .database_backend()
+        .ok_or_else(|| anyhow::anyhow!("F12 requires integration server backend"))?;
 
     let host_id = ctx
         .host_id
@@ -32,17 +36,15 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
     // ---- Part 1: Idempotency key cleanup ----
     let ik_key = format!("ik-{}", uuid::Uuid::new_v4());
     let ik_hash = format!("hash-{}", uuid::Uuid::new_v4());
-    let now = chrono::Utc::now().to_rfc3339();
+    let now_expr = current_timestamp_sql(backend);
 
-    sqlx::query(
-        "INSERT INTO idempotency_keys (key, request_hash, session_id, result_type, created_at, expires_at) VALUES ($1, $2, $3, $4, $5, $6)",
-    )
+    sqlx::query(&format!(
+        "INSERT INTO idempotency_keys (key, request_hash, session_id, result_type, created_at, expires_at) VALUES ($1, $2, $3, $4, {now_expr}, {now_expr})",
+    ))
     .bind(&ik_key)
     .bind(&ik_hash)
     .bind("fake-session-id")
     .bind("session")
-    .bind(&now)
-    .bind(&now)
     .execute(pool)
     .await
     .map_err(|e| anyhow::anyhow!("insert idempotency key: {e}"))?;
@@ -87,30 +89,27 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
     .execute(pool)
     .await?;
 
-    let old_time = (chrono::Utc::now() - chrono::Duration::hours(2)).to_rfc3339();
-    let now = chrono::Utc::now().to_rfc3339();
+    let stale_expr = stale_timestamp_sql(backend);
 
-    sqlx::query(
-        "INSERT INTO sessions (session_id, title, host_id, workspace_id, agent_type, status, pending_permission_count, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, 'waiting_approval', 1, $6, $6)",
-    )
+    sqlx::query(&format!(
+        "INSERT INTO sessions (session_id, title, host_id, workspace_id, agent_type, status, pending_permission_count, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, 'waiting_approval', 1, {now_expr}, {now_expr})",
+    ))
     .bind(session_id.to_string())
     .bind("perm-test-session")
     .bind(host_id.to_string())
     .bind(workspace_id.to_string())
     .bind("claude_code")
-    .bind(&now)
     .execute(pool)
     .await
     .map_err(|e| anyhow::anyhow!("insert session: {e}"))?;
 
-    sqlx::query(
-        "INSERT INTO permission_requests (permission_id, session_id, risk_type, summary, status, created_at) VALUES ($1, $2, $3, $4, 'pending', $5)",
-    )
+    sqlx::query(&format!(
+        "INSERT INTO permission_requests (permission_id, session_id, risk_type, summary, status, created_at) VALUES ($1, $2, $3, $4, 'pending', {stale_expr})",
+    ))
     .bind(permission_id.to_string())
     .bind(session_id.to_string())
     .bind("exec_cmd")
     .bind("stale permission test")
-    .bind(&old_time)
     .execute(pool)
     .await
     .map_err(|e| anyhow::anyhow!("insert permission request: {e}"))?;
@@ -138,6 +137,20 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
     );
 
     Ok(())
+}
+
+fn current_timestamp_sql(backend: DatabaseBackend) -> &'static str {
+    match backend {
+        DatabaseBackend::Postgres => "CURRENT_TIMESTAMP",
+        DatabaseBackend::Sqlite => "datetime('now')",
+    }
+}
+
+fn stale_timestamp_sql(backend: DatabaseBackend) -> &'static str {
+    match backend {
+        DatabaseBackend::Postgres => "CURRENT_TIMESTAMP - INTERVAL '2 hours'",
+        DatabaseBackend::Sqlite => "datetime('now', '-2 hours')",
+    }
 }
 
 async fn wait_until<F, Fut, E>(timeout: Duration, mut check: F) -> anyhow::Result<()>

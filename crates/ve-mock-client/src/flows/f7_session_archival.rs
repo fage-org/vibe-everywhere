@@ -9,6 +9,7 @@ use std::sync::Arc;
 use crate::fixtures;
 use crate::flows::FlowResult;
 use crate::test_context::TestContext;
+use ve_server::config::DatabaseBackend;
 
 pub async fn run(ctx: Arc<TestContext>) -> FlowResult {
     let start = std::time::Instant::now();
@@ -31,6 +32,9 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
     let pool = ctx
         .pool()
         .ok_or_else(|| anyhow::anyhow!("F7 requires integration server pool"))?;
+    let backend = ctx
+        .database_backend()
+        .ok_or_else(|| anyhow::anyhow!("F7 requires integration server backend"))?;
 
     let device_id = ctx
         .device_id
@@ -85,7 +89,10 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
 
     // Step 3: Manually simulate archival (daemon would normally do this via session_status_update)
     let archive_id = uuid::Uuid::new_v4();
-    let now = chrono::Utc::now().to_rfc3339();
+    let now_expr = match backend {
+        DatabaseBackend::Postgres => "CURRENT_TIMESTAMP",
+        DatabaseBackend::Sqlite => "datetime('now')",
+    };
 
     sqlx::query("UPDATE sessions SET status = 'archived' WHERE session_id = $1")
         .bind(&session_id_str)
@@ -93,17 +100,15 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
         .await
         .map_err(|e| anyhow::anyhow!("set session archived: {e}"))?;
 
-    sqlx::query(
-        "INSERT INTO session_archives (archive_id, session_id, title, closed_at, close_reason, host_id, workspace_id, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
-    )
+    sqlx::query(&format!(
+        "INSERT INTO session_archives (archive_id, session_id, title, closed_at, close_reason, host_id, workspace_id, created_at) VALUES ($1, $2, $3, {now_expr}, $4, $5, $6, {now_expr})",
+    ))
     .bind(archive_id.to_string())
     .bind(&session_id_str)
     .bind("F7 archival test")
-    .bind(&now)
     .bind("user_closed")
     .bind(host_id.to_string())
     .bind(workspace_id.to_string())
-    .bind(&now)
     .execute(pool)
     .await
     .map_err(|e| anyhow::anyhow!("insert archive record: {e}"))?;

@@ -40,8 +40,12 @@ pub async fn get_notification_preferences(
 
     let row: Option<(String, i64, i64, i64, i64, i64)> = sqlx::query_as(
         r#"
-        SELECT device_id, enabled, permission_request_enabled, task_completed_enabled,
-               task_failed_enabled, session_error_enabled
+        SELECT device_id,
+               CASE WHEN enabled THEN 1 ELSE 0 END,
+               CASE WHEN permission_request_enabled THEN 1 ELSE 0 END,
+               CASE WHEN task_completed_enabled THEN 1 ELSE 0 END,
+               CASE WHEN task_failed_enabled THEN 1 ELSE 0 END,
+               CASE WHEN session_error_enabled THEN 1 ELSE 0 END
         FROM notification_preferences
         WHERE device_id = $1
         "#,
@@ -107,20 +111,11 @@ pub async fn update_notification_preferences(
         return Err(ServerError::NotFound(format!("Device {}", device_id)));
     }
 
-    // Use atomic upsert to avoid check-then-insert race under concurrency
-    let enabled_int = req.enabled.map(|b| if b { 1 } else { 0 });
-    let perm_int = req
-        .permission_request_enabled
-        .map(|b| if b { 1 } else { 0 });
-    let comp_int = req.task_completed_enabled.map(|b| if b { 1 } else { 0 });
-    let fail_int = req.task_failed_enabled.map(|b| if b { 1 } else { 0 });
-    let err_int = req.session_error_enabled.map(|b| if b { 1 } else { 0 });
-
     sqlx::query(
         r#"
         INSERT INTO notification_preferences (device_id, enabled, permission_request_enabled,
             task_completed_enabled, task_failed_enabled, session_error_enabled)
-        VALUES ($1, COALESCE($2, 1), COALESCE($3, 1), COALESCE($4, 1), COALESCE($5, 1), COALESCE($6, 1))
+        VALUES ($1, COALESCE($2, TRUE), COALESCE($3, TRUE), COALESCE($4, TRUE), COALESCE($5, TRUE), COALESCE($6, TRUE))
         ON CONFLICT(device_id) DO UPDATE SET
             enabled = COALESCE(EXCLUDED.enabled, notification_preferences.enabled),
             permission_request_enabled = COALESCE(EXCLUDED.permission_request_enabled, notification_preferences.permission_request_enabled),
@@ -130,11 +125,11 @@ pub async fn update_notification_preferences(
         "#,
     )
     .bind(&device_id_str)
-    .bind(enabled_int)
-    .bind(perm_int)
-    .bind(comp_int)
-    .bind(fail_int)
-    .bind(err_int)
+    .bind(req.enabled)
+    .bind(req.permission_request_enabled)
+    .bind(req.task_completed_enabled)
+    .bind(req.task_failed_enabled)
+    .bind(req.session_error_enabled)
     .execute(&state.db)
     .await?;
 

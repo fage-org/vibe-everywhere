@@ -123,10 +123,10 @@ async fn list_archives_for_device(
             sqlx::query_as(
                 r#"
                 SELECT DISTINCT session_archives.archive_id, session_archives.session_id,
-                       session_archives.title, session_archives.closed_at,
+                       session_archives.title, CAST(session_archives.closed_at AS TEXT),
                        session_archives.close_reason, session_archives.host_id,
-                       session_archives.workspace_id, session_archives.created_at,
-                       session_archives.metadata_json
+                       session_archives.workspace_id, CAST(session_archives.created_at AS TEXT),
+                       CAST(session_archives.metadata_json AS TEXT)
                 FROM session_archives
                 INNER JOIN device_session_access
                     ON device_session_access.session_id = session_archives.session_id
@@ -136,7 +136,7 @@ async fn list_archives_for_device(
                   AND session_archives.workspace_id = $2
                   AND device_session_access.device_id = $3
                   AND workspaces.host_id = $1
-                ORDER BY session_archives.closed_at DESC
+                ORDER BY CAST(session_archives.closed_at AS TEXT) DESC
                 LIMIT $4 OFFSET $5
                 "#,
             )
@@ -153,15 +153,15 @@ async fn list_archives_for_device(
             sqlx::query_as(
                 r#"
                 SELECT DISTINCT session_archives.archive_id, session_archives.session_id,
-                       session_archives.title, session_archives.closed_at,
+                       session_archives.title, CAST(session_archives.closed_at AS TEXT),
                        session_archives.close_reason, session_archives.host_id,
-                       session_archives.workspace_id, session_archives.created_at,
-                       session_archives.metadata_json
+                       session_archives.workspace_id, CAST(session_archives.created_at AS TEXT),
+                       CAST(session_archives.metadata_json AS TEXT)
                 FROM session_archives
                 INNER JOIN device_session_access
                     ON device_session_access.session_id = session_archives.session_id
                 WHERE session_archives.host_id = $1 AND device_session_access.device_id = $2
-                ORDER BY session_archives.closed_at DESC
+                ORDER BY CAST(session_archives.closed_at AS TEXT) DESC
                 LIMIT $3 OFFSET $4
                 "#,
             )
@@ -176,10 +176,10 @@ async fn list_archives_for_device(
             sqlx::query_as(
                 r#"
                 SELECT DISTINCT session_archives.archive_id, session_archives.session_id,
-                       session_archives.title, session_archives.closed_at,
+                       session_archives.title, CAST(session_archives.closed_at AS TEXT),
                        session_archives.close_reason, session_archives.host_id,
-                       session_archives.workspace_id, session_archives.created_at,
-                       session_archives.metadata_json
+                       session_archives.workspace_id, CAST(session_archives.created_at AS TEXT),
+                       CAST(session_archives.metadata_json AS TEXT)
                 FROM session_archives
                 INNER JOIN device_session_access
                     ON device_session_access.session_id = session_archives.session_id
@@ -190,7 +190,7 @@ async fn list_archives_for_device(
                   AND workspaces.host_id IN (
                       SELECT host_id FROM device_host_access WHERE device_id = $2
                   )
-                ORDER BY session_archives.closed_at DESC
+                ORDER BY CAST(session_archives.closed_at AS TEXT) DESC
                 LIMIT $3 OFFSET $4
                 "#,
             )
@@ -205,15 +205,15 @@ async fn list_archives_for_device(
             sqlx::query_as(
                 r#"
                 SELECT DISTINCT session_archives.archive_id, session_archives.session_id,
-                       session_archives.title, session_archives.closed_at,
+                       session_archives.title, CAST(session_archives.closed_at AS TEXT),
                        session_archives.close_reason, session_archives.host_id,
-                       session_archives.workspace_id, session_archives.created_at,
-                       session_archives.metadata_json
+                       session_archives.workspace_id, CAST(session_archives.created_at AS TEXT),
+                       CAST(session_archives.metadata_json AS TEXT)
                 FROM session_archives
                 INNER JOIN device_session_access
                     ON device_session_access.session_id = session_archives.session_id
                 WHERE device_session_access.device_id = $1
-                ORDER BY session_archives.closed_at DESC
+                ORDER BY CAST(session_archives.closed_at AS TEXT) DESC
                 LIMIT $2 OFFSET $3
                 "#,
             )
@@ -362,8 +362,9 @@ async fn get_archive_for_device(
     let row = sqlx::query_as::<_, ArchiveRow>(
         r#"
         SELECT session_archives.archive_id, session_archives.session_id, session_archives.title,
-               session_archives.closed_at, session_archives.close_reason, session_archives.host_id,
-               session_archives.workspace_id, session_archives.created_at, session_archives.metadata_json
+               CAST(session_archives.closed_at AS TEXT), session_archives.close_reason,
+               session_archives.host_id, session_archives.workspace_id,
+               CAST(session_archives.created_at AS TEXT), CAST(session_archives.metadata_json AS TEXT)
         FROM session_archives
         INNER JOIN device_session_access
             ON device_session_access.session_id = session_archives.session_id

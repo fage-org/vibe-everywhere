@@ -91,8 +91,10 @@ pub async fn list_workspaces(
         sqlx::query_as(
             r#"
                 SELECT workspaces.workspace_id, workspaces.host_id, workspaces.path, workspaces.display_name,
-                       workspaces.is_favorited, workspaces.last_used_at, workspaces.exists_on_host,
-                       workspaces.created_at, workspaces.updated_at,
+                       CASE WHEN workspaces.is_favorited THEN 1 ELSE 0 END,
+                       CAST(workspaces.last_used_at AS TEXT),
+                       CASE WHEN workspaces.exists_on_host THEN 1 ELSE 0 END,
+                       CAST(workspaces.created_at AS TEXT), CAST(workspaces.updated_at AS TEXT),
                        COUNT(*) OVER() as total_count
                 FROM workspaces
                 INNER JOIN device_host_access ON device_host_access.host_id = workspaces.host_id
@@ -111,8 +113,10 @@ pub async fn list_workspaces(
         sqlx::query_as(
             r#"
                 SELECT workspaces.workspace_id, workspaces.host_id, workspaces.path, workspaces.display_name,
-                       workspaces.is_favorited, workspaces.last_used_at, workspaces.exists_on_host,
-                       workspaces.created_at, workspaces.updated_at,
+                       CASE WHEN workspaces.is_favorited THEN 1 ELSE 0 END,
+                       CAST(workspaces.last_used_at AS TEXT),
+                       CASE WHEN workspaces.exists_on_host THEN 1 ELSE 0 END,
+                       CAST(workspaces.created_at AS TEXT), CAST(workspaces.updated_at AS TEXT),
                        COUNT(*) OVER() as total_count
                 FROM workspaces
                 INNER JOIN device_host_access ON device_host_access.host_id = workspaces.host_id
@@ -333,8 +337,11 @@ pub async fn get_workspace(
 
     let row: WorkspaceRow = sqlx::query_as(
         r#"
-        SELECT workspace_id, host_id, path, display_name, is_favorited,
-               last_used_at, exists_on_host, created_at, updated_at
+        SELECT workspace_id, host_id, path, display_name,
+               CASE WHEN is_favorited THEN 1 ELSE 0 END,
+               CAST(last_used_at AS TEXT),
+               CASE WHEN exists_on_host THEN 1 ELSE 0 END,
+               CAST(created_at AS TEXT), CAST(updated_at AS TEXT)
         FROM workspaces
         WHERE workspace_id = $1
         "#,
@@ -368,8 +375,11 @@ async fn get_workspace_by_id(state: Arc<AppState>, id: Uuid) -> Result<Json<Work
 
     let row: WorkspaceRow = sqlx::query_as(
         r#"
-        SELECT workspace_id, host_id, path, display_name, is_favorited,
-               last_used_at, exists_on_host, created_at, updated_at
+        SELECT workspace_id, host_id, path, display_name,
+               CASE WHEN is_favorited THEN 1 ELSE 0 END,
+               CAST(last_used_at AS TEXT),
+               CASE WHEN exists_on_host THEN 1 ELSE 0 END,
+               CAST(created_at AS TEXT), CAST(updated_at AS TEXT)
         FROM workspaces
         WHERE workspace_id = $1
         "#,
@@ -441,8 +451,11 @@ pub async fn update_workspace(
     // Fetch existing
     let existing: WorkspaceRow = sqlx::query_as(
         r#"
-        SELECT workspace_id, host_id, path, display_name, is_favorited,
-               last_used_at, exists_on_host, created_at, updated_at
+        SELECT workspace_id, host_id, path, display_name,
+               CASE WHEN is_favorited THEN 1 ELSE 0 END,
+               CAST(last_used_at AS TEXT),
+               CASE WHEN exists_on_host THEN 1 ELSE 0 END,
+               CAST(created_at AS TEXT), CAST(updated_at AS TEXT)
         FROM workspaces
         WHERE workspace_id = $1
         "#,
@@ -481,8 +494,11 @@ async fn update_workspace_by_id(
     // Fetch existing
     let existing: WorkspaceRow = sqlx::query_as(
         r#"
-        SELECT workspace_id, host_id, path, display_name, is_favorited,
-               last_used_at, exists_on_host, created_at, updated_at
+        SELECT workspace_id, host_id, path, display_name,
+               CASE WHEN is_favorited THEN 1 ELSE 0 END,
+               CAST(last_used_at AS TEXT),
+               CASE WHEN exists_on_host THEN 1 ELSE 0 END,
+               CAST(created_at AS TEXT), CAST(updated_at AS TEXT)
         FROM workspaces
         WHERE workspace_id = $1
         "#,
@@ -494,7 +510,6 @@ async fn update_workspace_by_id(
 
     let display_name = req.display_name.unwrap_or(existing.3.clone());
     let is_favorited = req.is_favorited.unwrap_or(existing.4 != 0);
-    let is_favorited_int = if is_favorited { 1 } else { 0 };
     sqlx::query(
         r#"
         UPDATE workspaces
@@ -503,7 +518,7 @@ async fn update_workspace_by_id(
         "#,
     )
     .bind(&display_name)
-    .bind(is_favorited_int)
+    .bind(is_favorited)
     .bind(&workspace_id_str)
     .execute(&state.db)
     .await?;

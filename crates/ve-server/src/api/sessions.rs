@@ -191,8 +191,10 @@ async fn load_session_for_idempotency(state: &AppState, session_id: Uuid) -> Res
     >(
         r#"
         SELECT session_id, title, host_id, workspace_id, agent_type, status,
-               last_activity_at, latest_summary, unread_event_count, pending_permission_count,
-               can_resume_cross_device, claude_session_id, created_at, updated_at
+               CAST(last_activity_at AS TEXT), latest_summary, unread_event_count,
+               pending_permission_count, CASE WHEN can_resume_cross_device THEN 1 ELSE 0 END,
+               claude_session_id,
+               CAST(created_at AS TEXT), CAST(updated_at AS TEXT)
         FROM sessions WHERE session_id = $1
         "#,
     )
@@ -302,10 +304,12 @@ pub async fn list_sessions(
         sqlx::query_as(
             r#"
                 SELECT sessions.session_id, sessions.title, sessions.host_id, sessions.workspace_id,
-                       sessions.agent_type, sessions.status, sessions.last_activity_at,
+                       sessions.agent_type, sessions.status, CAST(sessions.last_activity_at AS TEXT),
                        sessions.latest_summary, sessions.unread_event_count,
-                       sessions.pending_permission_count, sessions.can_resume_cross_device,
-                       sessions.claude_session_id, sessions.created_at, sessions.updated_at
+                       sessions.pending_permission_count,
+                       CASE WHEN sessions.can_resume_cross_device THEN 1 ELSE 0 END,
+                       sessions.claude_session_id, CAST(sessions.created_at AS TEXT),
+                       CAST(sessions.updated_at AS TEXT)
                 FROM sessions
                 INNER JOIN device_session_access
                     ON device_session_access.session_id = sessions.session_id
@@ -323,10 +327,12 @@ pub async fn list_sessions(
         sqlx::query_as(
             r#"
                 SELECT sessions.session_id, sessions.title, sessions.host_id, sessions.workspace_id,
-                       sessions.agent_type, sessions.status, sessions.last_activity_at,
+                       sessions.agent_type, sessions.status, CAST(sessions.last_activity_at AS TEXT),
                        sessions.latest_summary, sessions.unread_event_count,
-                       sessions.pending_permission_count, sessions.can_resume_cross_device,
-                       sessions.claude_session_id, sessions.created_at, sessions.updated_at
+                       sessions.pending_permission_count,
+                       CASE WHEN sessions.can_resume_cross_device THEN 1 ELSE 0 END,
+                       sessions.claude_session_id, CAST(sessions.created_at AS TEXT),
+                       CAST(sessions.updated_at AS TEXT)
                 FROM sessions
                 INNER JOIN device_session_access
                     ON device_session_access.session_id = sessions.session_id
@@ -658,8 +664,10 @@ async fn get_session_by_id(state: Arc<AppState>, id: Uuid) -> Result<Json<Sessio
     let row: SessionRow = sqlx::query_as(
         r#"
         SELECT session_id, title, host_id, workspace_id, agent_type, status,
-               last_activity_at, latest_summary, unread_event_count, pending_permission_count,
-               can_resume_cross_device, claude_session_id, created_at, updated_at
+               CAST(last_activity_at AS TEXT), latest_summary, unread_event_count,
+               pending_permission_count, CASE WHEN can_resume_cross_device THEN 1 ELSE 0 END,
+               claude_session_id,
+               CAST(created_at AS TEXT), CAST(updated_at AS TEXT)
         FROM sessions WHERE session_id = $1
         "#,
     )
@@ -1186,7 +1194,7 @@ async fn handle_archived_rerun(
             session_id, title, host_id, workspace_id, agent_type, status, claude_session_id,
             rerun_from_session_id, can_resume_cross_device
         )
-        VALUES ($1, $2, $3, $4, $5, 'dispatching', $6, $7, 1)
+        VALUES ($1, $2, $3, $4, $5, 'dispatching', $6, $7, TRUE)
         "#,
     )
     .bind(&new_session_id_str)
@@ -1414,7 +1422,7 @@ pub(crate) async fn archive_session_with_metadata(
     ) = sqlx::query_as(
         r#"
         SELECT session_id, title, host_id, workspace_id, status, agent_type,
-               latest_summary, claude_session_id, created_at
+               latest_summary, claude_session_id, CAST(created_at AS TEXT)
         FROM sessions WHERE session_id = $1
         "#,
     )
@@ -1545,15 +1553,19 @@ pub(crate) async fn archive_session_with_metadata(
             });
     }
 
-    sqlx::query(
+    let metadata_expr = match state.config.database_backend() {
+        crate::config::DatabaseBackend::Postgres => "$7::jsonb",
+        crate::config::DatabaseBackend::Sqlite => "$7",
+    };
+    sqlx::query(&format!(
         r#"
         INSERT INTO session_archives (
             archive_id, session_id, title, closed_at, close_reason, host_id, workspace_id,
             metadata_json
         )
-        VALUES ($1, $2, $3, CURRENT_TIMESTAMP, $4, $5, $6, $7)
+        VALUES ($1, $2, $3, CURRENT_TIMESTAMP, $4, $5, $6, {metadata_expr})
         "#,
-    )
+    ))
     .bind(&archive_id_str)
     .bind(&session_id_str)
     .bind(&session.1)

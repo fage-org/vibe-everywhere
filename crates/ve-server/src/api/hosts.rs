@@ -49,8 +49,9 @@ pub async fn list_hosts(
     let rows: Vec<HostRow> = sqlx::query_as(
         r#"
         SELECT hosts.host_id, hosts.host_name, hosts.platform, hosts.online_status,
-               hosts.daemon_status, hosts.last_active_at, hosts.pair_status,
-               hosts.pair_code, hosts.qr_payload, hosts.created_at, hosts.updated_at
+               hosts.daemon_status, CAST(hosts.last_active_at AS TEXT), hosts.pair_status,
+               hosts.pair_code, hosts.qr_payload, CAST(hosts.created_at AS TEXT),
+               CAST(hosts.updated_at AS TEXT)
         FROM hosts
         INNER JOIN device_host_access
             ON device_host_access.host_id = hosts.host_id
@@ -133,7 +134,8 @@ async fn get_host_by_id(state: Arc<AppState>, id: Uuid) -> Result<Json<Host>> {
     let row: HostRow = sqlx::query_as(
         r#"
         SELECT host_id, host_name, platform, online_status, daemon_status,
-               last_active_at, pair_status, pair_code, qr_payload, created_at, updated_at
+               CAST(last_active_at AS TEXT), pair_status, pair_code, qr_payload,
+               CAST(created_at AS TEXT), CAST(updated_at AS TEXT)
         FROM hosts
         WHERE host_id = $1
         "#,
