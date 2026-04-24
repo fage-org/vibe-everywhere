@@ -53,6 +53,18 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
     let archive_id_1 = uuid::Uuid::new_v4();
     let session_id_2 = uuid::Uuid::new_v4();
     let archive_id_2 = uuid::Uuid::new_v4();
+    let workspace_path = format!("/tmp/archive-test-{workspace_id}");
+
+    sqlx::query(
+        "INSERT INTO workspaces (workspace_id, host_id, path, display_name) VALUES ($1, $2, $3, $4)",
+    )
+    .bind(workspace_id.to_string())
+    .bind(host_id.to_string())
+    .bind(&workspace_path)
+    .bind("archive-test")
+    .execute(pool)
+    .await
+    .map_err(|e| anyhow::anyhow!("insert shared workspace fixture: {e}"))?;
 
     insert_archive(
         pool,
@@ -201,44 +213,6 @@ async fn insert_archive(
 ) -> anyhow::Result<()> {
     let now = chrono::Utc::now().to_rfc3339();
 
-    // Ensure device exists
-    sqlx::query(
-        "INSERT OR IGNORE INTO client_devices (device_id, device_name, device_type, server_url) VALUES ($1, $2, $3, $4)",
-    )
-    .bind(device_id.to_string())
-    .bind("f9-test-device")
-    .bind("desktop")
-    .bind("http://localhost")
-    .execute(pool)
-    .await?;
-
-    // Ensure host exists (pair_status doesn't matter for archive queries)
-    sqlx::query("INSERT OR IGNORE INTO hosts (host_id, host_name, platform, pair_status, created_at) VALUES ($1, $2, $3, 'paired', $4)")
-        .bind(host_id.to_string())
-        .bind("f9-test-host")
-        .bind("linux")
-        .bind(&now)
-        .execute(pool)
-        .await?;
-
-    // Ensure device_host_access exists
-    sqlx::query("INSERT OR IGNORE INTO device_host_access (device_id, host_id) VALUES ($1, $2)")
-        .bind(device_id.to_string())
-        .bind(host_id.to_string())
-        .execute(pool)
-        .await?;
-
-    // Create workspace
-    sqlx::query(
-        "INSERT OR IGNORE INTO workspaces (workspace_id, host_id, path, display_name) VALUES ($1, $2, $3, $4)",
-    )
-    .bind(workspace_id.to_string())
-    .bind(host_id.to_string())
-    .bind("/tmp/archive-test")
-    .bind("archive-test")
-    .execute(pool)
-    .await?;
-
     // Create session (archived status)
     sqlx::query(
         "INSERT INTO sessions (session_id, title, host_id, workspace_id, agent_type, status, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, 'archived', $6, $6)",
@@ -253,13 +227,11 @@ async fn insert_archive(
     .await?;
 
     // Create device_session_access
-    sqlx::query(
-        "INSERT OR IGNORE INTO device_session_access (device_id, session_id) VALUES ($1, $2)",
-    )
-    .bind(device_id.to_string())
-    .bind(session_id.to_string())
-    .execute(pool)
-    .await?;
+    sqlx::query("INSERT INTO device_session_access (device_id, session_id) VALUES ($1, $2)")
+        .bind(device_id.to_string())
+        .bind(session_id.to_string())
+        .execute(pool)
+        .await?;
 
     // Create archive record
     sqlx::query(

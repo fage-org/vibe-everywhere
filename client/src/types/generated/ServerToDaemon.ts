@@ -25,4 +25,8 @@ request_id: string, session_id: string, action: SessionControlAction, } } | { "t
 /**
  * Unique request ID for correlation and acknowledgment
  */
-request_id: string, session_id: string, } } | { "type": "permission_response", "payload": { permission_id: string, session_id: string, decision: PermissionDecision, } } | { "type": "file_tree_request", "payload": { request_id: string, session_id: string, workspace_path: string, relative_path?: string | null, } } | { "type": "file_content_request", "payload": { request_id: string, workspace_path: string, relative_path: string, } } | { "type": "pong" } | { "type": "paired", "payload": { host_id: string, daemon_token: string, } };
+request_id: string, session_id: string, } } | { "type": "permission_response", "payload": { permission_id: string, session_id: string, decision: PermissionDecision, } } | { "type": "ensure_workspace", "payload": { 
+/**
+ * Unique request ID for correlation and acknowledgment
+ */
+request_id: string, workspace_path: string, } } | { "type": "file_tree_request", "payload": { request_id: string, session_id: string, workspace_path: string, relative_path?: string | null, } } | { "type": "file_content_request", "payload": { request_id: string, workspace_path: string, relative_path: string, } } | { "type": "pong" } | { "type": "paired", "payload": { host_id: string, daemon_token: string, } };

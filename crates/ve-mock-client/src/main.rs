@@ -54,6 +54,10 @@ struct Args {
     #[arg(long)]
     host_id: Option<String>,
 
+    /// Integration-mode database URL override; also read from VE_MOCK_CLIENT_DATABASE_URL
+    #[arg(long)]
+    database_url: Option<String>,
+
     /// Output format: text or json
     #[arg(long, default_value = "text")]
     output: String,
@@ -78,6 +82,7 @@ struct FlowTaskArgs {
     host_name: Option<String>,
     client_token: Option<String>,
     host_id: Option<String>,
+    database_url: Option<String>,
     skip_agent: bool,
     real_agent: bool,
 }
@@ -91,6 +96,7 @@ impl Clone for FlowTaskArgs {
             host_name: self.host_name.clone(),
             client_token: self.client_token.clone(),
             host_id: self.host_id.clone(),
+            database_url: self.database_url.clone(),
             skip_agent: self.skip_agent,
             real_agent: self.real_agent,
         }
@@ -153,6 +159,9 @@ async fn main() -> anyhow::Result<()> {
         host_name: args.host_name,
         client_token: args.client_token,
         host_id: args.host_id,
+        database_url: args
+            .database_url
+            .or_else(|| std::env::var("VE_MOCK_CLIENT_DATABASE_URL").ok()),
         skip_agent: args.skip_agent,
         real_agent: args.real_agent,
     };
@@ -267,7 +276,7 @@ async fn run_flow(
         let use_real_agent =
             should_use_real_agent(args.profile, args.real_agent, flow_requires_real_agent);
         let mock_mode = !use_real_agent;
-        match TestContext::new_integration(mock_mode).await {
+        match TestContext::new_integration(mock_mode, args.database_url.clone()).await {
             Ok(ctx) => run_fn(Arc::new(ctx)).await,
             Err(err) => FlowResult::fail(&flow_id, &format!("setup failed: {err:#}")),
         }
@@ -349,6 +358,7 @@ mod tests {
                 host_name: Some("missing-host".to_string()),
                 client_token: Some("invalid-token".to_string()),
                 host_id: None,
+                database_url: None,
                 skip_agent: false,
                 real_agent: false,
             },
@@ -373,6 +383,7 @@ mod tests {
                 host_name: Some("host".to_string()),
                 client_token: Some("token".to_string()),
                 host_id: Some("not-a-uuid".to_string()),
+                database_url: None,
                 skip_agent: false,
                 real_agent: false,
             },

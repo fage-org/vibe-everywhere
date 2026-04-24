@@ -108,3 +108,146 @@
 - 对当前实现而言，本轮 review 结论是：
   - **No active findings**
   - 存在少量 **residual risks / testing gaps**，但它们不构成当前代码中的直接缺陷。
+
+## 八、2026-04-24 补充复核（最新）
+
+> 本节覆盖第五节和第七节中的 “No active findings” 结论，作为当前最新 review 结果。
+
+### 8.1 本轮补充验证
+
+- `cargo fmt --all -- --check`：通过。
+- `cargo clippy --workspace --all-targets -- -D warnings`：通过。
+- `cargo test --workspace`：通过。
+- 复核仍沿用本文第二节 / 第三节的模块与功能链路切分；新增问题集中在 `M0` / `M1` / `M4` / `M9` / `M10`，对应 `F1` / `F2` / `F5` / `F8` / `F9` / `F12`。
+
+### 8.2 Active Findings
+
+#### HIGH-M4/F2/F8-01: `create_workspace` 目前只是“写一条元数据”，并未创建或验证远端目录，却直接返回 `exists_on_host = true`
+
+- **模块 / 链路**: `M4 服务端资源 API`；`F2 Host / Workspace 管理`；连带影响 `F3 Session 创建` 与 `F8 文件浏览`
+- **位置**:
+  - `docs/需求文档.md:146`
+  - `docs/需求文档.md:148`
+  - `docs/页面字段清单与状态机.md:61`
+  - `crates/ve-server/src/api/workspaces.rs:172`
+  - `crates/ve-server/src/api/workspaces.rs:219`
+  - `crates/ve-daemon/src/ws_client.rs:1017`
+  - `crates/ve-daemon/src/ws_client.rs:1028`
+  - `crates/ve-daemon/src/ws_client.rs:1117`
+- **问题**:
+  - PRD 明确写了“创建新目录作为 workspace”“如果目录不存在，可直接创建”。
+  - 当前 `create_workspace` 只做 DB `INSERT`，没有发 daemon RPC 去创建目录，也没有校验目录是否真实存在。
+  - handler 还会直接把 `exists_on_host` 回给客户端为 `true`，而仓库里也没有后续同步这个字段真实性的写路径。
+- **影响**:
+  - 用户可以成功创建一个实际上并不存在的 workspace。
+  - 后续文件浏览链路会在 daemon 侧因为 `workspace_path` 不存在而返回 `WorkspaceInvalid`。
+  - UI 如果依赖 `exists_on_host` 字段，会被“乐观真值”误导，属于链路真实性问题。
+- **建议**:
+  - 要么在 `create_workspace` 时通过 daemon 显式创建 / 校验目录；
+  - 要么把接口语义降级成“仅保存候选路径”，并把 `exists_on_host` 改成真实探测值而不是硬编码。
+
+#### MEDIUM-M1/M9/F1-01: `ve-mock-client` 的配对响应模型又开始偏离真实 API 契约
+
+- **模块 / 链路**: `M1 共享领域模型与协议`；`M9 集成测试运行时`；`F1 设备注册与配对`
+- **位置**:
+  - `crates/ve-mock-client/src/client.rs:503`
+  - `crates/ve-mock-client/src/client.rs:510`
+  - `crates/ve-server/src/api/auth.rs:117`
+  - `crates/ve-shared/src/models.rs:46`
+- **问题**:
+  - mock client 本地定义的 `PairingStatusResponse` 只保留了 `status` + `pair_code`，但真实服务端响应是 `status` + `daemon_token`。
+  - mock client 本地定义的 `PairResponse` 只保留了 `token`，但共享模型里还有 `host_id` 和 `host_name`。
+- **影响**:
+  - 当前 serde 会静默忽略多余字段，所以 flow 仍会 PASS。
+  - 这会让 `F1` 无法捕捉配对链路响应字段被删改的 regression，属于“假绿式契约漂移”。
+- **建议**:
+  - 直接复用 `ve_shared` 中的共享响应模型；
+  - 若必须使用本地轻量 struct，也要和服务端响应字段保持 1:1 对齐，并补一个契约级解析测试。
+
+#### MEDIUM-M9/F11-01: `--concurrency` 已暴露给 CLI，但并发 integration flow 仍共享同一个 `/tmp/ve-mock-daemon.log`
+
+- **模块 / 链路**: `M9 集成测试运行时`；连带影响所有并发 flow，尤其是 `F11 daemon 重连`
+- **位置**:
+  - `crates/ve-mock-client/src/main.rs:69`
+  - `crates/ve-mock-client/src/daemon.rs:24`
+  - `crates/ve-mock-client/src/daemon.rs:41`
+  - `crates/ve-mock-client/src/daemon.rs:84`
+- **问题**:
+  - CLI 已支持 `--concurrency`。
+  - 但每个 daemon 子进程都写固定文件 `/tmp/ve-mock-daemon.log`，启动前还会先删旧文件。
+  - `wait_for_daemon_hello()` 又依赖这个共享日志来判断 daemon 是否进入 pairing / connected 状态。
+- **影响**:
+  - 两个并发 flow 会互相覆盖日志、互删日志、互相读取对方的启动信号。
+  - 这使并发集成回归变得不确定，属于 harness 自身的并发污染。
+- **建议**:
+  - 日志文件改成落在各自 `temp_dir` 下的唯一文件名；
+  - `wait_for_daemon_hello()` 最好以 hub / HTTP 信号为主、日志为辅。
+
+#### MEDIUM-M10/F5-01: `F5` 只验证 control endpoint “有回应”，没有断言 pause/restart 真正改变会话状态
+
+- **模块 / 链路**: `M10 Flow 套件`；`F5 Session 控制`
+- **位置**:
+  - `crates/ve-mock-client/src/flows/f5_session_control.rs:58`
+  - `crates/ve-mock-client/src/flows/f5_session_control.rs:75`
+  - `crates/ve-mock-client/src/flows/f5_session_control.rs:81`
+- **问题**:
+  - flow 对 `pause` 的 happy path 只要求“接口返回了成功或可识别错误”。
+  - 后续虽然拉取了一次 session，但只打印日志，不断言状态必须进入 `paused` 或其他预期状态。
+- **影响**:
+  - 如果服务端未来退化成“返回 200 但不做任何状态迁移”，`F5` 仍可能通过。
+  - 会话控制是核心链路，这个回归盲区会放大 control 语义漂移风险。
+- **建议**:
+  - 对 `pause` / `restart` / `close` 分别断言最终 session 状态；
+  - 最好再补 daemon ACK / status event 级别的链路断言，避免只测 REST 表面成功。
+
+#### MEDIUM-M9/M10/F9/F12-01: 仓库声明支持 PostgreSQL，但 flow 级验证仍然基本锁死在 SQLite 路径
+
+- **模块 / 链路**: `M9 集成测试运行时`、`M10 Flow 套件`；直接影响 `F9` / `F12`，间接影响其他 DB 敏感链路
+- **位置**:
+  - `.env.example:7`
+  - `.env.example:9`
+  - `crates/ve-mock-client/src/server.rs:37`
+  - `crates/ve-mock-client/src/server.rs:45`
+  - `crates/ve-mock-client/src/flows/f9_archive_browse_delete.rs:206`
+  - `crates/ve-mock-client/src/flows/f12_background_tasks.rs:84`
+- **问题**:
+  - 项目对外明确暴露了 PostgreSQL 作为可选数据库。
+  - 但 integration server 固定起 `sqlite:`，多个 flow 还直接写了 `INSERT OR IGNORE` 这类 SQLite 专用 SQL。
+- **影响**:
+  - 当前的 flow 绿灯并不能证明 PostgreSQL 路径同样稳定。
+  - 一旦 Postgres 在 archive / background task / idempotency 等链路上出现行为偏差，现有 flow 套件不会第一时间报警。
+- **建议**:
+  - 把 harness 的 DB backend 参数化；
+  - 至少补一条 PostgreSQL CI lane，覆盖 `F3/F6/F9/F12` 这几条最容易受数据库语义影响的链路。
+
+### 8.3 结论修正
+
+- 当前最新结论不再是 “No active findings”。
+- 截至这轮补充复核，仓库存在：
+  - `1` 个 `HIGH`
+  - `4` 个 `MEDIUM`
+- 这些问题多数不是“编译不过 / 测试红”的显性故障，而是：
+  - 核心链路语义与 PRD 不一致；
+  - harness / flow 的验证闭环仍有假绿窗口；
+  - 并发和跨数据库路径还没有被稳定兜住。
+
+### 8.4 修复状态（2026-04-24）
+
+- `HIGH-M4/F2/F8-01`：**CLOSED**
+  - `create_workspace` 现在会先走 daemon `ensure_workspace` 请求，确保远端目录存在；不存在时会创建，失败时不会落库。
+  - 对应实现：`crates/ve-server/src/api/workspaces.rs`、`crates/ve-daemon/src/ws_client.rs`、`crates/ve-shared/src/proto.rs`
+- `MEDIUM-M1/M9/F1-01`：**CLOSED**
+  - `PairResponse` / `PairingStatusResponse` 已收敛到 `ve-shared` 共享模型，mock-client 不再维护漂移的本地响应 struct。
+  - 对应实现：`crates/ve-shared/src/models.rs`、`crates/ve-server/src/api/auth.rs`、`crates/ve-mock-client/src/client.rs`
+- `MEDIUM-M9/F11-01`：**CLOSED**
+  - integration daemon 日志已改为落在各自 `temp_dir` 内，不再共享固定 `/tmp/ve-mock-daemon.log`。
+  - 并发 smoke：`ve-mock-client --flows f2,f9 --concurrency 2` 已通过。
+  - 对应实现：`crates/ve-mock-client/src/daemon.rs`
+- `MEDIUM-M10/F5-01`：**CLOSED**
+  - `F5` 现在会断言 `pause` 后状态为 `paused`；`restart` 会根据实际返回断言“恢复为 running”或“显式拒绝且仍保持 paused”；`close` 会等待归档状态收敛。
+  - 对应实现：`crates/ve-mock-client/src/flows/f5_session_control.rs`
+- `MEDIUM-M9/M10/F9/F12-01`：**CLOSED（代码路径）**
+  - mock-client harness 已支持通过 `--database-url` 或 `VE_MOCK_CLIENT_DATABASE_URL` 指定 integration DB。
+  - PostgreSQL 路径改为为每次 integration run 创建独立 schema；`F9` / `F12` 中 SQLite 专有 `INSERT OR IGNORE` 已移除。
+  - 对应实现：`crates/ve-mock-client/src/server.rs`、`crates/ve-mock-client/src/main.rs`、`crates/ve-mock-client/src/integration_env.rs`、`crates/ve-mock-client/src/test_context.rs`、`crates/ve-mock-client/src/flows/f9_archive_browse_delete.rs`、`crates/ve-mock-client/src/flows/f12_background_tasks.rs`
+  - 说明：当前环境未提供 PostgreSQL DSN，因此本轮已完成字符串/配置级单测与 SQLite smoke；真实 PostgreSQL smoke 需在提供 DSN 后补跑。

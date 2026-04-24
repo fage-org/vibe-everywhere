@@ -237,6 +237,11 @@ pub enum ServerToDaemon {
         session_id: Uuid,
         decision: PermissionDecision,
     },
+    EnsureWorkspace {
+        /// Unique request ID for correlation and acknowledgment
+        request_id: String,
+        workspace_path: String,
+    },
     FileTreeRequest {
         request_id: String,
         session_id: Uuid,
@@ -341,6 +346,17 @@ impl From<DaemonMessage> for WsEnvelope {
                     "permission_id": permission_id,
                     "session_id": session_id,
                     "decision": decision,
+                }),
+            ),
+            DaemonMessage::EnsureWorkspace {
+                request_id,
+                workspace_path,
+            } => (
+                "ensure_workspace",
+                Some(request_id.clone()),
+                serde_json::json!({
+                    "request_id": request_id,
+                    "workspace_path": workspace_path,
                 }),
             ),
             DaemonMessage::FileTreeRequest {

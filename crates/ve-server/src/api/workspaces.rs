@@ -8,11 +8,13 @@ use axum::{
 };
 use serde::Deserialize;
 use std::sync::Arc;
+use std::time::Duration;
 use uuid::Uuid;
 
 use ve_shared::{
     jwt::Claims,
     models::{CreateWorkspaceRequest, Workspace},
+    proto::{DaemonMessage, ErrorPayload},
     types::Paginated,
 };
 
@@ -21,9 +23,10 @@ use crate::authz::{
     WorkspaceAccess, WorkspaceCollectionAccess,
 };
 use crate::error::{Result, ServerError};
+use crate::hub::DaemonResponse;
 use crate::state::AppState;
 use crate::utils;
-use crate::utils::parse_uuid;
+use crate::utils::{generate_request_id, parse_uuid};
 
 /// Database record for workspace
 struct WorkspaceRecord {
@@ -175,6 +178,55 @@ pub async fn create_workspace(
     Json(req): Json<CreateWorkspaceRequest>,
 ) -> Result<Json<Workspace>> {
     authorize_workspace_create(&state, client.device_id, &req).await?;
+
+    if !state.hub.is_daemon_connected(&req.host_id).await {
+        return Err(ServerError::HostNotFound);
+    }
+
+    let request_id = generate_request_id();
+    let prepare_request = DaemonMessage::EnsureWorkspace {
+        request_id: request_id.clone(),
+        workspace_path: req.path.clone(),
+    };
+    let prepare_response = state
+        .hub
+        .send_and_wait(
+            &req.host_id,
+            prepare_request,
+            request_id,
+            Duration::from_secs(30),
+        )
+        .await
+        .map_err(|error| sanitize_workspace_transport_error(error.as_ref()))?;
+
+    match prepare_response {
+        DaemonResponse::Ack(ack) if ack.success => {}
+        DaemonResponse::Ack(ack) => {
+            return Err(ServerError::BadRequest(
+                ack.error
+                    .unwrap_or_else(|| "Workspace could not be prepared".to_string()),
+            ));
+        }
+        DaemonResponse::Error(error) => {
+            return Err(sanitize_workspace_operation_error_from_payload(&error));
+        }
+        DaemonResponse::Message(ve_shared::proto::DaemonToServer::Error {
+            error_code,
+            error_message,
+            ..
+        }) => {
+            return Err(sanitize_workspace_operation_error(
+                Some(&error_code),
+                &error_message,
+            ));
+        }
+        _ => {
+            return Err(ServerError::Internal(
+                "Unexpected response while preparing workspace".to_string(),
+            ));
+        }
+    }
+
     let workspace_id = Uuid::new_v4();
     let workspace_id_str = workspace_id.to_string();
     let host_id_str = req.host_id.to_string();
@@ -220,6 +272,34 @@ pub async fn create_workspace(
         created_at: chrono::Utc::now(),
         updated_at: chrono::Utc::now(),
     }))
+}
+
+fn sanitize_workspace_transport_error(error: &dyn std::error::Error) -> ServerError {
+    tracing::warn!(error = %error, "Sanitized workspace preparation transport failure");
+    ServerError::BadRequest("Workspace could not be prepared".to_string())
+}
+
+fn sanitize_workspace_operation_error(
+    error_code: Option<&str>,
+    raw_error_message: &str,
+) -> ServerError {
+    tracing::warn!(
+        error_code,
+        raw_error_message,
+        "Sanitized workspace preparation error response"
+    );
+
+    let safe_message = match error_code {
+        Some("WORKSPACE_INVALID") => "Workspace path is not available on the host",
+        Some("INVALID_INPUT") => "Workspace path is invalid",
+        _ => "Workspace could not be prepared",
+    };
+
+    ServerError::BadRequest(safe_message.to_string())
+}
+
+fn sanitize_workspace_operation_error_from_payload(error: &ErrorPayload) -> ServerError {
+    sanitize_workspace_operation_error(Some(&error.error_code), &error.error_message)
 }
 
 /// GET /api/workspaces/:id
@@ -499,4 +579,231 @@ async fn delete_workspace_by_id(state: Arc<AppState>, id: Uuid) -> Result<Json<s
     tracing::info!(%id, "Workspace deleted");
 
     Ok(Json(serde_json::json!({ "success": true })))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::time::Duration;
+
+    use axum::{extract::State, Json};
+    use tokio::sync::mpsc;
+    use ve_shared::{
+        jwt::{Claims, TokenType},
+        proto::{AckPayload, ErrorPayload, WsEnvelope},
+    };
+
+    use crate::{
+        config::Config,
+        db,
+        hub::{Hub, WsSender},
+    };
+
+    fn test_config(database_url: String) -> Config {
+        Config {
+            listen_addr: "127.0.0.1:0".parse().unwrap(),
+            database_url,
+            jwt_secret: "super_secure_test_secret_key_32_chars!!".to_string(),
+            jwt_expiration_secs: 3600,
+            pair_code_ttl_secs: 300,
+            heartbeat_interval_secs: 30,
+            connection_timeout_secs: 60,
+            data_dir: std::env::temp_dir(),
+            cors_origins: vec![],
+            ack_timeout_ms: 3_000,
+            ack_max_retries: 0,
+            ack_retry_delay_ms: 0,
+            permission_ttl_secs: 1800,
+            permission_expiry_check_secs: 60,
+            idempotency_ttl_secs: 86_400,
+            idempotency_cleanup_secs: 3600,
+            log_format: "pretty".to_string(),
+            log_level: "info".to_string(),
+        }
+    }
+
+    async fn setup_state() -> Arc<AppState> {
+        db::install_drivers();
+        let db_name = format!("workspace_create_{}.db", Uuid::new_v4());
+        let db_url = format!("sqlite:/tmp/{}?mode=rwc", db_name);
+        let config = test_config(db_url);
+        let pool = db::create_pool(&config).await.unwrap();
+        db::run_migrations(&pool, config.database_backend())
+            .await
+            .unwrap();
+        Arc::new(AppState::new(pool, Hub::new(), config))
+    }
+
+    async fn seed_device_and_host(state: &AppState) -> (Uuid, Uuid) {
+        let device_id = Uuid::new_v4();
+        let host_id = Uuid::new_v4();
+
+        sqlx::query(
+            r#"INSERT INTO client_devices (device_id, device_name, device_type, server_url)
+               VALUES ($1, 'device', 'desktop', 'http://localhost')"#,
+        )
+        .bind(device_id.to_string())
+        .execute(&state.db)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            r#"INSERT INTO hosts (host_id, host_name, platform, pair_status)
+               VALUES ($1, 'host', 'linux', 'paired')"#,
+        )
+        .bind(host_id.to_string())
+        .execute(&state.db)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            r#"INSERT INTO device_host_access (device_id, host_id)
+               VALUES ($1, $2)"#,
+        )
+        .bind(device_id.to_string())
+        .bind(host_id.to_string())
+        .execute(&state.db)
+        .await
+        .unwrap();
+
+        (device_id, host_id)
+    }
+
+    fn client_claims(device_id: Uuid) -> Claims {
+        Claims::for_client(device_id, "device", chrono::Duration::hours(1))
+    }
+
+    async fn register_fake_daemon(state: &AppState, host_id: Uuid) -> mpsc::Receiver<WsEnvelope> {
+        let (tx, rx): (WsSender, mpsc::Receiver<WsEnvelope>) = mpsc::channel(8);
+        state.hub.register_daemon(host_id, tx).await;
+        rx
+    }
+
+    #[tokio::test]
+    async fn create_workspace_waits_for_daemon_ack_before_persisting() {
+        let state = setup_state().await;
+        let (device_id, host_id) = seed_device_and_host(&state).await;
+        let mut daemon_rx = register_fake_daemon(&state, host_id).await;
+
+        let req_path = format!("/tmp/ws-{}", Uuid::new_v4());
+        let state_for_request = state.clone();
+        let req_path_for_request = req_path.clone();
+        let request_task = tokio::spawn(async move {
+            create_workspace(
+                ClientAccess { device_id },
+                State(state_for_request),
+                Json(CreateWorkspaceRequest {
+                    host_id,
+                    path: req_path_for_request,
+                    display_name: Some("ws".to_string()),
+                }),
+            )
+            .await
+        });
+
+        let outbound = tokio::time::timeout(Duration::from_secs(1), daemon_rx.recv())
+            .await
+            .expect("timed out waiting for ensure_workspace command")
+            .expect("daemon command");
+        assert_eq!(outbound.r#type, "ensure_workspace");
+
+        let row_count_before: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM workspaces WHERE host_id = $1 AND path = $2")
+                .bind(host_id.to_string())
+                .bind(&req_path)
+                .fetch_one(&state.db)
+                .await
+                .unwrap();
+        assert_eq!(row_count_before.0, 0);
+        assert!(!request_task.is_finished());
+
+        state
+            .hub
+            .complete_with_ack(AckPayload {
+                request_id: outbound.request_id.clone().unwrap(),
+                success: true,
+                error: None,
+            })
+            .await;
+
+        let response = tokio::time::timeout(Duration::from_secs(1), request_task)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+
+        assert!(response.0.exists_on_host);
+        assert_eq!(response.0.path, req_path);
+
+        let row_count_after: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM workspaces WHERE host_id = $1 AND path = $2")
+                .bind(host_id.to_string())
+                .bind(&response.0.path)
+                .fetch_one(&state.db)
+                .await
+                .unwrap();
+        assert_eq!(row_count_after.0, 1);
+    }
+
+    #[tokio::test]
+    async fn create_workspace_returns_bad_request_when_daemon_rejects_path() {
+        let state = setup_state().await;
+        let (device_id, host_id) = seed_device_and_host(&state).await;
+        let mut daemon_rx = register_fake_daemon(&state, host_id).await;
+
+        let req_path = format!("/tmp/ws-{}", Uuid::new_v4());
+        let state_for_request = state.clone();
+        let req_path_for_request = req_path.clone();
+        let request_task = tokio::spawn(async move {
+            create_workspace(
+                ClientAccess { device_id },
+                State(state_for_request),
+                Json(CreateWorkspaceRequest {
+                    host_id,
+                    path: req_path_for_request,
+                    display_name: Some("ws".to_string()),
+                }),
+            )
+            .await
+        });
+
+        let outbound = tokio::time::timeout(Duration::from_secs(1), daemon_rx.recv())
+            .await
+            .expect("timed out waiting for ensure_workspace command")
+            .expect("daemon command");
+        assert_eq!(outbound.r#type, "ensure_workspace");
+
+        state
+            .hub
+            .complete_with_error(ErrorPayload {
+                request_id: outbound.request_id.clone().unwrap(),
+                error_code: "WORKSPACE_INVALID".to_string(),
+                error_message: "path rejected".to_string(),
+            })
+            .await;
+
+        let error = tokio::time::timeout(Duration::from_secs(1), request_task)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap_err();
+
+        assert!(matches!(error, ServerError::BadRequest(_)));
+
+        let row_count: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM workspaces WHERE host_id = $1 AND path = $2")
+                .bind(host_id.to_string())
+                .bind(&req_path)
+                .fetch_one(&state.db)
+                .await
+                .unwrap();
+        assert_eq!(row_count.0, 0);
+    }
+
+    #[test]
+    fn client_claims_are_formal_client_tokens_for_workspace_tests() {
+        let claims = client_claims(Uuid::new_v4());
+        assert_eq!(claims.r#type, TokenType::Client);
+    }
 }

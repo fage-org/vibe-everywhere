@@ -2,7 +2,7 @@
 //!
 //! Manages the persistent WebSocket connection between ve-daemon and ve-server.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -563,6 +563,9 @@ impl WsClient {
             "create_session" => {
                 self.handle_create_session(&envelope).await?;
             }
+            "ensure_workspace" => {
+                self.handle_ensure_workspace(&envelope).await?;
+            }
             "rerun_session" => {
                 self.handle_rerun_session(&envelope).await?;
             }
@@ -599,6 +602,33 @@ impl WsClient {
     }
 
     // Message handlers
+
+    async fn handle_ensure_workspace(&self, envelope: &WsEnvelope) -> Result<()> {
+        let request_id = envelope
+            .request_id
+            .clone()
+            .ok_or(DaemonError::RequestIdMissing)?;
+
+        let workspace_path = envelope
+            .payload
+            .get("workspace_path")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| DaemonError::WsPayloadMissing("workspace_path".to_string()))?;
+
+        match ensure_workspace_directory(workspace_path) {
+            Ok(()) => {
+                debug!(workspace_path, "Workspace prepared successfully");
+                self.send_ack(&request_id, true, None).await;
+            }
+            Err(error) => {
+                warn!(workspace_path, error = %error, "Failed to prepare workspace");
+                self.send_error(&request_id, &error.to_ack_error(), &error.to_string())
+                    .await;
+            }
+        }
+
+        Ok(())
+    }
 
     async fn handle_create_session(&self, envelope: &WsEnvelope) -> Result<()> {
         let request_id = envelope
@@ -1167,6 +1197,44 @@ impl WsClient {
     }
 }
 
+fn ensure_workspace_directory(workspace_path: &str) -> Result<()> {
+    let trimmed_path = workspace_path.trim();
+    if trimmed_path.is_empty() {
+        return Err(DaemonError::WorkspaceInvalid {
+            path: workspace_path.to_string(),
+        });
+    }
+
+    let path = Path::new(trimmed_path);
+    if !path.is_absolute() {
+        return Err(DaemonError::WorkspaceInvalid {
+            path: trimmed_path.to_string(),
+        });
+    }
+
+    if path.exists() {
+        return if path.is_dir() {
+            Ok(())
+        } else {
+            Err(DaemonError::WorkspaceInvalid {
+                path: trimmed_path.to_string(),
+            })
+        };
+    }
+
+    std::fs::create_dir_all(path).map_err(|_| DaemonError::WorkspaceInvalid {
+        path: trimmed_path.to_string(),
+    })?;
+
+    if path.is_dir() {
+        Ok(())
+    } else {
+        Err(DaemonError::WorkspaceInvalid {
+            path: trimmed_path.to_string(),
+        })
+    }
+}
+
 /// Calculate exponential backoff duration
 ///
 /// Uses exponential growth with random jitter (±20%).
@@ -1184,6 +1252,7 @@ fn calculate_backoff(min: Duration, max: Duration, retry_count: u32) -> Duration
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tempfile::tempdir;
 
     #[test]
     fn test_calculate_backoff_first_retry() {
@@ -1264,5 +1333,34 @@ mod tests {
         assert_eq!(msg_type, "permission_request");
         assert_eq!(payload["permission_id"], permission_id.to_string());
         assert_eq!(payload["session_id"], session_id.to_string());
+    }
+
+    #[test]
+    fn ensure_workspace_directory_creates_missing_absolute_path() {
+        let dir = tempdir().unwrap();
+        let workspace = dir.path().join("new-workspace");
+
+        ensure_workspace_directory(workspace.to_str().unwrap()).unwrap();
+
+        assert!(workspace.exists());
+        assert!(workspace.is_dir());
+    }
+
+    #[test]
+    fn ensure_workspace_directory_rejects_relative_path() {
+        let error = ensure_workspace_directory("relative/workspace").unwrap_err();
+
+        assert!(matches!(error, DaemonError::WorkspaceInvalid { .. }));
+    }
+
+    #[test]
+    fn ensure_workspace_directory_rejects_existing_file() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("not-a-directory");
+        std::fs::write(&file_path, "hello").unwrap();
+
+        let error = ensure_workspace_directory(file_path.to_str().unwrap()).unwrap_err();
+
+        assert!(matches!(error, DaemonError::WorkspaceInvalid { .. }));
     }
 }

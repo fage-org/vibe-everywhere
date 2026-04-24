@@ -64,7 +64,7 @@ impl MockClient {
         &self,
         host_id: Uuid,
         pairing_secret: &str,
-    ) -> Result<PairingStatusResponse> {
+    ) -> Result<ve_shared::models::PairingStatusResponse> {
         let url = format!("/api/auth/pairing-status?host_id={host_id}");
         let resp = self
             .http
@@ -84,7 +84,7 @@ impl MockClient {
         serde_json::from_str(&text).with_context(|| format!("parsing JSON: {text}"))
     }
 
-    pub async fn pair(&self, pair_code: &str) -> Result<PairResponse> {
+    pub async fn pair(&self, pair_code: &str) -> Result<ve_shared::models::PairResponse> {
         let body = serde_json::json!({ "pair_code": pair_code });
         let resp = self
             .post_json_value_raw("/api/auth/pair", body, None)
@@ -489,6 +489,37 @@ mod tests {
         assert_eq!(page.items.len(), 1);
         assert_eq!(page.items[0].workspace_id, workspace_id);
     }
+
+    #[test]
+    fn shared_pair_response_parses_full_contract() {
+        let host_id = Uuid::new_v4();
+        let response = json!({
+            "host_id": host_id,
+            "host_name": "host-a",
+            "token": "client-token",
+        });
+
+        let parsed: ve_shared::models::PairResponse =
+            serde_json::from_value(response).expect("pair response should parse");
+
+        assert_eq!(parsed.host_id, host_id);
+        assert_eq!(parsed.host_name, "host-a");
+        assert_eq!(parsed.token, "client-token");
+    }
+
+    #[test]
+    fn shared_pairing_status_response_parses_daemon_token() {
+        let response = json!({
+            "status": "paired",
+            "daemon_token": "daemon-token",
+        });
+
+        let parsed: ve_shared::models::PairingStatusResponse =
+            serde_json::from_value(response).expect("pairing status response should parse");
+
+        assert_eq!(parsed.status, "paired");
+        assert_eq!(parsed.daemon_token.as_deref(), Some("daemon-token"));
+    }
 }
 
 // ---- Response types ----
@@ -496,17 +527,5 @@ mod tests {
 #[derive(Debug, Deserialize)]
 pub struct RegisterDeviceResponse {
     pub device_id: Uuid,
-    pub token: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct PairingStatusResponse {
-    pub status: String,
-    #[serde(default)]
-    pub pair_code: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct PairResponse {
     pub token: String,
 }

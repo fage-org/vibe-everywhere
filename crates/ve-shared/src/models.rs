@@ -33,7 +33,7 @@ pub struct RegisterDeviceRequest {
 }
 
 /// Response after device registration
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct RegisterDeviceResponse {
     pub device_id: Uuid,
@@ -41,12 +41,22 @@ pub struct RegisterDeviceResponse {
 }
 
 /// Response after a successful pairing
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct PairResponse {
     pub host_id: Uuid,
     pub host_name: String,
     pub token: String,
+}
+
+/// Pairing status response returned to the daemon while polling for completion
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct PairingStatusResponse {
+    pub status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub daemon_token: Option<String>,
 }
 
 /// Remote host information

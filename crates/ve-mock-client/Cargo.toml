@@ -10,7 +10,7 @@ path = "src/main.rs"
 
 [dependencies]
 ve-shared = { path = "../ve-shared" }
-ve-server = { path = "../ve-server" }
+ve-server = { path = "../ve-server", default-features = false, features = ["both"] }
 
 # axum for server spawning
 axum = { workspace = true }
@@ -55,7 +55,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 toml = { workspace = true }
 
 # Database access for test context setup
-sqlx = { workspace = true, features = ["sqlite"] }
+sqlx = { workspace = true, features = ["sqlite", "postgres", "any"] }
 
 # Unix process signals
 [target.'cfg(unix)'.dependencies]

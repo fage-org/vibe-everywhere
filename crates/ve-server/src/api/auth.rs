@@ -14,7 +14,9 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use ve_shared::jwt::{Claims, JwtManager};
-use ve_shared::models::{PairResponse, RegisterDeviceRequest, RegisterDeviceResponse};
+use ve_shared::models::{
+    PairResponse, PairingStatusResponse, RegisterDeviceRequest, RegisterDeviceResponse,
+};
 use ve_shared::pairing_proof::PairingProof;
 
 use crate::authz::require_bootstrap_device_id;
@@ -112,13 +114,6 @@ pub struct DaemonHelloResponse {
 #[derive(Debug, serde::Deserialize)]
 pub struct PairingStatusQuery {
     pub host_id: Uuid,
-}
-
-#[derive(Debug, serde::Serialize)]
-pub struct PairingStatusResponse {
-    pub status: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub daemon_token: Option<String>,
 }
 
 /// POST /api/auth/daemon-hello

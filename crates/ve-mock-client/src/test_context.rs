@@ -38,8 +38,8 @@ impl TestContext {
     /// Create a new integration test context with real server and daemon.
     /// Performs full pairing setup: daemon-hello → register-device → pair → WS connect.
     /// When `mock_mode` is false, the daemon uses real Claude Code instead of MockDriver.
-    pub async fn new_integration(mock_mode: bool) -> Result<Self> {
-        let mut env = IntegrationEnv::new(mock_mode)
+    pub async fn new_integration(mock_mode: bool, database_url: Option<String>) -> Result<Self> {
+        let mut env = IntegrationEnv::new(mock_mode, database_url)
             .await
             .context("creating integration environment")?;
 

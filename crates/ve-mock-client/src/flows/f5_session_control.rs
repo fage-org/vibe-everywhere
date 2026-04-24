@@ -1,10 +1,12 @@
 //! F5: Session control (pause/restart/terminate)
 
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use crate::fixtures;
 use crate::flows::FlowResult;
 use crate::test_context::TestContext;
+use ve_shared::types::SessionStatus;
 
 pub async fn run(ctx: Arc<TestContext>) -> FlowResult {
     let start = std::time::Instant::now();
@@ -55,7 +57,7 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
 
     tracing::info!(%session_id, status = ?session.status, "Session created for control test");
 
-    // Step 2: Try pause action — endpoint must respond (success or a recognized error)
+    // Step 2: Pause the session
     let pause_result = client.control_session(session_id, "pause").await;
 
     match pause_result {
@@ -72,15 +74,50 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
         }
     }
 
-    // Step 3: Get session to check current status
-    let got = client
+    // Step 3: Session should now be paused
+    let paused = client
         .get_session(session_id)
         .await
         .map_err(|e| anyhow::anyhow!("get session: {e}"))?;
+    ensure_status("pause", paused.status, SessionStatus::Paused)?;
 
-    tracing::info!(%session_id, status = ?got.status, "Session status after control");
+    tracing::info!(%session_id, status = ?paused.status, "Session paused");
 
-    // Step 4: Error path — control non-existent session
+    // Step 4: Restart should either resume the session or fail explicitly while
+    // leaving the session paused when no resumable Claude session ID exists.
+    let restart_result = client.control_session(session_id, "restart").await;
+
+    match restart_result {
+        Ok(resp) => {
+            tracing::info!(success = resp.success, "Restart action result");
+
+            let restarted = client
+                .get_session(session_id)
+                .await
+                .map_err(|e| anyhow::anyhow!("get session after restart: {e}"))?;
+            ensure_status("restart", restarted.status, SessionStatus::Running)?;
+        }
+        Err(e) => {
+            let err_msg = e.to_string();
+            if err_msg.contains("failed to connect") || err_msg.contains("connection refused") {
+                anyhow::bail!(
+                    "Restart control failed with network error (server unreachable): {e}"
+                );
+            }
+
+            let still_paused = client.get_session(session_id).await.map_err(|fetch_err| {
+                anyhow::anyhow!("get session after restart failure: {fetch_err}")
+            })?;
+            ensure_status(
+                "restart failure",
+                still_paused.status,
+                SessionStatus::Paused,
+            )?;
+            tracing::info!("Restart rejected explicitly: {e}");
+        }
+    }
+
+    // Step 5: Error path — control non-existent session
     let bad_id = uuid::Uuid::new_v4();
     let result = client.control_session(bad_id, "pause").await;
     if result.is_ok() {
@@ -89,7 +126,7 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
 
     tracing::info!("Error path verified: non-existent session control rejected");
 
-    // Step 5: Error path — invalid action
+    // Step 6: Error path — invalid action
     let result = client
         .control_session(session_id, "invalid_action_xyz")
         .await;
@@ -99,7 +136,7 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
 
     tracing::info!("Error path verified: invalid action rejected");
 
-    // Step 6: Rerun on non-archived session should fail
+    // Step 7: Rerun on non-archived session should fail
     let result = client.control_session(session_id, "rerun").await;
     if result.is_ok() {
         anyhow::bail!("Expected error for rerun on non-archived session, but got OK");
@@ -107,7 +144,7 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
 
     tracing::info!("Error path verified: rerun on non-archived session rejected");
 
-    // Step 7: Close session
+    // Step 8: Close session
     let close_result = client.close_session(session_id).await;
     match close_result {
         Ok(resp) => {
@@ -123,5 +160,74 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
         }
     }
 
+    wait_for_status(
+        client,
+        session_id,
+        SessionStatus::Archived,
+        Duration::from_secs(5),
+    )
+    .await?;
+
     Ok(())
+}
+
+fn ensure_status(
+    action: &str,
+    actual: SessionStatus,
+    expected: SessionStatus,
+) -> anyhow::Result<()> {
+    if actual != expected {
+        anyhow::bail!(
+            "session status after {action} should be {:?}, got {:?}",
+            expected,
+            actual
+        );
+    }
+    Ok(())
+}
+
+async fn wait_for_status(
+    client: &crate::client::MockClient,
+    session_id: uuid::Uuid,
+    expected: SessionStatus,
+    timeout: Duration,
+) -> anyhow::Result<()> {
+    let deadline = Instant::now() + timeout;
+    loop {
+        let session = client
+            .get_session(session_id)
+            .await
+            .map_err(|e| anyhow::anyhow!("get session while waiting for status: {e}"))?;
+        if session.status == expected {
+            return Ok(());
+        }
+        if Instant::now() >= deadline {
+            anyhow::bail!(
+                "session status after close should be {:?}, got {:?}",
+                expected,
+                session.status
+            );
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ensure_status_accepts_matching_state() {
+        assert!(ensure_status("pause", SessionStatus::Paused, SessionStatus::Paused).is_ok());
+    }
+
+    #[test]
+    fn ensure_status_rejects_unexpected_state() {
+        let error = ensure_status("pause", SessionStatus::Running, SessionStatus::Paused)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("should be"));
+        assert!(error.contains("Paused"));
+        assert!(error.contains("Running"));
+    }
 }

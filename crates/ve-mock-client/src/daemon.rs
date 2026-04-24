@@ -20,8 +20,7 @@ impl IntegrationDaemon {
     /// When `mock_mode` is false, the daemon runs with real Claude Code (no VIBE_DAEMON__MOCK_MODE env var).
     pub async fn spawn(server_url: &str, temp_dir: &Path, mock_mode: bool) -> Result<Self> {
         let config_path = temp_dir.join("daemon-config.toml");
-        // Use a persistent path for logs so they survive temp dir cleanup
-        let log_path = PathBuf::from("/tmp/ve-mock-daemon.log");
+        let log_path = daemon_log_path(temp_dir);
 
         // Write daemon config for reference (daemon reads from env vars)
         let config_toml = format!(
@@ -117,6 +116,10 @@ mock_mode = {mock_mode}
         let _ = self.process.wait();
         Ok(())
     }
+}
+
+fn daemon_log_path(temp_dir: &Path) -> PathBuf {
+    temp_dir.join("ve-mock-daemon.log")
 }
 
 impl Drop for IntegrationDaemon {
@@ -294,4 +297,22 @@ fn last_n_lines(content: &str, n: usize) -> String {
         .rev()
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn daemon_log_path_is_scoped_to_each_temp_dir() {
+        let first = tempfile::tempdir().unwrap();
+        let second = tempfile::tempdir().unwrap();
+
+        let first_path = daemon_log_path(first.path());
+        let second_path = daemon_log_path(second.path());
+
+        assert!(first_path.starts_with(first.path()));
+        assert!(second_path.starts_with(second.path()));
+        assert_ne!(first_path, second_path);
+    }
 }

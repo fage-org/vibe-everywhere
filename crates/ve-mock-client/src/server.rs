@@ -8,6 +8,7 @@ use axum::serve;
 use tokio::net::TcpListener;
 use tokio::task::JoinHandle;
 use tracing::info;
+use uuid::Uuid;
 
 use ve_server::build_app;
 use ve_server::config::Config;
@@ -28,34 +29,30 @@ pub struct IntegrationServer {
     pub pool: db::DbPool,
     server_handle: Option<JoinHandle<()>>,
     task_handles: Vec<JoinHandle<()>>,
+    postgres_admin_pool: Option<db::DbPool>,
+    postgres_schema_name: Option<String>,
 }
 
 /// JWT secret used for integration testing.
 const TEST_JWT_SECRET: &str = "test-integration-secret-key-32bytes!!";
+const TEST_DATABASE_URL_ENV: &str = "VE_MOCK_CLIENT_DATABASE_URL";
+
+struct PreparedDatabaseConfig {
+    config: Config,
+    db_path: std::path::PathBuf,
+    postgres_admin_pool: Option<db::DbPool>,
+    postgres_schema_name: Option<String>,
+}
 
 impl IntegrationServer {
-    pub async fn start(temp_dir: &std::path::Path) -> Result<Self> {
-        // 1. Create temp DB file
-        let db_path = temp_dir.join("test.db");
-        let database_url = format!("sqlite:{}?mode=rwc", db_path.display());
-
-        // 2. Build config via TOML deserialization (all serde defaults apply)
-        let config_toml = format!(
-            r#"
-database_url = "{database_url}"
-jwt_secret = "{TEST_JWT_SECRET}"
-data_dir = "{}"
-cors_origins = ["*"]
-log_level = "debug"
-permission_expiry_check_secs = 1
-idempotency_cleanup_secs = 1
-"#,
-            temp_dir.display()
-        );
-        let config: Config = toml::from_str(&config_toml).context("parsing test config TOML")?;
-
-        // 3. Initialize drivers and DB
+    pub async fn start(
+        temp_dir: &std::path::Path,
+        database_url_override: Option<&str>,
+    ) -> Result<Self> {
+        // 1. Initialize drivers and DB config
         db::install_drivers();
+        let prepared = prepare_database_config(temp_dir, database_url_override).await?;
+        let config = prepared.config.clone();
         let pool = db::create_pool(&config)
             .await
             .context("creating database pool")?;
@@ -104,13 +101,15 @@ idempotency_cleanup_secs = 1
         Ok(Self {
             server_url,
             port,
-            db_path,
+            db_path: prepared.db_path,
             config,
             hub: hub_ref,
             jwt_manager,
             pool,
             server_handle: Some(server_handle),
             task_handles,
+            postgres_admin_pool: prepared.postgres_admin_pool,
+            postgres_schema_name: prepared.postgres_schema_name,
         })
     }
 
@@ -121,7 +120,104 @@ idempotency_cleanup_secs = 1
         for handle in self.task_handles.drain(..) {
             handle.abort();
         }
+
+        if let (Some(admin_pool), Some(schema_name)) = (
+            self.postgres_admin_pool.take(),
+            self.postgres_schema_name.take(),
+        ) {
+            if let Ok(handle) = tokio::runtime::Handle::try_current() {
+                handle.spawn(async move {
+                    let _ =
+                        sqlx::query(&format!("DROP SCHEMA IF EXISTS \"{schema_name}\" CASCADE"))
+                            .execute(&admin_pool)
+                            .await;
+                    admin_pool.close().await;
+                });
+            }
+        }
     }
+}
+
+fn build_test_config(temp_dir: &std::path::Path, database_url: &str) -> Result<Config> {
+    let config_toml = format!(
+        r#"
+database_url = "{database_url}"
+jwt_secret = "{TEST_JWT_SECRET}"
+data_dir = "{}"
+cors_origins = ["*"]
+log_level = "debug"
+permission_expiry_check_secs = 1
+idempotency_cleanup_secs = 1
+"#,
+        temp_dir.display()
+    );
+    toml::from_str(&config_toml).context("parsing test config TOML")
+}
+
+async fn prepare_database_config(
+    temp_dir: &std::path::Path,
+    database_url_override: Option<&str>,
+) -> Result<PreparedDatabaseConfig> {
+    let selected_database_url = database_url_override
+        .map(ToOwned::to_owned)
+        .or_else(|| std::env::var(TEST_DATABASE_URL_ENV).ok());
+
+    match selected_database_url {
+        Some(database_url)
+            if database_url.starts_with("postgres://")
+                || database_url.starts_with("postgresql://") =>
+        {
+            prepare_postgres_database_config(temp_dir, &database_url).await
+        }
+        Some(database_url) => {
+            let config = build_test_config(temp_dir, &database_url)?;
+            Ok(PreparedDatabaseConfig {
+                config,
+                db_path: temp_dir.join("test.db"),
+                postgres_admin_pool: None,
+                postgres_schema_name: None,
+            })
+        }
+        None => {
+            let db_path = temp_dir.join("test.db");
+            let database_url = format!("sqlite:{}?mode=rwc", db_path.display());
+            let config = build_test_config(temp_dir, &database_url)?;
+            Ok(PreparedDatabaseConfig {
+                config,
+                db_path,
+                postgres_admin_pool: None,
+                postgres_schema_name: None,
+            })
+        }
+    }
+}
+
+async fn prepare_postgres_database_config(
+    temp_dir: &std::path::Path,
+    base_url: &str,
+) -> Result<PreparedDatabaseConfig> {
+    let schema_name = format!("ve_mock_client_{}", Uuid::new_v4().simple());
+    let admin_pool = db::DbPool::connect(base_url).await?;
+
+    sqlx::query(&format!("CREATE SCHEMA \"{schema_name}\""))
+        .execute(&admin_pool)
+        .await
+        .with_context(|| format!("creating postgres schema {schema_name}"))?;
+
+    let scoped_database_url = scoped_postgres_database_url(base_url, &schema_name);
+    let config = build_test_config(temp_dir, &scoped_database_url)?;
+
+    Ok(PreparedDatabaseConfig {
+        config,
+        db_path: temp_dir.join(format!("{schema_name}.schema")),
+        postgres_admin_pool: Some(admin_pool),
+        postgres_schema_name: Some(schema_name),
+    })
+}
+
+fn scoped_postgres_database_url(base_url: &str, schema_name: &str) -> String {
+    let separator = if base_url.contains('?') { '&' } else { '?' };
+    format!("{base_url}{separator}options=-csearch_path%3D{schema_name}")
 }
 
 /// Poll the server until it responds or times out.
@@ -141,5 +237,30 @@ async fn wait_for_server_ready(server_url: &str, timeout: Duration) -> Result<()
 impl Drop for IntegrationServer {
     fn drop(&mut self) {
         self.abort();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn scoped_postgres_database_url_appends_search_path_option() {
+        let scoped =
+            scoped_postgres_database_url("postgres://user:pass@localhost:5432/vibe", "schema_a");
+
+        assert!(scoped.contains("options=-csearch_path%3Dschema_a"));
+        assert!(scoped.starts_with("postgres://user:pass@localhost:5432/vibe?"));
+    }
+
+    #[test]
+    fn scoped_postgres_database_url_preserves_existing_query_string() {
+        let scoped = scoped_postgres_database_url(
+            "postgres://user:pass@localhost:5432/vibe?sslmode=disable",
+            "schema_b",
+        );
+
+        assert!(scoped.contains("sslmode=disable"));
+        assert!(scoped.contains("&options=-csearch_path%3Dschema_b"));
     }
 }

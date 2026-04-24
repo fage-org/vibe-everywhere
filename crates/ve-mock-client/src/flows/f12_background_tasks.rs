@@ -25,10 +25,6 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
         .pool()
         .ok_or_else(|| anyhow::anyhow!("F12 requires integration server pool"))?;
 
-    let device_id = ctx
-        .device_id
-        .ok_or_else(|| anyhow::anyhow!("F12 requires device_id"))?;
-
     let host_id = ctx
         .host_id
         .ok_or_else(|| anyhow::anyhow!("F12 requires host_id"))?;
@@ -81,14 +77,8 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
     let session_id = uuid::Uuid::new_v4();
     let permission_id = uuid::Uuid::new_v4();
 
-    sqlx::query("INSERT OR IGNORE INTO device_host_access (device_id, host_id) VALUES ($1, $2)")
-        .bind(device_id.to_string())
-        .bind(host_id.to_string())
-        .execute(pool)
-        .await?;
-
     sqlx::query(
-        "INSERT OR IGNORE INTO workspaces (workspace_id, host_id, path, display_name) VALUES ($1, $2, $3, $4)",
+        "INSERT INTO workspaces (workspace_id, host_id, path, display_name) VALUES ($1, $2, $3, $4)",
     )
     .bind(workspace_id.to_string())
     .bind(host_id.to_string())
