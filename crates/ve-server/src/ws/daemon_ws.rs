@@ -188,6 +188,9 @@ async fn handle_daemon_message(
     }
 
     match envelope.r#type.as_str() {
+        "daemon_hello" => {
+            tracing::debug!(%host_id, "Ignoring post-connect daemon_hello message");
+        }
         "daemon_heartbeat" => {
             // Update last_active_at
             let now = chrono::Utc::now().to_rfc3339();
@@ -485,11 +488,12 @@ async fn handle_permission_request(
         }
         SessionAvailability::Active => {}
     }
+    let created_at = chrono::Utc::now().to_rfc3339();
 
     sqlx::query(
         r#"
-        INSERT INTO permission_requests (permission_id, session_id, risk_type, summary, target)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO permission_requests (permission_id, session_id, risk_type, summary, target, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6)
         "#,
     )
     .bind(&permission_id_str)
@@ -497,6 +501,7 @@ async fn handle_permission_request(
     .bind(risk_type_db)
     .bind(&summary)
     .bind(&target)
+    .bind(&created_at)
     .execute(&mut *tx)
     .await?;
 
@@ -738,6 +743,33 @@ mod tests {
             .unwrap();
 
         assert!(rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn daemon_hello_after_ws_connect_is_ignored_without_error() {
+        let state = setup_state().await;
+        let host_id = Uuid::new_v4();
+
+        sqlx::query("INSERT INTO hosts (host_id, host_name, platform) VALUES ($1, $2, $3)")
+            .bind(host_id.to_string())
+            .bind("host")
+            .bind("linux")
+            .execute(&state.db)
+            .await
+            .unwrap();
+
+        let envelope = WsEnvelope::new(
+            "daemon_hello",
+            serde_json::json!({
+                "host_id": host_id.to_string(),
+                "host_name": "host",
+                "platform": "linux"
+            }),
+        );
+
+        handle_daemon_message(&state, host_id, &serde_json::to_string(&envelope).unwrap())
+            .await
+            .unwrap();
     }
 
     #[tokio::test]

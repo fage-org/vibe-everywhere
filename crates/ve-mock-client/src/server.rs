@@ -14,6 +14,7 @@ use ve_server::config::Config;
 use ve_server::db::{self};
 use ve_server::hub::Hub;
 use ve_server::state::AppState;
+use ve_server::tasks;
 use ve_shared::jwt::JwtManager;
 
 /// Integration test server
@@ -26,6 +27,7 @@ pub struct IntegrationServer {
     pub jwt_manager: Arc<JwtManager>,
     pub pool: db::DbPool,
     server_handle: Option<JoinHandle<()>>,
+    task_handles: Vec<JoinHandle<()>>,
 }
 
 /// JWT secret used for integration testing.
@@ -45,6 +47,8 @@ jwt_secret = "{TEST_JWT_SECRET}"
 data_dir = "{}"
 cors_origins = ["*"]
 log_level = "debug"
+permission_expiry_check_secs = 1
+idempotency_cleanup_secs = 1
 "#,
             temp_dir.display()
         );
@@ -67,6 +71,11 @@ log_level = "debug"
         let state = AppState::new(pool.clone(), hub, config.clone());
         let hub_ref = Arc::clone(&state.hub);
         let app = build_app(Arc::new(state), Arc::clone(&jwt_manager), &config);
+        let task_config = Arc::new(config.clone());
+        let task_handles = vec![
+            tasks::start_permission_expiry_task(pool.clone(), task_config.clone()),
+            tasks::start_idempotency_cleanup_task(pool.clone(), task_config),
+        ];
 
         // 5. Bind to random port on loopback
         let listener = TcpListener::bind("127.0.0.1:0")
@@ -101,11 +110,15 @@ log_level = "debug"
             jwt_manager,
             pool,
             server_handle: Some(server_handle),
+            task_handles,
         })
     }
 
     pub fn abort(&mut self) {
         if let Some(handle) = self.server_handle.take() {
+            handle.abort();
+        }
+        for handle in self.task_handles.drain(..) {
             handle.abort();
         }
     }

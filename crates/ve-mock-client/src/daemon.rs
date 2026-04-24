@@ -2,6 +2,8 @@
 
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::sync::OnceLock;
+use std::time::SystemTime;
 
 use anyhow::{Context, Result};
 use tokio::time::{sleep, Duration};
@@ -30,6 +32,7 @@ platform = "linux"
 log_level = "debug"
 reconnect_min_secs = 1
 reconnect_max_secs = 2
+mock_mode = {mock_mode}
 "#
         );
         std::fs::write(&config_path, &config_toml).context("writing daemon config")?;
@@ -124,6 +127,9 @@ impl Drop for IntegrationDaemon {
 
 /// Find the ve-daemon binary
 fn find_daemon_binary() -> Result<PathBuf> {
+    static ENSURED: OnceLock<()> = OnceLock::new();
+    let force_build = std::env::var_os("VE_MOCK_CLIENT_FORCE_BUILD").is_some();
+
     // Allow override via environment variable (useful for CI with custom target dirs)
     if let Ok(path) = std::env::var("VE_DAEMON_BIN") {
         let p = PathBuf::from(&path);
@@ -134,28 +140,110 @@ fn find_daemon_binary() -> Result<PathBuf> {
 
     let workspace_root =
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/debug/ve-daemon");
+    let release_path =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/release/ve-daemon");
+    let daemon_crate_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../ve-daemon");
+    let shared_crate_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../ve-shared");
+    let workspace_manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../Cargo.toml");
+
+    if !force_build
+        && !binary_is_stale(
+            &workspace_root,
+            &[&daemon_crate_root, &shared_crate_root, &workspace_manifest],
+        )?
+    {
+        if workspace_root.exists() {
+            return Ok(workspace_root);
+        }
+        if release_path.exists() {
+            return Ok(release_path);
+        }
+    }
+
+    if force_build
+        || ENSURED.get().is_none()
+        || binary_is_stale(
+            &workspace_root,
+            &[&daemon_crate_root, &shared_crate_root, &workspace_manifest],
+        )?
+    {
+        let status = Command::new("cargo")
+            .args(["build", "-p", "ve-daemon"])
+            .status()
+            .context("building ve-daemon")?;
+
+        if !status.success() {
+            anyhow::bail!("Failed to build ve-daemon");
+        }
+
+        let _ = ENSURED.set(());
+    }
 
     if workspace_root.exists() {
         return Ok(workspace_root);
     }
-
-    let release_path =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/release/ve-daemon");
     if release_path.exists() {
         return Ok(release_path);
     }
 
-    tracing::warn!("ve-daemon binary not found, building now...");
-    let status = Command::new("cargo")
-        .args(["build", "-p", "ve-daemon"])
-        .status()
-        .context("building ve-daemon")?;
+    anyhow::bail!(
+        "ve-daemon binary not found after build: {}",
+        workspace_root.display()
+    )
+}
 
-    if !status.success() {
-        anyhow::bail!("Failed to build ve-daemon");
+fn binary_is_stale(binary_path: &Path, roots: &[&PathBuf]) -> Result<bool> {
+    let binary_modified =
+        match std::fs::metadata(binary_path).and_then(|metadata| metadata.modified()) {
+            Ok(modified) => modified,
+            Err(_) => return Ok(true),
+        };
+
+    for root in roots {
+        if latest_modified(root.as_path())? > binary_modified {
+            return Ok(true);
+        }
     }
 
-    Ok(workspace_root)
+    Ok(false)
+}
+
+fn latest_modified(root: &Path) -> Result<SystemTime> {
+    let mut newest = match std::fs::metadata(root).and_then(|metadata| metadata.modified()) {
+        Ok(modified) => modified,
+        Err(_) => SystemTime::UNIX_EPOCH,
+    };
+    let mut stack = vec![root.to_path_buf()];
+
+    while let Some(path) = stack.pop() {
+        let metadata = match std::fs::metadata(&path) {
+            Ok(metadata) => metadata,
+            Err(_) => continue,
+        };
+
+        if let Ok(modified) = metadata.modified() {
+            newest = newest.max(modified);
+        }
+
+        if metadata.is_dir() {
+            for entry in std::fs::read_dir(&path)
+                .with_context(|| format!("reading directory {}", path.display()))?
+            {
+                let entry = entry?;
+                let child = entry.path();
+                if child
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .is_some_and(|name| name == "target" || name == ".git")
+                {
+                    continue;
+                }
+                stack.push(child);
+            }
+        }
+    }
+
+    Ok(newest)
 }
 
 /// Wait for the daemon to log a successful connection

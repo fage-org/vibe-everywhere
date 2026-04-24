@@ -103,9 +103,25 @@ pub struct MockDriver {
     event_tx: tokio::sync::broadcast::Sender<DriverEvent>,
 }
 
+const MOCK_PERMISSION_TRIGGER: &str = "__VE_MOCK_PERMISSION__";
+
 impl MockDriver {
     pub fn new(event_tx: tokio::sync::broadcast::Sender<DriverEvent>) -> Self {
         Self { event_tx }
+    }
+
+    fn maybe_emit_permission_request(&self, session_id: Uuid, content: &str) {
+        if !content.contains(MOCK_PERMISSION_TRIGGER) {
+            return;
+        }
+
+        let _ = self.event_tx.send(DriverEvent::PermissionRequest {
+            permission_id: Uuid::new_v4(),
+            session_id,
+            risk_type: "exec_cmd".to_string(),
+            summary: "Mock driver triggered permission request".to_string(),
+            target: Some("/tmp/mock-command".to_string()),
+        });
     }
 }
 
@@ -118,6 +134,9 @@ impl AgentDriver for MockDriver {
             summary: None,
             close_reason: None,
         });
+        if let Some(initial_message) = config.initial_message.as_deref() {
+            self.maybe_emit_permission_request(config.session_id, initial_message);
+        }
         Ok(())
     }
 
@@ -127,6 +146,7 @@ impl AgentDriver for MockDriver {
             event_type: "user_message".to_string(),
             data: serde_json::json!({ "content": content }),
         });
+        self.maybe_emit_permission_request(session_id, content);
         Ok(())
     }
 
@@ -201,5 +221,63 @@ pub fn create_driver(
         _ => Err(DaemonError::AgentUnsupported {
             agent_type: agent_type.to_string(),
         }),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn mock_driver_emits_permission_request_for_trigger_in_initial_message() {
+        let (event_tx, mut event_rx) = tokio::sync::broadcast::channel(8);
+        let session_id = Uuid::new_v4();
+        let mut driver = MockDriver::new(event_tx);
+
+        driver
+            .start(DriverConfig {
+                session_id,
+                workspace_path: "/tmp".to_string(),
+                agent_type: "claude_code".to_string(),
+                initial_message: Some(MOCK_PERMISSION_TRIGGER.to_string()),
+            })
+            .await
+            .expect("mock driver start should succeed");
+
+        let first = event_rx.recv().await.expect("status update event");
+        let second = event_rx.recv().await.expect("permission request event");
+
+        assert!(matches!(first, DriverEvent::StatusUpdate { .. }));
+        assert!(matches!(
+            second,
+            DriverEvent::PermissionRequest {
+                session_id: emitted_session_id,
+                ..
+            } if emitted_session_id == session_id
+        ));
+    }
+
+    #[tokio::test]
+    async fn mock_driver_emits_permission_request_for_trigger_in_followup_message() {
+        let (event_tx, mut event_rx) = tokio::sync::broadcast::channel(8);
+        let session_id = Uuid::new_v4();
+        let mut driver = MockDriver::new(event_tx);
+
+        driver
+            .send_message(session_id, MOCK_PERMISSION_TRIGGER)
+            .await
+            .expect("mock driver send_message should succeed");
+
+        let first = event_rx.recv().await.expect("user message event");
+        let second = event_rx.recv().await.expect("permission request event");
+
+        assert!(matches!(first, DriverEvent::SessionEvent { .. }));
+        assert!(matches!(
+            second,
+            DriverEvent::PermissionRequest {
+                session_id: emitted_session_id,
+                ..
+            } if emitted_session_id == session_id
+        ));
     }
 }

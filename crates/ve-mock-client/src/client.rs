@@ -121,7 +121,7 @@ impl MockClient {
     pub async fn list_workspaces(
         &self,
         host_id: Uuid,
-    ) -> Result<Vec<ve_shared::models::Workspace>> {
+    ) -> Result<ve_shared::types::Paginated<ve_shared::models::Workspace>> {
         let resp = self
             .get_json(&format!("/api/workspaces?host_id={host_id}"))
             .await?;
@@ -450,6 +450,44 @@ impl MockClient {
         }
 
         serde_json::from_str(&text).with_context(|| format!("parsing JSON: {text}"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+    use uuid::Uuid;
+
+    #[test]
+    fn paginated_workspace_response_parses_correctly() {
+        let host_id = Uuid::new_v4();
+        let workspace_id = Uuid::new_v4();
+        let response = json!({
+            "items": [
+                {
+                    "workspace_id": workspace_id,
+                    "host_id": host_id,
+                    "path": "/tmp/workspace",
+                    "display_name": "workspace",
+                    "is_favorited": false,
+                    "last_used_at": null,
+                    "exists_on_host": true,
+                    "created_at": "2026-04-23T00:00:00Z",
+                    "updated_at": "2026-04-23T00:00:00Z"
+                }
+            ],
+            "total": 1,
+            "page": 1,
+            "limit": 20,
+            "has_more": false
+        });
+
+        let page: ve_shared::types::Paginated<ve_shared::models::Workspace> =
+            serde_json::from_value(response).expect("paginated workspace response should parse");
+
+        assert_eq!(page.total, 1);
+        assert_eq!(page.items.len(), 1);
+        assert_eq!(page.items[0].workspace_id, workspace_id);
     }
 }
 

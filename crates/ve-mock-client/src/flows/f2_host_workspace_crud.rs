@@ -62,14 +62,25 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
         .await
         .map_err(|e| anyhow::anyhow!("list_workspaces: {e}"))?;
 
-    if workspaces.is_empty() {
+    if workspaces.items.is_empty() {
         anyhow::bail!("Expected at least one workspace, got none");
     }
 
     // Verify our workspace is in the list
-    let found = workspaces.iter().any(|w| w.workspace_id == workspace_id);
+    let found = workspaces
+        .items
+        .iter()
+        .any(|workspace| workspace.workspace_id == workspace_id);
     if !found {
         anyhow::bail!("Our workspace_id {workspace_id} not found in workspace list");
+    }
+
+    if workspaces.total < workspaces.items.len() as u64 {
+        anyhow::bail!(
+            "Workspace page metadata invalid: total={} items={}",
+            workspaces.total,
+            workspaces.items.len()
+        );
     }
 
     tracing::info!("Workspace verified in list_workspaces");

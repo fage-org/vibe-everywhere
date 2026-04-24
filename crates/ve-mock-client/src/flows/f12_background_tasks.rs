@@ -1,14 +1,10 @@
 //! F12: Background tasks — permission expiry and idempotency cleanup
 //!
-//! NOTE: This flow is marked as `integration-read-path`. It creates test fixtures
-//! directly in the database to verify server-side background task functions.
-//! It does NOT exercise the full daemon → WS → server → DB write chain.
-//!
-//! TODO(ECC-MEDIUM-02): Add a flow that launches the real background task scheduler
-//! with a short tick interval and observes DB side effects, instead of calling
-//! task functions directly with pre-inserted fixtures.
+//! This flow starts a real integration server with background tasks enabled,
+//! inserts stale rows, and waits for the scheduler ticks to converge DB state.
 
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use crate::flows::FlowResult;
 use crate::test_context::TestContext;
@@ -38,8 +34,6 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
         .ok_or_else(|| anyhow::anyhow!("F12 requires host_id"))?;
 
     // ---- Part 1: Idempotency key cleanup ----
-
-    // Step 1: Create an idempotency key directly in the DB
     let ik_key = format!("ik-{}", uuid::Uuid::new_v4());
     let ik_hash = format!("hash-{}", uuid::Uuid::new_v4());
     let now = chrono::Utc::now().to_rfc3339();
@@ -52,61 +46,41 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
     .bind("fake-session-id")
     .bind("session")
     .bind(&now)
-    .bind(&now) // expires_at = now → already expired
+    .bind(&now)
     .execute(pool)
     .await
     .map_err(|e| anyhow::anyhow!("insert idempotency key: {e}"))?;
 
-    // Verify it exists
     let count_before: (i64,) =
         sqlx::query_as("SELECT COUNT(*) FROM idempotency_keys WHERE key = $1")
             .bind(&ik_key)
             .fetch_one(pool)
             .await
-            .map_err(|e| anyhow::anyhow!("count idempotency key: {e}"))?;
+            .map_err(|e| anyhow::anyhow!("count idempotency key before scheduler: {e}"))?;
 
     if count_before.0 != 1 {
         anyhow::bail!("Idempotency key not found after insert");
     }
 
-    tracing::info!("Idempotency key inserted");
+    tracing::info!("Idempotency key inserted, waiting for scheduler cleanup");
 
-    // Step 2: Run the actual server-side cleanup function
-    let deleted = ve_server::tasks::cleanup_expired_keys(pool)
-        .await
-        .map_err(|e| anyhow::anyhow!("run idempotency cleanup: {e}"))?;
-
-    if deleted != 1 {
-        anyhow::bail!("Expected 1 expired key deleted, got {deleted}");
-    }
-
-    tracing::info!(deleted, "Idempotency cleanup task ran");
-
-    // Step 3: Verify the expired key was actually removed
-    let count_after: (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM idempotency_keys WHERE key = $1")
+    wait_until(Duration::from_secs(10), || async {
+        let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM idempotency_keys WHERE key = $1")
             .bind(&ik_key)
             .fetch_one(pool)
-            .await
-            .map_err(|e| anyhow::anyhow!("count idempotency key after cleanup: {e}"))?;
+            .await?;
+        Ok::<bool, sqlx::Error>(count.0 == 0)
+    })
+    .await
+    .map_err(|e| anyhow::anyhow!("waiting for idempotency cleanup tick: {e}"))?;
 
-    if count_after.0 != 0 {
-        anyhow::bail!(
-            "Idempotency key should be deleted, still exists (count={})",
-            count_after.0
-        );
-    }
-
-    tracing::info!("Expired idempotency key verified deleted");
+    tracing::info!("Expired idempotency key verified deleted by scheduler");
 
     // ---- Part 2: Permission expiry ----
-
-    // Step 1: Create a session and a stale permission request
     let workspace_id = uuid::Uuid::new_v4();
     let session_id = uuid::Uuid::new_v4();
     let permission_id = uuid::Uuid::new_v4();
 
-    // Ensure prerequisite records exist
     sqlx::query("INSERT OR IGNORE INTO device_host_access (device_id, host_id) VALUES ($1, $2)")
         .bind(device_id.to_string())
         .bind(host_id.to_string())
@@ -123,7 +97,6 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
     .execute(pool)
     .await?;
 
-    // Create a session in waiting_approval status
     let old_time = (chrono::Utc::now() - chrono::Duration::hours(2)).to_rfc3339();
     let now = chrono::Utc::now().to_rfc3339();
 
@@ -140,7 +113,6 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
     .await
     .map_err(|e| anyhow::anyhow!("insert session: {e}"))?;
 
-    // Create a stale permission request (2 hours old, TTL is 30 min)
     sqlx::query(
         "INSERT INTO permission_requests (permission_id, session_id, risk_type, summary, status, created_at) VALUES ($1, $2, $3, $4, 'pending', $5)",
     )
@@ -153,58 +125,45 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
     .await
     .map_err(|e| anyhow::anyhow!("insert permission request: {e}"))?;
 
-    // Verify permission is pending
-    let status_before: (String,) =
-        sqlx::query_as("SELECT status FROM permission_requests WHERE permission_id = $1")
-            .bind(permission_id.to_string())
-            .fetch_one(pool)
-            .await
-            .map_err(|e| anyhow::anyhow!("query permission status: {e}"))?;
+    tracing::info!("Stale permission request created, waiting for scheduler expiry");
 
-    if status_before.0 != "pending" {
-        anyhow::bail!("Permission should be pending, got: {}", status_before.0);
-    }
+    wait_until(Duration::from_secs(10), || async {
+        let status: (String,) =
+            sqlx::query_as("SELECT status FROM permission_requests WHERE permission_id = $1")
+                .bind(permission_id.to_string())
+                .fetch_one(pool)
+                .await?;
+        let pending_count: (i64,) =
+            sqlx::query_as("SELECT pending_permission_count FROM sessions WHERE session_id = $1")
+                .bind(session_id.to_string())
+                .fetch_one(pool)
+                .await?;
+        Ok::<bool, sqlx::Error>(status.0 == "expired" && pending_count.0 == 0)
+    })
+    .await
+    .map_err(|e| anyhow::anyhow!("waiting for permission expiry tick: {e}"))?;
 
-    tracing::info!("Stale permission request created");
-
-    // Step 2: Run the actual server-side permission expiry function
-    let ttl_secs: u64 = 1800; // 30 minutes
-    let expired = ve_server::tasks::expire_stale_permissions(pool, ttl_secs)
-        .await
-        .map_err(|e| anyhow::anyhow!("run permission expiry: {e}"))?;
-
-    if expired != 1 {
-        anyhow::bail!("Expected 1 permission expired, got {expired}");
-    }
-
-    // Step 3: Verify permission is now expired
-    let status_after: (String,) =
-        sqlx::query_as("SELECT status FROM permission_requests WHERE permission_id = $1")
-            .bind(permission_id.to_string())
-            .fetch_one(pool)
-            .await
-            .map_err(|e| anyhow::anyhow!("query permission status after expiry: {e}"))?;
-
-    if status_after.0 != "expired" {
-        anyhow::bail!("Permission should be expired, got: {}", status_after.0);
-    }
-
-    // Step 4: Verify session pending_permission_count was updated
-    let pending_count: (i64,) =
-        sqlx::query_as("SELECT pending_permission_count FROM sessions WHERE session_id = $1")
-            .bind(session_id.to_string())
-            .fetch_one(pool)
-            .await
-            .map_err(|e| anyhow::anyhow!("query session pending count: {e}"))?;
-
-    if pending_count.0 != 0 {
-        anyhow::bail!(
-            "Session pending_permission_count should be 0, got {}",
-            pending_count.0
-        );
-    }
-
-    tracing::info!("Permission expiry verified: stale permission expired, session count updated");
+    tracing::info!(
+        "Permission expiry verified: stale permission expired and session count updated by scheduler"
+    );
 
     Ok(())
+}
+
+async fn wait_until<F, Fut, E>(timeout: Duration, mut check: F) -> anyhow::Result<()>
+where
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = Result<bool, E>>,
+    E: std::fmt::Display + Send + Sync + 'static,
+{
+    let deadline = Instant::now() + timeout;
+    loop {
+        if check().await.map_err(|err| anyhow::anyhow!("{err}"))? {
+            return Ok(());
+        }
+        if Instant::now() > deadline {
+            anyhow::bail!("condition not met within {timeout:?}");
+        }
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
 }
