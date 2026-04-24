@@ -18,6 +18,7 @@
 - `cargo run -q -p ve-mock-client -- --remote --server-url http://127.0.0.1:1 --host-name x --client-token y --flows f1 --output json`：按预期 FAIL，不再 panic，且会输出完整错误链。
 - `which claude && claude --version`：通过；本机可用 CLI 为 `Claude Code 2.1.118`。
 - `cargo run -q -p ve-mock-client -- --profile release --real-agent --output json`：通过，13/13 PASS；当前 `release` profile 覆盖 `f1`-`f12` + `f13`，其中 `f13` 真实 Claude Code smoke 通过。
+- `cargo run -q -p ve-mock-client -- --flows f14,f15,f16,f17,f18,f19 --real-agent --output json`：通过，6/6 PASS；其中 `f15` 在当前环境下未实际触发 permission prompt，但完整 session/API/error path 均通过。
 
 ### 1.2 当前验证结论
 
@@ -95,7 +96,7 @@
 
 以下不是当前已实现链路中的缺陷，但仍是后续值得跟进的边界与测试缺口：
 
-- `F14`-`F19` 真实 Claude Code 链路仍未纳入 release smoke gate；当前 release gate 只覆盖最小 real-agent smoke `F13`。
+- `F14`-`F19` 真实 Claude Code 链路已在本轮手动实测通过，但仍未纳入 release smoke gate；当前 release gate 只覆盖最小 real-agent smoke `F13`。
 - 当前仓库仍没有客户端运行时代码，只有 `client/src/types/generated/*`；因此移动端 / 桌面端真实 UI 链路无法在本仓库做运行态 review。
 - `ve-mock-client` 首次执行在源码有更新时仍会自动重建 `ve-daemon`；这已从“总是重建”优化为“源码变更后重建”，但冷启动时间仍会受本地构建速度影响。
 - real-agent smoke 依赖本机 `claude` CLI、网络和可用凭证；虽然本机当前已通过，但 CI / 其他开发机仍需要相同前置条件。
