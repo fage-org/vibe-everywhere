@@ -427,14 +427,6 @@ impl FileOps {
             });
         }
 
-        // Check if file is too large
-        if total_size > self.read_text_limit as u64 {
-            return Err(DaemonError::FileTooLarge {
-                size: total_size,
-                limit: self.read_text_limit as u64,
-            });
-        }
-
         // Read file
         let mut file =
             fs::File::open(&validated_path).map_err(|e| DaemonError::FileReadFailed {
@@ -782,12 +774,11 @@ mod tests {
         let file_path = temp_dir.path().join("large.txt");
         fs::write(&file_path, "This is more than 10 bytes").unwrap();
 
-        let result = ops.read_text_file(&file_path);
-        assert!(result.is_err());
-        match result {
-            Err(DaemonError::FileTooLarge { .. }) => {}
-            _ => panic!("Expected FileTooLarge error"),
-        }
+        let result = ops.read_text_file(&file_path).unwrap();
+        assert_eq!(result.content.len(), 10);
+        assert_eq!(result.content, "This is mo");
+        assert!(result.truncated);
+        assert_eq!(result.total_size, 26);
     }
 
     #[test]

@@ -1,5 +1,19 @@
 # Session Rerun/Resume Review Open Issues
 
+**Updated**: 2026-04-25 — 本文条目已转为历史记录
+
+## 2026-04-25 追加结论
+
+截至 2026-04-25，本文曾记录的未关闭项已收口：
+
+- `HIGH-01 / HIGH-A1` 已关闭：archived rerun 现在等待 daemon ACK 后才把新 session 从 `dispatching` 置为 `pending`。
+- `HIGH-02 / HIGH-B1` 已关闭：`create_session` 的 session/message/idempotency key 已收敛到单事务，严格幂等并发回归已补齐。
+- `HIGH-03 / HIGH-C1` 已关闭：SQLite migration 006 现在保留 `rerun_from_session_id`。
+- `MEDIUM-01 / MEDIUM-A2` 已补充 PostgreSQL rerun 并发回归，验证缺口已明显收窄：`crates/ve-server/tests/rerun_postgres_race_test.rs`
+- `MEDIUM-02 / MEDIUM-C2` 已关闭：SQLite migration 002 已改为单事务执行，不再是逐语句补丁式重放。
+
+当前状态：本文不再包含 active open issue，以下内容仅保留为历史审查记录。
+
 **Reviewed**: 2026-04-20  
 **Scope**: `session rerun/resume` ECC 复核中已发现但尚未修复的问题  
 **Note**: 本文只记录未关闭项；已修复项不重复展开。

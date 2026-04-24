@@ -39,6 +39,9 @@ pub struct ClaudeCodeDriver {
     /// Current session ID
     session_id: Option<Uuid>,
 
+    /// Background stdout reader task for the active CLI process
+    stdout_reader: Option<tokio::task::JoinHandle<()>>,
+
     /// Claude session ID (returned by CLI, for --resume support)
     claude_session_id: Option<String>,
 
@@ -116,6 +119,7 @@ impl ClaudeCodeDriver {
             stdin: None,
             event_tx,
             session_id: None,
+            stdout_reader: None,
             claude_session_id: None,
             workspace_path: None,
             pending_permissions: HashMap::new(),
@@ -131,7 +135,11 @@ impl ClaudeCodeDriver {
     }
 
     /// Spawn stdout reader task
-    fn spawn_stdout_reader(&self, stdout: ChildStdout, session_id: Uuid) {
+    fn spawn_stdout_reader(
+        &self,
+        stdout: ChildStdout,
+        session_id: Uuid,
+    ) -> tokio::task::JoinHandle<()> {
         let event_tx = self.event_tx.clone();
 
         tokio::spawn(async move {
@@ -169,7 +177,7 @@ impl ClaudeCodeDriver {
             }
 
             info!(%session_id, "CLI stdout reader ended");
-        });
+        })
     }
 
     /// Handle a stream-json event from CLI
@@ -419,7 +427,7 @@ impl AgentDriver for ClaudeCodeDriver {
         self.child = Some(child);
 
         // Spawn stdout reader task
-        self.spawn_stdout_reader(stdout, config.session_id);
+        self.stdout_reader = Some(self.spawn_stdout_reader(stdout, config.session_id));
 
         // Send initial message via stdin (required by --input-format stream-json)
         if let Some(msg) = config.initial_message {
@@ -571,6 +579,18 @@ impl AgentDriver for ClaudeCodeDriver {
             }
         }
 
+        if let Some(stdout_reader) = self.stdout_reader.take() {
+            match tokio::time::timeout(std::time::Duration::from_secs(1), stdout_reader).await {
+                Ok(Ok(())) => {}
+                Ok(Err(error)) => {
+                    warn!(%session_id, error = %error, "stdout reader task failed");
+                }
+                Err(_) => {
+                    warn!(%session_id, "stdout reader did not exit in time");
+                }
+            }
+        }
+
         self.child = None;
         self.stdin = None;
 
@@ -635,7 +655,7 @@ impl AgentDriver for ClaudeCodeDriver {
         self.child = Some(child);
 
         // Spawn stdout reader task
-        self.spawn_stdout_reader(stdout, session_id);
+        self.stdout_reader = Some(self.spawn_stdout_reader(stdout, session_id));
 
         info!(
             %session_id,

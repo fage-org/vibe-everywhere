@@ -186,6 +186,8 @@ async fn get_file_content_for_host(
             file_path,
             content,
             file_type,
+            truncated,
+            total_size,
             ..
         }) => {
             let file_type = match file_type.as_str() {
@@ -193,12 +195,11 @@ async fn get_file_content_for_host(
                 "binary" => ve_shared::models::FileType::Binary,
                 _ => ve_shared::models::FileType::Unknown,
             };
-            let total_size = content.len() as u64;
             Ok(Json(ApiResponse::success(FileContent {
                 path: file_path,
                 content,
                 file_type,
-                truncated: false,
+                truncated,
                 total_size,
             })))
         }

@@ -65,12 +65,12 @@ impl IntegrationServer {
         let jwt_manager = Arc::new(JwtManager::new(&config.jwt_secret, config.jwt_expiration()));
         // We need to access the hub after AppState consumes it, so we store Arc<Hub> directly
         // and extract it from AppState after construction
-        let state = AppState::new(pool.clone(), hub, config.clone());
+        let state = AppState::new(pool.clone(), hub, config.clone(), Arc::clone(&jwt_manager));
         let hub_ref = Arc::clone(&state.hub);
         let app = build_app(Arc::new(state), Arc::clone(&jwt_manager), &config);
         let task_config = Arc::new(config.clone());
         let task_handles = vec![
-            tasks::start_permission_expiry_task(pool.clone(), task_config.clone()),
+            tasks::start_permission_expiry_task(pool.clone(), hub_ref.clone(), task_config.clone()),
             tasks::start_idempotency_cleanup_task(pool.clone(), task_config),
         ];
 

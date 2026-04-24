@@ -27,9 +27,13 @@ async fn main() -> Result<()> {
 
     let hub = Hub::new();
     let jwt_manager = Arc::new(JwtManager::new(&config.jwt_secret, config.jwt_expiration()));
-    let state = AppState::new(db.clone(), hub, config.clone());
+    let state = AppState::new(db.clone(), hub, config.clone(), Arc::clone(&jwt_manager));
 
-    let _expiry_task = tasks::start_permission_expiry_task(db.clone(), Arc::new(config.clone()));
+    let _expiry_task = tasks::start_permission_expiry_task(
+        db.clone(),
+        state.hub.clone(),
+        Arc::new(config.clone()),
+    );
     let _cleanup_task = tasks::start_idempotency_cleanup_task(db, Arc::new(config.clone()));
     info!("Background tasks started");
 

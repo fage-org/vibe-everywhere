@@ -561,7 +561,12 @@ mod tests {
             .await
             .unwrap();
 
-        Arc::new(AppState::new(pool, Hub::new(), test_config(database_url)))
+        let config = test_config(database_url);
+        let jwt_manager = Arc::new(ve_shared::jwt::JwtManager::new(
+            &config.jwt_secret,
+            config.jwt_expiration(),
+        ));
+        Arc::new(AppState::new(pool, Hub::new(), config, jwt_manager))
     }
 
     async fn insert_archive_fixture(

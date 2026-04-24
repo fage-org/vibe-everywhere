@@ -16,7 +16,6 @@ use futures::{SinkExt, StreamExt};
 use std::sync::Arc;
 use uuid::Uuid;
 
-use ve_shared::jwt::JwtManager;
 use ve_shared::proto::WsEnvelope;
 
 use crate::authz::{decode_ws_claims, require_client_device_id, require_session_access};
@@ -32,8 +31,7 @@ pub async fn ws_client_handler(
     TypedHeader(auth): TypedHeader<Authorization<Bearer>>,
     State(state): State<Arc<AppState>>,
 ) -> Result<Response, ServerError> {
-    let jwt_manager = JwtManager::new(&state.config.jwt_secret, state.config.jwt_expiration());
-    let claims = decode_ws_claims(&jwt_manager, auth.token())?;
+    let claims = decode_ws_claims(&state.jwt_manager, auth.token())?;
     let device_id = require_client_device_id(&claims)?;
 
     tracing::info!(%device_id, "Client WebSocket connection request");

@@ -1169,6 +1169,8 @@ impl WsClient {
                     file_path: relative_path.to_string(),
                     content: content.content,
                     file_type: format!("{:?}", content.file_type).to_lowercase(),
+                    truncated: content.truncated,
+                    total_size: content.total_size,
                 };
                 let envelope = WsEnvelope::new("file_content_response", &response);
                 if let Ok(json) = serde_json::to_string(&envelope) {

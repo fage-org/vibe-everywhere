@@ -77,11 +77,7 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
         .await
         .map_err(|e| anyhow::anyhow!("get README.md content: {e}"))?;
 
-    let content_str = readme_response
-        .get("data")
-        .and_then(|v| v.get("content"))
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
+    let content_str = readme_response.data.content.as_str();
 
     if content_str.is_empty() {
         anyhow::bail!("README.md content is empty");

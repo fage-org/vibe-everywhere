@@ -1,5 +1,16 @@
 # Server/Daemon ECC Review Open Issues
 
+**Updated**: 2026-04-25 — 历史 open 项复核完成
+
+## 2026-04-25 追加结论
+
+截至 2026-04-25，本文此前残留的 legacy ACL 兼容问题也已失效：
+
+- `ensure_legacy_client_access()` 已退化为“仅校验 device 是否存在”，不再执行 host/session ACL 懒补权。
+- 现有回归 `list_hosts_does_not_backfill_older_paired_hosts_even_after_partial_legacy_acl_exists` 已覆盖“不回填旧 paired host”的行为。
+
+当前状态：除独立 rerun/resume 专项历史记录外，server/daemon 主体 review 已无 active open issue；下文保留为历史审查上下文。
+
 **Reviewed**: 2026-04-21  
 **Scope**: 当前 `ve-server` / `ve-daemon` 代码，按模块与功能链路做 ECC 风格 review  
 **Review Method**:

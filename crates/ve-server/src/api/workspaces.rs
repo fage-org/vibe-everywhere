@@ -41,6 +41,18 @@ struct WorkspaceRecord {
     updated_at: String,
 }
 
+type WorkspaceRow = (
+    String,
+    String,
+    String,
+    String,
+    i64,
+    Option<String>,
+    i64,
+    String,
+    String,
+);
+
 impl WorkspaceRecord {
     fn to_model(&self) -> Result<Workspace> {
         Ok(Workspace {
@@ -62,6 +74,32 @@ impl WorkspaceRecord {
                 .map_err(|e| ServerError::Internal(format!("Invalid updated_at: {}", e)))?
                 .with_timezone(&chrono::Utc),
         })
+    }
+}
+
+fn workspace_record_from_row(row: WorkspaceRow) -> WorkspaceRecord {
+    let (
+        workspace_id,
+        host_id,
+        path,
+        display_name,
+        is_favorited,
+        last_used_at,
+        exists_on_host,
+        created_at,
+        updated_at,
+    ) = row;
+
+    WorkspaceRecord {
+        workspace_id,
+        host_id,
+        path,
+        display_name,
+        is_favorited,
+        last_used_at,
+        exists_on_host,
+        created_at,
+        updated_at,
     }
 }
 
@@ -149,7 +187,7 @@ pub async fn list_workspaces(
                 updated_at,
                 _,
             )| {
-                WorkspaceRecord {
+                workspace_record_from_row((
                     workspace_id,
                     host_id,
                     path,
@@ -159,7 +197,7 @@ pub async fn list_workspaces(
                     exists_on_host,
                     created_at,
                     updated_at,
-                }
+                ))
                 .to_model()
             },
         )
@@ -311,9 +349,22 @@ fn sanitize_workspace_operation_error_from_payload(error: &ErrorPayload) -> Serv
 /// Get a specific workspace.
 pub async fn get_workspace_route(
     access: WorkspaceAccess,
-    State(state): State<Arc<AppState>>,
+    State(_state): State<Arc<AppState>>,
 ) -> Result<Json<Workspace>> {
-    get_workspace_by_id(state, access.workspace_id).await
+    Ok(Json(
+        WorkspaceRecord {
+            workspace_id: access.workspace_id.to_string(),
+            host_id: access.host_id.to_string(),
+            path: access.path,
+            display_name: access.display_name,
+            is_favorited: if access.is_favorited { 1 } else { 0 },
+            last_used_at: access.last_used_at,
+            exists_on_host: if access.exists_on_host { 1 } else { 0 },
+            created_at: access.created_at,
+            updated_at: access.updated_at,
+        }
+        .to_model()?,
+    ))
 }
 
 pub async fn get_workspace(
@@ -321,18 +372,6 @@ pub async fn get_workspace(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Workspace>> {
-    type WorkspaceRow = (
-        String,
-        String,
-        String,
-        String,
-        i64,
-        Option<String>,
-        i64,
-        String,
-        String,
-    );
-
     let workspace_id_str = id.to_string();
 
     let row: WorkspaceRow = sqlx::query_as(
@@ -355,59 +394,7 @@ pub async fn get_workspace(
     let host_id = parse_uuid(&row.1, "host_id")?;
     require_host_access(&state, device_id, host_id).await?;
 
-    get_workspace_by_id(state, id).await
-}
-
-async fn get_workspace_by_id(state: Arc<AppState>, id: Uuid) -> Result<Json<Workspace>> {
-    type WorkspaceRow = (
-        String,
-        String,
-        String,
-        String,
-        i64,
-        Option<String>,
-        i64,
-        String,
-        String,
-    );
-
-    let workspace_id_str = id.to_string();
-
-    let row: WorkspaceRow = sqlx::query_as(
-        r#"
-        SELECT workspace_id, host_id, path, display_name,
-               CASE WHEN is_favorited THEN 1 ELSE 0 END,
-               CAST(last_used_at AS TEXT),
-               CASE WHEN exists_on_host THEN 1 ELSE 0 END,
-               CAST(created_at AS TEXT), CAST(updated_at AS TEXT)
-        FROM workspaces
-        WHERE workspace_id = $1
-        "#,
-    )
-    .bind(&workspace_id_str)
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or(ServerError::NotFound(format!("Workspace {}", id)))?;
-
-    Ok(Json(Workspace {
-        workspace_id: id,
-        host_id: parse_uuid(&row.1, "host_id")?,
-        path: row.2,
-        display_name: row.3,
-        is_favorited: row.4 != 0,
-        last_used_at: row.5.and_then(|s| {
-            utils::parse_sqlite_timestamp(&s)
-                .ok()
-                .map(|d| d.with_timezone(&chrono::Utc))
-        }),
-        exists_on_host: row.6 != 0,
-        created_at: utils::parse_sqlite_timestamp(&row.7)
-            .map_err(|e| ServerError::Internal(format!("Invalid created_at: {}", e)))?
-            .with_timezone(&chrono::Utc),
-        updated_at: utils::parse_sqlite_timestamp(&row.8)
-            .map_err(|e| ServerError::Internal(format!("Invalid updated_at: {}", e)))?
-            .with_timezone(&chrono::Utc),
-    }))
+    Ok(Json(workspace_record_from_row(row).to_model()?))
 }
 
 /// Update workspace request
@@ -425,7 +412,23 @@ pub async fn update_workspace_route(
     State(state): State<Arc<AppState>>,
     Json(req): Json<UpdateWorkspaceRequest>,
 ) -> Result<Json<Workspace>> {
-    update_workspace_by_id(state, access.workspace_id, req).await
+    update_workspace_with_existing(
+        state,
+        access.workspace_id,
+        req,
+        (
+            access.workspace_id.to_string(),
+            access.host_id.to_string(),
+            access.path,
+            access.display_name,
+            if access.is_favorited { 1 } else { 0 },
+            access.last_used_at,
+            if access.exists_on_host { 1 } else { 0 },
+            access.created_at,
+            access.updated_at,
+        ),
+    )
+    .await
 }
 
 pub async fn update_workspace(
@@ -434,18 +437,6 @@ pub async fn update_workspace(
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateWorkspaceRequest>,
 ) -> Result<Json<Workspace>> {
-    type WorkspaceRow = (
-        String,
-        String,
-        String,
-        String,
-        i64,
-        Option<String>,
-        i64,
-        String,
-        String,
-    );
-
     let workspace_id_str = id.to_string();
 
     // Fetch existing
@@ -469,45 +460,16 @@ pub async fn update_workspace(
     let host_id = parse_uuid(&existing.1, "host_id")?;
     require_host_access(&state, device_id, host_id).await?;
 
-    update_workspace_by_id(state, id, req).await
+    update_workspace_with_existing(state, id, req, existing).await
 }
 
-async fn update_workspace_by_id(
+async fn update_workspace_with_existing(
     state: Arc<AppState>,
     id: Uuid,
     req: UpdateWorkspaceRequest,
+    existing: WorkspaceRow,
 ) -> Result<Json<Workspace>> {
-    type WorkspaceRow = (
-        String,
-        String,
-        String,
-        String,
-        i64,
-        Option<String>,
-        i64,
-        String,
-        String,
-    );
-
     let workspace_id_str = id.to_string();
-
-    // Fetch existing
-    let existing: WorkspaceRow = sqlx::query_as(
-        r#"
-        SELECT workspace_id, host_id, path, display_name,
-               CASE WHEN is_favorited THEN 1 ELSE 0 END,
-               CAST(last_used_at AS TEXT),
-               CASE WHEN exists_on_host THEN 1 ELSE 0 END,
-               CAST(created_at AS TEXT), CAST(updated_at AS TEXT)
-        FROM workspaces
-        WHERE workspace_id = $1
-        "#,
-    )
-    .bind(&workspace_id_str)
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or(ServerError::NotFound(format!("Workspace {}", id)))?;
-
     let display_name = req.display_name.unwrap_or(existing.3.clone());
     let is_favorited = req.is_favorited.unwrap_or(existing.4 != 0);
     sqlx::query(
@@ -523,23 +485,11 @@ async fn update_workspace_by_id(
     .execute(&state.db)
     .await?;
 
-    Ok(Json(Workspace {
-        workspace_id: id,
-        host_id: parse_uuid(&existing.1, "host_id")?,
-        path: existing.2,
-        display_name,
-        is_favorited,
-        last_used_at: existing.5.and_then(|s| {
-            utils::parse_sqlite_timestamp(&s)
-                .ok()
-                .map(|d| d.with_timezone(&chrono::Utc))
-        }),
-        exists_on_host: existing.6 != 0,
-        created_at: utils::parse_sqlite_timestamp(&existing.7)
-            .map_err(|e| ServerError::Internal(format!("Invalid created_at: {}", e)))?
-            .with_timezone(&chrono::Utc),
-        updated_at: chrono::Utc::now(),
-    }))
+    let mut record = workspace_record_from_row(existing);
+    record.display_name = display_name;
+    record.is_favorited = if is_favorited { 1 } else { 0 };
+    record.updated_at = chrono::Utc::now().to_rfc3339();
+    Ok(Json(record.to_model()?))
 }
 
 /// DELETE /api/workspaces/:id
@@ -644,7 +594,11 @@ mod tests {
         db::run_migrations(&pool, config.database_backend())
             .await
             .unwrap();
-        Arc::new(AppState::new(pool, Hub::new(), config))
+        let jwt_manager = Arc::new(ve_shared::jwt::JwtManager::new(
+            &config.jwt_secret,
+            config.jwt_expiration(),
+        ));
+        Arc::new(AppState::new(pool, Hub::new(), config, jwt_manager))
     }
 
     async fn seed_device_and_host(state: &AppState) -> (Uuid, Uuid) {

@@ -372,6 +372,11 @@ impl SessionRunner {
                         timeout_secs = self.config.permission_timeout().as_secs(),
                         "Permission request registered with timeout"
                     );
+                    if self.state == RunnerState::Running {
+                        self.update_state(RunnerState::WaitingApproval);
+                        self.report_status(SessionStatus::WaitingApproval, None, None)
+                            .await;
+                    }
                 }
             }
 
@@ -401,6 +406,14 @@ impl SessionRunner {
                             target = ?pending.target,
                             "Added approval rule to cache"
                         );
+                    }
+
+                    if self.pending_permissions.is_empty()
+                        && self.permission_timeouts.is_empty()
+                        && self.state == RunnerState::WaitingApproval
+                    {
+                        self.update_state(RunnerState::Running);
+                        self.report_status(SessionStatus::Running, None, None).await;
                     }
                 }
             }
@@ -574,21 +587,30 @@ impl SessionRunner {
             .collect();
 
         // 处理每个超时
-        for permission_id in expired {
+        for permission_id in &expired {
             warn!(
                 session_id = %self.session_id,
-                %permission_id,
+                permission_id = %permission_id,
                 "Permission request timed out"
             );
 
             // 从 pending 和 timeout 中移除
-            self.pending_permissions.remove(&permission_id);
-            self.permission_timeouts.remove(&permission_id);
+            self.pending_permissions.remove(permission_id);
+            self.permission_timeouts.remove(permission_id);
 
             // 发送超时响应给 driver
             self.driver
-                .permission_timeout(self.session_id, permission_id)
+                .permission_timeout(self.session_id, *permission_id)
                 .await?;
+        }
+
+        if !expired.is_empty()
+            && self.pending_permissions.is_empty()
+            && self.permission_timeouts.is_empty()
+            && self.state == RunnerState::WaitingApproval
+        {
+            self.update_state(RunnerState::Running);
+            self.report_status(SessionStatus::Running, None, None).await;
         }
 
         Ok(())
@@ -751,6 +773,29 @@ pub struct PendingPermission {
 mod tests {
     use super::*;
 
+    fn create_test_config(mock_mode: bool) -> Arc<Config> {
+        Arc::new(Config {
+            server_url: "https://test.com".to_string(),
+            host_name: "test".to_string(),
+            platform: "linux".to_string(),
+            config_dir: std::path::PathBuf::from("/tmp"),
+            log_format: "pretty".to_string(),
+            log_level: "info".to_string(),
+            heartbeat_interval_secs: 30,
+            heartbeat_timeout_secs: 90,
+            ack_timeout_secs: 30,
+            permission_timeout_secs: 60,
+            reconnect_backoff_min_ms: 1000,
+            reconnect_backoff_max_ms: 30000,
+            max_parallel_sessions: 4,
+            file_read_text_limit_bytes: 262_144,
+            file_tree_max_nodes: 20_000,
+            claude_command: "claude".to_string(),
+            default_model: "claude-sonnet-4-20250514".to_string(),
+            mock_mode,
+        })
+    }
+
     #[test]
     fn test_build_driver_config_preserves_initial_message() {
         let config = Arc::new(Config {
@@ -890,26 +935,7 @@ mod tests {
 
     #[tokio::test]
     async fn close_reports_archived_with_user_closed_reason() {
-        let config = Arc::new(Config {
-            server_url: "https://test.com".to_string(),
-            host_name: "test".to_string(),
-            platform: "linux".to_string(),
-            config_dir: std::path::PathBuf::from("/tmp"),
-            log_format: "pretty".to_string(),
-            log_level: "info".to_string(),
-            heartbeat_interval_secs: 30,
-            heartbeat_timeout_secs: 90,
-            ack_timeout_secs: 30,
-            permission_timeout_secs: 60,
-            reconnect_backoff_min_ms: 1000,
-            reconnect_backoff_max_ms: 30000,
-            max_parallel_sessions: 4,
-            file_read_text_limit_bytes: 262_144,
-            file_tree_max_nodes: 20_000,
-            claude_command: "claude".to_string(),
-            default_model: "claude-sonnet-4-20250514".to_string(),
-            mock_mode: false,
-        });
+        let config = create_test_config(false);
         let (event_tx, mut event_rx) = broadcast::channel(16);
         let session_id = Uuid::new_v4();
         let (mut runner, _handle) = SessionRunner::new(
@@ -936,6 +962,104 @@ mod tests {
             } if actual_session_id == session_id
         ));
         assert_eq!(runner.state, RunnerState::Closed);
+    }
+
+    #[tokio::test]
+    async fn register_permission_transitions_runner_to_waiting_approval() {
+        let config = create_test_config(true);
+        let (event_tx, mut event_rx) = broadcast::channel(16);
+        let session_id = Uuid::new_v4();
+        let permission_id = Uuid::new_v4();
+        let (mut runner, _handle) = SessionRunner::new(
+            session_id,
+            "/workspace".to_string(),
+            "claude_code".to_string(),
+            None,
+            config,
+            event_tx,
+            None,
+        );
+        runner.state = RunnerState::Running;
+
+        runner
+            .handle_command(RunnerCommand::RegisterPermission {
+                permission_id,
+                risk_type: "exec_cmd".to_string(),
+                target: Some("/tmp/mock-command".to_string()),
+                summary: "needs approval".to_string(),
+            })
+            .await
+            .unwrap();
+
+        let event = event_rx.recv().await.unwrap();
+        assert!(matches!(
+            event,
+            DriverEvent::StatusUpdate {
+                session_id: actual_session_id,
+                status: SessionStatus::WaitingApproval,
+                close_reason: None,
+                ..
+            } if actual_session_id == session_id
+        ));
+        assert_eq!(runner.state, RunnerState::WaitingApproval);
+        assert!(runner.pending_permissions.contains_key(&permission_id));
+    }
+
+    #[tokio::test]
+    async fn permission_response_transitions_runner_back_to_running_after_last_pending() {
+        let config = create_test_config(true);
+        let (event_tx, mut event_rx) = broadcast::channel(16);
+        let session_id = Uuid::new_v4();
+        let permission_id = Uuid::new_v4();
+        let (mut runner, _handle) = SessionRunner::new(
+            session_id,
+            "/workspace".to_string(),
+            "claude_code".to_string(),
+            None,
+            config,
+            event_tx,
+            None,
+        );
+        runner.state = RunnerState::Running;
+
+        runner
+            .handle_command(RunnerCommand::RegisterPermission {
+                permission_id,
+                risk_type: "exec_cmd".to_string(),
+                target: Some("/tmp/mock-command".to_string()),
+                summary: "needs approval".to_string(),
+            })
+            .await
+            .unwrap();
+        let waiting_event = event_rx.recv().await.unwrap();
+        assert!(matches!(
+            waiting_event,
+            DriverEvent::StatusUpdate {
+                status: SessionStatus::WaitingApproval,
+                ..
+            }
+        ));
+
+        runner
+            .handle_command(RunnerCommand::PermissionResponse {
+                permission_id,
+                decision: PermissionDecision::DenyOnce,
+            })
+            .await
+            .unwrap();
+
+        let resumed_event = event_rx.recv().await.unwrap();
+        assert!(matches!(
+            resumed_event,
+            DriverEvent::StatusUpdate {
+                session_id: actual_session_id,
+                status: SessionStatus::Running,
+                close_reason: None,
+                ..
+            } if actual_session_id == session_id
+        ));
+        assert_eq!(runner.state, RunnerState::Running);
+        assert!(runner.pending_permissions.is_empty());
     }
 
     #[test]

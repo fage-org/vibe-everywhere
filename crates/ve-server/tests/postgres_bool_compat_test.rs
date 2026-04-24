@@ -95,8 +95,12 @@ async fn setup_postgres_state() -> Option<PostgresTestState> {
         .await
         .unwrap();
 
+    let jwt_manager = Arc::new(ve_shared::jwt::JwtManager::new(
+        &config.jwt_secret,
+        config.jwt_expiration(),
+    ));
     Some(PostgresTestState {
-        state: Arc::new(AppState::new(pool, Hub::new(), config)),
+        state: Arc::new(AppState::new(pool, Hub::new(), config, jwt_manager)),
         admin_pool,
         schema_name,
     })

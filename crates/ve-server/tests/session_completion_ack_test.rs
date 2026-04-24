@@ -52,7 +52,11 @@ async fn setup_state() -> Arc<AppState> {
     db::run_migrations(&pool, config.database_backend())
         .await
         .unwrap();
-    Arc::new(AppState::new(pool, Hub::new(), config))
+    let jwt_manager = Arc::new(ve_shared::jwt::JwtManager::new(
+        &config.jwt_secret,
+        config.jwt_expiration(),
+    ));
+    Arc::new(AppState::new(pool, Hub::new(), config, jwt_manager))
 }
 
 fn client_claims(device_id: Uuid) -> Claims {

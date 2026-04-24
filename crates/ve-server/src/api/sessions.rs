@@ -27,6 +27,16 @@ pub mod test_support {
         OnceLock::new();
     static CREATE_SESSION_RACE_TEST_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
+    #[derive(Clone)]
+    struct ArchivedRerunRaceHook {
+        archived_session_id: String,
+        barrier: Arc<Barrier>,
+    }
+
+    static ARCHIVED_RERUN_RACE_HOOK: OnceLock<Mutex<Option<ArchivedRerunRaceHook>>> =
+        OnceLock::new();
+    static ARCHIVED_RERUN_RACE_TEST_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+
     fn hook_slot() -> &'static Mutex<Option<CreateSessionRaceHook>> {
         CREATE_SESSION_RACE_HOOK.get_or_init(|| Mutex::new(None))
     }
@@ -35,7 +45,19 @@ pub mod test_support {
         CREATE_SESSION_RACE_TEST_LOCK.get_or_init(|| Mutex::new(()))
     }
 
+    fn archived_rerun_hook_slot() -> &'static Mutex<Option<ArchivedRerunRaceHook>> {
+        ARCHIVED_RERUN_RACE_HOOK.get_or_init(|| Mutex::new(None))
+    }
+
+    fn archived_rerun_test_lock() -> &'static Mutex<()> {
+        ARCHIVED_RERUN_RACE_TEST_LOCK.get_or_init(|| Mutex::new(()))
+    }
+
     pub struct CreateSessionRaceHookGuard {
+        _test_lock: MutexGuard<'static, ()>,
+    }
+
+    pub struct ArchivedRerunRaceHookGuard {
         _test_lock: MutexGuard<'static, ()>,
     }
 
@@ -80,9 +102,59 @@ pub mod test_support {
         }
     }
 
+    pub fn install_archived_rerun_race_hook(
+        archived_session_id: impl Into<String>,
+    ) -> ArchivedRerunRaceHookGuard {
+        let test_lock = match archived_rerun_test_lock().lock() {
+            Ok(lock) => lock,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        let mut hook = match archived_rerun_hook_slot().lock() {
+            Ok(hook) => hook,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+
+        assert!(hook.is_none(), "archived rerun race hook already installed");
+
+        *hook = Some(ArchivedRerunRaceHook {
+            archived_session_id: archived_session_id.into(),
+            barrier: Arc::new(Barrier::new(2)),
+        });
+
+        ArchivedRerunRaceHookGuard {
+            _test_lock: test_lock,
+        }
+    }
+
+    pub async fn wait_for_archived_rerun_race(archived_session_id: &str) {
+        let barrier = {
+            let hook = match archived_rerun_hook_slot().lock() {
+                Ok(hook) => hook,
+                Err(poisoned) => poisoned.into_inner(),
+            };
+
+            hook.as_ref()
+                .filter(|hook| hook.archived_session_id == archived_session_id)
+                .map(|hook| hook.barrier.clone())
+        };
+
+        if let Some(barrier) = barrier {
+            barrier.wait().await;
+        }
+    }
+
     impl Drop for CreateSessionRaceHookGuard {
         fn drop(&mut self) {
             match hook_slot().lock() {
+                Ok(mut hook) => *hook = None,
+                Err(poisoned) => *poisoned.into_inner() = None,
+            }
+        }
+    }
+
+    impl Drop for ArchivedRerunRaceHookGuard {
+        fn drop(&mut self) {
+            match archived_rerun_hook_slot().lock() {
                 Ok(mut hook) => *hook = None,
                 Err(poisoned) => *poisoned.into_inner() = None,
             }
@@ -94,7 +166,7 @@ use ve_shared::{
     jwt::Claims,
     models::{ArchiveMetadata, ArchiveStatistics, CreateSessionRequest, Session, SessionMessage},
     proto::{DaemonMessage, SessionControlAction},
-    types::Paginated,
+    types::{CloseReason, Paginated},
 };
 
 use crate::authz::{
@@ -1184,6 +1256,9 @@ async fn handle_archived_rerun(
         ));
     }
 
+    #[cfg(debug_assertions)]
+    test_support::wait_for_archived_rerun_race(&archived_session_id_str).await;
+
     let new_session_id = Uuid::new_v4();
     let new_session_id_str = new_session_id.to_string();
     let mut tx = state.db.begin().await?;
@@ -1395,9 +1470,9 @@ async fn ensure_device_session_access(
     Ok(())
 }
 
-fn archive_closed_by(close_reason: &str) -> &'static str {
+fn archive_closed_by(close_reason: CloseReason) -> &'static str {
     match close_reason {
-        "terminated" => "daemon",
+        CloseReason::Terminated => "daemon",
         _ => "server",
     }
 }
@@ -1405,7 +1480,7 @@ fn archive_closed_by(close_reason: &str) -> &'static str {
 pub(crate) async fn archive_session_with_metadata(
     state: &AppState,
     session_id: Uuid,
-    close_reason: &str,
+    close_reason: CloseReason,
     summary_override: Option<String>,
 ) -> Result<Uuid> {
     let session_id_str = session_id.to_string();
@@ -1569,7 +1644,12 @@ pub(crate) async fn archive_session_with_metadata(
     .bind(&archive_id_str)
     .bind(&session_id_str)
     .bind(&session.1)
-    .bind(close_reason)
+    .bind(match close_reason {
+        CloseReason::UserClosed => "user_closed",
+        CloseReason::Completed => "completed",
+        CloseReason::Failed => "failed",
+        CloseReason::Terminated => "terminated",
+    })
     .bind(&host_id_str)
     .bind(&workspace_id_str)
     .bind(&metadata_json)
@@ -1711,7 +1791,12 @@ mod tests {
             .await
             .unwrap();
 
-        Arc::new(AppState::new(pool, Hub::new(), test_config(database_url)))
+        let config = test_config(database_url);
+        let jwt_manager = Arc::new(ve_shared::jwt::JwtManager::new(
+            &config.jwt_secret,
+            config.jwt_expiration(),
+        ));
+        Arc::new(AppState::new(pool, Hub::new(), config, jwt_manager))
     }
 
     async fn insert_host_workspace_and_archive(
@@ -1873,13 +1958,13 @@ mod tests {
         .unwrap();
 
         let first_archive_id =
-            archive_session_with_metadata(&state, session_id, "user_closed", None)
+            archive_session_with_metadata(&state, session_id, CloseReason::UserClosed, None)
                 .await
                 .unwrap();
         let second_archive_id = archive_session_with_metadata(
             &state,
             session_id,
-            "terminated",
+            CloseReason::Terminated,
             Some("ignored".to_string()),
         )
         .await

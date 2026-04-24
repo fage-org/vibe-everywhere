@@ -16,7 +16,6 @@ use futures::{SinkExt, StreamExt};
 use std::sync::Arc;
 use uuid::Uuid;
 
-use ve_shared::jwt::JwtManager;
 use ve_shared::proto::{DaemonToServer, ErrorPayload, WsEnvelope};
 use ve_shared::types::{DaemonStatus, OnlineStatus, RiskType};
 
@@ -36,9 +35,7 @@ pub async fn ws_daemon_handler(
     State(state): State<Arc<AppState>>,
 ) -> Result<Response, ServerError> {
     // Verify JWT
-    let jwt_manager = JwtManager::new(&state.config.jwt_secret, state.config.jwt_expiration());
-
-    let claims = decode_ws_claims(&jwt_manager, auth.token())?;
+    let claims = decode_ws_claims(&state.jwt_manager, auth.token())?;
     let host_id = require_daemon_host_id(&claims)?;
 
     tracing::info!(%host_id, "Daemon WebSocket connection request");
@@ -582,6 +579,7 @@ async fn handle_session_status_update(
             }
         }
 
+        let close_reason = utils::parse_close_reason(close_reason);
         tx.commit().await?;
         archive_session_with_metadata(state, session_id, close_reason, summary.clone()).await?;
 
@@ -593,7 +591,7 @@ async fn handle_session_status_update(
                 ve_shared::proto::ClientMessage::SessionStatusChanged {
                     session_id,
                     new_status: utils::parse_session_status(status),
-                    close_reason: Some(utils::parse_close_reason(close_reason)),
+                    close_reason: Some(close_reason),
                 },
             )
             .await;
@@ -674,7 +672,12 @@ mod tests {
             .await
             .unwrap();
 
-        Arc::new(AppState::new(pool, Hub::new(), test_config(database_url)))
+        let config = test_config(database_url);
+        let jwt_manager = Arc::new(ve_shared::jwt::JwtManager::new(
+            &config.jwt_secret,
+            config.jwt_expiration(),
+        ));
+        Arc::new(AppState::new(pool, Hub::new(), config, jwt_manager))
     }
 
     #[tokio::test]
@@ -1369,6 +1372,8 @@ mod tests {
             file_path,
             content: "fn main() {}".to_string(),
             file_type: "text".to_string(),
+            truncated: false,
+            total_size: 12,
         };
         let envelope = WsEnvelope::new("file_content_response", &response);
         let text = serde_json::to_string(&envelope).unwrap();

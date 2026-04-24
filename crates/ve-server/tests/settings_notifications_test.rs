@@ -48,14 +48,15 @@ async fn setup_app() -> (Router, Arc<AppState>, Arc<JwtManager>, Uuid) {
         .await
         .unwrap();
 
+    let jwt_manager = Arc::new(JwtManager::new(
+        &config.jwt_secret,
+        Duration::seconds(config.jwt_expiration_secs as i64),
+    ));
     let state = Arc::new(AppState::new(
         pool,
         ve_server::hub::Hub::new(),
         config.clone(),
-    ));
-    let jwt_manager = Arc::new(JwtManager::new(
-        &config.jwt_secret,
-        Duration::seconds(config.jwt_expiration_secs as i64),
+        jwt_manager.clone(),
     ));
 
     let device_id = Uuid::new_v4();

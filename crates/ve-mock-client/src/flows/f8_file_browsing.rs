@@ -76,17 +76,11 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
         .await
         .map_err(|e| anyhow::anyhow!("get file tree (root): {e}"))?;
 
-    let root = tree
-        .get("data")
-        .and_then(|d| d.get("tree"))
-        .ok_or_else(|| anyhow::anyhow!("file tree root missing data.tree: {tree:?}"))?;
-
+    let root = &tree.data.tree;
     let files = root
-        .get("children")
-        .or_else(|| root.get("entries"))
-        .or_else(|| root.get("files"))
-        .and_then(|v| v.as_array())
-        .ok_or_else(|| anyhow::anyhow!("file tree unexpected format: {tree:?}"))?;
+        .children
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("file tree root missing children: {tree:?}"))?;
 
     if files.is_empty() {
         anyhow::bail!("Expected file tree to contain entries, got empty array");
@@ -100,28 +94,14 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
         .await
         .map_err(|e| anyhow::anyhow!("get file tree (src): {e}"))?;
 
-    let src_root = src_tree
-        .get("data")
-        .and_then(|d| d.get("tree"))
-        .ok_or_else(|| anyhow::anyhow!("src file tree missing data.tree: {src_tree:?}"))?;
-
+    let src_root = &src_tree.data.tree;
     let src_files = src_root
-        .get("children")
-        .or_else(|| src_root.get("entries"))
-        .or_else(|| src_root.get("files"))
-        .and_then(|v| v.as_array())
-        .ok_or_else(|| anyhow::anyhow!("src file tree unexpected format: {src_tree:?}"))?;
+        .children
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("src file tree missing children: {src_tree:?}"))?;
 
-    let has_main = src_files.iter().any(|f| {
-        f.get("name")
-            .and_then(|v| v.as_str())
-            .is_some_and(|n| n == "main.rs")
-    });
-    let has_lib = src_files.iter().any(|f| {
-        f.get("name")
-            .and_then(|v| v.as_str())
-            .is_some_and(|n| n == "lib.rs")
-    });
+    let has_main = src_files.iter().any(|f| f.name == "main.rs");
+    let has_lib = src_files.iter().any(|f| f.name == "lib.rs");
 
     if !has_main || !has_lib {
         anyhow::bail!("src directory should contain main.rs and lib.rs, got: {src_files:?}");
@@ -135,11 +115,7 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
         .await
         .map_err(|e| anyhow::anyhow!("get file content (README.md): {e}"))?;
 
-    let content = readme
-        .get("data")
-        .and_then(|d| d.get("content"))
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| anyhow::anyhow!("file content missing data.content: {readme:?}"))?;
+    let content = readme.data.content.as_str();
 
     if !content.contains("Test Workspace") {
         anyhow::bail!("README.md content mismatch: expected 'Test Workspace', got '{content}'");
@@ -153,11 +129,7 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
         .await
         .map_err(|e| anyhow::anyhow!("get file content (src/main.rs): {e}"))?;
 
-    let main_content = main_rs
-        .get("data")
-        .and_then(|d| d.get("content"))
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| anyhow::anyhow!("main.rs content missing data.content: {main_rs:?}"))?;
+    let main_content = main_rs.data.content.as_str();
 
     if !main_content.contains("println") {
         anyhow::bail!("main.rs content mismatch: expected 'println!', got '{main_content}'");

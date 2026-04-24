@@ -13,6 +13,7 @@ use governor::clock::DefaultClock;
 use governor::state::keyed::DefaultKeyedStateStore;
 use governor::{Quota, RateLimiter};
 use uuid::Uuid;
+use ve_shared::jwt::JwtManager;
 
 use crate::config::Config;
 use crate::db::DbPool;
@@ -129,17 +130,21 @@ pub struct AppState {
     /// Server configuration
     pub config: Arc<Config>,
 
+    /// Shared JWT manager reused by HTTP handlers and WS endpoints
+    pub jwt_manager: Arc<JwtManager>,
+
     /// In-memory authentication throttles
     pub auth_throttle: Arc<AuthThrottle>,
 }
 
 impl AppState {
     /// Create a new application state
-    pub fn new(db: DbPool, hub: Hub, config: Config) -> Self {
+    pub fn new(db: DbPool, hub: Hub, config: Config, jwt_manager: Arc<JwtManager>) -> Self {
         Self {
             db,
             hub: Arc::new(hub),
             config: Arc::new(config.clone()),
+            jwt_manager,
             auth_throttle: Arc::new(AuthThrottle::new(Duration::from_secs(
                 config.pair_code_ttl_secs,
             ))),

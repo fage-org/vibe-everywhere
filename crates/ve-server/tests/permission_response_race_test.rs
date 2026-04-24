@@ -101,7 +101,8 @@ async fn setup_state() -> Arc<AppState> {
     db::run_migrations(&pool, config.database_backend())
         .await
         .unwrap();
-    Arc::new(AppState::new(pool, Hub::new(), config))
+    let jwt_manager = Arc::new(jwt_manager(&config));
+    Arc::new(AppState::new(pool, Hub::new(), config, jwt_manager))
 }
 
 #[cfg(feature = "postgres")]
@@ -148,8 +149,9 @@ async fn setup_postgres_state() -> Option<PostgresTestState> {
         .await
         .unwrap();
 
+    let jwt_manager = Arc::new(jwt_manager(&config));
     Some(PostgresTestState {
-        state: Arc::new(AppState::new(pool, Hub::new(), config)),
+        state: Arc::new(AppState::new(pool, Hub::new(), config, jwt_manager)),
         admin_pool,
         schema_name,
     })

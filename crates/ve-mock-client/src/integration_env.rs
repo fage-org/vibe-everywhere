@@ -170,31 +170,12 @@ async fn complete_pairing(
     pair_code: &str,
     bootstrap_token: &str,
 ) -> Result<String> {
-    let client = reqwest::Client::new();
-    let url = format!("{}/api/auth/pair", server_url.trim_end_matches('/'));
-
+    let client = MockClient::new(server_url.to_string(), bootstrap_token.to_string());
     let response = client
-        .post(&url)
-        .header("Authorization", format!("Bearer {bootstrap_token}"))
-        .header("Content-Type", "application/json")
-        .json(&serde_json::json!({ "pair_code": pair_code }))
-        .send()
+        .pair(pair_code)
         .await
         .context("sending pair request")?;
-
-    let status = response.status();
-    let body = response.text().await.context("reading pair response")?;
-
-    if !status.is_success() {
-        anyhow::bail!("Pair request failed with status {status}: {body}");
-    }
-
-    let json: serde_json::Value = serde_json::from_str(&body).context("parsing pair response")?;
-
-    json.get("token")
-        .and_then(|v| v.as_str())
-        .map(String::from)
-        .ok_or_else(|| anyhow::anyhow!("Missing 'token' in pair response: {body}"))
+    Ok(response.token)
 }
 
 /// Wait for the daemon to establish a WebSocket connection

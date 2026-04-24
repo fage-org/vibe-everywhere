@@ -13,7 +13,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use ve_shared::jwt::{Claims, JwtManager};
+use ve_shared::jwt::Claims;
 use ve_shared::models::{
     PairResponse, PairingStatusResponse, RegisterDeviceRequest, RegisterDeviceResponse,
 };
@@ -63,11 +63,10 @@ pub async fn register_device(
     let device_id = Uuid::new_v4();
     let device_id_str = device_id.to_string();
 
-    // Create JWT manager
-    let jwt_manager = JwtManager::new(&state.config.jwt_secret, state.config.jwt_expiration());
-
     // Generate token
-    let token = jwt_manager.create_client_bootstrap_token(device_id, &req.device_name)?;
+    let token = state
+        .jwt_manager
+        .create_client_bootstrap_token(device_id, &req.device_name)?;
 
     // Store device in database
     let device_type_str = match req.device_type {
@@ -272,8 +271,9 @@ pub async fn pairing_status(
             return Err(ServerError::Unauthorized);
         }
 
-        let jwt_manager = JwtManager::new(&state.config.jwt_secret, state.config.jwt_expiration());
-        let daemon_token = jwt_manager.create_daemon_token(query.host_id, &row.1)?;
+        let daemon_token = state
+            .jwt_manager
+            .create_daemon_token(query.host_id, &row.1)?;
         return Ok(Json(PairingStatusResponse {
             status: "paired".to_string(),
             daemon_token: Some(daemon_token),
@@ -465,9 +465,10 @@ pub async fn pair(
 
     tx.commit().await?;
 
-    let jwt_manager = JwtManager::new(&state.config.jwt_secret, state.config.jwt_expiration());
-    let client_token = jwt_manager.create_client_token(device_id, &claims.name)?;
-    let daemon_token = jwt_manager.create_daemon_token(host_id, &host_name)?;
+    let client_token = state
+        .jwt_manager
+        .create_client_token(device_id, &claims.name)?;
+    let daemon_token = state.jwt_manager.create_daemon_token(host_id, &host_name)?;
 
     let _ = state
         .hub

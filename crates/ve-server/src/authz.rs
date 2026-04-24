@@ -114,18 +114,31 @@ pub struct SessionAccess {
     pub session_id: Uuid,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct WorkspaceAccess {
     pub device_id: Uuid,
     pub workspace_id: Uuid,
     pub host_id: Uuid,
+    pub path: String,
+    pub display_name: String,
+    pub is_favorited: bool,
+    pub last_used_at: Option<String>,
+    pub exists_on_host: bool,
+    pub created_at: String,
+    pub updated_at: String,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct PermissionAccess {
     pub device_id: Uuid,
     pub permission_id: Uuid,
     pub session_id: Uuid,
+    pub risk_type: String,
+    pub summary: String,
+    pub target: Option<String>,
+    pub status: String,
+    pub created_at: String,
+    pub responded_at: Option<String>,
 }
 
 pub fn require_client_device_id(claims: &Claims) -> Result<Uuid> {
@@ -495,9 +508,24 @@ where
             .await
             .map_err(|_| ServerError::BadRequest("Invalid workspace id".to_string()))?;
         let app_state = Arc::<AppState>::from_ref(state);
-        let workspace_host_id: (String,) = sqlx::query_as(
+        let workspace_row: (
+            String,
+            String,
+            String,
+            String,
+            i64,
+            Option<String>,
+            i64,
+            String,
+            String,
+        ) = sqlx::query_as(
             r#"
-            SELECT workspaces.host_id
+            SELECT workspaces.workspace_id, workspaces.host_id, workspaces.path, workspaces.display_name,
+                   CASE WHEN workspaces.is_favorited THEN 1 ELSE 0 END,
+                   CAST(workspaces.last_used_at AS TEXT),
+                   CASE WHEN workspaces.exists_on_host THEN 1 ELSE 0 END,
+                   CAST(workspaces.created_at AS TEXT),
+                   CAST(workspaces.updated_at AS TEXT)
             FROM workspaces
             INNER JOIN device_host_access
                 ON device_host_access.host_id = workspaces.host_id
@@ -510,12 +538,19 @@ where
         .fetch_optional(&app_state.db)
         .await?
         .ok_or(ServerError::NotFound(format!("Workspace {}", workspace_id)))?;
-        let host_id = parse_uuid(&workspace_host_id.0, "host_id")?;
+        let host_id = parse_uuid(&workspace_row.1, "host_id")?;
 
         Ok(Self {
             device_id,
             workspace_id,
             host_id,
+            path: workspace_row.2,
+            display_name: workspace_row.3,
+            is_favorited: workspace_row.4 != 0,
+            last_used_at: workspace_row.5,
+            exists_on_host: workspace_row.6 != 0,
+            created_at: workspace_row.7,
+            updated_at: workspace_row.8,
         })
     }
 }
@@ -534,9 +569,25 @@ where
             .await
             .map_err(|_| ServerError::BadRequest("Invalid permission id".to_string()))?;
         let app_state = Arc::<AppState>::from_ref(state);
-        let permission_session_id: (String,) = sqlx::query_as(
+        let permission_row: (
+            String,
+            String,
+            String,
+            String,
+            Option<String>,
+            String,
+            String,
+            Option<String>,
+        ) = sqlx::query_as(
             r#"
-            SELECT permission_requests.session_id
+            SELECT permission_requests.permission_id,
+                   permission_requests.session_id,
+                   permission_requests.risk_type,
+                   permission_requests.summary,
+                   permission_requests.target,
+                   permission_requests.status,
+                   CAST(permission_requests.created_at AS TEXT),
+                   CAST(permission_requests.responded_at AS TEXT)
             FROM permission_requests
             INNER JOIN device_session_access
                 ON device_session_access.session_id = permission_requests.session_id
@@ -552,12 +603,18 @@ where
             "Permission {}",
             permission_id
         )))?;
-        let session_id = parse_uuid(&permission_session_id.0, "session_id")?;
+        let session_id = parse_uuid(&permission_row.1, "session_id")?;
 
         Ok(Self {
             device_id,
             permission_id,
             session_id,
+            risk_type: permission_row.2,
+            summary: permission_row.3,
+            target: permission_row.4,
+            status: permission_row.5,
+            created_at: permission_row.6,
+            responded_at: permission_row.7,
         })
     }
 }

@@ -8,8 +8,19 @@ use std::time::Duration;
 use crate::db::DbPool;
 use tokio::time::interval;
 use tracing::{error, info};
+use uuid::Uuid;
+use ve_shared::models::PermissionDecision;
+use ve_shared::proto::{ClientMessage, DaemonMessage};
 
 use crate::config::Config;
+use crate::hub::Hub;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ExpiredPermissionNotification {
+    permission_id: Uuid,
+    session_id: Uuid,
+    host_id: Uuid,
+}
 
 /// Start the permission expiry background task.
 ///
@@ -17,6 +28,7 @@ use crate::config::Config;
 /// exceeded their TTL and marks them as expired.
 pub fn start_permission_expiry_task(
     db: DbPool,
+    hub: Arc<Hub>,
     config: Arc<Config>,
 ) -> tokio::task::JoinHandle<()> {
     let check_interval = Duration::from_secs(config.permission_expiry_check_secs);
@@ -43,14 +55,28 @@ pub fn start_permission_expiry_task(
         );
 
         // Run immediately on startup, then on each tick
-        if let Err(e) = expire_stale_permissions(&db, &expiry_expr, &now_expr).await {
+        if let Err(e) = expire_stale_permissions_and_notify(
+            db.clone(),
+            hub.clone(),
+            expiry_expr.clone(),
+            now_expr.clone(),
+        )
+        .await
+        {
             error!(error = %e, "Failed to run initial permission expiry");
         }
 
         loop {
             ticker.tick().await;
 
-            match expire_stale_permissions(&db, &expiry_expr, &now_expr).await {
+            match expire_stale_permissions_and_notify(
+                db.clone(),
+                hub.clone(),
+                expiry_expr.clone(),
+                now_expr.clone(),
+            )
+            .await
+            {
                 Ok(affected) => {
                     if affected > 0 {
                         info!(
@@ -82,15 +108,73 @@ pub async fn expire_stale_permissions(
     expiry_expr_sql: &str,
     now_expr_sql: &str,
 ) -> Result<usize, sqlx::Error> {
-    let query = format!(
-        "UPDATE permission_requests SET status = 'expired' WHERE status = 'pending' AND created_at < {}",
-        expiry_expr_sql
-    );
+    Ok(
+        expire_stale_permissions_in_transaction(db, expiry_expr_sql, now_expr_sql)
+            .await?
+            .len(),
+    )
+}
 
-    let result = sqlx::raw_sql(&query).execute(db).await?;
-    let rows_affected = result.rows_affected() as usize;
+async fn expire_stale_permissions_and_notify(
+    db: DbPool,
+    hub: Arc<Hub>,
+    expiry_expr_sql: String,
+    now_expr_sql: String,
+) -> Result<usize, sqlx::Error> {
+    let expired_permissions =
+        expire_stale_permissions_in_transaction(&db, &expiry_expr_sql, &now_expr_sql).await?;
 
-    if rows_affected > 0 {
+    for expired in &expired_permissions {
+        let _ = hub
+            .send_to_daemon(
+                &expired.host_id,
+                DaemonMessage::PermissionResponse {
+                    permission_id: expired.permission_id,
+                    session_id: expired.session_id,
+                    decision: PermissionDecision::DenyOnce,
+                },
+            )
+            .await;
+
+        hub.broadcast_to_session(
+            &db,
+            &expired.session_id,
+            ClientMessage::PermissionExpired {
+                permission_id: expired.permission_id,
+                session_id: expired.session_id,
+            },
+        )
+        .await;
+    }
+
+    Ok(expired_permissions.len())
+}
+
+async fn expire_stale_permissions_in_transaction(
+    db: &DbPool,
+    expiry_expr_sql: &str,
+    now_expr_sql: &str,
+) -> Result<Vec<ExpiredPermissionNotification>, sqlx::Error> {
+    let expired_permissions: Vec<(String, String, String)> = sqlx::query_as(&format!(
+        r#"
+        UPDATE permission_requests
+        SET status = 'expired', responded_at = {}
+        WHERE status = 'pending' AND created_at < {}
+        RETURNING
+            permission_id,
+            session_id,
+            (
+                SELECT host_id
+                FROM sessions
+                WHERE sessions.session_id = permission_requests.session_id
+            ) AS host_id
+        "#,
+        now_expr_sql, expiry_expr_sql
+    ))
+    .fetch_all(db)
+    .await?;
+
+    if !expired_permissions.is_empty() {
         sqlx::raw_sql(&format!(
             r#"
             UPDATE sessions
@@ -108,11 +192,39 @@ pub async fn expire_stale_permissions(
         ))
         .execute(db)
         .await?;
-
-        info!(rows_affected, "Updated sessions after expiring permissions");
     }
 
-    Ok(rows_affected)
+    let expired_permissions = expired_permissions
+        .into_iter()
+        .map(
+            |(permission_id, session_id, host_id)| -> std::result::Result<_, sqlx::Error> {
+                Ok(ExpiredPermissionNotification {
+                    permission_id: Uuid::parse_str(&permission_id).map_err(|error| {
+                        sqlx::Error::Protocol(format!(
+                            "invalid permission_id returned from DB: {error}"
+                        ))
+                    })?,
+                    session_id: Uuid::parse_str(&session_id).map_err(|error| {
+                        sqlx::Error::Protocol(format!(
+                            "invalid session_id returned from DB: {error}"
+                        ))
+                    })?,
+                    host_id: Uuid::parse_str(&host_id).map_err(|error| {
+                        sqlx::Error::Protocol(format!("invalid host_id returned from DB: {error}"))
+                    })?,
+                })
+            },
+        )
+        .collect::<std::result::Result<Vec<_>, sqlx::Error>>()?;
+
+    if !expired_permissions.is_empty() {
+        info!(
+            rows_affected = expired_permissions.len(),
+            "Updated sessions after expiring permissions"
+        );
+    }
+
+    Ok(expired_permissions)
 }
 
 #[cfg(test)]
@@ -120,6 +232,8 @@ mod tests {
     use super::*;
     use crate::config::{Config, DatabaseBackend};
     use crate::db::{install_drivers, run_migrations, DbPool};
+    use crate::hub::Hub;
+    use tokio::sync::mpsc;
     use uuid::Uuid;
 
     fn test_config(database_url: String) -> Config {
@@ -262,5 +376,119 @@ mod tests {
                 .await
                 .unwrap();
         assert_eq!(pending_count.0, 1);
+    }
+
+    #[tokio::test]
+    async fn expire_stale_permissions_notifies_daemon_and_session_subscribers() {
+        let db = setup_db().await;
+        let hub = Hub::new();
+        let host_id = Uuid::new_v4();
+        let workspace_id = Uuid::new_v4();
+        let session_id = Uuid::new_v4();
+        let permission_id = Uuid::new_v4();
+        let device_id = Uuid::new_v4();
+
+        let old_time: (String,) = sqlx::query_as("SELECT datetime('now', '-2 hours')")
+            .fetch_one(&db)
+            .await
+            .unwrap();
+        let now: (String,) = sqlx::query_as("SELECT datetime('now')")
+            .fetch_one(&db)
+            .await
+            .unwrap();
+        let old_time = old_time.0;
+        let now = now.0;
+
+        sqlx::query("INSERT INTO hosts (host_id, host_name, platform, pair_status, created_at, updated_at) VALUES ($1, $2, $3, 'paired', $4, $4)")
+            .bind(host_id.to_string())
+            .bind("host")
+            .bind("linux")
+            .bind(&now)
+            .execute(&db)
+            .await
+            .unwrap();
+
+        sqlx::query("INSERT INTO workspaces (workspace_id, host_id, path, display_name, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $5)")
+            .bind(workspace_id.to_string())
+            .bind(host_id.to_string())
+            .bind("/tmp/ws")
+            .bind("ws")
+            .bind(&now)
+            .execute(&db)
+            .await
+            .unwrap();
+
+        sqlx::query("INSERT INTO sessions (session_id, title, host_id, workspace_id, agent_type, status, pending_permission_count, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, 'waiting_approval', 1, $6, $6)")
+            .bind(session_id.to_string())
+            .bind("test")
+            .bind(host_id.to_string())
+            .bind(workspace_id.to_string())
+            .bind("claude_code")
+            .bind(&now)
+            .execute(&db)
+            .await
+            .unwrap();
+
+        sqlx::query("INSERT INTO permission_requests (permission_id, session_id, risk_type, summary, status, created_at) VALUES ($1, $2, 'exec_cmd', $3, 'pending', $4)")
+            .bind(permission_id.to_string())
+            .bind(session_id.to_string())
+            .bind("stale")
+            .bind(&old_time)
+            .execute(&db)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO client_devices (device_id, device_name, device_type, server_url) VALUES ($1, $2, $3, $4)",
+        )
+        .bind(device_id.to_string())
+        .bind("device")
+        .bind("desktop")
+        .bind("http://localhost")
+        .execute(&db)
+        .await
+        .unwrap();
+
+        sqlx::query("INSERT INTO device_session_access (device_id, session_id) VALUES ($1, $2)")
+            .bind(device_id.to_string())
+            .bind(session_id.to_string())
+            .execute(&db)
+            .await
+            .unwrap();
+
+        let (daemon_tx, mut daemon_rx) = mpsc::channel(8);
+        let (client_tx, mut client_rx) = mpsc::channel(8);
+        hub.register_daemon(host_id, daemon_tx).await;
+        hub.register_client(device_id, client_tx);
+        hub.subscribe_session(device_id, session_id);
+
+        let affected = expire_stale_permissions_and_notify(
+            db.clone(),
+            Arc::new(hub),
+            "datetime('now', '-1800 seconds')".to_string(),
+            "datetime('now')".to_string(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(affected, 1);
+
+        let daemon_message = daemon_rx.recv().await.unwrap();
+        assert_eq!(daemon_message.r#type, "permission_response");
+        assert_eq!(
+            daemon_message.payload["permission_id"],
+            permission_id.to_string()
+        );
+        assert_eq!(daemon_message.payload["decision"], "deny_once");
+
+        let client_message = client_rx.recv().await.unwrap();
+        assert_eq!(client_message.r#type, "permission_expired");
+        assert_eq!(
+            client_message.payload["payload"]["permission_id"],
+            permission_id.to_string()
+        );
+        assert_eq!(
+            client_message.payload["payload"]["session_id"],
+            session_id.to_string()
+        );
     }
 }

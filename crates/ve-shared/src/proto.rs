@@ -84,6 +84,10 @@ pub enum ServerToClient {
         session_id: Uuid,
         decision: crate::models::PermissionDecision,
     },
+    PermissionExpired {
+        permission_id: Uuid,
+        session_id: Uuid,
+    },
     SessionStatusChanged {
         session_id: Uuid,
         new_status: SessionStatus,
@@ -122,6 +126,7 @@ impl From<ClientMessage> for WsEnvelope {
             ClientMessage::SessionEvent { .. } => "session_event",
             ClientMessage::PermissionRequest { .. } => "permission_request",
             ClientMessage::PermissionResponse { .. } => "permission_response",
+            ClientMessage::PermissionExpired { .. } => "permission_expired",
             ClientMessage::SessionStatusChanged { .. } => "session_status_changed",
             ClientMessage::HostStatusChanged { .. } => "host_status_changed",
             ClientMessage::Notification { .. } => "notification",
@@ -181,6 +186,8 @@ pub enum DaemonToServer {
         file_path: String,
         content: String,
         file_type: String,
+        truncated: bool,
+        total_size: u64,
     },
     Error {
         request_id: String,

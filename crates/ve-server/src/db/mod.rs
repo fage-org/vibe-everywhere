@@ -348,22 +348,64 @@ async fn run_sqlite_migration_002(pool: &DbPool) -> Result<()> {
         ),
     ];
 
-    for (label, should_run, statement) in steps {
-        if !should_run {
-            info!(
-                step = label,
-                "Migration 002 step already converged, skipping"
-            );
-            continue;
+    let mut conn = pool.acquire().await.map_err(|e| {
+        crate::error::ServerError::Internal(format!(
+            "Migration 002 failed to acquire SQLite connection: {}",
+            e
+        ))
+    })?;
+
+    sqlx::query("BEGIN IMMEDIATE")
+        .execute(&mut *conn)
+        .await
+        .map_err(|e| {
+            crate::error::ServerError::Internal(format!(
+                "Migration 002 failed to begin transaction: {}",
+                e
+            ))
+        })?;
+
+    let migration_result = async {
+        for (label, should_run, statement) in steps {
+            if !should_run {
+                info!(
+                    step = label,
+                    "Migration 002 step already converged, skipping"
+                );
+                continue;
+            }
+
+            sqlx::query(statement)
+                .execute(&mut *conn)
+                .await
+                .map_err(|e| {
+                    crate::error::ServerError::Internal(format!(
+                        "Migration 002 failed at {label}: {}",
+                        e
+                    ))
+                })?;
+            info!(step = label, "Migration 002 step completed");
         }
 
-        sqlx::query(statement).execute(pool).await.map_err(|e| {
-            crate::error::ServerError::Internal(format!("Migration 002 failed at {label}: {}", e))
-        })?;
-        info!(step = label, "Migration 002 step completed");
+        sqlx::query("COMMIT")
+            .execute(&mut *conn)
+            .await
+            .map_err(|e| {
+                crate::error::ServerError::Internal(format!(
+                    "Migration 002 failed to commit transaction: {}",
+                    e
+                ))
+            })?;
+
+        Ok(())
+    }
+    .await;
+
+    if migration_result.is_err() {
+        let _ = sqlx::query("ROLLBACK").execute(&mut *conn).await;
     }
 
-    Ok(())
+    migration_result
 }
 
 /// Run SQLite database migrations

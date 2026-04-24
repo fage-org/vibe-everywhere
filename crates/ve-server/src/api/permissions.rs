@@ -125,6 +125,17 @@ struct PermissionRecord {
     responded_at: Option<String>,
 }
 
+type PermissionRow = (
+    String,
+    String,
+    String,
+    String,
+    Option<String>,
+    String,
+    String,
+    Option<String>,
+);
+
 impl PermissionRecord {
     fn to_model(&self) -> Result<PermissionRequest> {
         Ok(PermissionRequest {
@@ -143,6 +154,21 @@ impl PermissionRecord {
                     .map(|d| d.with_timezone(&chrono::Utc))
             }),
         })
+    }
+}
+
+fn permission_record_from_row(row: PermissionRow) -> PermissionRecord {
+    let (permission_id, session_id, risk_type, summary, target, status, created_at, responded_at) =
+        row;
+    PermissionRecord {
+        permission_id,
+        session_id,
+        risk_type,
+        summary,
+        target,
+        status,
+        created_at,
+        responded_at,
     }
 }
 
@@ -220,9 +246,21 @@ pub async fn list_permissions(
 /// Get a specific permission request.
 pub async fn get_permission_route(
     access: PermissionAccess,
-    State(state): State<Arc<AppState>>,
+    State(_state): State<Arc<AppState>>,
 ) -> Result<Json<PermissionRequest>> {
-    get_permission_by_id(state, access.permission_id).await
+    Ok(Json(
+        PermissionRecord {
+            permission_id: access.permission_id.to_string(),
+            session_id: access.session_id.to_string(),
+            risk_type: access.risk_type,
+            summary: access.summary,
+            target: access.target,
+            status: access.status,
+            created_at: access.created_at,
+            responded_at: access.responded_at,
+        }
+        .to_model()?,
+    ))
 }
 
 pub async fn get_permission(
@@ -233,7 +271,7 @@ pub async fn get_permission(
     let device_id = require_client_device_id(&claims)?;
     let permission_id_str = id.to_string();
 
-    let row = sqlx::query_as::<_, (String, String, String, String, Option<String>, String, String, Option<String>)>(
+    let row: PermissionRow = sqlx::query_as(
         r#"
         SELECT permission_id, session_id, risk_type, summary, target, status, CAST(created_at AS TEXT), CAST(responded_at AS TEXT)
         FROM permission_requests
@@ -245,16 +283,7 @@ pub async fn get_permission(
     .await?
     .ok_or(ServerError::NotFound(format!("Permission {}", id)))?;
 
-    let record = PermissionRecord {
-        permission_id: row.0,
-        session_id: row.1,
-        risk_type: row.2,
-        summary: row.3,
-        target: row.4,
-        status: row.5,
-        created_at: row.6,
-        responded_at: row.7,
-    };
+    let record = permission_record_from_row(row);
 
     require_session_access(
         &state,
@@ -263,13 +292,13 @@ pub async fn get_permission(
     )
     .await?;
 
-    get_permission_by_id(state, id).await
+    Ok(Json(record.to_model()?))
 }
 
 async fn get_permission_by_id(state: Arc<AppState>, id: Uuid) -> Result<Json<PermissionRequest>> {
     let permission_id_str = id.to_string();
 
-    let row = sqlx::query_as::<_, (String, String, String, String, Option<String>, String, String, Option<String>)>(
+    let row: PermissionRow = sqlx::query_as(
         r#"
         SELECT permission_id, session_id, risk_type, summary, target, status, CAST(created_at AS TEXT), CAST(responded_at AS TEXT)
         FROM permission_requests
@@ -281,16 +310,7 @@ async fn get_permission_by_id(state: Arc<AppState>, id: Uuid) -> Result<Json<Per
     .await?
     .ok_or(ServerError::NotFound(format!("Permission {}", id)))?;
 
-    let record = PermissionRecord {
-        permission_id: row.0,
-        session_id: row.1,
-        risk_type: row.2,
-        summary: row.3,
-        target: row.4,
-        status: row.5,
-        created_at: row.6,
-        responded_at: row.7,
-    };
+    let record = permission_record_from_row(row);
 
     Ok(Json(record.to_model()?))
 }
@@ -303,7 +323,22 @@ pub async fn respond_permission_route(
     State(state): State<Arc<AppState>>,
     Json(req): Json<PermissionResponseRequest>,
 ) -> Result<Json<PermissionRequest>> {
-    respond_permission_by_id(state, access.permission_id, req).await
+    respond_permission_existing(
+        state,
+        access.permission_id,
+        req,
+        PermissionRecord {
+            permission_id: access.permission_id.to_string(),
+            session_id: access.session_id.to_string(),
+            risk_type: access.risk_type,
+            summary: access.summary,
+            target: access.target,
+            status: access.status,
+            created_at: access.created_at,
+            responded_at: access.responded_at,
+        },
+    )
+    .await
 }
 
 pub async fn respond_permission(
@@ -316,7 +351,7 @@ pub async fn respond_permission(
     let permission_id_str = id.to_string();
 
     // Fetch existing permission
-    let row = sqlx::query_as::<_, (String, String, String, String, Option<String>, String, String, Option<String>)>(
+    let row: PermissionRow = sqlx::query_as(
         r#"
         SELECT permission_id, session_id, risk_type, summary, target, status, CAST(created_at AS TEXT), CAST(responded_at AS TEXT)
         FROM permission_requests
@@ -328,53 +363,21 @@ pub async fn respond_permission(
     .await?
     .ok_or(ServerError::NotFound(format!("Permission {}", id)))?;
 
-    let existing = PermissionRecord {
-        permission_id: row.0,
-        session_id: row.1,
-        risk_type: row.2,
-        summary: row.3,
-        target: row.4,
-        status: row.5,
-        created_at: row.6,
-        responded_at: row.7,
-    };
+    let existing = permission_record_from_row(row);
 
     let session_id = parse_uuid(&existing.session_id, "session_id")?;
     require_session_access(&state, device_id, session_id).await?;
 
-    respond_permission_by_id(state, id, req).await
+    respond_permission_existing(state, id, req, existing).await
 }
 
-async fn respond_permission_by_id(
+async fn respond_permission_existing(
     state: Arc<AppState>,
     id: Uuid,
     req: PermissionResponseRequest,
+    existing: PermissionRecord,
 ) -> Result<Json<PermissionRequest>> {
     let permission_id_str = id.to_string();
-
-    // Fetch existing permission
-    let row = sqlx::query_as::<_, (String, String, String, String, Option<String>, String, String, Option<String>)>(
-        r#"
-        SELECT permission_id, session_id, risk_type, summary, target, status, CAST(created_at AS TEXT), CAST(responded_at AS TEXT)
-        FROM permission_requests
-        WHERE permission_id = $1
-        "#
-    )
-    .bind(&permission_id_str)
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or(ServerError::NotFound(format!("Permission {}", id)))?;
-
-    let existing = PermissionRecord {
-        permission_id: row.0,
-        session_id: row.1,
-        risk_type: row.2,
-        summary: row.3,
-        target: row.4,
-        status: row.5,
-        created_at: row.6,
-        responded_at: row.7,
-    };
 
     // Check if already responded (idempotent - return current state)
     let current_status = utils::parse_permission_status(&existing.status);

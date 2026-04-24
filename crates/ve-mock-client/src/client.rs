@@ -15,6 +15,18 @@ pub struct MockClient {
     token: String,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct ApiEnvelope<T> {
+    pub success: bool,
+    pub data: T,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct FileTreePayload {
+    pub tree: ve_shared::models::FileTreeNode,
+}
+
 impl MockClient {
     pub fn new(server_url: String, token: String) -> Self {
         Self {
@@ -321,12 +333,13 @@ impl MockClient {
         host_id: Uuid,
         workspace_id: Uuid,
         path: Option<&str>,
-    ) -> Result<serde_json::Value> {
+    ) -> Result<ApiEnvelope<FileTreePayload>> {
         let mut url = format!("/api/hosts/{host_id}/files/tree?workspace_id={workspace_id}",);
         if let Some(p) = path {
             url.push_str(&format!("&path={}", urlencoding::encode(p)));
         }
-        self.get_json(&url).await
+        let resp = self.get_json(&url).await?;
+        serde_json::from_value(resp).context("parsing get_file_tree response")
     }
 
     pub async fn get_file_content(
@@ -334,12 +347,13 @@ impl MockClient {
         host_id: Uuid,
         workspace_id: Uuid,
         file_path: &str,
-    ) -> Result<serde_json::Value> {
+    ) -> Result<ApiEnvelope<ve_shared::models::FileContent>> {
         let url = format!(
             "/api/hosts/{host_id}/files/content?workspace_id={workspace_id}&path={}",
             urlencoding::encode(file_path)
         );
-        self.get_json(&url).await
+        let resp = self.get_json(&url).await?;
+        serde_json::from_value(resp).context("parsing get_file_content response")
     }
 
     // ---- Settings API ----
@@ -519,6 +533,29 @@ mod tests {
 
         assert_eq!(parsed.status, "paired");
         assert_eq!(parsed.daemon_token.as_deref(), Some("daemon-token"));
+    }
+
+    #[test]
+    fn typed_file_content_response_parses_truncation_metadata() {
+        let response = json!({
+            "success": true,
+            "data": {
+                "path": "README.md",
+                "content": "hello",
+                "file_type": "text",
+                "truncated": true,
+                "total_size": 42
+            },
+            "error": null
+        });
+
+        let parsed: super::ApiEnvelope<ve_shared::models::FileContent> =
+            serde_json::from_value(response).expect("typed file content response should parse");
+
+        assert!(parsed.success);
+        assert_eq!(parsed.data.path, "README.md");
+        assert!(parsed.data.truncated);
+        assert_eq!(parsed.data.total_size, 42);
     }
 }
 

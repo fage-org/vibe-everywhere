@@ -52,7 +52,9 @@ async fn setup_state() -> Arc<AppState> {
     run_migrations(&pool, DatabaseBackend::Sqlite)
         .await
         .unwrap();
-    Arc::new(AppState::new(pool, Hub::new(), test_config(database_url)))
+    let config = test_config(database_url);
+    let jwt_manager = Arc::new(JwtManager::new(&config.jwt_secret, config.jwt_expiration()));
+    Arc::new(AppState::new(pool, Hub::new(), config, jwt_manager))
 }
 
 async fn seed_registered_device(state: &Arc<AppState>, device_id: Uuid) {

@@ -1,5 +1,30 @@
 # Vibe-Remote 全量模块与功能链路 ECC Review
 
+**Updated**: 2026-04-25 — 剩余待处理项二次收口完成
+
+## 2026-04-25 追加结论
+
+基于 2026-04-25 的代码修复与验证，本文此前列出的剩余待处理项已进一步收口：
+
+- `MEDIUM-M1-01` 已关闭：`JwtManager` 已进入共享 `AppState`，HTTP auth / WS 入口不再重复构造。
+- `MEDIUM-M3-01` 已关闭：workspace live route 已复用 extractor 预取记录，去除运行路径中的冗余二次查询。
+- `MEDIUM-M11-01` 已关闭：permission expiry 现在会同步通知 daemon，并广播 `permission_expired` 给 session 订阅客户端。
+- `MEDIUM-D5-01` 已关闭：`WaitingApproval` 现在有真实状态流转，permission 注册/响应/超时会驱动 runner 状态切换。
+- `MEDIUM-D6-01` 已关闭：大文件读取改为按上限截断返回，`truncated` / `total_size` 语义已真实生效。
+- `MEDIUM-D7-02` 已关闭：Claude driver 在 rerun 前会等待旧 stdout reader 退出。
+- `LOW-M3-01` 已关闭：`archive_session_with_metadata` 已改为类型化 `CloseReason`。
+- `LOW-M4-01` 已关闭：permission live route 已复用 extractor 预取记录，去除运行路径中的冗余二次查询。
+- `MEDIUM-M7-01` 早前已关闭：`list_workspaces` 已支持 `page` / `limit`，本轮状态保持关闭。
+- `MEDIUM-迁移补丁式执行` 已关闭：SQLite migration 002 已收敛为单事务执行。
+
+新增验证：
+
+- `cargo test --workspace` 通过。
+- `cargo clippy --workspace --all-targets -- -D warnings` 通过。
+- 新增 PostgreSQL rerun 并发回归：`cargo test -p ve-server --features postgres postgres_archived_rerun_handles_concurrent_requests_without_duplicate_live_sessions`。
+
+当前结论：本文覆盖范围内，先前确认真实存在的 open / 待处理实现问题已全部关闭；剩余更偏产品边界或扩展覆盖面的事项，不再属于本文定义下的 active implementation bug。
+
 **Reviewed**: 2026-04-22
 **Scope**: ve-server + ve-daemon 全部已完成服务模块
 **Review Method**:
@@ -54,28 +79,27 @@
 
 ---
 
-## 三、已关闭项（本次复核确认已修复）
+**Updated**: 2026-04-24 — 代码验证复核全部问题修复状态
 
-以下问题来自已有 review 文件，本次确认已修复：
+## 三、已关闭项（本次代码验证确认已修复）
+
+以下问题来自已有 review 文件，本次逐一查阅源代码确认已修复：
 
 | 原问题 | 状态 | 备注 |
 |--------|------|------|
-| Legacy ACL fail-open 懒补权 | **CLOSED** | `ensure_legacy_client_access()` 已退化为仅设备存在性检查，不再补写 host/session ACL |
-| Pairing secret 可重复利用 | **CLOSED** | `pairing_status()` 配对成功后 CAS 清除 secret |
-| Pair code 日志泄露 | **CLOSED** | 已修正 |
-| 订阅授权不重新检查 | **CLOSED** | `broadcast_to_session` 已对每个 subscriber 重新查询 `device_session_access` |
-| send_and_wait timeout 不覆盖发送 | **CLOSED** | `timeout_at` 已覆盖 send + receive |
-| Terminate 在 ACK 后立即归档 | **CLOSED** | 归档延迟到 daemon 发出 `archived` 状态事件 |
-| Postgres idempotency UUID 不匹配 | **CLOSED** | Schema 已改为 `VARCHAR(64)` |
-| Permission response 先 commit 后发送 | **CLOSED** | CAS 事务内处理 |
-| Daemon handoff 断开 pending request 悬挂 | **CLOSED** | connection-scoped fail-fast |
-| WebSocket token 坏 token 返回 500 | **CLOSED** | 统一走 JWT decode helper，稳定 401 |
-| Files API 原始错误透传 | **CLOSED** | 已做边界脱敏 |
-| Migration 006 擦除 rerun provenance | **CLOSED** | placeholder + 动态列检测修复 |
-| Settings 路由 claims 提取 device_id | **CLOSED** | 已修复并补回归测试 |
-| SQLite migrations 006/007 rerun 字段保留 | **CLOSED** | 回归测试通过 |
-| event_rx 在首次连接失败后永久丢失 | **CLOSED** | mpsc 迁移到 broadcast channel，每次重连订阅新 receiver |
-| rerun/close 失败后 runner 状态未转换 | **CLOSED** | handle_rerun 错误时显式转为 Error 状态 |
+| HIGH-M9-01: WS 发送任务 `serde_json::to_string().unwrap()` panic | **CLOSED** | 已改为 `match` 处理序列化错误 |
+| HIGH-M3-01: archived rerun → pending 过早 | **CLOSED** | 改为等待 daemon ACK 后更新状态 |
+| HIGH-M3-02: create_session 并发双写窗口 | **CLOSED** | 全部收敛到单个原子事务 + 事务内二次检查 |
+| HIGH-M5-01: 批量归档删除清除所有设备权限 | **CLOSED** | 添加 `AND device_id = $2` 限定 |
+| CRITICAL-M10-01: Migration 007 丢失 status 索引 | **CLOSED** | 已添加 `idx_sessions_status` |
+| HIGH-03 (rerun): Migration 006 擦除 rerun provenance | **CLOSED** | placeholder + 动态列检测修复 |
+| MEDIUM-M9-01: broadcast clone-before-check | **CLOSED** | 先检查授权再 clone |
+| MEDIUM-M4-01: permission response 后未广播 | **CLOSED** | commit 后调用 `broadcast_to_session` |
+| MEDIUM-D6-02: collect_tree 跳逻辑不生效 | **CLOSED** | 错误时 warn + continue |
+| MEDIUM-D7-01: 未知 agent type 回退 mock | **CLOSED** | 返回 Err 而非 mock |
+| LOW-M2-01: server_url 未验证 | **CLOSED** | 添加长度和 scheme 校验 |
+| LOW-M2-02: stale `#[allow(dead_code)]` | **CLOSED** | 已移除 |
+| LOW-M8-01: notification INSERT 竞态 | **CLOSED** | 改用 `ON CONFLICT DO UPDATE` |
 
 ---
 
@@ -90,9 +114,6 @@
 | HIGH-D3-01: 重连循环无退避 | **CLOSED** | 意外错误分支添加指数退避 + jitter |
 | HIGH-D4-01: 启动超时孤儿 runner | **CLOSED** | 超时后先 send_close() 再 remove() |
 | HIGH-D4-02: create_rerun 无启动确认 | **CLOSED** | new_rerun 接受 startup_completion channel，create_rerun 等待确认 |
-| HIGH-M5-01: 批量归档删除范围过大 | **CLOSED** | DELETE 添加 AND device_id = $2 限定 |
-| HIGH-M9-01: WS 发送任务 unwrap panic | **CLOSED** | 替换为 match 错误处理，记录日志后 continue |
-| HIGH-M10-01: can_resume_cross_device = 1 | **CLOSED** | 使用 .bind(true) 替代硬编码 |
 
 ---
 
@@ -356,39 +377,44 @@
 
 | ID | 模块 | 问题 | 状态 |
 |----|------|------|------|
-| MEDIUM-M9-02 | M11 | 后台任务首次执行延迟 | **CLOSED** |
-| MEDIUM-D6-02 | D6 | collect_tree 跳过逻辑不生效 | **CLOSED** |
-| MEDIUM-D7-01 | D7 | 未知 agent type 回退 mock | **CLOSED** |
-| MEDIUM-M4-01 | M4 | Permission response 后未广播 | **CLOSED** |
-| MEDIUM-M1-01 | M1 | JwtManager 每次重新构造 | 待处理，需重构 AppState |
+| MEDIUM-M1-01 | M1 | JwtManager 每次重新构造 | 待处理，需放入 AppState |
 | MEDIUM-M3-01 | M7 | workspace 操作冗余双 DB 查询 | 待处理，需重构 helper |
 | MEDIUM-M7-01 | M7 | list_workspaces 无分页 | 待处理，需 API 变更 |
-| MEDIUM-M9-01 | M9 | broadcast clone-before-check | 实际代码已优化，review 描述已过时 |
 | MEDIUM-M11-01 | M11 | 权限过期未传播 | 待处理，需新机制 |
 | MEDIUM-D5-01 | D5 | WaitingApproval 状态未使用 | 无编译器警告，非有害代码 |
-| MEDIUM-D6-01 | D6 | truncated 死代码 | 待处理，需行为变更 |
+| MEDIUM-D6-01 | D6 | truncated 永远 false | 待处理，需行为变更 |
 | MEDIUM-D7-02 | D7 | rerun 不等待旧 stdout reader | 待处理 |
 
 ### LOW (建议改进)
 
-| ID | 模块 | 问题 |
-|----|------|------|
-| LOW-M2-01 | M2 | server_url 未验证 |
-| LOW-M2-02 | M2 | stale #[allow(dead_code)] |
-| LOW-M3-01 | M3 | close_reason 未做类型校验 |
-| LOW-M4-01 | M4 | get_permission 冗余双 DB 查询 |
-| LOW-M8-01 | M8 | notification INSERT 竞态 |
+| ID | 模块 | 问题 | 状态 |
+|----|------|------|------|
+| LOW-M3-01 | M3 | close_reason 未做类型校验 | 待处理 |
+| LOW-M4-01 | M4 | get_permission 冗余双 DB 查询 | 待处理 |
 
 ---
 
-## 七、优先级建议
+## 七、修复优先级建议
 
-1. **立即处理 CRITICAL**: event_rx 丢失（D3-01）是最危险的 bug——任何一次瞬态连接失败就永久破坏 daemon 核心功能且无错误信号。Runner 僵尸（D5-01）和索引丢失（M10-01）同样应立即修复。
+所有 CRITICAL 和 HIGH 问题均已修复。剩余 9 项按优先级排序：
 
-2. **其次处理 HIGH**: ve-daemon 重连退避（D3-01）、孤儿 runner（D4-01）、rerun 无启动确认（D4-02）直接影响 daemon 可靠性。ve-server 侧的归档删除范围（M5-01）和 WS panic（M9-01）影响线上稳定性。
+1. **MEDIUM-M1-01**: JwtManager 重新构造 — 虽非阻断，但负载下有性能损耗
+2. **MEDIUM-M7-01**: list_workspaces 无分页 — 设备多时可能返回大量数据
+3. **MEDIUM-M11-01**: 权限过期未传播 — 影响用户体验一致性
+4. **MEDIUM-D6-01**: truncated 永远 false — 死代码，应清理
+5. **MEDIUM-D7-02**: rerun 不等待旧 stdout reader — 潜在资源泄漏
+6. **MEDIUM-M3-01**: workspace 冗余双 DB 查询 — 性能优化
+7. **LOW-M3-01**: close_reason 类型校验 — 代码卫生
+8. **LOW-M4-01**: respond_permission 冗余双查询 — 代码卫生
+9. **MEDIUM-D5-01**: WaitingApproval 状态未使用 — 无害死代码，可清理
 
-3. **rerun 幂等问题**: M3-01 和 M3-02 已在 `review-session-rerun-open-issues.md` 中追踪，应按原计划推进修复。
+## 八、2026-04-24 复核总结
 
-4. **MEDIUM 项**: 作为可靠性改进排在 HIGH 之后。其中权限 response 广播（M4-01）和后台任务首次执行延迟（M9-02）对用户体验影响最直接。
+本次逐一查阅源代码复核全部问题修复状态：
 
-5. **LOW 项**: 代码卫生改进，可在后续迭代中处理。
+- **CRITICAL (3/3)**: 全部已修复 ✅
+- **HIGH (7/7)**: 全部已修复 ✅
+- **MEDIUM (12/12)**: 5 项已修复，7 项仍待处理
+- **LOW (5/5)**: 3 项已修复，2 项仍待处理
+
+剩余 9 项待处理均非安全性或可靠性阻断问题，可排入后续迭代。
