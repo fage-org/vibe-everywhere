@@ -56,11 +56,12 @@ pub fn parse_uuid(input: &str, field_name: &str) -> Result<Uuid, ServerError> {
     })
 }
 
-/// Parse a timestamp string that may be either RFC3339 or SQLite `datetime('now')` format.
+/// Parse a timestamp string that may be RFC3339, SQLite `datetime('now')`, or PostgreSQL TIMESTAMPTZ format.
 ///
-/// SQLite's `datetime('now')` produces `YYYY-MM-DD HH:MM:SS` (space-separated, no T, no Z),
-/// while `chrono::DateTime::parse_from_rfc3339` expects `YYYY-MM-DDTHH:MM:SSZ`.
-/// This helper tries RFC3339 first, then falls back to SQLite format.
+/// Supports:
+/// - RFC3339: `2026-04-23T00:20:11Z`
+/// - SQLite: `2026-04-23 00:20:11` (space-separated, no T, no Z)
+/// - PostgreSQL TIMESTAMPTZ: `2026-04-23 00:20:11.123456+00` (with microseconds and tz offset)
 pub fn parse_sqlite_timestamp(
     s: &str,
 ) -> Result<chrono::DateTime<chrono::FixedOffset>, ServerError> {
@@ -68,12 +69,16 @@ pub fn parse_sqlite_timestamp(
     if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(s) {
         return Ok(dt);
     }
+    // Try PostgreSQL TIMESTAMPTZ format with microseconds and timezone (e.g., "2026-04-23 00:20:11.123456+00")
+    if let Ok(dt) = chrono::DateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S%.f%#z") {
+        return Ok(dt);
+    }
     // Fallback: SQLite datetime('now') format (e.g., "2026-04-23 00:20:11")
     let dt = chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").map_err(|e| {
         tracing::error!(
             input = %s,
             error = %e,
-            "Failed to parse timestamp (tried RFC3339 and SQLite format)"
+            "Failed to parse timestamp (tried RFC3339, PostgreSQL TIMESTAMPTZ, and SQLite format)"
         );
         ServerError::Internal(format!("Invalid timestamp: '{}'", s))
     })?;

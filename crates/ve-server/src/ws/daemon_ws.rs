@@ -156,18 +156,16 @@ async fn update_host_status(
         DaemonStatus::Error => "error",
     };
 
-    let updated_at = chrono::Utc::now().to_rfc3339();
     sqlx::query(
         r#"
         UPDATE hosts
-        SET online_status = $1, daemon_status = $2, updated_at = $4
+        SET online_status = $1, daemon_status = $2, updated_at = CURRENT_TIMESTAMP
         WHERE host_id = $3
         "#,
     )
     .bind(online_str)
     .bind(daemon_str)
     .bind(&host_id_str)
-    .bind(&updated_at)
     .execute(&state.db)
     .await?;
 
@@ -192,17 +190,14 @@ async fn handle_daemon_message(
             tracing::debug!(%host_id, "Ignoring post-connect daemon_hello message");
         }
         "daemon_heartbeat" => {
-            // Update last_active_at
-            let now = chrono::Utc::now().to_rfc3339();
             sqlx::query(
                 r#"
                 UPDATE hosts
-                SET last_active_at = $2, updated_at = $2
+                SET last_active_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
                 WHERE host_id = $1
                 "#,
             )
             .bind(&host_id_str)
-            .bind(&now)
             .execute(&state.db)
             .await?;
         }
@@ -368,20 +363,18 @@ async fn handle_session_event(
             .and_then(|v| v.get("claude_session_id"))
             .and_then(|v| v.as_str())
         {
-            let updated_at = chrono::Utc::now().to_rfc3339();
             sqlx::query(
                 r#"
                 UPDATE sessions
                 SET claude_session_id = $2,
                     can_resume_cross_device = $3,
-                    updated_at = $4
-                WHERE session_id = $1 AND host_id = $5 AND status != 'archived'
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE session_id = $1 AND host_id = $4 AND status != 'archived'
                 "#,
             )
             .bind(session_id.to_string())
             .bind(claude_session_id)
             .bind(true)
-            .bind(&updated_at)
             .bind(host_id.to_string())
             .execute(&mut *tx)
             .await?;
@@ -488,12 +481,10 @@ async fn handle_permission_request(
         }
         SessionAvailability::Active => {}
     }
-    let created_at = chrono::Utc::now().to_rfc3339();
-
     sqlx::query(
         r#"
-        INSERT INTO permission_requests (permission_id, session_id, risk_type, summary, target, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        INSERT INTO permission_requests (permission_id, session_id, risk_type, summary, target)
+        VALUES ($1, $2, $3, $4, $5)
         "#,
     )
     .bind(&permission_id_str)
@@ -501,20 +492,17 @@ async fn handle_permission_request(
     .bind(risk_type_db)
     .bind(&summary)
     .bind(&target)
-    .bind(&created_at)
     .execute(&mut *tx)
     .await?;
 
-    let now = chrono::Utc::now().to_rfc3339();
     sqlx::query(
         r#"
         UPDATE sessions
-        SET pending_permission_count = pending_permission_count + 1, updated_at = $2
-        WHERE session_id = $1 AND host_id = $3 AND status != 'archived'
+        SET pending_permission_count = pending_permission_count + 1, updated_at = CURRENT_TIMESTAMP
+        WHERE session_id = $1 AND host_id = $2 AND status != 'archived'
         "#,
     )
     .bind(&session_id_str)
-    .bind(&now)
     .bind(host_id.to_string())
     .execute(&mut *tx)
     .await?;
@@ -610,18 +598,16 @@ async fn handle_session_status_update(
             )
             .await;
     } else {
-        let updated_at = chrono::Utc::now().to_rfc3339();
         sqlx::query(
             r#"
             UPDATE sessions
-            SET status = $1, latest_summary = COALESCE($2, latest_summary), updated_at = $4
-            WHERE session_id = $3 AND host_id = $5 AND status != 'archived'
+            SET status = $1, latest_summary = COALESCE($2, latest_summary), updated_at = CURRENT_TIMESTAMP
+            WHERE session_id = $3 AND host_id = $4 AND status != 'archived'
             "#,
         )
         .bind(status)
         .bind(&summary)
         .bind(&session_id_str_db)
-        .bind(&updated_at)
         .bind(host_id.to_string())
         .execute(&mut *tx)
         .await?;
@@ -797,14 +783,13 @@ mod tests {
             .unwrap();
 
         sqlx::query(
-            "INSERT INTO sessions (session_id, title, host_id, workspace_id, agent_type, status, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, 'running', $6, $6)",
+            "INSERT INTO sessions (session_id, title, host_id, workspace_id, agent_type, status) VALUES ($1, $2, $3, $4, $5, 'running')",
         )
         .bind(session_id.to_string())
         .bind("test")
         .bind(host_id.to_string())
         .bind(workspace_id.to_string())
         .bind("claude_code")
-        .bind(chrono::Utc::now().to_rfc3339())
         .execute(&state.db)
         .await
         .unwrap();
@@ -872,14 +857,13 @@ mod tests {
             .unwrap();
 
         sqlx::query(
-            "INSERT INTO sessions (session_id, title, host_id, workspace_id, agent_type, status, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, 'running', $6, $6)",
+            "INSERT INTO sessions (session_id, title, host_id, workspace_id, agent_type, status) VALUES ($1, $2, $3, $4, $5, 'running')",
         )
         .bind(session_id.to_string())
         .bind("test")
         .bind(host_id.to_string())
         .bind(workspace_id.to_string())
         .bind("claude_code")
-        .bind(chrono::Utc::now().to_rfc3339())
         .execute(&state.db)
         .await
         .unwrap();
@@ -942,14 +926,13 @@ mod tests {
             .unwrap();
 
         sqlx::query(
-            "INSERT INTO sessions (session_id, title, host_id, workspace_id, agent_type, status, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, 'running', $6, $6)",
+            "INSERT INTO sessions (session_id, title, host_id, workspace_id, agent_type, status) VALUES ($1, $2, $3, $4, $5, 'running')",
         )
         .bind(session_id.to_string())
         .bind("test")
         .bind(host_id.to_string())
         .bind(workspace_id.to_string())
         .bind("claude_code")
-        .bind(chrono::Utc::now().to_rfc3339())
         .execute(&state.db)
         .await
         .unwrap();
@@ -1157,14 +1140,13 @@ mod tests {
             .unwrap();
 
         sqlx::query(
-            "INSERT INTO sessions (session_id, title, host_id, workspace_id, agent_type, status, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, 'running', $6, $6)",
+            "INSERT INTO sessions (session_id, title, host_id, workspace_id, agent_type, status) VALUES ($1, $2, $3, $4, $5, 'running')",
         )
         .bind(session_id.to_string())
         .bind("test")
         .bind(other_host_id.to_string())
         .bind(workspace_id.to_string())
         .bind("claude_code")
-        .bind(chrono::Utc::now().to_rfc3339())
         .execute(&state.db)
         .await
         .unwrap();
@@ -1221,14 +1203,13 @@ mod tests {
             .unwrap();
 
         sqlx::query(
-            "INSERT INTO sessions (session_id, title, host_id, workspace_id, agent_type, status, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, 'running', $6, $6)",
+            "INSERT INTO sessions (session_id, title, host_id, workspace_id, agent_type, status) VALUES ($1, $2, $3, $4, $5, 'running')",
         )
         .bind(session_id.to_string())
         .bind("test")
         .bind(host_id.to_string())
         .bind(workspace_id.to_string())
         .bind("claude_code")
-        .bind(chrono::Utc::now().to_rfc3339())
         .execute(&state.db)
         .await
         .unwrap();
@@ -1560,14 +1541,13 @@ mod tests {
             .unwrap();
 
         sqlx::query(
-            "INSERT INTO sessions (session_id, title, host_id, workspace_id, agent_type, status, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, 'pending', $6, $6)",
+            "INSERT INTO sessions (session_id, title, host_id, workspace_id, agent_type, status) VALUES ($1, $2, $3, $4, $5, 'pending')",
         )
         .bind(session_id.to_string())
         .bind("test")
         .bind(host_id.to_string())
         .bind(workspace_id.to_string())
         .bind("claude_code")
-        .bind(chrono::Utc::now().to_rfc3339())
         .execute(&state.db)
         .await
         .unwrap();

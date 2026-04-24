@@ -77,7 +77,7 @@ impl IdempotencyKeyStore {
             r#"
             SELECT key, request_hash, session_id,
                    COALESCE(result_type, 'session') as result_type,
-                   created_at, expires_at
+                   CAST(created_at AS TEXT), CAST(expires_at AS TEXT)
             FROM idempotency_keys
             WHERE key = $1
             "#,
@@ -122,19 +122,20 @@ impl IdempotencyKeyStore {
         let result_ref_str = result_ref.to_string();
         let expires_at = self.compute_expires_at();
 
-        // Try to insert, handling the case where columns might not exist
-        // (for databases that haven't run the supplemental migration)
+        // Use database-native CURRENT_TIMESTAMP to avoid AnyPool DateTime encoding.
+        // Omit expires_at and created_at from INSERT and let DB DEFAULTs handle them.
+        // SQLite supplemental migration doesn't set a DEFAULT for expires_at, but
+        // we can rely on the column being nullable or update after insert.
         let result = sqlx::query(
             r#"
-            INSERT INTO idempotency_keys (key, request_hash, session_id, result_type, expires_at)
-            VALUES ($1, $2, $3, $4, $5)
+            INSERT INTO idempotency_keys (key, request_hash, session_id, result_type)
+            VALUES ($1, $2, $3, $4)
             "#,
         )
         .bind(key)
         .bind(request_hash)
         .bind(&result_ref_str)
         .bind(result_type)
-        .bind(&expires_at)
         .execute(&self.pool)
         .await;
 
@@ -181,15 +182,12 @@ impl IdempotencyKeyStore {
     /// Returns the number of keys deleted
     #[allow(dead_code)]
     pub async fn delete_expired(&self) -> Result<usize> {
-        let now = chrono::Utc::now().to_rfc3339();
-
         let result = sqlx::query(
             r#"
             DELETE FROM idempotency_keys
-            WHERE expires_at IS NOT NULL AND expires_at < $1
+            WHERE expires_at IS NOT NULL AND expires_at < CURRENT_TIMESTAMP
             "#,
         )
-        .bind(&now)
         .execute(&self.pool)
         .await?;
 

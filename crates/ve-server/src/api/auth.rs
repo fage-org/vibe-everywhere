@@ -20,6 +20,7 @@ use ve_shared::models::{
 use ve_shared::pairing_proof::PairingProof;
 
 use crate::authz::require_bootstrap_device_id;
+use crate::config::DatabaseBackend;
 use crate::error::{Result, ServerError};
 use crate::state::AppState;
 use crate::utils;
@@ -158,10 +159,6 @@ pub async fn daemon_hello(
     let host_id = Uuid::new_v4();
     let host_id_str = host_id.to_string();
 
-    // Calculate expiration time
-    let expires_at = chrono::Utc::now() + state.config.pair_code_ttl();
-    let expires_at_str = expires_at.to_rfc3339();
-
     // Generate QR payload
     let qr_payload = format!("vibe://pair/{}", pair_code);
 
@@ -169,20 +166,26 @@ pub async fn daemon_hello(
 
     let mut tx = state.db.begin().await?;
 
-    // Store pending pairing
-    sqlx::query(
+    // Build database-native timestamp expression to avoid AnyPool DateTime encoding issues.
+    // pair_code_ttl_secs is a config value (not user input), safe for SQL interpolation.
+    let ttl_secs = state.config.pair_code_ttl_secs;
+    let expires_at_expr = match state.config.database_backend() {
+        DatabaseBackend::Postgres => format!("CURRENT_TIMESTAMP + INTERVAL '{ttl_secs} seconds'"),
+        DatabaseBackend::Sqlite => format!("datetime('now', '+{ttl_secs} seconds')"),
+    };
+
+    sqlx::query(&format!(
         r#"
         INSERT INTO pairing_codes (pair_code, host_id, host_name, platform, qr_payload, pairing_secret, expires_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        VALUES ($1, $2, $3, $4, $5, $6, {expires_at_expr})
         "#,
-    )
+    ))
     .bind(&pair_code)
     .bind(&host_id_str)
     .bind(&host_name)
     .bind(&req.platform)
     .bind(&qr_payload)
     .bind(&pairing_secret)
-    .bind(&expires_at_str)
     .execute(&mut *tx)
     .await?;
 
@@ -227,7 +230,7 @@ pub async fn pairing_status(
         .ok_or(ServerError::Unauthorized)?;
     let row: (String, String, Option<String>, String, i64) = sqlx::query_as(
         r#"
-        SELECT hosts.pair_status, hosts.host_name, pairing_codes.pairing_secret, pairing_codes.expires_at,
+        SELECT hosts.pair_status, hosts.host_name, pairing_codes.pairing_secret, CAST(pairing_codes.expires_at AS TEXT),
                pairing_codes.used
         FROM pairing_codes
         JOIN hosts ON hosts.host_id = pairing_codes.host_id
@@ -311,7 +314,6 @@ pub async fn pair(
     }
 
     let now = chrono::Utc::now();
-    let now_str = now.to_rfc3339();
     let mut tx = state.db.begin().await?;
 
     let device_exists = sqlx::query_as::<_, (i64,)>(
@@ -350,7 +352,7 @@ pub async fn pair(
 
     let pairing: (String, String, String, i64, String) = sqlx::query_as(
         r#"
-        SELECT pair_code, host_id, host_name, used, expires_at
+        SELECT pair_code, host_id, host_name, used, CAST(expires_at AS TEXT)
         FROM pairing_codes
         WHERE pair_code = $1
         "#,
@@ -380,18 +382,17 @@ pub async fn pair(
         r#"
         UPDATE pairing_codes
         SET used = 1
-        WHERE pair_code = $1 AND used = 0 AND expires_at > $2
+        WHERE pair_code = $1 AND used = 0 AND expires_at > CURRENT_TIMESTAMP
         "#,
     )
     .bind(&pair_code)
-    .bind(&now_str)
     .execute(&mut *tx)
     .await?;
 
     if claim_result.rows_affected() == 0 {
         let latest: (i64, String) = sqlx::query_as(
             r#"
-            SELECT used, expires_at
+            SELECT used, CAST(expires_at AS TEXT)
             FROM pairing_codes
             WHERE pair_code = $1
             "#,
@@ -422,12 +423,11 @@ pub async fn pair(
     sqlx::query(
         r#"
         UPDATE hosts
-        SET pair_status = 'paired', pair_code = NULL, qr_payload = NULL, updated_at = $2
+        SET pair_status = 'paired', pair_code = NULL, qr_payload = NULL, updated_at = CURRENT_TIMESTAMP
         WHERE host_id = $1
         "#,
     )
     .bind(&host_id_str)
-    .bind(&now_str)
     .execute(&mut *tx)
     .await?;
 

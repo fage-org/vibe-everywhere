@@ -447,9 +447,6 @@ pub async fn create_session(
 
     let message_id = Uuid::new_v4();
     let message_id_str = message_id.to_string();
-    let expires_at = (chrono::Utc::now()
-        + chrono::Duration::seconds(state.config.idempotency_ttl_secs as i64))
-    .to_rfc3339();
 
     let tx_result: Result<()> = async {
         let mut tx = state.db.begin().await?;
@@ -470,20 +467,18 @@ pub async fn create_session(
             return Err(ServerError::Conflict("idempotency-existing".to_string()));
         }
 
-        let created_at = chrono::Utc::now().to_rfc3339();
         sqlx::query(
             r#"
             INSERT INTO sessions (
-                session_id, title, host_id, workspace_id, agent_type, created_at, updated_at
+                session_id, title, host_id, workspace_id, agent_type
             )
-            VALUES ($1, $2, $3, $4, 'claude_code', $5, $5)
+            VALUES ($1, $2, $3, $4, 'claude_code')
             "#,
         )
         .bind(&session_id_str)
         .bind(&req.title)
         .bind(&host_id_str)
         .bind(&workspace_id_str)
-        .bind(&created_at)
         .execute(&mut *tx)
         .await?;
 
@@ -501,15 +496,14 @@ pub async fn create_session(
 
         sqlx::query(
             r#"
-            INSERT INTO idempotency_keys (key, request_hash, session_id, result_type, expires_at)
-            VALUES ($1, $2, $3, $4, $5)
+            INSERT INTO idempotency_keys (key, request_hash, session_id, result_type)
+            VALUES ($1, $2, $3, $4)
             "#,
         )
         .bind(&idempotency_key)
         .bind(&request_hash)
         .bind(&session_id_str)
         .bind("session")
-        .bind(&expires_at)
         .execute(&mut *tx)
         .await
         .map_err(|error| {
@@ -787,15 +781,13 @@ async fn send_message_for_session(
     .execute(&state.db)
     .await?;
 
-    let now = chrono::Utc::now().to_rfc3339();
     sqlx::query(
         r#"
-        UPDATE sessions SET last_activity_at = $2, updated_at = $2
+        UPDATE sessions SET last_activity_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
         WHERE session_id = $1
         "#,
     )
     .bind(&session_id_str)
-    .bind(&now)
     .execute(&state.db)
     .await?;
 
@@ -855,7 +847,7 @@ async fn list_messages_for_session(
 
     let rows: Vec<(String, String, String, String, String)> = sqlx::query_as(
         r#"
-        SELECT message_id, session_id, message_type, content, created_at
+        SELECT message_id, session_id, message_type, content, CAST(created_at AS TEXT)
         FROM session_messages
         WHERE session_id = $1
         ORDER BY created_at ASC
@@ -946,17 +938,15 @@ fn sanitize_session_command_response_error() -> ServerError {
 }
 
 async fn mark_session_error(state: &AppState, session_id: &str, message: &str) -> Result<()> {
-    let failed_at = chrono::Utc::now().to_rfc3339();
     sqlx::query(
         r#"
         UPDATE sessions
-        SET status = 'error', latest_summary = $2, updated_at = $3
+        SET status = 'error', latest_summary = $2, updated_at = CURRENT_TIMESTAMP
         WHERE session_id = $1
         "#,
     )
     .bind(session_id)
     .bind(message)
-    .bind(&failed_at)
     .execute(&state.db)
     .await?;
 
@@ -988,19 +978,17 @@ async fn persist_control_success(
     session_id: Uuid,
     action: SessionControlAction,
 ) -> Result<()> {
-    let now = chrono::Utc::now().to_rfc3339();
     let session_id_str = session_id.to_string();
 
     match action {
         SessionControlAction::Pause => {
             sqlx::query(
                 r#"
-                UPDATE sessions SET status = 'paused', updated_at = $2
+                UPDATE sessions SET status = 'paused', updated_at = CURRENT_TIMESTAMP
                 WHERE session_id = $1
                 "#,
             )
             .bind(&session_id_str)
-            .bind(&now)
             .execute(&state.db)
             .await?;
         }
@@ -1008,12 +996,11 @@ async fn persist_control_success(
         SessionControlAction::Restart => {
             sqlx::query(
                 r#"
-                UPDATE sessions SET status = 'running', updated_at = $2
+                UPDATE sessions SET status = 'running', updated_at = CURRENT_TIMESTAMP
                 WHERE session_id = $1
                 "#,
             )
             .bind(&session_id_str)
-            .bind(&now)
             .execute(&state.db)
             .await?;
         }
@@ -1191,16 +1178,15 @@ async fn handle_archived_rerun(
 
     let new_session_id = Uuid::new_v4();
     let new_session_id_str = new_session_id.to_string();
-    let now = chrono::Utc::now().to_rfc3339();
     let mut tx = state.db.begin().await?;
 
     let insert_result = sqlx::query(
         r#"
         INSERT INTO sessions (
             session_id, title, host_id, workspace_id, agent_type, status, claude_session_id,
-            rerun_from_session_id, can_resume_cross_device, created_at, updated_at
+            rerun_from_session_id, can_resume_cross_device
         )
-        VALUES ($1, $2, $3, $4, $5, 'dispatching', $6, $7, 1, $8, $8)
+        VALUES ($1, $2, $3, $4, $5, 'dispatching', $6, $7, 1)
         "#,
     )
     .bind(&new_session_id_str)
@@ -1210,7 +1196,6 @@ async fn handle_archived_rerun(
     .bind(&agent_type)
     .bind(&archived_claude_session_id)
     .bind(&archived_session_id_str)
-    .bind(&now)
     .execute(&mut *tx)
     .await;
 
@@ -1317,16 +1302,14 @@ async fn handle_archived_rerun(
         }
     }
 
-    let dispatched_at = chrono::Utc::now().to_rfc3339();
     sqlx::query(
         r#"
         UPDATE sessions
-        SET status = 'pending', updated_at = $2
+        SET status = 'pending', updated_at = CURRENT_TIMESTAMP
         WHERE session_id = $1 AND status = 'dispatching'
         "#,
     )
     .bind(&new_session_id_str)
-    .bind(&dispatched_at)
     .execute(&state.db)
     .await?;
 
@@ -1526,20 +1509,16 @@ pub(crate) async fn archive_session_with_metadata(
 
     let archive_id = Uuid::new_v4();
     let archive_id_str = archive_id.to_string();
-    let closed_at = chrono::Utc::now().to_rfc3339();
-    let archive_created_at = chrono::Utc::now().to_rfc3339();
-    let updated_at = chrono::Utc::now().to_rfc3339();
     let mut tx = state.db.begin().await?;
 
     let update_result = sqlx::query(
         r#"
         UPDATE sessions
-        SET status = 'archived', latest_summary = COALESCE($3, latest_summary), updated_at = $2
+        SET status = 'archived', latest_summary = COALESCE($2, latest_summary), updated_at = CURRENT_TIMESTAMP
         WHERE session_id = $1 AND status != 'archived'
         "#,
     )
     .bind(&session_id_str)
-    .bind(&updated_at)
     .bind(&summary_override)
     .execute(&mut *tx)
     .await?;
@@ -1570,20 +1549,18 @@ pub(crate) async fn archive_session_with_metadata(
         r#"
         INSERT INTO session_archives (
             archive_id, session_id, title, closed_at, close_reason, host_id, workspace_id,
-            metadata_json, created_at
+            metadata_json
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        VALUES ($1, $2, $3, CURRENT_TIMESTAMP, $4, $5, $6, $7)
         "#,
     )
     .bind(&archive_id_str)
     .bind(&session_id_str)
     .bind(&session.1)
-    .bind(&closed_at)
     .bind(close_reason)
     .bind(&host_id_str)
     .bind(&workspace_id_str)
     .bind(&metadata_json)
-    .bind(&archive_created_at)
     .execute(&mut *tx)
     .await?;
 

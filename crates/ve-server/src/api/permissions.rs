@@ -157,7 +157,7 @@ pub async fn list_permissions(
         let session_id_str = session_id.to_string();
         sqlx::query_as::<_, (String, String, String, String, Option<String>, String, String, Option<String>)>(
             r#"
-            SELECT permission_id, session_id, risk_type, summary, target, status, created_at, responded_at
+            SELECT permission_id, session_id, risk_type, summary, target, status, CAST(created_at AS TEXT), CAST(responded_at AS TEXT)
             FROM permission_requests
             WHERE session_id = $1
             ORDER BY created_at DESC
@@ -171,7 +171,7 @@ pub async fn list_permissions(
             r#"
             SELECT permission_requests.permission_id, permission_requests.session_id, permission_requests.risk_type,
                    permission_requests.summary, permission_requests.target, permission_requests.status,
-                   permission_requests.created_at, permission_requests.responded_at
+                   CAST(permission_requests.created_at AS TEXT), CAST(permission_requests.responded_at AS TEXT)
             FROM permission_requests
             INNER JOIN device_session_access
                 ON device_session_access.session_id = permission_requests.session_id
@@ -235,7 +235,7 @@ pub async fn get_permission(
 
     let row = sqlx::query_as::<_, (String, String, String, String, Option<String>, String, String, Option<String>)>(
         r#"
-        SELECT permission_id, session_id, risk_type, summary, target, status, created_at, responded_at
+        SELECT permission_id, session_id, risk_type, summary, target, status, CAST(created_at AS TEXT), CAST(responded_at AS TEXT)
         FROM permission_requests
         WHERE permission_id = $1
         "#
@@ -271,7 +271,7 @@ async fn get_permission_by_id(state: Arc<AppState>, id: Uuid) -> Result<Json<Per
 
     let row = sqlx::query_as::<_, (String, String, String, String, Option<String>, String, String, Option<String>)>(
         r#"
-        SELECT permission_id, session_id, risk_type, summary, target, status, created_at, responded_at
+        SELECT permission_id, session_id, risk_type, summary, target, status, CAST(created_at AS TEXT), CAST(responded_at AS TEXT)
         FROM permission_requests
         WHERE permission_id = $1
         "#
@@ -318,7 +318,7 @@ pub async fn respond_permission(
     // Fetch existing permission
     let row = sqlx::query_as::<_, (String, String, String, String, Option<String>, String, String, Option<String>)>(
         r#"
-        SELECT permission_id, session_id, risk_type, summary, target, status, created_at, responded_at
+        SELECT permission_id, session_id, risk_type, summary, target, status, CAST(created_at AS TEXT), CAST(responded_at AS TEXT)
         FROM permission_requests
         WHERE permission_id = $1
         "#
@@ -355,7 +355,7 @@ async fn respond_permission_by_id(
     // Fetch existing permission
     let row = sqlx::query_as::<_, (String, String, String, String, Option<String>, String, String, Option<String>)>(
         r#"
-        SELECT permission_id, session_id, risk_type, summary, target, status, created_at, responded_at
+        SELECT permission_id, session_id, risk_type, summary, target, status, CAST(created_at AS TEXT), CAST(responded_at AS TEXT)
         FROM permission_requests
         WHERE permission_id = $1
         "#
@@ -405,7 +405,6 @@ async fn respond_permission_by_id(
         PermissionDecision::ApproveSession => "approved_session",
     };
 
-    let now = chrono::Utc::now().to_rfc3339();
     let mut tx = state.db.begin().await?;
 
     #[cfg(debug_assertions)]
@@ -414,13 +413,12 @@ async fn respond_permission_by_id(
     let permission_update = sqlx::query(
         r#"
         UPDATE permission_requests
-        SET status = $1, responded_at = $3
+        SET status = $1, responded_at = CURRENT_TIMESTAMP
         WHERE permission_id = $2 AND status = 'pending'
         "#,
     )
     .bind(new_status)
     .bind(&permission_id_str)
-    .bind(&now)
     .execute(&mut *tx)
     .await?;
 
@@ -437,12 +435,11 @@ async fn respond_permission_by_id(
                 WHEN pending_permission_count > 0 THEN pending_permission_count - 1
                 ELSE 0
             END,
-            updated_at = $2
+            updated_at = CURRENT_TIMESTAMP
         WHERE session_id = $1
         "#,
     )
     .bind(&session_id_str)
-    .bind(&now)
     .execute(&mut *tx)
     .await?;
 
@@ -487,10 +484,6 @@ async fn respond_permission_by_id(
             .map_err(|e| ServerError::Internal(format!("Invalid created_at: {}", e)))?
             .with_timezone(&chrono::Utc),
         status: utils::parse_permission_status(new_status),
-        responded_at: Some(
-            utils::parse_sqlite_timestamp(&now)
-                .map_err(|e| ServerError::Internal(format!("Invalid responded_at: {}", e)))?
-                .with_timezone(&chrono::Utc),
-        ),
+        responded_at: Some(chrono::Utc::now()),
     }))
 }

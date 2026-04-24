@@ -250,4 +250,96 @@
   - mock-client harness 已支持通过 `--database-url` 或 `VE_MOCK_CLIENT_DATABASE_URL` 指定 integration DB。
   - PostgreSQL 路径改为为每次 integration run 创建独立 schema；`F9` / `F12` 中 SQLite 专有 `INSERT OR IGNORE` 已移除。
   - 对应实现：`crates/ve-mock-client/src/server.rs`、`crates/ve-mock-client/src/main.rs`、`crates/ve-mock-client/src/integration_env.rs`、`crates/ve-mock-client/src/test_context.rs`、`crates/ve-mock-client/src/flows/f9_archive_browse_delete.rs`、`crates/ve-mock-client/src/flows/f12_background_tasks.rs`
-  - 说明：当前环境未提供 PostgreSQL DSN，因此本轮已完成字符串/配置级单测与 SQLite smoke；真实 PostgreSQL smoke 需在提供 DSN 后补跑。
+  - 说明：代码路径已打通，但是否真正兼容 PostgreSQL 需要真实数据库复测；见下方 `8.5`。
+
+### 8.5 真实 PostgreSQL 复测（2026-04-24，Docker 本地服务）
+
+#### 8.5.1 测试环境
+
+- 使用 Docker 启动本地 PostgreSQL 16：
+  - 容器名：`vibe-remote-pgtest`
+  - 监听地址：`127.0.0.1:55432`
+  - 数据库：`vibe_test`
+  - 连接串：`postgres://postgres:postgres@127.0.0.1:55432/vibe_test`
+- 真实测试入口：
+  - `VE_POSTGRES_TEST_DATABASE_URL` → `crates/ve-server/tests/permission_response_race_test.rs`
+  - `VE_MOCK_CLIENT_DATABASE_URL` / `--database-url` → `ve-mock-client` integration harness
+
+#### 8.5.2 实测结果
+
+- `ve-server` PostgreSQL 定向测试：**FAIL**
+  - `respond_permission_allows_only_one_winner_under_concurrency_on_postgres`
+  - `respond_permission_keeps_pending_count_stable_on_postgres`
+- `ve-mock-client` PostgreSQL integration flow：**FAIL**
+  - `f1,f2,f5,f9,f12`
+- `ve-mock-client` PostgreSQL 并发 smoke：**FAIL**
+  - `f2,f9 --concurrency 2`
+
+#### 8.5.3 当前真实 PostgreSQL 阻塞问题
+
+##### HIGH-PG-01: PostgreSQL migration runner 仍按 prepared statement 执行整份多语句 SQL
+
+- **位置**: `crates/ve-server/src/db/mod.rs`
+- **现象**:
+  - `run_postgres_migrations()` 用 `sqlx::query(include_str!(...)).execute(...)` 执行 `001_initial.sql`
+  - PostgreSQL 实测报错：`cannot insert multiple commands into a prepared statement`
+- **影响**:
+  - PG 初始化链路直接阻塞，所有基于真实 PG 的 integration/setup 都会失败
+- **建议方案**:
+  - PostgreSQL migration 全量改为 `sqlx::raw_sql(...)`
+  - 保持 SQLite migration runner 不变；该修复只影响 PostgreSQL 分支
+- **SQLite 影响评估**:
+  - **低**
+  - 仅命中 `run_postgres_migrations()`，不会改变 SQLite schema 或 SQLite 运行逻辑
+
+##### HIGH-PG-02: 服务端仍把时间字段作为字符串写入/比较，和 PostgreSQL `TIMESTAMPTZ` 不兼容
+
+- **位置**:
+  - `crates/ve-server/src/api/auth.rs`
+  - `crates/ve-server/src/tasks/permission_expiry.rs`
+  - `crates/ve-server/src/tasks/idempotency_cleanup.rs`
+  - `crates/ve-server/src/db/idempotency.rs`
+  - 以及若干测试 seed / fixture 写入点
+- **现象**:
+  - 代码大量使用 `chrono::Utc::now().to_rfc3339()` 后直接 `.bind(&string)`
+  - PostgreSQL 实测报错：
+    - `column "expires_at" is of type timestamp with time zone but expression is of type text`
+    - `column "created_at" is of type timestamp with time zone but expression is of type text`
+    - `operator does not exist: timestamp with time zone < text`
+- **影响**:
+  - `POST /api/auth/daemon-hello` 在真实 PG 下直接 500
+  - permission expiry / idempotency cleanup 后台任务在 PG 下持续报错
+  - PG 定向测试和 mock-client PG integration flow 都无法通过
+- **建议方案（推荐）**:
+  - 统一把 DB 边界的时间字段收口为 `chrono::DateTime<Utc>` 绑定，而不是 RFC3339 字符串
+  - 插入/更新/比较都直接 bind chrono 类型，让 SQLx 按后端做正确编码
+  - PostgreSQL 测试 seed 也同步改成 chrono 类型
+- **备选方案（不推荐）**:
+  - 分后端做显式 cast：PG 侧 `::timestamptz`，SQLite 继续文本
+  - 该方案短期能过，但会让时间语义长期分叉，维护成本更高
+- **SQLite 影响评估**:
+  - **中低**
+  - 不影响 SQLite schema，但会影响 SQLite 的时间读写代码路径
+  - 需要依赖现有全量回归（`cargo test --workspace` + mock-client flows）确认没有行为退化
+
+#### 8.5.4 推荐修复顺序
+
+1. 先修 `HIGH-PG-01`
+   - 把 PostgreSQL migration 执行从 `sqlx::query(...)` 改成 `sqlx::raw_sql(...)`
+2. 再修 `HIGH-PG-02`
+   - 优先收口真实阻塞点：
+     - `crates/ve-server/src/api/auth.rs`
+     - `crates/ve-server/src/tasks/permission_expiry.rs`
+     - `crates/ve-server/src/tasks/idempotency_cleanup.rs`
+     - `crates/ve-server/tests/permission_response_race_test.rs`
+3. 然后扫全仓库所有 `to_rfc3339()` + `.bind(...)` 的 DB 写入/比较点
+4. 最后重跑：
+   - `cargo test -p ve-server --features both ...postgres...`
+   - `cargo run -q -p ve-mock-client -- --database-url ... --flows f1,f2,f5,f9,f12 --output json`
+   - `cargo run -q -p ve-mock-client -- --database-url ... --flows f2,f9 --concurrency 2 --output json`
+
+#### 8.5.5 当前结论更新
+
+- “mock-client 已支持 PostgreSQL” 这件事在 **入口能力** 上已成立；
+- 但在 **真实 PostgreSQL 运行时语义** 上，仓库当前仍存在 `HIGH` 级未关闭问题；
+- 因此 PostgreSQL 路径当前不能判定为 fully ready，必须先完成上述两类修复后再关闭该项。

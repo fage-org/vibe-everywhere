@@ -22,6 +22,18 @@ pub fn start_permission_expiry_task(
     let check_interval = Duration::from_secs(config.permission_expiry_check_secs);
     let permission_ttl_secs = config.permission_ttl_secs;
 
+    // Pre-compute database-specific SQL expressions.
+    let (expiry_expr, now_expr) = match config.database_backend() {
+        crate::config::DatabaseBackend::Postgres => (
+            format!("NOW() - INTERVAL '{} seconds'", permission_ttl_secs),
+            "NOW()".to_string(),
+        ),
+        crate::config::DatabaseBackend::Sqlite => (
+            format!("datetime('now', '-{} seconds')", permission_ttl_secs),
+            "datetime('now')".to_string(),
+        ),
+    };
+
     tokio::spawn(async move {
         let mut ticker = interval(check_interval);
 
@@ -31,14 +43,14 @@ pub fn start_permission_expiry_task(
         );
 
         // Run immediately on startup, then on each tick
-        if let Err(e) = expire_stale_permissions(&db, permission_ttl_secs).await {
+        if let Err(e) = expire_stale_permissions(&db, &expiry_expr, &now_expr).await {
             error!(error = %e, "Failed to run initial permission expiry");
         }
 
         loop {
             ticker.tick().await;
 
-            match expire_stale_permissions(&db, permission_ttl_secs).await {
+            match expire_stale_permissions(&db, &expiry_expr, &now_expr).await {
                 Ok(affected) => {
                     if affected > 0 {
                         info!(
@@ -59,56 +71,46 @@ pub fn start_permission_expiry_task(
 ///
 /// This task only guarantees server-side state convergence for read paths.
 /// It does not emit live client or daemon notifications.
-pub async fn expire_stale_permissions(db: &DbPool, ttl_secs: u64) -> Result<usize, sqlx::Error> {
-    // Begin transaction
-    let mut tx = db.begin().await?;
+///
+/// `expiry_expr_sql` should be a SQL expression that evaluates to the threshold
+/// time (e.g., `NOW() - INTERVAL '1800 seconds'` for PostgreSQL or
+/// `datetime('now', '-1800 seconds')` for SQLite).
+/// `now_expr_sql` should be a SQL expression for the current time
+/// (e.g., `NOW()` for PostgreSQL or `datetime('now')` for SQLite).
+pub async fn expire_stale_permissions(
+    db: &DbPool,
+    expiry_expr_sql: &str,
+    now_expr_sql: &str,
+) -> Result<usize, sqlx::Error> {
+    let query = format!(
+        "UPDATE permission_requests SET status = 'expired' WHERE status = 'pending' AND created_at < {}",
+        expiry_expr_sql
+    );
 
-    // Calculate expiry threshold (permissions created before this time are expired)
-    // This approach is database-agnostic: compare ISO8601 timestamps directly
-    let expiry_threshold = chrono::Utc::now() - chrono::Duration::seconds(ttl_secs as i64);
-    let expiry_threshold_str = expiry_threshold.to_rfc3339();
-
-    // Find and expire stale permissions
-    // Database-agnostic: compare timestamps directly using ISO8601 format
-    let result = sqlx::query(
-        r#"
-        UPDATE permission_requests
-        SET status = 'expired'
-        WHERE status = 'pending'
-          AND created_at < $1
-        "#,
-    )
-    .bind(&expiry_threshold_str)
-    .execute(&mut *tx)
-    .await?;
-
+    let result = sqlx::raw_sql(&query).execute(db).await?;
     let rows_affected = result.rows_affected() as usize;
 
     if rows_affected > 0 {
-        // Update pending_permission_count for affected sessions
-        let now = chrono::Utc::now().to_rfc3339();
-        sqlx::query(
+        sqlx::raw_sql(&format!(
             r#"
             UPDATE sessions
             SET pending_permission_count = (
                 SELECT COUNT(*) FROM permission_requests pr
                 WHERE pr.session_id = sessions.session_id AND pr.status = 'pending'
             ),
-            updated_at = $1
+            updated_at = {}
             WHERE session_id IN (
                 SELECT DISTINCT session_id FROM permission_requests
                 WHERE status = 'expired'
             )
             "#,
-        )
-        .bind(&now)
-        .execute(&mut *tx)
+            now_expr_sql
+        ))
+        .execute(db)
         .await?;
 
         info!(rows_affected, "Updated sessions after expiring permissions");
     }
-
-    tx.commit().await?;
 
     Ok(rows_affected)
 }
@@ -170,8 +172,18 @@ mod tests {
         let session_id = Uuid::new_v4();
         let stale_permission_id = Uuid::new_v4();
         let fresh_permission_id = Uuid::new_v4();
-        let old_time = (chrono::Utc::now() - chrono::Duration::hours(2)).to_rfc3339();
-        let now = chrono::Utc::now().to_rfc3339();
+
+        // Use SQLite datetime expressions for test fixtures to ensure comparable formats.
+        let old_time: (String,) = sqlx::query_as("SELECT datetime('now', '-2 hours')")
+            .fetch_one(&db)
+            .await
+            .unwrap();
+        let now: (String,) = sqlx::query_as("SELECT datetime('now')")
+            .fetch_one(&db)
+            .await
+            .unwrap();
+        let old_time = old_time.0;
+        let now = now.0;
 
         sqlx::query("INSERT INTO hosts (host_id, host_name, platform, pair_status, created_at, updated_at) VALUES ($1, $2, $3, 'paired', $4, $4)")
             .bind(host_id.to_string())
@@ -221,7 +233,13 @@ mod tests {
             .await
             .unwrap();
 
-        let affected = expire_stale_permissions(&db, 1800).await.unwrap();
+        let affected = expire_stale_permissions(
+            &db,
+            "datetime('now', '-1800 seconds')",
+            "datetime('now')",
+        )
+        .await
+        .unwrap();
         assert_eq!(affected, 1);
 
         let stale_status: (String,) =

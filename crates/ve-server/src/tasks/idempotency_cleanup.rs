@@ -55,15 +55,15 @@ pub fn start_idempotency_cleanup_task(
 ///
 /// Returns the number of keys that were deleted.
 pub async fn cleanup_expired_keys(db: &DbPool) -> Result<usize, sqlx::Error> {
-    let now = chrono::Utc::now().to_rfc3339();
-
+    // Use CURRENT_TIMESTAMP directly to avoid AnyPool DateTime encoding issues.
+    // PostgreSQL TIMESTAMPTZ rejects string-bound timestamps; SQLite handles them.
+    // CURRENT_TIMESTAMP is standard SQL and works with both backends.
     let result = sqlx::query(
         r#"
         DELETE FROM idempotency_keys
-        WHERE expires_at IS NOT NULL AND expires_at < $1
+        WHERE expires_at IS NOT NULL AND expires_at < CURRENT_TIMESTAMP
         "#,
     )
-    .bind(&now)
     .execute(db)
     .await?;
 

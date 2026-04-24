@@ -452,7 +452,7 @@ async fn run_sqlite_migrations(pool: &DbPool) -> Result<()> {
 }
 
 async fn run_postgres_migration_002(pool: &DbPool) -> Result<()> {
-    sqlx::query(include_str!("migrations/postgres/002_device_access.sql"))
+    sqlx::raw_sql(include_str!("migrations/postgres/002_device_access.sql"))
         .execute(pool)
         .await
         .map_err(|e| {
@@ -478,7 +478,7 @@ async fn run_postgres_migration_002(pool: &DbPool) -> Result<()> {
 async fn run_postgres_migrations(pool: &DbPool) -> Result<()> {
     info!("Running PostgreSQL migrations");
 
-    sqlx::query(include_str!("migrations/postgres/001_initial.sql"))
+    sqlx::raw_sql(include_str!("migrations/postgres/001_initial.sql"))
         .execute(pool)
         .await
         .map_err(|e| {
@@ -487,41 +487,41 @@ async fn run_postgres_migrations(pool: &DbPool) -> Result<()> {
 
     run_postgres_migration_002(pool).await?;
 
-    sqlx::query(include_str!("migrations/postgres/003_windows_platform.sql"))
+    sqlx::raw_sql(include_str!("migrations/postgres/003_windows_platform.sql"))
         .execute(pool)
         .await
         .map_err(|e| {
             crate::error::ServerError::Internal(format!("PostgreSQL migration 003 failed: {}", e))
         })?;
 
-    sqlx::query(include_str!(
+    sqlx::raw_sql(include_str!(
         "migrations/postgres/004_session_archive_uniqueness.sql"
     ))
-    .execute(pool)
-    .await
-    .map_err(|e| {
-        crate::error::ServerError::Internal(format!("PostgreSQL migration 004 failed: {}", e))
-    })?;
+        .execute(pool)
+        .await
+        .map_err(|e| {
+            crate::error::ServerError::Internal(format!("PostgreSQL migration 004 failed: {}", e))
+        })?;
 
-    sqlx::query(include_str!(
+    sqlx::raw_sql(include_str!(
         "migrations/postgres/005_session_pending_status.sql"
     ))
-    .execute(pool)
-    .await
-    .map_err(|e| {
-        crate::error::ServerError::Internal(format!("PostgreSQL migration 005 failed: {}", e))
-    })?;
+        .execute(pool)
+        .await
+        .map_err(|e| {
+            crate::error::ServerError::Internal(format!("PostgreSQL migration 005 failed: {}", e))
+        })?;
 
-    sqlx::query(include_str!(
+    sqlx::raw_sql(include_str!(
         "migrations/postgres/006_session_rerun_idempotency.sql"
     ))
-    .execute(pool)
-    .await
-    .map_err(|e| {
-        crate::error::ServerError::Internal(format!("PostgreSQL migration 006 failed: {}", e))
-    })?;
+        .execute(pool)
+        .await
+        .map_err(|e| {
+            crate::error::ServerError::Internal(format!("PostgreSQL migration 006 failed: {}", e))
+        })?;
 
-    sqlx::query(include_str!("migrations/postgres/007_pairing_secret.sql"))
+    sqlx::raw_sql(include_str!("migrations/postgres/007_pairing_secret.sql"))
         .execute(pool)
         .await
         .map_err(|e| {

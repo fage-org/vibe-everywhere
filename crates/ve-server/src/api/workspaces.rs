@@ -495,18 +495,15 @@ async fn update_workspace_by_id(
     let display_name = req.display_name.unwrap_or(existing.3.clone());
     let is_favorited = req.is_favorited.unwrap_or(existing.4 != 0);
     let is_favorited_int = if is_favorited { 1 } else { 0 };
-    let updated_at = chrono::Utc::now().to_rfc3339();
-
     sqlx::query(
         r#"
         UPDATE workspaces
-        SET display_name = $1, is_favorited = $2, updated_at = $3
-        WHERE workspace_id = $4
+        SET display_name = $1, is_favorited = $2, updated_at = CURRENT_TIMESTAMP
+        WHERE workspace_id = $3
         "#,
     )
     .bind(&display_name)
     .bind(is_favorited_int)
-    .bind(&updated_at)
     .bind(&workspace_id_str)
     .execute(&state.db)
     .await?;

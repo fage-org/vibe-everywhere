@@ -162,7 +162,6 @@ async fn seed_fixture(state: &AppState) -> (Uuid, Uuid, Uuid, Uuid, Uuid) {
     let session_id = Uuid::new_v4();
     let permission_id = Uuid::new_v4();
     let sibling_permission_id = Uuid::new_v4();
-    let now = chrono::Utc::now().to_rfc3339();
 
     sqlx::query(
         r#"INSERT INTO client_devices (device_id, device_name, device_type, legacy_acl, server_url)
@@ -203,13 +202,12 @@ async fn seed_fixture(state: &AppState) -> (Uuid, Uuid, Uuid, Uuid, Uuid) {
     .unwrap();
 
     sqlx::query(
-        r#"INSERT INTO sessions (session_id, title, host_id, workspace_id, agent_type, status, pending_permission_count, created_at, updated_at)
-           VALUES ($1, 'test', $2, $3, 'claude_code', 'waiting_approval', 2, $4, $4)"#,
+        r#"INSERT INTO sessions (session_id, title, host_id, workspace_id, agent_type, status, pending_permission_count)
+           VALUES ($1, 'test', $2, $3, 'claude_code', 'waiting_approval', 2)"#,
     )
     .bind(session_id.to_string())
     .bind(host_id.to_string())
     .bind(workspace_id.to_string())
-    .bind(&now)
     .execute(&state.db)
     .await
     .unwrap();
@@ -226,12 +224,11 @@ async fn seed_fixture(state: &AppState) -> (Uuid, Uuid, Uuid, Uuid, Uuid) {
 
     for permission in [permission_id, sibling_permission_id] {
         sqlx::query(
-            r#"INSERT INTO permission_requests (permission_id, session_id, risk_type, summary, status, created_at)
-               VALUES ($1, $2, 'exec_cmd', 'approve command', 'pending', $3)"#,
+            r#"INSERT INTO permission_requests (permission_id, session_id, risk_type, summary, status)
+               VALUES ($1, $2, 'exec_cmd', 'approve command', 'pending')"#,
         )
         .bind(permission.to_string())
         .bind(session_id.to_string())
-        .bind(&now)
         .execute(&state.db)
         .await
         .unwrap();
