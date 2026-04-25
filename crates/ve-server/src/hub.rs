@@ -435,11 +435,11 @@ impl Hub {
 
         if timeout_at(deadline, sender.send(WsEnvelope::from(request)))
             .await
-            .map_err(|_| "Request timeout")?
+            .map_err(|_| format!("Request timeout after {}ms", timeout.as_millis()))?
             .is_err()
         {
             self.pending_requests.lock().await.remove(&request_id);
-            return Err("Response channel closed".into());
+            return Err("Response channel closed during send".into());
         }
 
         match timeout_at(deadline, rx).await {
@@ -451,7 +451,7 @@ impl Hub {
             }
             Err(_) => {
                 self.pending_requests.lock().await.remove(&request_id);
-                Err("Request timeout".into())
+                Err(format!("Request timeout after {}ms", timeout.as_millis()).into())
             }
         }
     }
