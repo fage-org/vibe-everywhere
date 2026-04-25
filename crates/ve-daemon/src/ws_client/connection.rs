@@ -141,6 +141,26 @@ impl WsClient {
         }
         info!(host_id = %self.host_id, "Sent daemon_hello");
 
+        // Send active session list for reconciliation after (re)connection
+        let active_sessions = if let Some(ref registry) = self.registry {
+            registry.list_active_session_ids().await
+        } else {
+            vec![]
+        };
+        let sync = DaemonToServer::SyncSessions {
+            host_id: self.host_id,
+            active_sessions: active_sessions.clone(),
+        };
+        let envelope = WsEnvelope::new("sync_sessions", &sync);
+        let json = serde_json::to_string(&envelope).map_err(DaemonError::WsMessageParse)?;
+        {
+            let mut s = sender.lock().await;
+            s.send(WsMessage::Text(json.into()))
+                .await
+                .map_err(|e| DaemonError::WsConnect(Box::new(e)))?;
+        }
+        info!(host_id = %self.host_id, count = active_sessions.len(), "Sent sync_sessions");
+
         let (heartbeat_tx, mut heartbeat_rx) = tokio::sync::mpsc::channel::<()>(1);
         let heartbeat_handle = tokio::spawn({
             let config = self.config.clone();

@@ -206,6 +206,69 @@ async fn update_host_status(
     Ok(())
 }
 
+/// Reconcile server-side session state with the daemon's active sessions.
+///
+/// After a daemon reconnection, the server may have stale "running" sessions
+/// that the daemon no longer tracks (e.g. server crash while daemon was
+/// disconnected).  This handler closes those orphaned sessions and logs any
+/// sessions the daemon still has that the server does not know about.
+async fn handle_sync_sessions(
+    state: &AppState,
+    host_id: Uuid,
+    payload: &serde_json::Value,
+) -> Result<(), ServerError> {
+    let daemon_ids: Vec<String> = payload
+        .get("active_sessions")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    if daemon_ids.is_empty() {
+        return Ok(());
+    }
+
+    // Find sessions server thinks are running for this host
+    let server_running: Vec<(String, String)> = sqlx::query_as(
+        r#"
+        SELECT session_id, status FROM sessions
+        WHERE host_id = $1 AND status IN ('running', 'dispatching', 'waiting_approval', 'paused')
+        "#,
+    )
+    .bind(host_id.to_string())
+    .fetch_all(&state.db)
+    .await?;
+
+    let daemon_set: std::collections::HashSet<&str> =
+        daemon_ids.iter().map(|s| s.as_str()).collect();
+
+    for (session_id, status) in server_running {
+        if !daemon_set.contains(session_id.as_str()) {
+            tracing::warn!(
+                %session_id, %status,
+                "Closing orphaned session that daemon no longer tracks after reconnection"
+            );
+            sqlx::query(
+                r#"
+                UPDATE sessions
+                SET status = 'error',
+                    close_reason = 'daemon_reconnect_orphan',
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE session_id = $1
+                "#,
+            )
+            .bind(&session_id)
+            .execute(&state.db)
+            .await?;
+        }
+    }
+
+    Ok(())
+}
+
 /// Handle incoming daemon message
 async fn handle_daemon_message(
     state: &AppState,
@@ -234,6 +297,9 @@ async fn handle_daemon_message(
             .bind(&host_id_str)
             .execute(&state.db)
             .await?;
+        }
+        "sync_sessions" => {
+            handle_sync_sessions(state, host_id, &envelope.payload).await?;
         }
         "permission_request" => {
             // Insert permission request and broadcast to clients

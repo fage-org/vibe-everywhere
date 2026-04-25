@@ -156,6 +156,11 @@ pub enum DaemonToServer {
         host_id: Uuid,
         active_sessions: Vec<Uuid>,
     },
+    /// Sent by daemon after reconnection to reconcile session state.
+    SyncSessions {
+        host_id: Uuid,
+        active_sessions: Vec<Uuid>,
+    },
     SessionEvent {
         session_id: Uuid,
         event_type: String,
