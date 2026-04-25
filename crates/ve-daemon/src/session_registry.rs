@@ -70,7 +70,7 @@ impl SessionRegistry {
             self.config.clone(),
             self.event_tx.clone(),
             Some(startup_tx),
-        );
+        )?;
 
         runners.insert(session_id, handle);
         drop(runners);
@@ -140,7 +140,7 @@ impl SessionRegistry {
             self.config.clone(),
             self.event_tx.clone(),
             Some(startup_tx),
-        );
+        )?;
 
         runners.insert(session_id, handle);
         drop(runners);

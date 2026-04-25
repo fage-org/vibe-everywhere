@@ -176,14 +176,12 @@ async fn seed_archived_session(
     .await
     .unwrap();
 
-    sqlx::query(
-        "INSERT INTO device_session_access (device_id, session_id) VALUES ($1, $2)",
-    )
-    .bind(device_id.to_string())
-    .bind(archived_session_id.to_string())
-    .execute(&state.db)
-    .await
-    .unwrap();
+    sqlx::query("INSERT INTO device_session_access (device_id, session_id) VALUES ($1, $2)")
+        .bind(device_id.to_string())
+        .bind(archived_session_id.to_string())
+        .execute(&state.db)
+        .await
+        .unwrap();
 }
 
 #[tokio::test]
@@ -205,14 +203,20 @@ async fn postgres_archived_rerun_handles_concurrent_requests_without_duplicate_l
     seed_registered_device(&state, device_id).await;
     seed_host_with_access(&state, device_id, host_id).await;
     seed_workspace(&state, host_id, workspace_id).await;
-    seed_archived_session(&state, device_id, host_id, workspace_id, archived_session_id).await;
+    seed_archived_session(
+        &state,
+        device_id,
+        host_id,
+        workspace_id,
+        archived_session_id,
+    )
+    .await;
 
     let (daemon_tx, mut daemon_rx) = mpsc::channel(8);
     state.hub.register_daemon(host_id, daemon_tx).await;
 
-    let _race_hook = sessions::test_support::install_archived_rerun_race_hook(
-        archived_session_id.to_string(),
-    );
+    let _race_hook =
+        sessions::test_support::install_archived_rerun_race_hook(archived_session_id.to_string());
 
     let spawn_request = || {
         let state = state.clone();

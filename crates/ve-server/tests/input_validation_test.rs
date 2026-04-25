@@ -5,9 +5,8 @@
 use ve_server::validation::{
     validate_content, validate_device_name, validate_host_name, validate_idempotency_key,
     validate_title, validate_workspace_display_name, validate_workspace_path, ValidationError,
-    MAX_CONTENT_LENGTH, MAX_DEVICE_NAME_LENGTH, MAX_HOST_NAME_LENGTH,
-    MAX_IDEMPOTENCY_KEY_LENGTH, MAX_TITLE_LENGTH, MAX_WORKSPACE_DISPLAY_NAME_LENGTH,
-    MAX_WORKSPACE_PATH_LENGTH,
+    MAX_CONTENT_LENGTH, MAX_DEVICE_NAME_LENGTH, MAX_HOST_NAME_LENGTH, MAX_IDEMPOTENCY_KEY_LENGTH,
+    MAX_TITLE_LENGTH, MAX_WORKSPACE_DISPLAY_NAME_LENGTH, MAX_WORKSPACE_PATH_LENGTH,
 };
 
 #[test]

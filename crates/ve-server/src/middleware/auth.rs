@@ -27,19 +27,7 @@ const PUBLIC_ROUTES: &[&str] = &[
 
 /// Check if a path matches a public route pattern
 fn is_public_route(uri: &Uri) -> bool {
-    let path = uri.path();
-
-    // Exact matches
-    if PUBLIC_ROUTES.contains(&path) {
-        return true;
-    }
-
-    // WebSocket routes (start with /ws/)
-    if path.starts_with("/ws/") {
-        return true;
-    }
-
-    false
+    PUBLIC_ROUTES.contains(&uri.path())
 }
 
 fn route_allows_token_type(uri: &Uri, token_type: &TokenType) -> bool {

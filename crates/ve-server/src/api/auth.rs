@@ -26,6 +26,7 @@ use crate::state::AppState;
 use crate::token_revocation;
 use crate::utils;
 use crate::validation::{validate_device_name, validate_host_name, validate_pair_code};
+use subtle::ConstantTimeEq;
 
 /// POST /api/auth/register-device
 ///
@@ -242,7 +243,8 @@ pub async fn pairing_status(
     .await?
     .ok_or(ServerError::PairCodeExpired)?;
 
-    if row.2.as_deref() != Some(pairing_secret) {
+    let stored_secret = row.2.as_deref().unwrap_or("");
+    if !bool::from(stored_secret.as_bytes().ct_eq(pairing_secret.as_bytes())) {
         return Err(ServerError::Unauthorized);
     }
 

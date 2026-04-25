@@ -120,7 +120,7 @@ pub fn validate_workspace_path(path: &str) -> Result<(), ValidationError> {
             field: "workspace_path",
         });
     }
-    if path.len() > MAX_WORKSPACE_PATH_LENGTH {
+    if trimmed.len() > MAX_WORKSPACE_PATH_LENGTH {
         return Err(ValidationError::TooLong {
             field: "workspace_path",
             max: MAX_WORKSPACE_PATH_LENGTH,
@@ -137,7 +137,7 @@ pub fn validate_workspace_display_name(display_name: &str) -> Result<(), Validat
             field: "workspace_display_name",
         });
     }
-    if display_name.len() > MAX_WORKSPACE_DISPLAY_NAME_LENGTH {
+    if trimmed.len() > MAX_WORKSPACE_DISPLAY_NAME_LENGTH {
         return Err(ValidationError::TooLong {
             field: "workspace_display_name",
             max: MAX_WORKSPACE_DISPLAY_NAME_LENGTH,
@@ -154,7 +154,7 @@ pub fn validate_idempotency_key(key: &str) -> Result<(), ValidationError> {
             field: "idempotency_key",
         });
     }
-    if key.len() > MAX_IDEMPOTENCY_KEY_LENGTH {
+    if trimmed.len() > MAX_IDEMPOTENCY_KEY_LENGTH {
         return Err(ValidationError::TooLong {
             field: "idempotency_key",
             max: MAX_IDEMPOTENCY_KEY_LENGTH,

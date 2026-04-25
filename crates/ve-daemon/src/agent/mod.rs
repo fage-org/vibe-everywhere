@@ -3,11 +3,13 @@
 //! 定义与 CLI agent 交互的统一接口。
 
 mod claude_code;
+#[cfg(test)]
+mod claude_code_tests;
 
 use async_trait::async_trait;
 use std::sync::Arc;
 
-pub use claude_code::ClaudeCodeDriver;
+pub use claude_code::{ClaudeCodeDriver, StreamJsonEvent};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use ve_shared::models::PermissionDecision;
