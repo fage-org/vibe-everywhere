@@ -6,14 +6,12 @@ use uuid::Uuid;
 
 use super::{BatchDeleteRequest, BatchDeleteResponse, Result};
 use crate::authz::require_client_device_id;
-use crate::error::ServerError;
 use crate::state::AppState;
-use crate::utils::parse_uuid;
 use crate::validation::validate_batch_size;
 
 /// POST /api/archives/batch-delete
 ///
-/// Delete multiple archives.
+/// Delete multiple archives in a single transaction.
 pub async fn batch_delete_archives_route(
     access: crate::authz::ArchiveCollectionAccess,
     State(state): State<Arc<AppState>>,
@@ -38,78 +36,83 @@ async fn batch_delete_archives_for_device(
 ) -> Result<Json<BatchDeleteResponse>> {
     validate_batch_size(req.archive_ids.len(), "archive_ids")?;
 
+    let device_id_str = device_id.to_string();
+
+    // Single transaction for all operations: lookup, authorize, delete.
+    // Eliminates N+1 transactions and TOCTOU race between auth check and deletion.
+    let mut tx = state.db.begin().await?;
+
     let mut deleted_count = 0;
     let mut failed_ids = Vec::new();
+    let mut deleted_session_ids: Vec<String> = Vec::new();
 
-    for archive_id in req.archive_ids {
+    for archive_id in &req.archive_ids {
         let archive_id_str = archive_id.to_string();
-        let session_id = sqlx::query_as::<_, (String,)>(
-            r#"
-            SELECT session_id FROM session_archives WHERE archive_id = $1
-            "#,
+
+        // Look up the session for this archive
+        let session: Option<(String,)> = sqlx::query_as(
+            r#"SELECT session_id FROM session_archives WHERE archive_id = $1"#,
         )
         .bind(&archive_id_str)
-        .fetch_optional(&state.db)
-        .await?;
+        .fetch_optional(&mut *tx)
+        .await
+        .ok()
+        .flatten();
 
-        let Some((session_id_raw,)) = session_id else {
-            failed_ids.push(archive_id);
+        let Some((session_id,)) = session else {
+            tracing::warn!(%archive_id, %device_id, "Archive delete skipped: not found");
+            failed_ids.push(*archive_id);
             continue;
         };
 
-        let session_id = parse_uuid(&session_id_raw, "session_id")?;
-        if crate::authz::require_session_access(&state, device_id, session_id)
-            .await
-            .is_err()
-        {
-            tracing::warn!(%archive_id, %device_id, %session_id, "Archive delete skipped: no session access");
-            failed_ids.push(archive_id);
+        // Authorize: check device has session access (within same transaction)
+        let has_access: Option<(i64,)> = sqlx::query_as(
+            r#"SELECT COUNT(*) FROM device_session_access WHERE device_id = $1 AND session_id = $2"#,
+        )
+        .bind(&device_id_str)
+        .bind(&session_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .ok()
+        .flatten();
+
+        if has_access.is_none_or(|(c,)| c <= 0) {
+            tracing::warn!(%archive_id, %device_id, session_id = %session_id, "Archive delete skipped: no session access");
+            failed_ids.push(*archive_id);
             continue;
         }
 
-        let result = async {
-            let mut tx = state.db.begin().await?;
-
-            let delete_archive = sqlx::query(
-                r#"
-                DELETE FROM session_archives WHERE archive_id = $1
-                "#,
-            )
-            .bind(&archive_id_str)
-            .execute(&mut *tx)
-            .await?;
-
-            if delete_archive.rows_affected() == 0 {
-                tx.rollback().await?;
-                return Ok(false);
-            }
-
-            // Only remove this device's access; do not delete the session itself
-            // (other devices may still have active access).
-            sqlx::query(
-                r#"
-                DELETE FROM device_session_access WHERE session_id = $1 AND device_id = $2
-                "#,
-            )
-            .bind(&session_id_raw)
-            .bind(device_id.to_string())
-            .execute(&mut *tx)
-            .await?;
-
-            tx.commit().await?;
-            Ok::<bool, ServerError>(true)
-        }
+        // Delete the archive
+        let result = sqlx::query(
+            r#"DELETE FROM session_archives WHERE archive_id = $1"#,
+        )
+        .bind(&archive_id_str)
+        .execute(&mut *tx)
         .await;
 
         match result {
-            Ok(true) => {
+            Ok(r) if r.rows_affected() > 0 => {
                 deleted_count += 1;
+                deleted_session_ids.push(session_id);
             }
             _ => {
-                failed_ids.push(archive_id);
+                failed_ids.push(*archive_id);
             }
         }
     }
+
+    // Remove this device's access rows for successfully deleted sessions
+    for session_id in &deleted_session_ids {
+        let _ = sqlx::query(
+            r#"DELETE FROM device_session_access WHERE device_id = $1 AND session_id = $2"#,
+        )
+        .bind(&device_id_str)
+        .bind(session_id)
+        .execute(&mut *tx)
+        .await;
+    }
+
+    tx.commit().await?;
 
     tracing::info!(count = deleted_count, "Archives deleted");
 
