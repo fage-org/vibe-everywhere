@@ -71,6 +71,10 @@ pub struct Config {
     #[serde(default = "default_model")]
     pub default_model: String,
 
+    /// Claude Code permission mode
+    #[serde(default = "default_permission_mode")]
+    pub permission_mode: String,
+
     /// Log format (json/pretty)
     #[serde(default = "default_log_format")]
     pub log_format: String,
@@ -134,6 +138,10 @@ fn default_model() -> String {
     "claude-sonnet-4-20250514".to_string()
 }
 
+fn default_permission_mode() -> String {
+    "default".to_string()
+}
+
 fn default_log_format() -> String {
     "pretty".to_string()
 }
@@ -187,6 +195,8 @@ impl Config {
             .set_default("claude_command", default_claude_command())
             .map_err(|e| DaemonError::ConfigInvalid(e.to_string()))?
             .set_default("default_model", default_model())
+            .map_err(|e| DaemonError::ConfigInvalid(e.to_string()))?
+            .set_default("permission_mode", default_permission_mode())
             .map_err(|e| DaemonError::ConfigInvalid(e.to_string()))?
             .set_default("log_format", default_log_format())
             .map_err(|e| DaemonError::ConfigInvalid(e.to_string()))?
@@ -246,6 +256,15 @@ impl Config {
             return Err(DaemonError::ConfigInvalid(
                 "platform is required".to_string(),
             ));
+        }
+
+        match self.permission_mode.as_str() {
+            "acceptEdits" | "auto" | "bypassPermissions" | "default" | "dontAsk" | "plan" => {}
+            other => {
+                return Err(DaemonError::ConfigInvalid(format!(
+                    "permission_mode must be one of acceptEdits, auto, bypassPermissions, default, dontAsk, plan, got {other}"
+                )));
+            }
         }
 
         // URL format validation (basic check)
@@ -353,6 +372,7 @@ mod tests {
         assert_eq!(default_file_tree_max_nodes(), 20_000);
         assert_eq!(default_claude_command(), "claude");
         assert_eq!(default_model(), "claude-sonnet-4-20250514");
+        assert_eq!(default_permission_mode(), "default");
         assert_eq!(default_log_format(), "pretty");
         assert_eq!(default_log_level(), "info");
     }
@@ -377,6 +397,7 @@ mod tests {
             file_tree_max_nodes: 20_000,
             claude_command: "claude".to_string(),
             default_model: "claude-sonnet-4-20250514".to_string(),
+            permission_mode: "default".to_string(),
             mock_mode: false,
         };
 
@@ -409,6 +430,7 @@ mod tests {
             file_tree_max_nodes: 20_000,
             claude_command: "claude".to_string(),
             default_model: "claude-sonnet-4-20250514".to_string(),
+            permission_mode: "default".to_string(),
             mock_mode: false,
         };
 
@@ -451,6 +473,7 @@ mod tests {
             file_tree_max_nodes: 20_000,
             claude_command: "claude".to_string(),
             default_model: "claude-sonnet-4-20250514".to_string(),
+            permission_mode: "default".to_string(),
             mock_mode: false,
         };
 
@@ -482,6 +505,7 @@ mod tests {
             file_tree_max_nodes: 20_000,
             claude_command: "claude".to_string(),
             default_model: "claude-sonnet-4-20250514".to_string(),
+            permission_mode: "default".to_string(),
             mock_mode: false,
         };
 
@@ -510,9 +534,39 @@ mod tests {
             file_tree_max_nodes: 20_000,
             claude_command: "claude".to_string(),
             default_model: "claude-sonnet-4-20250514".to_string(),
+            permission_mode: "default".to_string(),
             mock_mode: false,
         };
 
         assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_validate_invalid_permission_mode() {
+        let config = Config {
+            server_url: "https://valid.example.com".to_string(),
+            host_name: "test".to_string(),
+            platform: "linux".to_string(),
+            config_dir: PathBuf::from("/tmp"),
+            log_format: "pretty".to_string(),
+            log_level: "info".to_string(),
+            heartbeat_interval_secs: 30,
+            heartbeat_timeout_secs: 90,
+            ack_timeout_secs: 30,
+            permission_timeout_secs: 60,
+            reconnect_backoff_min_ms: 1000,
+            reconnect_backoff_max_ms: 30000,
+            max_parallel_sessions: 4,
+            file_read_text_limit_bytes: 262_144,
+            file_tree_max_nodes: 20_000,
+            claude_command: "claude".to_string(),
+            default_model: "claude-sonnet-4-20250514".to_string(),
+            permission_mode: "not-a-mode".to_string(),
+            mock_mode: false,
+        };
+
+        let result = config.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("permission_mode"));
     }
 }

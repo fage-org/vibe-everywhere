@@ -10,6 +10,9 @@ pub const MAX_HOST_NAME_LENGTH: usize = 255;
 pub const PAIR_CODE_LENGTH: usize = 6;
 pub const MAX_TITLE_LENGTH: usize = 500;
 pub const MAX_CONTENT_LENGTH: usize = 100000; // 100KB
+pub const MAX_WORKSPACE_PATH_LENGTH: usize = 1024;
+pub const MAX_WORKSPACE_DISPLAY_NAME_LENGTH: usize = 255;
+pub const MAX_IDEMPOTENCY_KEY_LENGTH: usize = 128;
 
 /// Maximum number of items in a batch operation
 pub const MAX_BATCH_DELETE_SIZE: usize = 100;
@@ -104,6 +107,57 @@ pub fn validate_content(content: &str) -> Result<(), ValidationError> {
         return Err(ValidationError::TooLong {
             field: "content",
             max: MAX_CONTENT_LENGTH,
+        });
+    }
+    Ok(())
+}
+
+/// Validate workspace path
+pub fn validate_workspace_path(path: &str) -> Result<(), ValidationError> {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return Err(ValidationError::Empty {
+            field: "workspace_path",
+        });
+    }
+    if path.len() > MAX_WORKSPACE_PATH_LENGTH {
+        return Err(ValidationError::TooLong {
+            field: "workspace_path",
+            max: MAX_WORKSPACE_PATH_LENGTH,
+        });
+    }
+    Ok(())
+}
+
+/// Validate workspace display name
+pub fn validate_workspace_display_name(display_name: &str) -> Result<(), ValidationError> {
+    let trimmed = display_name.trim();
+    if trimmed.is_empty() {
+        return Err(ValidationError::Empty {
+            field: "workspace_display_name",
+        });
+    }
+    if display_name.len() > MAX_WORKSPACE_DISPLAY_NAME_LENGTH {
+        return Err(ValidationError::TooLong {
+            field: "workspace_display_name",
+            max: MAX_WORKSPACE_DISPLAY_NAME_LENGTH,
+        });
+    }
+    Ok(())
+}
+
+/// Validate idempotency key
+pub fn validate_idempotency_key(key: &str) -> Result<(), ValidationError> {
+    let trimmed = key.trim();
+    if trimmed.is_empty() {
+        return Err(ValidationError::Empty {
+            field: "idempotency_key",
+        });
+    }
+    if key.len() > MAX_IDEMPOTENCY_KEY_LENGTH {
+        return Err(ValidationError::TooLong {
+            field: "idempotency_key",
+            max: MAX_IDEMPOTENCY_KEY_LENGTH,
         });
     }
     Ok(())

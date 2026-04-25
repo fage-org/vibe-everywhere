@@ -27,6 +27,7 @@ use crate::hub::DaemonResponse;
 use crate::state::AppState;
 use crate::utils;
 use crate::utils::{generate_request_id, parse_uuid};
+use crate::validation::{validate_workspace_display_name, validate_workspace_path};
 
 /// Database record for workspace
 struct WorkspaceRecord {
@@ -219,6 +220,7 @@ pub async fn create_workspace(
     State(state): State<Arc<AppState>>,
     Json(req): Json<CreateWorkspaceRequest>,
 ) -> Result<Json<Workspace>> {
+    validate_workspace_path(&req.path)?;
     authorize_workspace_create(&state, client.device_id, &req).await?;
 
     if !state.hub.is_daemon_connected(&req.host_id).await {
@@ -280,6 +282,7 @@ pub async fn create_workspace(
             .unwrap_or("Workspace")
             .to_string()
     });
+    validate_workspace_display_name(&display_name)?;
 
     sqlx::query(
         r#"
@@ -471,6 +474,7 @@ async fn update_workspace_with_existing(
 ) -> Result<Json<Workspace>> {
     let workspace_id_str = id.to_string();
     let display_name = req.display_name.unwrap_or(existing.3.clone());
+    validate_workspace_display_name(&display_name)?;
     let is_favorited = req.is_favorited.unwrap_or(existing.4 != 0);
     sqlx::query(
         r#"
@@ -560,6 +564,7 @@ mod tests {
         config::Config,
         db,
         hub::{Hub, WsSender},
+        validation::{ValidationError, MAX_WORKSPACE_DISPLAY_NAME_LENGTH},
     };
 
     fn test_config(database_url: String) -> Config {
@@ -765,6 +770,150 @@ mod tests {
                 .await
                 .unwrap();
         assert_eq!(row_count.0, 0);
+    }
+
+    #[tokio::test]
+    async fn create_workspace_rejects_too_long_path_before_daemon_dispatch() {
+        let state = setup_state().await;
+        let (device_id, host_id) = seed_device_and_host(&state).await;
+        let mut daemon_rx = register_fake_daemon(&state, host_id).await;
+        let path = format!("/{}", "a".repeat(crate::validation::MAX_WORKSPACE_PATH_LENGTH));
+
+        let error = create_workspace(
+            ClientAccess { device_id },
+            State(state.clone()),
+            Json(CreateWorkspaceRequest {
+                host_id,
+                path: path.clone(),
+                display_name: Some("ws".to_string()),
+            }),
+        )
+        .await
+        .unwrap_err();
+
+        assert!(matches!(
+            error,
+            ServerError::Validation(ValidationError::TooLong {
+                field: "workspace_path",
+                max: crate::validation::MAX_WORKSPACE_PATH_LENGTH,
+            })
+        ));
+        assert!(daemon_rx.try_recv().is_err());
+
+        let row_count: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM workspaces WHERE host_id = $1 AND path = $2")
+                .bind(host_id.to_string())
+                .bind(&path)
+                .fetch_one(&state.db)
+                .await
+                .unwrap();
+        assert_eq!(row_count.0, 0);
+    }
+
+    #[tokio::test]
+    async fn update_workspace_rejects_blank_display_name() {
+        let state = setup_state().await;
+        let (device_id, host_id) = seed_device_and_host(&state).await;
+        let workspace_id = Uuid::new_v4();
+
+        sqlx::query(
+            r#"INSERT INTO workspaces (workspace_id, host_id, path, display_name)
+               VALUES ($1, $2, $3, $4)"#,
+        )
+        .bind(workspace_id.to_string())
+        .bind(host_id.to_string())
+        .bind("/tmp/workspace")
+        .bind("original-name")
+        .execute(&state.db)
+        .await
+        .unwrap();
+
+        let error = update_workspace_route(
+            WorkspaceAccess {
+                device_id,
+                workspace_id,
+                host_id,
+                path: "/tmp/workspace".to_string(),
+                display_name: "original-name".to_string(),
+                is_favorited: false,
+                last_used_at: None,
+                exists_on_host: true,
+                created_at: chrono::Utc::now().to_rfc3339(),
+                updated_at: chrono::Utc::now().to_rfc3339(),
+            },
+            State(state.clone()),
+            Json(UpdateWorkspaceRequest {
+                display_name: Some("   ".to_string()),
+                is_favorited: None,
+            }),
+        )
+        .await
+        .unwrap_err();
+
+        assert!(matches!(
+            error,
+            ServerError::Validation(ValidationError::Empty {
+                field: "workspace_display_name",
+            })
+        ));
+
+        let display_name: (String,) =
+            sqlx::query_as("SELECT display_name FROM workspaces WHERE workspace_id = $1")
+                .bind(workspace_id.to_string())
+                .fetch_one(&state.db)
+                .await
+                .unwrap();
+        assert_eq!(display_name.0, "original-name");
+    }
+
+    #[tokio::test]
+    async fn update_workspace_rejects_too_long_display_name() {
+        let state = setup_state().await;
+        let (device_id, host_id) = seed_device_and_host(&state).await;
+        let workspace_id = Uuid::new_v4();
+
+        sqlx::query(
+            r#"INSERT INTO workspaces (workspace_id, host_id, path, display_name)
+               VALUES ($1, $2, $3, $4)"#,
+        )
+        .bind(workspace_id.to_string())
+        .bind(host_id.to_string())
+        .bind("/tmp/workspace")
+        .bind("original-name")
+        .execute(&state.db)
+        .await
+        .unwrap();
+
+        let too_long = "a".repeat(MAX_WORKSPACE_DISPLAY_NAME_LENGTH + 1);
+        let error = update_workspace_route(
+            WorkspaceAccess {
+                device_id,
+                workspace_id,
+                host_id,
+                path: "/tmp/workspace".to_string(),
+                display_name: "original-name".to_string(),
+                is_favorited: false,
+                last_used_at: None,
+                exists_on_host: true,
+                created_at: chrono::Utc::now().to_rfc3339(),
+                updated_at: chrono::Utc::now().to_rfc3339(),
+            },
+            State(state.clone()),
+            Json(UpdateWorkspaceRequest {
+                display_name: Some(too_long),
+                is_favorited: None,
+            }),
+        )
+        .await
+        .unwrap_err();
+
+        assert!(matches!(
+            error,
+            ServerError::Validation(ValidationError::TooLong {
+                field: "workspace_display_name",
+                max: MAX_WORKSPACE_DISPLAY_NAME_LENGTH,
+            })
+        ));
     }
 
     #[test]

@@ -51,6 +51,7 @@ pub enum RunnerCommand {
         risk_type: String,
         target: Option<String>,
         summary: String,
+        bridge_response: Option<oneshot::Sender<BridgePermissionResult>>,
     },
     /// 响应权限请求
     PermissionResponse {
@@ -123,6 +124,13 @@ pub struct SessionRunner {
 pub struct ApprovalRule {
     pub risk_type: String,
     pub target_pattern: String,
+}
+
+/// Result returned to the external permission-prompt MCP bridge.
+#[derive(Debug)]
+pub enum BridgePermissionResult {
+    Decision(PermissionDecision),
+    Timeout,
 }
 
 /// Check if a target matches a pattern with wildcard support
@@ -333,6 +341,7 @@ impl SessionRunner {
                 risk_type,
                 target,
                 summary,
+                bridge_response,
             } => {
                 // Check approval cache first
                 if self.check_approval_cache(&risk_type, target.as_deref()) {
@@ -343,14 +352,21 @@ impl SessionRunner {
                         target = ?target,
                         "Permission auto-approved by cache"
                     );
-                    // Auto-approve via driver
-                    self.driver
-                        .respond_permission(
-                            self.session_id,
-                            permission_id,
-                            PermissionDecision::ApproveSession,
-                        )
-                        .await?;
+                    if let Some(response_tx) = bridge_response {
+                        let _ = response_tx
+                            .send(BridgePermissionResult::Decision(
+                                PermissionDecision::ApproveSession,
+                            ));
+                    } else {
+                        // Auto-approve via driver
+                        self.driver
+                            .respond_permission(
+                                self.session_id,
+                                permission_id,
+                                PermissionDecision::ApproveSession,
+                            )
+                            .await?;
+                    }
                 } else {
                     // Cache miss - store pending permission and set timeout
                     self.pending_permissions.insert(
@@ -359,6 +375,7 @@ impl SessionRunner {
                             risk_type: risk_type.clone(),
                             target: target.clone(),
                             summary,
+                            bridge_response,
                         },
                     );
                     // Set timeout
@@ -389,10 +406,14 @@ impl SessionRunner {
                     // Remove timeout entry
                     self.permission_timeouts.remove(&permission_id);
 
-                    // Forward response to driver
-                    self.driver
-                        .respond_permission(self.session_id, permission_id, decision)
-                        .await?;
+                    if let Some(response_tx) = pending.bridge_response {
+                        let _ = response_tx.send(BridgePermissionResult::Decision(decision));
+                    } else {
+                        // Forward response to driver
+                        self.driver
+                            .respond_permission(self.session_id, permission_id, decision)
+                            .await?;
+                    }
 
                     // 如果是 approve_session，添加到授权缓存
                     if decision == PermissionDecision::ApproveSession {
@@ -595,13 +616,19 @@ impl SessionRunner {
             );
 
             // 从 pending 和 timeout 中移除
-            self.pending_permissions.remove(permission_id);
+            let pending = self.pending_permissions.remove(permission_id);
             self.permission_timeouts.remove(permission_id);
 
-            // 发送超时响应给 driver
-            self.driver
-                .permission_timeout(self.session_id, *permission_id)
-                .await?;
+            if let Some(pending) = pending {
+                if let Some(response_tx) = pending.bridge_response {
+                    let _ = response_tx.send(BridgePermissionResult::Timeout);
+                } else {
+                    // 发送超时响应给 driver
+                    self.driver
+                        .permission_timeout(self.session_id, *permission_id)
+                        .await?;
+                }
+            }
         }
 
         if !expired.is_empty()
@@ -713,6 +740,27 @@ impl SessionRunnerHandle {
                 risk_type,
                 target,
                 summary,
+                bridge_response: None,
+            })
+            .await
+            .map_err(|_| DaemonError::ChannelSendFailed("command channel".to_string()))
+    }
+
+    pub async fn register_bridge_permission(
+        &self,
+        permission_id: Uuid,
+        risk_type: String,
+        target: Option<String>,
+        summary: String,
+        bridge_response: oneshot::Sender<BridgePermissionResult>,
+    ) -> Result<()> {
+        self.command_tx
+            .send(RunnerCommand::RegisterPermission {
+                permission_id,
+                risk_type,
+                target,
+                summary,
+                bridge_response: Some(bridge_response),
             })
             .await
             .map_err(|_| DaemonError::ChannelSendFailed("command channel".to_string()))
@@ -759,7 +807,7 @@ async fn wait_for_command_completion(
 }
 
 /// 待处理的权限请求
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct PendingPermission {
     /// 风险类型
     pub risk_type: String,
@@ -767,6 +815,8 @@ pub struct PendingPermission {
     pub target: Option<String>,
     /// 摘要描述
     pub summary: String,
+    /// Optional bridge response channel for external permission prompt MCP server
+    pub bridge_response: Option<oneshot::Sender<BridgePermissionResult>>,
 }
 
 #[cfg(test)]
@@ -792,6 +842,7 @@ mod tests {
             file_tree_max_nodes: 20_000,
             claude_command: "claude".to_string(),
             default_model: "claude-sonnet-4-20250514".to_string(),
+            permission_mode: "default".to_string(),
             mock_mode,
         })
     }
@@ -816,6 +867,7 @@ mod tests {
             file_tree_max_nodes: 20_000,
             claude_command: "claude".to_string(),
             default_model: "claude-sonnet-4-20250514".to_string(),
+            permission_mode: "default".to_string(),
             mock_mode: false,
         });
         let (event_tx, _event_rx) = broadcast::channel(16);
@@ -860,6 +912,7 @@ mod tests {
                     file_tree_max_nodes: 20_000,
                     claude_command: "claude".to_string(),
                     default_model: "claude-sonnet-4-20250514".to_string(),
+                    permission_mode: "default".to_string(),
                     mock_mode: false,
                 });
                 let (event_tx, _event_rx) = broadcast::channel(16);
@@ -900,6 +953,7 @@ mod tests {
             file_tree_max_nodes: 20_000,
             claude_command: "claude".to_string(),
             default_model: "claude-sonnet-4-20250514".to_string(),
+            permission_mode: "default".to_string(),
             mock_mode: false,
         });
         let (event_tx, mut event_rx) = broadcast::channel(16);
@@ -987,6 +1041,7 @@ mod tests {
                 risk_type: "exec_cmd".to_string(),
                 target: Some("/tmp/mock-command".to_string()),
                 summary: "needs approval".to_string(),
+                bridge_response: None,
             })
             .await
             .unwrap();
@@ -1028,6 +1083,7 @@ mod tests {
                 risk_type: "exec_cmd".to_string(),
                 target: Some("/tmp/mock-command".to_string()),
                 summary: "needs approval".to_string(),
+                bridge_response: None,
             })
             .await
             .unwrap();
@@ -1077,6 +1133,7 @@ mod tests {
             risk_type: "write_fs".to_string(),
             target: Some("/workspace/test.txt".to_string()),
             summary: "Write to file".to_string(),
+            bridge_response: None,
         };
         assert_eq!(pending.risk_type, "write_fs");
         assert_eq!(pending.target, Some("/workspace/test.txt".to_string()));
@@ -1088,6 +1145,7 @@ mod tests {
             risk_type: "execute_bash".to_string(),
             target: Some("npm test".to_string()),
             summary: "Run tests".to_string(),
+            bridge_response: None,
         };
         let rule = ApprovalRule {
             risk_type: pending.risk_type.clone(),

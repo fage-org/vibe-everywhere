@@ -3,6 +3,7 @@
 //! Manages Claude Code CLI subprocess lifecycle, I/O, and stream-json parsing.
 
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::Arc;
 
@@ -372,6 +373,42 @@ impl ClaudeCodeDriver {
 
         Ok(())
     }
+
+    fn permission_bridge_dir(&self) -> PathBuf {
+        self.config.config_dir.join("permission-bridge")
+    }
+
+    fn permission_mcp_server_script() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../scripts/permission_prompt_mcp.py")
+    }
+
+    fn permission_mcp_config_json(&self, session_id: Uuid) -> Result<String> {
+        let script_path = Self::permission_mcp_server_script();
+        if !script_path.exists() {
+            return Err(DaemonError::CliStartFailed {
+                reason: format!(
+                    "Permission MCP server script not found: {}",
+                    script_path.display()
+                ),
+            });
+        }
+
+        Ok(serde_json::json!({
+            "mcpServers": {
+                "ve_daemon": {
+                    "command": "python3",
+                    "args": [script_path.to_string_lossy().to_string()],
+                    "env": {
+                        "VE_PERMISSION_BRIDGE_DIR": self.permission_bridge_dir().to_string_lossy().to_string(),
+                        "VE_PERMISSION_SESSION_ID": session_id.to_string(),
+                        "VE_PERMISSION_BRIDGE_TIMEOUT_SECS": self.config.permission_timeout_secs.to_string(),
+                    }
+                }
+            }
+        })
+        .to_string())
+    }
 }
 
 #[async_trait]
@@ -380,6 +417,7 @@ impl AgentDriver for ClaudeCodeDriver {
         self.check_cli_exists()?;
         self.session_id = Some(config.session_id);
         self.workspace_path = Some(config.workspace_path.clone());
+        let permission_mcp_config = self.permission_mcp_config_json(config.session_id)?;
 
         // Build command
         let mut cmd = TokioCommand::new(&self.config.claude_command);
@@ -389,6 +427,10 @@ impl AgentDriver for ClaudeCodeDriver {
             .arg("stream-json")
             .arg("--input-format")
             .arg("stream-json")
+            .arg("--permission-mode")
+            .arg(&self.config.permission_mode)
+            .arg("--mcp-config")
+            .arg(permission_mcp_config)
             .arg("--permission-prompt-tool")
             .arg("mcp__ve_daemon__permission_prompt")
             .arg("--session-id")
@@ -606,6 +648,7 @@ impl AgentDriver for ClaudeCodeDriver {
     ) -> Result<()> {
         self.session_id = Some(session_id);
         self.workspace_path = Some(workspace_path.to_string());
+        let permission_mcp_config = self.permission_mcp_config_json(session_id)?;
 
         // Close current CLI process first
         self.close(session_id).await?;
@@ -617,6 +660,10 @@ impl AgentDriver for ClaudeCodeDriver {
             .arg("stream-json")
             .arg("--input-format")
             .arg("stream-json")
+            .arg("--permission-mode")
+            .arg(&self.config.permission_mode)
+            .arg("--mcp-config")
+            .arg(permission_mcp_config)
             .arg("--permission-prompt-tool")
             .arg("mcp__ve_daemon__permission_prompt")
             .arg("--session-id")
@@ -746,6 +793,7 @@ mod tests {
             file_tree_max_nodes: 20_000,
             claude_command: "claude".to_string(),
             default_model: "claude-sonnet-4-20250514".to_string(),
+            permission_mode: "default".to_string(),
             mock_mode: false,
         });
         let (event_tx, _event_rx) = tokio::sync::broadcast::channel(8);

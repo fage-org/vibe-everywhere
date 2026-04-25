@@ -145,6 +145,11 @@ impl TestContext {
         self.env.as_ref().map(|e| e.temp_dir_path())
     }
 
+    /// Get the daemon log path (integration mode only)
+    pub fn daemon_log_path(&self) -> Option<&std::path::Path> {
+        self.env.as_ref().map(|e| e.daemon_log_path())
+    }
+
     /// Generate a unique workspace path under the temp directory (integration mode only).
     /// Falls back to `/tmp/` in remote mode.
     pub fn workspace_path(&self, name: &str) -> String {

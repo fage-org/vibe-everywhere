@@ -2,12 +2,13 @@
 //!
 //! Manages the persistent WebSocket connection between ve-daemon and ve-server.
 
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, oneshot};
 use tokio_tungstenite::{
     connect_async,
     tungstenite::{client::IntoClientRequest, Message as WsMessage},
@@ -24,7 +25,16 @@ use crate::config::Config;
 use crate::error::{AckError, DaemonError};
 use crate::file_ops::FileOps;
 use crate::session_registry::SessionRegistry;
+use crate::session_runner::BridgePermissionResult;
 use crate::Result;
+
+#[derive(Debug, serde::Deserialize)]
+struct PermissionBridgeRequest {
+    request_id: String,
+    session_id: Uuid,
+    tool_name: String,
+    input: serde_json::Value,
+}
 
 /// Type alias for WebSocket sender
 #[allow(clippy::type_complexity)]
@@ -116,6 +126,26 @@ impl WsClient {
         self.event_tx.clone()
     }
 
+    fn permission_bridge_root(&self) -> PathBuf {
+        self.config.config_dir.join("permission-bridge")
+    }
+
+    fn permission_bridge_requests_dir(&self) -> PathBuf {
+        self.permission_bridge_root().join("requests")
+    }
+
+    fn permission_bridge_responses_dir(&self) -> PathBuf {
+        self.permission_bridge_root().join("responses")
+    }
+
+    fn ensure_permission_bridge_dirs(&self) -> Result<()> {
+        fs::create_dir_all(self.permission_bridge_requests_dir())
+            .map_err(|e| DaemonError::Unknown(format!("Failed to create permission bridge requests dir: {}", e)))?;
+        fs::create_dir_all(self.permission_bridge_responses_dir())
+            .map_err(|e| DaemonError::Unknown(format!("Failed to create permission bridge responses dir: {}", e)))?;
+        Ok(())
+    }
+
     /// Send an ack response to the server
     async fn send_ack(&self, request_id: &str, success: bool, error: Option<&str>) {
         if let Some(ref ws_sender) = self.ws_sender {
@@ -158,6 +188,199 @@ impl WsClient {
         } else {
             warn!(%request_id, "Cannot send error: ws_sender not initialized");
         }
+    }
+
+    fn permission_summary_and_target(
+        tool_name: &str,
+        input: &serde_json::Value,
+    ) -> (String, Option<String>, String) {
+        match tool_name {
+            "Bash" => {
+                let command = input
+                    .get("command")
+                    .and_then(|value| value.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                (
+                    "exec_cmd".to_string(),
+                    Some(command.clone()),
+                    format!("Claude requested Bash command execution: {}", command),
+                )
+            }
+            "WebFetch" | "WebSearch" => {
+                let target = input
+                    .get("url")
+                    .and_then(|value| value.as_str())
+                    .map(|value| value.to_string());
+                (
+                    "network".to_string(),
+                    target.clone(),
+                    format!("Claude requested network access via {}", tool_name),
+                )
+            }
+            _ => {
+                let target = input
+                    .get("file_path")
+                    .or_else(|| input.get("path"))
+                    .and_then(|value| value.as_str())
+                    .map(|value| value.to_string());
+                (
+                    "write_fs".to_string(),
+                    target.clone(),
+                    format!("Claude requested {} access", tool_name),
+                )
+            }
+        }
+    }
+
+    async fn process_permission_bridge_requests(&self) -> Result<()> {
+        let Some(registry) = &self.registry else {
+            return Ok(());
+        };
+        let Some(ws_sender) = &self.ws_sender else {
+            return Ok(());
+        };
+
+        let requests_dir = self.permission_bridge_requests_dir();
+        let responses_dir = self.permission_bridge_responses_dir();
+        let entries = match fs::read_dir(&requests_dir) {
+            Ok(entries) => entries,
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(err) => {
+                return Err(DaemonError::Unknown(format!(
+                    "Failed to read permission bridge requests dir: {}",
+                    err
+                )))
+            }
+        };
+
+        for entry in entries {
+            let entry = match entry {
+                Ok(entry) => entry,
+                Err(err) => {
+                    warn!(error = %err, "Failed to read permission bridge entry");
+                    continue;
+                }
+            };
+            let path = entry.path();
+            if path.extension().and_then(|ext| ext.to_str()) != Some("json") {
+                continue;
+            }
+
+            let request: PermissionBridgeRequest = match fs::read_to_string(&path)
+                .ok()
+                .and_then(|content| serde_json::from_str(&content).ok())
+            {
+                Some(request) => request,
+                None => {
+                    warn!(path = %path.display(), "Failed to parse permission bridge request");
+                    let _ = fs::remove_file(&path);
+                    continue;
+                }
+            };
+            let _ = fs::remove_file(&path);
+
+            let Some(handle) = registry.get(&request.session_id).await else {
+                self.write_permission_bridge_response(
+                    &responses_dir,
+                    &request.request_id,
+                    serde_json::json!({
+                        "behavior": "deny",
+                        "message": format!("Session {} not found", request.session_id),
+                    }),
+                )?;
+                continue;
+            };
+
+            let permission_id = Uuid::new_v4();
+            let (risk_type, target, summary) =
+                Self::permission_summary_and_target(&request.tool_name, &request.input);
+            let (response_tx, response_rx) = oneshot::channel();
+            handle
+                .register_bridge_permission(
+                    permission_id,
+                    risk_type.clone(),
+                    target.clone(),
+                    summary.clone(),
+                    response_tx,
+                )
+                .await?;
+
+            let envelope = WsEnvelope::new(
+                "permission_request",
+                serde_json::json!({
+                    "permission_id": permission_id,
+                    "session_id": request.session_id,
+                    "risk_type": risk_type,
+                    "summary": summary,
+                    "target": target,
+                }),
+            );
+            let json = serde_json::to_string(&envelope).map_err(DaemonError::WsMessageParse)?;
+            {
+                let mut sender = ws_sender.lock().await;
+                sender
+                    .send(WsMessage::Text(json.into()))
+                    .await
+                    .map_err(|e| DaemonError::WsConnect(Box::new(e)))?;
+            }
+
+            let response_path = responses_dir.join(format!("{}.json", request.request_id));
+            let original_input = request.input.clone();
+            tokio::spawn(async move {
+                let payload = match response_rx.await {
+                    Ok(BridgePermissionResult::Decision(
+                        PermissionDecision::ApproveOnce | PermissionDecision::ApproveSession,
+                    )) => serde_json::json!({
+                        "behavior": "allow",
+                        "updatedInput": original_input,
+                    }),
+                    Ok(BridgePermissionResult::Decision(PermissionDecision::DenyOnce)) => {
+                        serde_json::json!({
+                            "behavior": "deny",
+                            "message": "Denied by Vibe Everywhere user approval flow.",
+                        })
+                    }
+                    Ok(BridgePermissionResult::Timeout) | Err(_) => serde_json::json!({
+                        "behavior": "deny",
+                        "message": "Timed out waiting for Vibe Everywhere user approval.",
+                    }),
+                };
+
+                if let Err(err) = fs::write(
+                    &response_path,
+                    serde_json::to_string(&payload).unwrap_or_else(|_| {
+                        "{\"behavior\":\"deny\",\"message\":\"Failed to serialize response\"}"
+                            .to_string()
+                    }),
+                ) {
+                    warn!(error = %err, path = %response_path.display(), "Failed to write permission bridge response");
+                }
+            });
+        }
+
+        Ok(())
+    }
+
+    fn write_permission_bridge_response(
+        &self,
+        responses_dir: &Path,
+        request_id: &str,
+        payload: serde_json::Value,
+    ) -> Result<()> {
+        let path = responses_dir.join(format!("{}.json", request_id));
+        fs::write(
+            &path,
+            serde_json::to_string(&payload).map_err(DaemonError::WsMessageParse)?,
+        )
+        .map_err(|err| {
+            DaemonError::Unknown(format!(
+                "Failed to write permission bridge response {}: {}",
+                path.display(),
+                err
+            ))
+        })?;
+        Ok(())
     }
 
     /// Connect to server and run the main message loop
@@ -227,6 +450,8 @@ impl WsClient {
     /// On connection failure, restores `event_rx` so the caller can retry
     /// without losing the event channel.
     async fn connect_and_run(&mut self) -> Result<()> {
+        self.ensure_permission_bridge_dirs()?;
+
         // Build WebSocket URL, converting http(s):// to ws(s)://
         let ws_base = self
             .config
@@ -305,6 +530,7 @@ impl WsClient {
 
         let mut last_pong = std::time::Instant::now();
         let heartbeat_timeout = self.config.heartbeat_timeout();
+        let mut bridge_tick = tokio::time::interval(Duration::from_millis(250));
 
         loop {
             tokio::select! {
@@ -334,6 +560,12 @@ impl WsClient {
                             .map_err(|e| DaemonError::WsConnect(Box::new(e)))?;
                     }
                     debug!("Sent heartbeat");
+                }
+
+                _ = bridge_tick.tick() => {
+                    if let Err(error) = self.process_permission_bridge_requests().await {
+                        warn!(error = %error, "Failed to process permission bridge requests");
+                    }
                 }
 
                 // Handle events from session runners
@@ -1314,6 +1546,7 @@ mod tests {
                 file_tree_max_nodes: 20_000,
                 claude_command: "claude".to_string(),
                 default_model: "claude-sonnet-4-20250514".to_string(),
+                permission_mode: "default".to_string(),
                 mock_mode: false,
             }),
             Uuid::new_v4(),

@@ -179,7 +179,7 @@ use crate::db::idempotency::{IdempotencyKeyRecord, IdempotencyKeyStore};
 use crate::error::{Result, ServerError};
 use crate::state::AppState;
 use crate::utils::{self, extract_request_id, generate_request_id, parse_uuid};
-use crate::validation::{validate_content, validate_title};
+use crate::validation::{validate_content, validate_idempotency_key, validate_title};
 
 /// Database record for session
 struct SessionRecord {
@@ -475,6 +475,7 @@ pub async fn create_session(
 
     validate_title(&req.title)?;
     validate_content(&req.initial_message)?;
+    validate_idempotency_key(&req.idempotency_key)?;
     authorize_session_create(&state, device_id, &req).await?;
 
     let idempotency_key = req.idempotency_key.clone();
@@ -1755,6 +1756,7 @@ mod tests {
     use crate::db::{install_drivers, run_migrations, DbPool};
     use crate::hub::Hub;
     use crate::state::AppState;
+    use crate::validation::{ValidationError, MAX_IDEMPOTENCY_KEY_LENGTH};
     use axum::response::IntoResponse;
     use ve_shared::models::{ArchiveMetadata, ArchiveStatistics};
 
@@ -2288,6 +2290,71 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(count.0, 0);
+    }
+
+    #[tokio::test]
+    async fn create_session_rejects_empty_idempotency_key() {
+        let state = setup_state().await;
+
+        let error = create_session(
+            ClientAccess {
+                device_id: Uuid::new_v4(),
+            },
+            State(state.clone()),
+            HeaderMap::new(),
+            Json(CreateSessionRequest {
+                idempotency_key: "   ".to_string(),
+                host_id: Uuid::new_v4(),
+                workspace_id: Uuid::new_v4(),
+                title: "test".to_string(),
+                initial_message: "hello".to_string(),
+            }),
+        )
+        .await
+        .unwrap_err();
+
+        assert!(matches!(
+            error,
+            ServerError::Validation(ValidationError::Empty {
+                field: "idempotency_key",
+            })
+        ));
+
+        let session_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM sessions")
+            .fetch_one(&state.db)
+            .await
+            .unwrap();
+        assert_eq!(session_count.0, 0);
+    }
+
+    #[tokio::test]
+    async fn create_session_rejects_too_long_idempotency_key() {
+        let state = setup_state().await;
+
+        let error = create_session(
+            ClientAccess {
+                device_id: Uuid::new_v4(),
+            },
+            State(state.clone()),
+            HeaderMap::new(),
+            Json(CreateSessionRequest {
+                idempotency_key: "a".repeat(MAX_IDEMPOTENCY_KEY_LENGTH + 1),
+                host_id: Uuid::new_v4(),
+                workspace_id: Uuid::new_v4(),
+                title: "test".to_string(),
+                initial_message: "hello".to_string(),
+            }),
+        )
+        .await
+        .unwrap_err();
+
+        assert!(matches!(
+            error,
+            ServerError::Validation(ValidationError::TooLong {
+                field: "idempotency_key",
+                max: MAX_IDEMPOTENCY_KEY_LENGTH,
+            })
+        ));
     }
 
     #[cfg(debug_assertions)]

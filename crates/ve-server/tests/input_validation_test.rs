@@ -3,8 +3,11 @@
 //! Tests for input field length validation.
 
 use ve_server::validation::{
-    validate_content, validate_device_name, validate_host_name, validate_title, ValidationError,
-    MAX_CONTENT_LENGTH, MAX_DEVICE_NAME_LENGTH, MAX_HOST_NAME_LENGTH, MAX_TITLE_LENGTH,
+    validate_content, validate_device_name, validate_host_name, validate_idempotency_key,
+    validate_title, validate_workspace_display_name, validate_workspace_path, ValidationError,
+    MAX_CONTENT_LENGTH, MAX_DEVICE_NAME_LENGTH, MAX_HOST_NAME_LENGTH,
+    MAX_IDEMPOTENCY_KEY_LENGTH, MAX_TITLE_LENGTH, MAX_WORKSPACE_DISPLAY_NAME_LENGTH,
+    MAX_WORKSPACE_PATH_LENGTH,
 };
 
 #[test]
@@ -127,4 +130,82 @@ fn validation_error_display_too_long() {
     let msg = format!("{}", err);
     assert!(msg.contains("test_field"));
     assert!(msg.contains("100"));
+}
+
+#[test]
+fn validate_workspace_path_accepts_max_length() {
+    let path = format!("/{}", "a".repeat(MAX_WORKSPACE_PATH_LENGTH - 1));
+    assert!(validate_workspace_path(&path).is_ok());
+}
+
+#[test]
+fn validate_workspace_path_rejects_empty() {
+    let result = validate_workspace_path("   ");
+    assert!(result.is_err());
+    if let Err(ValidationError::Empty { field }) = result {
+        assert_eq!(field, "workspace_path");
+    } else {
+        panic!("Expected Empty error");
+    }
+}
+
+#[test]
+fn validate_workspace_path_rejects_too_long() {
+    let path = format!("/{}", "a".repeat(MAX_WORKSPACE_PATH_LENGTH));
+    let result = validate_workspace_path(&path);
+    assert!(result.is_err());
+    if let Err(ValidationError::TooLong { field, max }) = result {
+        assert_eq!(field, "workspace_path");
+        assert_eq!(max, MAX_WORKSPACE_PATH_LENGTH);
+    } else {
+        panic!("Expected TooLong error");
+    }
+}
+
+#[test]
+fn validate_workspace_display_name_rejects_empty() {
+    let result = validate_workspace_display_name("   ");
+    assert!(result.is_err());
+    if let Err(ValidationError::Empty { field }) = result {
+        assert_eq!(field, "workspace_display_name");
+    } else {
+        panic!("Expected Empty error");
+    }
+}
+
+#[test]
+fn validate_workspace_display_name_rejects_too_long() {
+    let display_name = "a".repeat(MAX_WORKSPACE_DISPLAY_NAME_LENGTH + 1);
+    let result = validate_workspace_display_name(&display_name);
+    assert!(result.is_err());
+    if let Err(ValidationError::TooLong { field, max }) = result {
+        assert_eq!(field, "workspace_display_name");
+        assert_eq!(max, MAX_WORKSPACE_DISPLAY_NAME_LENGTH);
+    } else {
+        panic!("Expected TooLong error");
+    }
+}
+
+#[test]
+fn validate_idempotency_key_rejects_empty() {
+    let result = validate_idempotency_key("   ");
+    assert!(result.is_err());
+    if let Err(ValidationError::Empty { field }) = result {
+        assert_eq!(field, "idempotency_key");
+    } else {
+        panic!("Expected Empty error");
+    }
+}
+
+#[test]
+fn validate_idempotency_key_rejects_too_long() {
+    let key = "a".repeat(MAX_IDEMPOTENCY_KEY_LENGTH + 1);
+    let result = validate_idempotency_key(&key);
+    assert!(result.is_err());
+    if let Err(ValidationError::TooLong { field, max }) = result {
+        assert_eq!(field, "idempotency_key");
+        assert_eq!(max, MAX_IDEMPOTENCY_KEY_LENGTH);
+    } else {
+        panic!("Expected TooLong error");
+    }
 }

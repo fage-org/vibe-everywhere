@@ -121,6 +121,10 @@ impl IntegrationEnv {
         self.daemon.process.id()
     }
 
+    pub fn daemon_log_path(&self) -> &std::path::Path {
+        &self.daemon.log_path
+    }
+
     pub fn temp_dir_path(&self) -> &std::path::Path {
         self.temp_dir.path()
     }
