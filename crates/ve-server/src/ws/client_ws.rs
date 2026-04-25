@@ -31,7 +31,7 @@ pub async fn ws_client_handler(
     TypedHeader(auth): TypedHeader<Authorization<Bearer>>,
     State(state): State<Arc<AppState>>,
 ) -> Result<Response, ServerError> {
-    let claims = decode_ws_claims(&state.jwt_manager, auth.token())?;
+    let claims = decode_ws_claims(&state.jwt_manager, auth.token(), &state.db).await?;
     let device_id = require_client_device_id(&claims)?;
 
     tracing::info!(%device_id, "Client WebSocket connection request");

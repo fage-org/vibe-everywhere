@@ -489,6 +489,27 @@ async fn run_sqlite_migrations(pool: &DbPool) -> Result<()> {
         }
     }
 
+    // Migration 009: Token revocation
+    info!("Running migration 009_token_revocation.sql");
+    let result = sqlx::query(include_str!("migrations/sqlite/009_token_revocation.sql"))
+        .execute(pool)
+        .await;
+
+    match result {
+        Ok(_) => info!("Migration 009 completed"),
+        Err(e) => {
+            let err_str = e.to_string();
+            if err_str.contains("duplicate column name") {
+                info!("Migration 009 column already exists, skipping");
+            } else {
+                return Err(crate::error::ServerError::Internal(format!(
+                    "Migration 009 failed: {}",
+                    e
+                )));
+            }
+        }
+    }
+
     info!("All SQLite migrations completed successfully");
     Ok(())
 }
@@ -568,6 +589,15 @@ async fn run_postgres_migrations(pool: &DbPool) -> Result<()> {
         .await
         .map_err(|e| {
             crate::error::ServerError::Internal(format!("PostgreSQL migration 007 failed: {}", e))
+        })?;
+
+    // Migration 008: Token revocation
+    info!("Running PostgreSQL migration 008_token_revocation.sql");
+    sqlx::raw_sql(include_str!("migrations/postgres/008_token_revocation.sql"))
+        .execute(pool)
+        .await
+        .map_err(|e| {
+            crate::error::ServerError::Internal(format!("PostgreSQL migration 008 failed: {}", e))
         })?;
 
     info!("PostgreSQL migrations completed successfully");

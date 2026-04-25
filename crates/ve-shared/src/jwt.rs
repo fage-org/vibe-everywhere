@@ -42,6 +42,8 @@ pub struct Claims {
     pub r#type: TokenType,
     /// Device name or host name
     pub name: String,
+    /// JWT ID — unique per token for revocation
+    pub jti: String,
     /// Issued at
     pub iat: i64,
     /// Expiration
@@ -56,6 +58,7 @@ impl Claims {
             sub: device_id.to_string(),
             r#type: TokenType::Client,
             name: device_name.to_string(),
+            jti: Uuid::new_v4().to_string(),
             iat: now.timestamp(),
             exp: (now + expiration).timestamp(),
         }
@@ -68,6 +71,7 @@ impl Claims {
             sub: device_id.to_string(),
             r#type: TokenType::ClientBootstrap,
             name: device_name.to_string(),
+            jti: Uuid::new_v4().to_string(),
             iat: now.timestamp(),
             exp: (now + expiration).timestamp(),
         }
@@ -80,6 +84,7 @@ impl Claims {
             sub: host_id.to_string(),
             r#type: TokenType::Daemon,
             name: host_name.to_string(),
+            jti: Uuid::new_v4().to_string(),
             iat: now.timestamp(),
             exp: (now + expiration).timestamp(),
         }
@@ -131,6 +136,18 @@ impl JwtManager {
         Ok(token_data.claims)
     }
 
+    /// Extract the jti from a raw token without full validation.
+    /// Used by middleware for revocation checks before full decode.
+    pub fn extract_jti(&self, token: &str) -> Option<String> {
+        // JWT payload is base64url-encoded JSON (2nd part)
+        let parts: Vec<&str> = token.split('.').collect();
+        if parts.len() != 3 {
+            return None;
+        }
+        // Use jsonwebtoken's built-in decode for simplicity
+        self.decode(token).ok().map(|c| c.jti)
+    }
+
     /// Create a token for a client device
     pub fn create_client_token(
         &self,
@@ -170,6 +187,7 @@ mod tests {
         assert_eq!(claims.r#type, TokenType::Client);
         assert_eq!(claims.subject_uuid().unwrap(), device_id);
         assert!(!claims.is_expired());
+        assert!(!claims.jti.is_empty());
     }
 
     #[test]
@@ -180,6 +198,7 @@ mod tests {
         assert_eq!(claims.r#type, TokenType::ClientBootstrap);
         assert_eq!(claims.subject_uuid().unwrap(), device_id);
         assert!(!claims.is_expired());
+        assert!(!claims.jti.is_empty());
     }
 
     #[test]
@@ -189,6 +208,7 @@ mod tests {
 
         assert_eq!(claims.r#type, TokenType::Daemon);
         assert_eq!(claims.subject_uuid().unwrap(), host_id);
+        assert!(!claims.jti.is_empty());
     }
 
     #[test]

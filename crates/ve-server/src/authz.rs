@@ -165,13 +165,25 @@ pub fn require_daemon_host_id(claims: &Claims) -> Result<Uuid> {
     claims.subject_uuid().map_err(|_| ServerError::InvalidToken)
 }
 
-pub fn decode_ws_claims(jwt_manager: &JwtManager, token: &str) -> Result<Claims> {
+pub async fn decode_ws_claims(jwt_manager: &JwtManager, token: &str, db: &crate::db::DbPool) -> Result<Claims> {
     let claims = jwt_manager
         .decode(token)
         .map_err(|_| ServerError::InvalidToken)?;
 
     if claims.is_expired() {
         return Err(ServerError::TokenExpired);
+    }
+
+    // Check token revocation for Client-type tokens
+    if claims.r#type == TokenType::Client {
+        if let Ok(_device_id) = claims.subject_uuid() {
+            let revoked = crate::token_revocation::is_revoked(db, &claims.jti)
+                .await
+                .unwrap_or(false);
+            if revoked {
+                return Err(ServerError::InvalidToken);
+            }
+        }
     }
 
     Ok(claims)

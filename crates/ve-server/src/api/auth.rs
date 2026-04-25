@@ -23,6 +23,7 @@ use crate::authz::require_bootstrap_device_id;
 use crate::config::DatabaseBackend;
 use crate::error::{Result, ServerError};
 use crate::state::AppState;
+use crate::token_revocation;
 use crate::utils;
 use crate::validation::{validate_device_name, validate_host_name, validate_pair_code};
 
@@ -468,6 +469,27 @@ pub async fn pair(
     let client_token = state
         .jwt_manager
         .create_client_token(device_id, &claims.name)?;
+
+    // Extract jti from the new token and record device-level revocation
+    if let Some(new_jti) = state.jwt_manager.extract_jti(&client_token) {
+        // Revoke the old current_jti token (if any) by inserting into revoked_tokens
+        let old_jti: Option<String> = sqlx::query_scalar(
+            r#"SELECT current_jti FROM client_devices WHERE device_id = $1"#,
+        )
+        .bind(&device_id_str)
+        .fetch_optional(&state.db)
+        .await?
+        .flatten();
+
+        if let Some(old_jti) = old_jti {
+            let exp = chrono::Utc::now() + chrono::Duration::days(1);
+            let _ = token_revocation::revoke_token(&state.db, &old_jti, device_id, exp).await;
+        }
+
+        // Update device's current_jti to the new token
+        token_revocation::update_device_current_jti(&state.db, device_id, &new_jti).await?;
+    }
+
     let daemon_token = state.jwt_manager.create_daemon_token(host_id, &host_name)?;
 
     let _ = state

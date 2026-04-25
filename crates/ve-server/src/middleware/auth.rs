@@ -12,6 +12,9 @@ use axum::{
 use std::sync::Arc;
 use ve_shared::jwt::{JwtManager, TokenType};
 
+use crate::state::AppState;
+use crate::token_revocation;
+
 /// Public routes that don't require authentication
 const PUBLIC_ROUTES: &[&str] = &[
     "/healthz",
@@ -50,8 +53,10 @@ fn route_allows_token_type(uri: &Uri, token_type: &TokenType) -> bool {
 ///
 /// Extracts and validates JWT token from Authorization header.
 /// Injects Claims into request extensions for use by handlers.
+///
+/// Requires a tuple `(Arc<AppState>, Arc<JwtManager>)` as the injected state.
 pub async fn auth_middleware(
-    State(jwt_manager): State<Arc<JwtManager>>,
+    State((state, jwt_manager)): State<(Arc<AppState>, Arc<JwtManager>)>,
     mut request: Request,
     next: Next,
 ) -> Result<Response, AuthError> {
@@ -86,6 +91,23 @@ pub async fn auth_middleware(
         return Err(AuthError::InvalidTokenType);
     }
 
+    // Check token revocation for Client-type tokens
+    if claims.r#type == TokenType::Client {
+        if let Ok(device_id) = claims.subject_uuid() {
+            if token_revocation::jti_matches_device(&state.db, device_id, &claims.jti)
+                .await
+                .unwrap_or(true)
+            {
+                let is_revoked = token_revocation::is_revoked(&state.db, &claims.jti)
+                    .await
+                    .unwrap_or(false);
+                if is_revoked {
+                    return Err(AuthError::TokenRevoked);
+                }
+            }
+        }
+    }
+
     // Inject claims into request extensions
     request.extensions_mut().insert(claims);
 
@@ -100,6 +122,7 @@ pub enum AuthError {
     InvalidToken,
     InvalidTokenType,
     Expired,
+    TokenRevoked,
 }
 
 impl IntoResponse for AuthError {
@@ -116,6 +139,7 @@ impl IntoResponse for AuthError {
                 "Token is not allowed for this route",
             ),
             AuthError::Expired => (StatusCode::UNAUTHORIZED, "Token expired"),
+            AuthError::TokenRevoked => (StatusCode::UNAUTHORIZED, "Token revoked"),
         };
 
         let body = axum::Json(serde_json::json!({

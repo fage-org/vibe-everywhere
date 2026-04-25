@@ -21,6 +21,7 @@ pub mod hub;
 pub mod middleware;
 pub mod state;
 pub mod tasks;
+pub mod token_revocation;
 pub mod utils;
 pub mod validation;
 pub(crate) mod ws;
@@ -107,7 +108,7 @@ pub fn build_app(state: Arc<AppState>, jwt_manager: Arc<JwtManager>, config: &Co
         .route("/ws/client", get(ws::client_ws::ws_client_handler))
         .route("/ws/daemon", get(ws::daemon_ws::ws_daemon_handler))
         .route_layer(from_fn_with_state(
-            jwt_manager.clone(),
+            (state.clone(), jwt_manager.clone()),
             middleware::auth::auth_middleware,
         ))
         .layer(build_cors_layer(config))

@@ -35,7 +35,7 @@ pub async fn ws_daemon_handler(
     State(state): State<Arc<AppState>>,
 ) -> Result<Response, ServerError> {
     // Verify JWT
-    let claims = decode_ws_claims(&state.jwt_manager, auth.token())?;
+    let claims = decode_ws_claims(&state.jwt_manager, auth.token(), &state.db).await?;
     let host_id = require_daemon_host_id(&claims)?;
 
     tracing::info!(%host_id, "Daemon WebSocket connection request");

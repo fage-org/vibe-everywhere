@@ -75,7 +75,10 @@ async fn setup_app() -> (Router, Arc<AppState>, Arc<JwtManager>, Uuid) {
             get(settings::get_notification_preferences)
                 .post(settings::update_notification_preferences),
         )
-        .route_layer(from_fn_with_state(jwt_manager.clone(), auth_middleware))
+        .route_layer(from_fn_with_state(
+            (state.clone(), jwt_manager.clone()),
+            auth_middleware,
+        ))
         .with_state(state.clone())
         .with_state(jwt_manager.clone());
 
