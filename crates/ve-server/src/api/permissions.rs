@@ -1,23 +1,23 @@
 //! Permission API Handlers
 //!
 //! Permission request query and response endpoints.
+//!
+//! All routes use the `PermissionAccess` / `PermissionCollectionAccess` extractors
+//! for authorization, which handle device and session access verification in a
+//! single database query. The older `get_permission` / `respond_permission`
+//! functions that manually called `require_client_device_id` + `require_session_access`
+//! have been removed — the `_route` versions are the canonical implementations.
 
-use axum::{
-    extract::{Extension, Path, State},
-    Json,
-};
+use axum::{extract::State, Json};
 use std::sync::Arc;
 use uuid::Uuid;
 
 use ve_shared::{
-    jwt::Claims,
     models::{PermissionDecision, PermissionRequest, PermissionResponseRequest},
     proto::DaemonMessage,
 };
 
-use crate::authz::{
-    require_client_device_id, require_session_access, PermissionAccess, PermissionCollectionAccess,
-};
+use crate::authz::{PermissionAccess, PermissionCollectionAccess};
 use crate::error::{Result, ServerError};
 use crate::state::AppState;
 use crate::utils::{self, parse_uuid};
@@ -263,38 +263,8 @@ pub async fn get_permission_route(
     ))
 }
 
-pub async fn get_permission(
-    State(state): State<Arc<AppState>>,
-    Extension(claims): Extension<Claims>,
-    Path(id): Path<Uuid>,
-) -> Result<Json<PermissionRequest>> {
-    let device_id = require_client_device_id(&claims)?;
-    let permission_id_str = id.to_string();
-
-    let row: PermissionRow = sqlx::query_as(
-        r#"
-        SELECT permission_id, session_id, risk_type, summary, target, status, CAST(created_at AS TEXT), CAST(responded_at AS TEXT)
-        FROM permission_requests
-        WHERE permission_id = $1
-        "#
-    )
-    .bind(permission_id_str)
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or(ServerError::NotFound(format!("Permission {}", id)))?;
-
-    let record = permission_record_from_row(row);
-
-    require_session_access(
-        &state,
-        device_id,
-        parse_uuid(&record.session_id, "session_id")?,
-    )
-    .await?;
-
-    Ok(Json(record.to_model()?))
-}
-
+/// Fetch a permission by ID without authorization check (internal use only).
+#[allow(dead_code)]
 async fn get_permission_by_id(state: Arc<AppState>, id: Uuid) -> Result<Json<PermissionRequest>> {
     let permission_id_str = id.to_string();
 
@@ -339,36 +309,6 @@ pub async fn respond_permission_route(
         },
     )
     .await
-}
-
-pub async fn respond_permission(
-    State(state): State<Arc<AppState>>,
-    Extension(claims): Extension<Claims>,
-    Path(id): Path<Uuid>,
-    Json(req): Json<PermissionResponseRequest>,
-) -> Result<Json<PermissionRequest>> {
-    let device_id = require_client_device_id(&claims)?;
-    let permission_id_str = id.to_string();
-
-    // Fetch existing permission
-    let row: PermissionRow = sqlx::query_as(
-        r#"
-        SELECT permission_id, session_id, risk_type, summary, target, status, CAST(created_at AS TEXT), CAST(responded_at AS TEXT)
-        FROM permission_requests
-        WHERE permission_id = $1
-        "#
-    )
-    .bind(&permission_id_str)
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or(ServerError::NotFound(format!("Permission {}", id)))?;
-
-    let existing = permission_record_from_row(row);
-
-    let session_id = parse_uuid(&existing.session_id, "session_id")?;
-    require_session_access(&state, device_id, session_id).await?;
-
-    respond_permission_existing(state, id, req, existing).await
 }
 
 async fn respond_permission_existing(
