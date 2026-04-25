@@ -159,12 +159,17 @@ impl JwtManager {
     }
 
     /// Create a token for a bootstrap client device
+    ///
+    /// Bootstrap tokens are short-lived (5 minutes) since they are only used
+    /// for the initial pairing flow. After pairing, the device receives a
+    /// regular client token with the configured expiration.
     pub fn create_client_bootstrap_token(
         &self,
         device_id: Uuid,
         device_name: &str,
     ) -> Result<String, JwtError> {
-        let claims = Claims::for_client_bootstrap(device_id, device_name, self.expiration);
+        let bootstrap_expiration = chrono::Duration::minutes(5);
+        let claims = Claims::for_client_bootstrap(device_id, device_name, bootstrap_expiration);
         self.encode(&claims)
     }
 
