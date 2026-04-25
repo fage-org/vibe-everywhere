@@ -22,6 +22,13 @@ use crate::config::Config;
 use crate::error::DaemonError;
 use crate::Result;
 
+/// Send a DriverEvent to the broadcast channel, logging on failure.
+fn emit(event_tx: tokio::sync::broadcast::Sender<DriverEvent>, event: DriverEvent) {
+    if let Err(tokio::sync::broadcast::error::SendError(_)) = event_tx.send(event) {
+        warn!("event channel closed — no receivers, events will be dropped");
+    }
+}
+
 /// Claude Code CLI Driver
 #[allow(dead_code)]
 pub struct ClaudeCodeDriver {
@@ -189,13 +196,14 @@ impl ClaudeCodeDriver {
     ) -> Result<()> {
         match event {
             StreamJsonEvent::Partial { content } => {
-                event_tx
-                    .send(DriverEvent::SessionEvent {
+                emit(
+                    event_tx.clone(),
+                    DriverEvent::SessionEvent {
                         session_id,
                         event_type: "log".to_string(),
                         data: serde_json::json!({ "content": content }),
-                    })
-                    .ok();
+                    },
+                );
             }
 
             StreamJsonEvent::Message { message } | StreamJsonEvent::Assistant { message } => {
@@ -223,13 +231,14 @@ impl ClaudeCodeDriver {
                         .collect::<Vec<_>>()
                         .join("");
 
-                    event_tx
-                        .send(DriverEvent::SessionEvent {
+                    emit(
+                        event_tx.clone(),
+                        DriverEvent::SessionEvent {
                             session_id,
                             event_type: "agent_reply".to_string(),
                             data: serde_json::json!({ "content": text }),
-                        })
-                        .ok();
+                        },
+                    );
                 }
             }
 
@@ -243,8 +252,9 @@ impl ClaudeCodeDriver {
                     if let Some(risk_type) = tool_input.get("risk_type").and_then(|v| v.as_str()) {
                         let permission_id = Uuid::new_v4();
 
-                        event_tx
-                            .send(DriverEvent::PermissionRequest {
+                        emit(
+                            event_tx.clone(),
+                            DriverEvent::PermissionRequest {
                                 permission_id,
                                 session_id,
                                 risk_type: risk_type.to_string(),
@@ -257,20 +267,21 @@ impl ClaudeCodeDriver {
                                     .get("target")
                                     .and_then(|v| v.as_str())
                                     .map(|s| s.to_string()),
-                            })
-                            .ok();
+                            },
+                        );
                     }
                 } else {
-                    event_tx
-                        .send(DriverEvent::SessionEvent {
+                    emit(
+                        event_tx.clone(),
+                        DriverEvent::SessionEvent {
                             session_id,
                             event_type: "tool_call".to_string(),
                             data: serde_json::json!({
                                 "tool_name": tool_name,
                                 "tool_input": tool_input,
                             }),
-                        })
-                        .ok();
+                        },
+                    );
                 }
             }
 
@@ -278,45 +289,49 @@ impl ClaudeCodeDriver {
                 tool_name,
                 tool_result,
             } => {
-                event_tx
-                    .send(DriverEvent::SessionEvent {
+                emit(
+                    event_tx.clone(),
+                    DriverEvent::SessionEvent {
                         session_id,
                         event_type: "tool_result".to_string(),
                         data: serde_json::json!({
                             "tool_name": tool_name,
                             "tool_result": tool_result,
                         }),
-                    })
-                    .ok();
+                    },
+                );
             }
 
             StreamJsonEvent::Result { summary } => {
-                event_tx
-                    .send(DriverEvent::StatusUpdate {
+                emit(
+                    event_tx.clone(),
+                    DriverEvent::StatusUpdate {
                         session_id,
                         status: SessionStatus::Running,
                         summary,
                         close_reason: None,
-                    })
-                    .ok();
+                    },
+                );
             }
 
             StreamJsonEvent::Error { message } => {
-                event_tx
-                    .send(DriverEvent::FatalError {
+                emit(
+                    event_tx.clone(),
+                    DriverEvent::FatalError {
                         session_id,
                         message: message.clone(),
-                    })
-                    .ok();
+                    },
+                );
 
-                event_tx
-                    .send(DriverEvent::StatusUpdate {
+                emit(
+                    event_tx.clone(),
+                    DriverEvent::StatusUpdate {
                         session_id,
                         status: SessionStatus::Error,
                         summary: Some(message),
                         close_reason: None,
-                    })
-                    .ok();
+                    },
+                );
             }
 
             StreamJsonEvent::SessionId {
@@ -325,12 +340,13 @@ impl ClaudeCodeDriver {
                 info!(%session_id, claude_session_id = %claude_sid, "CLI session started");
 
                 // Send ClaudeSessionId event for --resume support
-                event_tx
-                    .send(DriverEvent::ClaudeSessionId {
+                emit(
+                    event_tx.clone(),
+                    DriverEvent::ClaudeSessionId {
                         session_id,
                         claude_session_id: claude_sid.clone(),
-                    })
-                    .ok();
+                    },
+                );
             }
         }
 
