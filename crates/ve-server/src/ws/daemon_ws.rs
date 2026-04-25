@@ -16,7 +16,7 @@ use futures::{SinkExt, StreamExt};
 use std::sync::Arc;
 use uuid::Uuid;
 
-use ve_shared::proto::{DaemonToServer, ErrorPayload, WsEnvelope};
+use ve_shared::proto::{DaemonMessage, DaemonToServer, ErrorPayload, WsEnvelope};
 use ve_shared::types::{DaemonStatus, OnlineStatus, RiskType};
 
 use crate::api::sessions::archive_session_with_metadata;
@@ -55,6 +55,9 @@ async fn handle_daemon_socket(socket: WebSocket, state: Arc<AppState>, host_id: 
 
     // Update host status to online
     let _ = update_host_status(&state, host_id, OnlineStatus::Online, DaemonStatus::Healthy).await;
+
+    // Deliver any pending daemon token from a previous pairing when the daemon was offline
+    deliver_pending_daemon_token(&state, host_id, &tx).await;
 
     tracing::info!(%host_id, %connection_id, "Daemon WebSocket connected");
 
@@ -130,6 +133,40 @@ async fn handle_daemon_socket(socket: WebSocket, state: Arc<AppState>, host_id: 
     send_task.abort();
 
     tracing::info!(%host_id, %connection_id, active = was_active, "Daemon WebSocket disconnected");
+}
+
+/// Deliver a pending daemon token if one was stored while the daemon was offline.
+async fn deliver_pending_daemon_token(
+    state: &AppState,
+    host_id: Uuid,
+    tx: &tokio::sync::mpsc::Sender<WsEnvelope>,
+) {
+    let host_id_str = host_id.to_string();
+    let token: Option<String> =
+        sqlx::query_scalar("SELECT pending_daemon_token FROM hosts WHERE host_id = $1")
+            .bind(&host_id_str)
+            .fetch_optional(&state.db)
+            .await
+            .ok()
+            .flatten()
+            .filter(|t: &String| !t.is_empty());
+
+    if let Some(token) = token {
+        let message = DaemonMessage::Paired {
+            host_id,
+            daemon_token: token,
+        };
+        let envelope = WsEnvelope::new("paired", &message);
+        if tx.send(envelope).await.is_ok() {
+            tracing::info!(%host_id, "Delivered pending daemon token");
+            let _ = sqlx::query(
+                "UPDATE hosts SET pending_daemon_token = NULL WHERE host_id = $1",
+            )
+            .bind(&host_id_str)
+            .execute(&state.db)
+            .await;
+        }
+    }
 }
 
 /// Update host online and daemon status

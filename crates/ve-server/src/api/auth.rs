@@ -494,16 +494,28 @@ pub async fn pair(
 
     let daemon_token = state.jwt_manager.create_daemon_token(host_id, &host_name)?;
 
-    let _ = state
+    // Try to send token to daemon; if offline, persist for later retrieval
+    let sent = state
         .hub
         .send_to_daemon(
             &host_id,
             ve_shared::proto::DaemonMessage::Paired {
                 host_id,
-                daemon_token,
+                daemon_token: daemon_token.clone(),
             },
         )
         .await;
+
+    if !sent {
+        tracing::info!(%host_id, "Daemon offline during pairing, persisting token for later delivery");
+        sqlx::query(
+            r#"UPDATE hosts SET pending_daemon_token = $1 WHERE host_id = $2"#,
+        )
+        .bind(&daemon_token)
+        .bind(&host_id_str)
+        .execute(&state.db)
+        .await?;
+    }
 
     tracing::info!(%host_id, "Pairing completed");
 

@@ -510,6 +510,28 @@ async fn run_sqlite_migrations(pool: &DbPool) -> Result<()> {
         }
     }
 
+    // Migration 010: Host pending daemon token
+    info!("Running migration 010_host_pending_daemon_token.sql");
+    let result =
+        sqlx::query(include_str!("migrations/sqlite/010_host_pending_daemon_token.sql"))
+            .execute(pool)
+            .await;
+
+    match result {
+        Ok(_) => info!("Migration 010 completed"),
+        Err(e) => {
+            let err_str = e.to_string();
+            if err_str.contains("duplicate column name") {
+                info!("Migration 010 column already exists, skipping");
+            } else {
+                return Err(crate::error::ServerError::Internal(format!(
+                    "Migration 010 failed: {}",
+                    e
+                )));
+            }
+        }
+    }
+
     info!("All SQLite migrations completed successfully");
     Ok(())
 }
@@ -599,6 +621,20 @@ async fn run_postgres_migrations(pool: &DbPool) -> Result<()> {
         .map_err(|e| {
             crate::error::ServerError::Internal(format!("PostgreSQL migration 008 failed: {}", e))
         })?;
+
+    // Migration 009: Host pending daemon token
+    info!("Running PostgreSQL migration 009_host_pending_daemon_token.sql");
+    sqlx::raw_sql(include_str!(
+        "migrations/postgres/009_host_pending_daemon_token.sql"
+    ))
+    .execute(pool)
+    .await
+    .map_err(|e| {
+        crate::error::ServerError::Internal(format!(
+            "PostgreSQL migration 009 failed: {}",
+            e
+        ))
+    })?;
 
     info!("PostgreSQL migrations completed successfully");
     Ok(())
