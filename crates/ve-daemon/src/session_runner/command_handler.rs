@@ -168,14 +168,32 @@ impl SessionRunner {
     pub async fn handle_control(&mut self, action: SessionControlAction) -> Result<()> {
         match action {
             SessionControlAction::Pause => {
+                if self.state != RunnerState::Running {
+                    return Err(DaemonError::SessionInvalidStatus {
+                        current: format!("{:?}", self.state),
+                        expected: "Running".to_string(),
+                    });
+                }
                 self.update_state(RunnerState::Paused);
                 self.driver.control(self.session_id, action).await?;
                 self.report_status(SessionStatus::Paused, None, None).await;
             }
             SessionControlAction::Interrupt => {
+                if self.state != RunnerState::Running && self.state != RunnerState::Paused {
+                    return Err(DaemonError::SessionInvalidStatus {
+                        current: format!("{:?}", self.state),
+                        expected: "Running or Paused".to_string(),
+                    });
+                }
                 self.driver.control(self.session_id, action).await?;
             }
             SessionControlAction::Terminate => {
+                if self.state == RunnerState::Closed || self.state == RunnerState::Closing {
+                    return Err(DaemonError::SessionInvalidStatus {
+                        current: format!("{:?}", self.state),
+                        expected: "non-terminal".to_string(),
+                    });
+                }
                 self.driver.control(self.session_id, action).await?;
                 self.update_state(RunnerState::Closed);
                 self.report_status(SessionStatus::Archived, None, Some(CloseReason::Terminated))
@@ -188,6 +206,12 @@ impl SessionRunner {
                 });
             }
             SessionControlAction::Restart => {
+                if self.state != RunnerState::Closed && self.state != RunnerState::Error {
+                    return Err(DaemonError::SessionInvalidStatus {
+                        current: format!("{:?}", self.state),
+                        expected: "Closed or Error".to_string(),
+                    });
+                }
                 if let Some(claude_sid) = self.claude_session_id.clone() {
                     self.handle_rerun(claude_sid).await?;
                 } else {
@@ -205,6 +229,12 @@ impl SessionRunner {
     }
 
     async fn handle_rerun(&mut self, claude_session_id: String) -> Result<()> {
+        if self.state != RunnerState::Closed && self.state != RunnerState::Error {
+            return Err(DaemonError::SessionInvalidStatus {
+                current: format!("{:?}", self.state),
+                expected: "Closed or Error".to_string(),
+            });
+        }
         self.driver
             .rerun(self.session_id, &self.workspace_path, &claude_session_id)
             .await?;
@@ -226,6 +256,15 @@ impl SessionRunner {
 
     /// Handle close
     pub async fn handle_close(&mut self) -> Result<()> {
+        if self.state == RunnerState::Closed {
+            return Ok(()); // Already closed, idempotent
+        }
+        if self.state == RunnerState::Closing {
+            return Err(DaemonError::SessionInvalidStatus {
+                current: format!("{:?}", self.state),
+                expected: "non-closing".to_string(),
+            });
+        }
         self.update_state(RunnerState::Closing);
         self.driver.close(self.session_id).await?;
         self.update_state(RunnerState::Closed);
