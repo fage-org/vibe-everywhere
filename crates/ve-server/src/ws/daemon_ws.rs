@@ -5,7 +5,7 @@
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
-        State,
+        ConnectInfo, State,
     },
     response::Response,
 };
@@ -13,6 +13,7 @@ use axum_extra::headers::authorization::Bearer;
 use axum_extra::headers::Authorization;
 use axum_extra::TypedHeader;
 use futures::{SinkExt, StreamExt};
+use std::net::SocketAddr;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -34,7 +35,13 @@ pub async fn ws_daemon_handler(
     ws: WebSocketUpgrade,
     TypedHeader(auth): TypedHeader<Authorization<Bearer>>,
     State(state): State<Arc<AppState>>,
+    ConnectInfo(remote_addr): ConnectInfo<SocketAddr>,
 ) -> Result<Response, ServerError> {
+    if !state.auth_throttle.allow_ws_connect(remote_addr.ip()) {
+        tracing::warn!(ip = %remote_addr.ip(), "Daemon WebSocket connection rate limited");
+        return Err(ServerError::TooManyRequests("WebSocket connection rate limited".to_string()));
+    }
+
     // Verify JWT
     let claims = decode_ws_claims(&state.jwt_manager, auth.token(), &state.db).await?;
     let host_id = require_daemon_host_id(&claims)?;

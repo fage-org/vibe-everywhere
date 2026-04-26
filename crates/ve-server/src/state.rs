@@ -23,6 +23,7 @@ const REGISTER_DEVICE_THROTTLE_LIMIT: u32 = 5;
 const DAEMON_HELLO_THROTTLE_LIMIT: u32 = 5;
 const PAIR_DEVICE_THROTTLE_LIMIT: u32 = 5;
 const PAIR_CODE_THROTTLE_LIMIT: u32 = 5;
+const WS_CONNECT_THROTTLE_LIMIT: u32 = 10;
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct DevicePairKey {
@@ -37,6 +38,7 @@ pub struct AuthThrottle {
     daemon_hello: KeyedLimiter<IpAddr>,
     pair_device: KeyedLimiter<Uuid>,
     pair_code: KeyedLimiter<DevicePairKey>,
+    ws_connect: KeyedLimiter<IpAddr>,
     missing_pair_devices: Mutex<HashMap<Uuid, Instant>>,
     window: Duration,
 }
@@ -48,6 +50,7 @@ impl AuthThrottle {
             daemon_hello: build_limiter(DAEMON_HELLO_THROTTLE_LIMIT, window),
             pair_device: build_limiter(PAIR_DEVICE_THROTTLE_LIMIT, window),
             pair_code: build_limiter(PAIR_CODE_THROTTLE_LIMIT, window),
+            ws_connect: build_limiter(WS_CONNECT_THROTTLE_LIMIT, window),
             missing_pair_devices: Mutex::new(HashMap::new()),
             window,
         }
@@ -59,6 +62,10 @@ impl AuthThrottle {
 
     pub fn allow_daemon_hello(&self, remote_ip: IpAddr) -> bool {
         self.allow_with_cleanup(&self.daemon_hello, remote_ip)
+    }
+
+    pub fn allow_ws_connect(&self, remote_ip: IpAddr) -> bool {
+        self.allow_with_cleanup(&self.ws_connect, remote_ip)
     }
 
     pub fn allow_pair_device(&self, device_id: Uuid) -> bool {
