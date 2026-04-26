@@ -255,6 +255,19 @@ async fn unbind_host_by_id(
         )));
     }
 
+    // Clean up orphaned session access records for this host's sessions
+    sqlx::query(
+        r#"
+        DELETE FROM device_session_access
+        WHERE session_id IN (
+            SELECT session_id FROM sessions WHERE host_id = $1
+        )
+        "#,
+    )
+    .bind(&host_id_str)
+    .execute(&state.db)
+    .await?;
+
     sqlx::query(
         r#"
         DELETE FROM hosts WHERE host_id = $1
