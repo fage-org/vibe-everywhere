@@ -267,10 +267,14 @@ impl Config {
             }
         }
 
-        // URL format validation (basic check)
-        if !self.server_url.starts_with("http://") && !self.server_url.starts_with("https://") {
+        // URL format validation
+        let parsed = url::Url::parse(&self.server_url).map_err(|e| {
+            DaemonError::ConfigInvalid(format!("server_url is not a valid URL: {e}"))
+        })?;
+        let scheme = parsed.scheme();
+        if scheme != "http" && scheme != "https" {
             return Err(DaemonError::ConfigInvalid(
-                "server_url must be a valid HTTP or HTTPS URL".to_string(),
+                "server_url must use http or https scheme".to_string(),
             ));
         }
 
