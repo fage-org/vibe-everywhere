@@ -25,6 +25,7 @@ use crate::error::ServerError;
 use crate::hub::WS_CHANNEL_CAPACITY;
 use crate::state::AppState;
 use crate::utils;
+use crate::validation::validate_summary;
 
 /// GET /ws/daemon with Authorization: Bearer <jwt> header
 ///
@@ -552,6 +553,7 @@ async fn handle_permission_request(
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .to_string();
+    validate_summary(&summary).map_err(|e| ServerError::BadRequest(e.to_string()))?;
 
     let target = payload
         .get("target")
@@ -653,6 +655,9 @@ async fn handle_session_status_update(
         .get("summary")
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
+    if let Some(ref s) = summary {
+        validate_summary(s).map_err(|e| ServerError::BadRequest(e.to_string()))?;
+    }
 
     let mut tx = state.db.begin().await?;
     match guard_active_host_session_tx(&mut tx, host_id, session_id).await? {

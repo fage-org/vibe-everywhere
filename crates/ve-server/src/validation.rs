@@ -13,6 +13,7 @@ pub const MAX_CONTENT_LENGTH: usize = 100000; // 100KB
 pub const MAX_WORKSPACE_PATH_LENGTH: usize = 1024;
 pub const MAX_WORKSPACE_DISPLAY_NAME_LENGTH: usize = 255;
 pub const MAX_IDEMPOTENCY_KEY_LENGTH: usize = 128;
+pub const MAX_SUMMARY_LENGTH: usize = 500;
 
 /// Maximum number of items in a batch operation
 pub const MAX_BATCH_DELETE_SIZE: usize = 100;
@@ -158,6 +159,17 @@ pub fn validate_idempotency_key(key: &str) -> Result<(), ValidationError> {
         return Err(ValidationError::TooLong {
             field: "idempotency_key",
             max: MAX_IDEMPOTENCY_KEY_LENGTH,
+        });
+    }
+    Ok(())
+}
+
+/// Validate summary text
+pub fn validate_summary(summary: &str) -> Result<(), ValidationError> {
+    if summary.len() > MAX_SUMMARY_LENGTH {
+        return Err(ValidationError::TooLong {
+            field: "summary",
+            max: MAX_SUMMARY_LENGTH,
         });
     }
     Ok(())
