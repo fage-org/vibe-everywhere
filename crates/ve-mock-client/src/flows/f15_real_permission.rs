@@ -43,9 +43,7 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<PermissionFlowOutcome> {
         .host_id
         .ok_or_else(|| anyhow::anyhow!("F15 requires host_id"))?;
 
-    let pool = ctx
-        .pool()
-        .ok_or_else(|| anyhow::anyhow!("F15 requires integration server pool"))?;
+    let pool = ctx.pool();
 
     // Step 1: Create workspace with test files
     let ws_name = fixtures::unique_workspace_name();
@@ -134,7 +132,7 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<PermissionFlowOutcome> {
         tracing::info!(
             "No permission requests generated after explicit trigger attempts."
         );
-        write_f15_skip_summary(ctx, client, pool, &probe_file_path).await;
+        write_f15_skip_summary(ctx, &probe_file_path).await;
         return Ok(PermissionFlowOutcome::Skipped(
             "permission prompt not triggered in this environment",
         ));
@@ -148,15 +146,17 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<PermissionFlowOutcome> {
     );
 
     // Step 4: Verify permission request persisted and session entered approval state.
-    let db_count: (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM permission_requests WHERE session_id = $1")
-            .bind(&session_id_str)
-            .fetch_one(pool)
-            .await
-            .map_err(|e| anyhow::anyhow!("query permission count in DB: {e}"))?;
+    if let Some(pool) = pool {
+        let db_count: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM permission_requests WHERE session_id = $1")
+                .bind(&session_id_str)
+                .fetch_one(pool)
+                .await
+                .map_err(|e| anyhow::anyhow!("query permission count in DB: {e}"))?;
 
-    if db_count.0 == 0 {
-        anyhow::bail!("Permission requests visible via API but not in DB");
+        if db_count.0 == 0 {
+            anyhow::bail!("Permission requests visible via API but not in DB");
+        }
     }
 
     wait_for_session_status(
@@ -198,10 +198,8 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<PermissionFlowOutcome> {
     wait_for_session_to_resume(client, session_id, PERMISSION_ATTEMPT_TIMEOUT_SECS).await?;
 
     wait_for_assistant_reply(client, session_id, 120, assistant_count_before_approval + 1).await?;
-    wait_for_probe_file(&probe_file_path, 30).await?;
-
-    let probe_contents = std::fs::read_to_string(&probe_file_path)
-        .map_err(|e| anyhow::anyhow!("read probe file after approval: {e}"))?;
+    let probe_contents =
+        wait_for_probe_contents(client, host_id, workspace_id, &probe_file_path, 30).await?;
     if !probe_contents.contains(permission_marker) {
         anyhow::bail!(
             "Probe file content mismatch after approval: {}",
@@ -248,11 +246,11 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<PermissionFlowOutcome> {
     tracing::info!("F15 complete: permission review/authorization flow verified");
     write_f15_diagnostic(
         ctx,
-        client,
-        pool,
-        F15DiagnosticInput {
-            session_id,
-            attempt_index: usize::MAX,
+            client,
+            pool,
+            F15DiagnosticInput {
+                session_id,
+                attempt_index: usize::MAX,
             attempt_prompt: "approval_completed",
             outcome: "permission_flow_passed",
             probe_file_path: &probe_file_path,
@@ -436,6 +434,41 @@ async fn wait_for_probe_file(path: &std::path::Path, timeout_secs: u64) -> anyho
     );
 }
 
+async fn wait_for_probe_contents(
+    client: &crate::client::MockClient,
+    host_id: uuid::Uuid,
+    workspace_id: uuid::Uuid,
+    path: &std::path::Path,
+    timeout_secs: u64,
+) -> anyhow::Result<String> {
+    let file_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| anyhow::anyhow!("probe file path missing file name: {}", path.display()))?;
+
+    if wait_for_probe_file(path, timeout_secs).await.is_ok() {
+        return std::fs::read_to_string(path)
+            .map_err(|e| anyhow::anyhow!("read probe file after approval: {e}"));
+    }
+
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(timeout_secs);
+    while std::time::Instant::now() < deadline {
+        match client.get_file_content(host_id, workspace_id, file_name).await {
+            Ok(response) => return Ok(response.data.content),
+            Err(error) => {
+                tracing::debug!(error = %error, file_name, "Probe file not visible via API yet");
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            }
+        }
+    }
+
+    anyhow::bail!(
+        "Probe file {} was not readable locally or via API within {}s",
+        path.display(),
+        timeout_secs
+    );
+}
+
 #[derive(Debug, Serialize)]
 struct F15DiagnosticSnapshot {
     generated_at: String,
@@ -488,12 +521,7 @@ struct F15MessageSnapshot {
     created_at: String,
 }
 
-async fn write_f15_skip_summary(
-    ctx: &TestContext,
-    client: &crate::client::MockClient,
-    pool: &sqlx::AnyPool,
-    probe_file_path: &Path,
-) {
+async fn write_f15_skip_summary(ctx: &TestContext, probe_file_path: &Path) {
     let daemon_log_tail = read_daemon_log_tail(ctx.daemon_log_path());
     let snapshot = F15DiagnosticSnapshot {
         generated_at: chrono::Utc::now().to_rfc3339(),
@@ -515,35 +543,35 @@ async fn write_f15_skip_summary(
     if let Err(error) = persist_f15_snapshot(&snapshot) {
         tracing::warn!(error = %error, "Failed to persist F15 skip summary");
     }
-
-    let _ = (client, pool);
 }
 
 async fn write_f15_diagnostic(
     ctx: &TestContext,
     client: &crate::client::MockClient,
-    pool: &sqlx::AnyPool,
+    pool: Option<&sqlx::AnyPool>,
     input: F15DiagnosticInput<'_>,
 ) {
     let session = client.get_session(input.session_id).await.ok();
     let permissions = client.list_permissions(Some(input.session_id)).await.ok();
     let messages = client.list_messages(input.session_id).await.ok();
 
-    let permission_count_in_db: Option<i64> = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM permission_requests WHERE session_id = $1",
-    )
-    .bind(input.session_id.to_string())
-    .fetch_one(pool)
-    .await
-    .ok();
+    let permission_count_in_db: Option<i64> = match pool {
+        Some(pool) => sqlx::query_scalar("SELECT COUNT(*) FROM permission_requests WHERE session_id = $1")
+            .bind(input.session_id.to_string())
+            .fetch_one(pool)
+            .await
+            .ok(),
+        None => None,
+    };
 
-    let message_count_in_db: Option<i64> = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM session_messages WHERE session_id = $1",
-    )
-    .bind(input.session_id.to_string())
-    .fetch_one(pool)
-    .await
-    .ok();
+    let message_count_in_db: Option<i64> = match pool {
+        Some(pool) => sqlx::query_scalar("SELECT COUNT(*) FROM session_messages WHERE session_id = $1")
+            .bind(input.session_id.to_string())
+            .fetch_one(pool)
+            .await
+            .ok(),
+        None => None,
+    };
 
     let snapshot = F15DiagnosticSnapshot {
         generated_at: chrono::Utc::now().to_rfc3339(),

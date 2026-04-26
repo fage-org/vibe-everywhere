@@ -458,6 +458,11 @@ impl AgentDriver for ClaudeCodeDriver {
             .arg(&self.config.default_model)
             .arg("--add-dir")
             .arg(&config.workspace_path);
+        // Run Claude inside the workspace when it exists so project detection,
+        // hooks, and relative file operations all see the same working tree.
+        if PathBuf::from(&config.workspace_path).exists() {
+            cmd.current_dir(&config.workspace_path);
+        }
         // Note: initial_message is sent via stdin below, not as a CLI arg,
         // because --input-format stream-json makes the CLI ignore positional messages.
 
@@ -694,6 +699,9 @@ impl AgentDriver for ClaudeCodeDriver {
             .arg(workspace_path)
             .arg("--resume")
             .arg(claude_session_id);
+        if PathBuf::from(workspace_path).exists() {
+            cmd.current_dir(workspace_path);
+        }
 
         cmd.stdin(Stdio::piped())
             .stdout(Stdio::piped())
