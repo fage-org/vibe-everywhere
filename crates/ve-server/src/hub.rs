@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 use std::time::Duration;
 
 use dashmap::DashMap;
@@ -281,37 +282,49 @@ impl Hub {
         let device_ids: Vec<Uuid> = subscribers.iter().copied().collect();
         drop(subscribers);
 
+        if device_ids.is_empty() {
+            return;
+        }
+
         let session_id_str = session_id.to_string();
+
+        // Batch authorization check: single query instead of N queries
+        let device_id_strs: Vec<String> = device_ids.iter().map(|id| id.to_string()).collect();
+        // $1 = session_id, $2..$N = device_ids
+        let placeholders: Vec<String> = (2..=device_id_strs.len() + 1)
+            .map(|i| format!("${}", i))
+            .collect();
+        let sql = format!(
+            "SELECT device_id FROM device_session_access WHERE session_id = $1 AND device_id IN ({})",
+            placeholders.join(", ")
+        );
+
+        let mut query = sqlx::query_scalar::<_, String>(&sql).bind(&session_id_str);
+        for did in &device_id_strs {
+            query = query.bind(did);
+        }
+
+        let authorized_ids: std::collections::HashSet<String> = match query.fetch_all(db).await {
+            Ok(rows) => rows.into_iter().collect(),
+            Err(error) => {
+                warn!(%session_id, error = %error, "Broadcast auth check failed, dropping all messages");
+                return;
+            }
+        };
+
+        // Serialize once, clone Arc for each client
+        let envelope = Arc::new(WsEnvelope::from(message));
         let mut delivered = 0usize;
 
-        for device_id in device_ids {
-            let still_authorized = match sqlx::query_scalar::<_, i64>(
-                r#"
-                SELECT 1
-                FROM device_session_access
-                WHERE device_id = $1 AND session_id = $2
-                "#,
-            )
-            .bind(device_id.to_string())
-            .bind(&session_id_str)
-            .fetch_optional(db)
-            .await
-            {
-                Ok(row) => row.is_some(),
-                Err(error) => {
-                    warn!(%device_id, %session_id, error = %error, "Skipping session broadcast auth check due to database error");
-                    continue;
-                }
-            };
-
-            if !still_authorized {
-                self.unsubscribe_session(&device_id, session_id);
+        for device_id in &device_ids {
+            let device_id_str = device_id.to_string();
+            if !authorized_ids.contains(&device_id_str) {
+                self.unsubscribe_session(device_id, session_id);
                 continue;
             }
 
-            if let Some(conn) = self.client_connections.get(&device_id) {
-                let envelope = WsEnvelope::from(message.clone());
-                match conn.sender.try_send(envelope) {
+            if let Some(conn) = self.client_connections.get(device_id) {
+                match conn.sender.try_send((*envelope).clone()) {
                     Ok(()) => {
                         delivered += 1;
                     }
@@ -320,6 +333,7 @@ impl Hub {
                     }
                     Err(mpsc::error::TrySendError::Closed(_)) => {
                         warn!(%device_id, "Client channel closed");
+                        self.unsubscribe_session(device_id, session_id);
                     }
                 }
             }
