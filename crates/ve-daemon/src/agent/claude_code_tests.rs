@@ -82,7 +82,7 @@ fn interrupt_returns_error_without_child_process() {
         permission_mode: "default".to_string(),
         mock_mode: false,
     });
-    let (event_tx, _event_rx) = tokio::sync::broadcast::channel(8);
+    let (event_tx, _event_rx) = tokio::sync::mpsc::channel(8);
     let mut driver = ClaudeCodeDriver::new(config, event_tx);
 
     let error = tokio::runtime::Runtime::new()

@@ -15,7 +15,7 @@ use std::sync::Arc;
 use tokio::fs;
 
 use futures_util::SinkExt;
-use tokio::sync::{broadcast, oneshot};
+use tokio::sync::oneshot;
 use tokio_tungstenite::tungstenite::Message as WsMessage;
 use tracing::{debug, warn};
 use uuid::Uuid;
@@ -70,8 +70,10 @@ pub struct WsClient {
     token: String,
     /// Session registry
     registry: Option<Arc<SessionRegistry>>,
-    /// Broadcast sender for runner events (used to subscribe on each reconnect)
-    event_tx: Option<broadcast::Sender<DriverEvent>>,
+    /// Sender for passing driver events to session runners (cloned to registry and runners)
+    event_tx: Option<tokio::sync::mpsc::Sender<DriverEvent>>,
+    /// Receiver for driver events (consumed by the ws_client connection loop)
+    event_rx: Option<tokio::sync::mpsc::Receiver<DriverEvent>>,
     /// WebSocket sender for sending acks (wrapped in Arc for sharing)
     ws_sender: Option<Arc<tokio::sync::Mutex<WsSender>>>,
     /// File operations handler (workspace roots collected from sessions)
@@ -92,6 +94,7 @@ impl WsClient {
             token,
             registry: None,
             event_tx: None,
+            event_rx: None,
             ws_sender: None,
             file_ops: Some(file_ops),
         }
@@ -103,7 +106,8 @@ impl WsClient {
         host_id: Uuid,
         token: String,
         registry: Arc<SessionRegistry>,
-        event_tx: broadcast::Sender<DriverEvent>,
+        event_tx: tokio::sync::mpsc::Sender<DriverEvent>,
+        event_rx: tokio::sync::mpsc::Receiver<DriverEvent>,
     ) -> Self {
         let file_ops = FileOps::new(
             vec![],
@@ -116,13 +120,14 @@ impl WsClient {
             token,
             registry: Some(registry),
             event_tx: Some(event_tx),
+            event_rx: Some(event_rx),
             ws_sender: None,
             file_ops: Some(file_ops),
         }
     }
 
     /// Get event sender for session runners
-    pub fn event_sender(&self) -> Option<broadcast::Sender<DriverEvent>> {
+    pub fn event_sender(&self) -> Option<tokio::sync::mpsc::Sender<DriverEvent>> {
         self.event_tx.clone()
     }
 

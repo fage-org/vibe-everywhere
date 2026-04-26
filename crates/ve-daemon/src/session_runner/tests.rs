@@ -2,7 +2,6 @@
 
 use std::sync::Arc;
 
-use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
@@ -62,7 +61,7 @@ use super::glob_match::matches_pattern;
             permission_mode: "default".to_string(),
             mock_mode: false,
         });
-        let (event_tx, _event_rx) = broadcast::channel(16);
+        let (event_tx, _event_rx) = mpsc::channel(16);
         let session_id = Uuid::new_v4();
         let (runner, _handle) = SessionRunner::new(
             session_id,
@@ -107,7 +106,7 @@ use super::glob_match::matches_pattern;
                     permission_mode: "default".to_string(),
                     mock_mode: false,
                 });
-                let (event_tx, _event_rx) = broadcast::channel(16);
+                let (event_tx, _event_rx) = mpsc::channel(16);
                 let session_id = Uuid::new_v4();
                 let (mut runner, _handle) = SessionRunner::new(
                     session_id,
@@ -148,7 +147,7 @@ use super::glob_match::matches_pattern;
             permission_mode: "default".to_string(),
             mock_mode: false,
         });
-        let (event_tx, mut event_rx) = broadcast::channel(16);
+        let (event_tx, mut event_rx) = mpsc::channel(16);
         let session_id = Uuid::new_v4();
         let (mut runner, _handle) = SessionRunner::new(
             session_id,
@@ -182,7 +181,7 @@ use super::glob_match::matches_pattern;
     #[tokio::test]
     async fn close_reports_archived_with_user_closed_reason() {
         let config = create_test_config(false);
-        let (event_tx, mut event_rx) = broadcast::channel(16);
+        let (event_tx, mut event_rx) = mpsc::channel(16);
         let session_id = Uuid::new_v4();
         let (mut runner, _handle) = SessionRunner::new(
             session_id,
@@ -213,7 +212,7 @@ use super::glob_match::matches_pattern;
     #[tokio::test]
     async fn register_permission_transitions_runner_to_waiting_approval() {
         let config = create_test_config(true);
-        let (event_tx, mut event_rx) = broadcast::channel(16);
+        let (event_tx, mut event_rx) = mpsc::channel(16);
         let session_id = Uuid::new_v4();
         let permission_id = Uuid::new_v4();
         let (mut runner, _handle) = SessionRunner::new(
@@ -255,7 +254,7 @@ use super::glob_match::matches_pattern;
     #[tokio::test]
     async fn permission_response_transitions_runner_back_to_running_after_last_pending() {
         let config = create_test_config(true);
-        let (event_tx, mut event_rx) = broadcast::channel(16);
+        let (event_tx, mut event_rx) = mpsc::channel(16);
         let session_id = Uuid::new_v4();
         let permission_id = Uuid::new_v4();
         let (mut runner, _handle) = SessionRunner::new(

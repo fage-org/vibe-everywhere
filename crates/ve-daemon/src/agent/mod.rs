@@ -100,15 +100,15 @@ pub trait AgentDriver: Send + Sync {
     ) -> Result<()>;
 }
 
-/// Mock Agent Driver (用于测试)
+/// Mock Agent Driver (for testing)
 pub struct MockDriver {
-    event_tx: tokio::sync::broadcast::Sender<DriverEvent>,
+    event_tx: tokio::sync::mpsc::Sender<DriverEvent>,
 }
 
 const MOCK_PERMISSION_TRIGGER: &str = "__VE_MOCK_PERMISSION__";
 
 impl MockDriver {
-    pub fn new(event_tx: tokio::sync::broadcast::Sender<DriverEvent>) -> Self {
+    pub fn new(event_tx: tokio::sync::mpsc::Sender<DriverEvent>) -> Self {
         Self { event_tx }
     }
 
@@ -117,7 +117,7 @@ impl MockDriver {
             return;
         }
 
-        let _ = self.event_tx.send(DriverEvent::PermissionRequest {
+        let _ = self.event_tx.try_send(DriverEvent::PermissionRequest {
             permission_id: Uuid::new_v4(),
             session_id,
             risk_type: "exec_cmd".to_string(),
@@ -130,7 +130,7 @@ impl MockDriver {
 #[async_trait]
 impl AgentDriver for MockDriver {
     async fn start(&mut self, config: DriverConfig) -> Result<()> {
-        let _ = self.event_tx.send(DriverEvent::StatusUpdate {
+        let _ = self.event_tx.try_send(DriverEvent::StatusUpdate {
             session_id: config.session_id,
             status: SessionStatus::Running,
             summary: None,
@@ -143,7 +143,7 @@ impl AgentDriver for MockDriver {
     }
 
     async fn send_message(&mut self, session_id: Uuid, content: &str) -> Result<()> {
-        let _ = self.event_tx.send(DriverEvent::SessionEvent {
+        let _ = self.event_tx.try_send(DriverEvent::SessionEvent {
             session_id,
             event_type: "user_message".to_string(),
             data: serde_json::json!({ "content": content }),
@@ -158,7 +158,7 @@ impl AgentDriver for MockDriver {
             SessionControlAction::Terminate => SessionStatus::Archived,
             _ => SessionStatus::Running,
         };
-        let _ = self.event_tx.send(DriverEvent::StatusUpdate {
+        let _ = self.event_tx.try_send(DriverEvent::StatusUpdate {
             session_id,
             status,
             summary: None,
@@ -184,7 +184,7 @@ impl AgentDriver for MockDriver {
     }
 
     async fn close(&mut self, session_id: Uuid) -> Result<()> {
-        let _ = self.event_tx.send(DriverEvent::StatusUpdate {
+        let _ = self.event_tx.try_send(DriverEvent::StatusUpdate {
             session_id,
             status: SessionStatus::Archived,
             summary: Some("Session closed".to_string()),
@@ -199,7 +199,7 @@ impl AgentDriver for MockDriver {
         _workspace_path: &str,
         _claude_session_id: &str,
     ) -> Result<()> {
-        let _ = self.event_tx.send(DriverEvent::StatusUpdate {
+        let _ = self.event_tx.try_send(DriverEvent::StatusUpdate {
             session_id,
             status: SessionStatus::Running,
             summary: Some("Session resumed".to_string()),
@@ -213,7 +213,7 @@ impl AgentDriver for MockDriver {
 pub fn create_driver(
     agent_type: &str,
     config: Arc<crate::config::Config>,
-    event_tx: tokio::sync::broadcast::Sender<DriverEvent>,
+    event_tx: tokio::sync::mpsc::Sender<DriverEvent>,
 ) -> Result<Box<dyn AgentDriver>> {
     if config.mock_mode {
         return Ok(Box::new(MockDriver::new(event_tx)));
@@ -232,7 +232,7 @@ mod tests {
 
     #[tokio::test]
     async fn mock_driver_emits_permission_request_for_trigger_in_initial_message() {
-        let (event_tx, mut event_rx) = tokio::sync::broadcast::channel(8);
+        let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(8);
         let session_id = Uuid::new_v4();
         let mut driver = MockDriver::new(event_tx);
 
@@ -261,7 +261,7 @@ mod tests {
 
     #[tokio::test]
     async fn mock_driver_emits_permission_request_for_trigger_in_followup_message() {
-        let (event_tx, mut event_rx) = tokio::sync::broadcast::channel(8);
+        let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(8);
         let session_id = Uuid::new_v4();
         let mut driver = MockDriver::new(event_tx);
 

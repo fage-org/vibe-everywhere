@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use tokio::sync::{broadcast, oneshot, RwLock};
+use tokio::sync::{mpsc, oneshot, RwLock};
 use tracing::{info, warn};
 use uuid::Uuid;
 use ve_shared::proto::SessionControlAction;
@@ -22,13 +22,13 @@ pub struct SessionRegistry {
     runners: RwLock<HashMap<Uuid, SessionRunnerHandle>>,
     /// 配置引用
     config: Arc<Config>,
-    /// 事件发送通道 (broadcast)
-    event_tx: broadcast::Sender<DriverEvent>,
+    /// 事件发送通道 (mpsc)
+    event_tx: mpsc::Sender<DriverEvent>,
 }
 
 impl SessionRegistry {
     /// 创建新的注册中心
-    pub fn new(config: Arc<Config>, event_tx: broadcast::Sender<DriverEvent>) -> Self {
+    pub fn new(config: Arc<Config>, event_tx: mpsc::Sender<DriverEvent>) -> Self {
         Self {
             runners: RwLock::new(HashMap::new()),
             config,
@@ -284,6 +284,7 @@ impl SessionRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tokio::sync::mpsc;
 
     fn create_test_config() -> Arc<Config> {
         Arc::new(Config {
@@ -312,7 +313,7 @@ mod tests {
     #[tokio::test]
     async fn test_registry_create_and_get() {
         let config = create_test_config();
-        let (event_tx, _event_rx) = broadcast::channel(16);
+        let (event_tx, _event_rx) = mpsc::channel(16);
         let registry = SessionRegistry::new(config, event_tx);
 
         let session_id = Uuid::new_v4();
@@ -333,7 +334,7 @@ mod tests {
     #[tokio::test]
     async fn test_registry_duplicate_create() {
         let config = create_test_config();
-        let (event_tx, _event_rx) = broadcast::channel(16);
+        let (event_tx, _event_rx) = mpsc::channel(16);
         let registry = SessionRegistry::new(config, event_tx);
 
         let session_id = Uuid::new_v4();
@@ -382,7 +383,7 @@ mod tests {
             permission_mode: "default".to_string(),
             mock_mode: false,
         });
-        let (event_tx, _event_rx) = broadcast::channel(16);
+        let (event_tx, _event_rx) = mpsc::channel(16);
         let registry = SessionRegistry::new(config, event_tx);
 
         // 创建 2 个会话
@@ -415,7 +416,7 @@ mod tests {
     #[tokio::test]
     async fn test_registry_remove() {
         let config = create_test_config();
-        let (event_tx, _event_rx) = broadcast::channel(16);
+        let (event_tx, _event_rx) = mpsc::channel(16);
         let registry = SessionRegistry::new(config, event_tx);
 
         let session_id = Uuid::new_v4();
@@ -437,7 +438,7 @@ mod tests {
     #[tokio::test]
     async fn test_registry_active_count() {
         let config = create_test_config();
-        let (event_tx, _event_rx) = broadcast::channel(16);
+        let (event_tx, _event_rx) = mpsc::channel(16);
         let registry = SessionRegistry::new(config, event_tx);
 
         assert_eq!(registry.active_count().await, 0);
@@ -461,7 +462,7 @@ mod tests {
     #[tokio::test]
     async fn test_registry_concurrent_create_same_session_id() {
         let config = create_test_config();
-        let (event_tx, _event_rx) = broadcast::channel(16);
+        let (event_tx, _event_rx) = mpsc::channel(16);
         let registry = Arc::new(SessionRegistry::new(config, event_tx));
 
         let session_id = Uuid::new_v4();
@@ -513,7 +514,7 @@ mod tests {
     #[tokio::test]
     async fn test_registry_close_and_remove_existing_session() {
         let config = create_test_config();
-        let (event_tx, _event_rx) = broadcast::channel(16);
+        let (event_tx, _event_rx) = mpsc::channel(16);
         let registry = SessionRegistry::new(config, event_tx);
 
         // 创建会话
@@ -544,7 +545,7 @@ mod tests {
     #[tokio::test]
     async fn test_registry_close_nonexistent_session() {
         let config = create_test_config();
-        let (event_tx, _event_rx) = broadcast::channel(16);
+        let (event_tx, _event_rx) = mpsc::channel(16);
         let registry = SessionRegistry::new(config, event_tx);
 
         let session_id = Uuid::new_v4();

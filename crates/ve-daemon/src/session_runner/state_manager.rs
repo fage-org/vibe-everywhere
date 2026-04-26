@@ -34,7 +34,7 @@ impl SessionRunner {
             summary,
             close_reason,
         };
-        if self.event_tx.send(event).is_err() {
+        if self.event_tx.try_send(event).is_err() {
             warn!(session_id = %self.session_id, "Failed to send status update");
         }
     }

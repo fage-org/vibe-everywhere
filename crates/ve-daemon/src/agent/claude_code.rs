@@ -22,10 +22,10 @@ use crate::config::Config;
 use crate::error::DaemonError;
 use crate::Result;
 
-/// Send a DriverEvent to the broadcast channel, logging on failure.
-fn emit(event_tx: tokio::sync::broadcast::Sender<DriverEvent>, event: DriverEvent) {
-    if let Err(tokio::sync::broadcast::error::SendError(_)) = event_tx.send(event) {
-        warn!("event channel closed — no receivers, events will be dropped");
+/// Send a DriverEvent to the mpsc channel, logging on failure.
+fn emit(event_tx: &tokio::sync::mpsc::Sender<DriverEvent>, event: DriverEvent) {
+    if let Err(e) = event_tx.try_send(event) {
+        warn!(error = %e, "event channel full or closed, event will be dropped");
     }
 }
 
@@ -42,7 +42,7 @@ pub struct ClaudeCodeDriver {
     stdin: Option<ChildStdin>,
 
     /// Event sender channel
-    event_tx: tokio::sync::broadcast::Sender<DriverEvent>,
+    event_tx: tokio::sync::mpsc::Sender<DriverEvent>,
 
     /// Current session ID
     session_id: Option<Uuid>,
@@ -120,7 +120,7 @@ pub struct ContentBlock {
 
 impl ClaudeCodeDriver {
     /// Create a new Claude Code Driver
-    pub fn new(config: Arc<Config>, event_tx: tokio::sync::broadcast::Sender<DriverEvent>) -> Self {
+    pub fn new(config: Arc<Config>, event_tx: tokio::sync::mpsc::Sender<DriverEvent>) -> Self {
         Self {
             config,
             child: None,
@@ -190,14 +190,14 @@ impl ClaudeCodeDriver {
 
     /// Handle a stream-json event from CLI
     async fn handle_stream_event(
-        event_tx: &tokio::sync::broadcast::Sender<DriverEvent>,
+        event_tx: &tokio::sync::mpsc::Sender<DriverEvent>,
         session_id: Uuid,
         event: StreamJsonEvent,
     ) -> Result<()> {
         match event {
             StreamJsonEvent::Partial { content } => {
                 emit(
-                    event_tx.clone(),
+                    event_tx,
                     DriverEvent::SessionEvent {
                         session_id,
                         event_type: "log".to_string(),
@@ -232,7 +232,7 @@ impl ClaudeCodeDriver {
                         .join("");
 
                     emit(
-                        event_tx.clone(),
+                        event_tx,
                         DriverEvent::SessionEvent {
                             session_id,
                             event_type: "agent_reply".to_string(),
@@ -253,7 +253,7 @@ impl ClaudeCodeDriver {
                         let permission_id = Uuid::new_v4();
 
                         emit(
-                            event_tx.clone(),
+                            event_tx,
                             DriverEvent::PermissionRequest {
                                 permission_id,
                                 session_id,
@@ -272,7 +272,7 @@ impl ClaudeCodeDriver {
                     }
                 } else {
                     emit(
-                        event_tx.clone(),
+                        event_tx,
                         DriverEvent::SessionEvent {
                             session_id,
                             event_type: "tool_call".to_string(),
@@ -290,7 +290,7 @@ impl ClaudeCodeDriver {
                 tool_result,
             } => {
                 emit(
-                    event_tx.clone(),
+                    event_tx,
                     DriverEvent::SessionEvent {
                         session_id,
                         event_type: "tool_result".to_string(),
@@ -304,7 +304,7 @@ impl ClaudeCodeDriver {
 
             StreamJsonEvent::Result { summary } => {
                 emit(
-                    event_tx.clone(),
+                    event_tx,
                     DriverEvent::StatusUpdate {
                         session_id,
                         status: SessionStatus::Running,
@@ -316,7 +316,7 @@ impl ClaudeCodeDriver {
 
             StreamJsonEvent::Error { message } => {
                 emit(
-                    event_tx.clone(),
+                    event_tx,
                     DriverEvent::FatalError {
                         session_id,
                         message: message.clone(),
@@ -324,7 +324,7 @@ impl ClaudeCodeDriver {
                 );
 
                 emit(
-                    event_tx.clone(),
+                    event_tx,
                     DriverEvent::StatusUpdate {
                         session_id,
                         status: SessionStatus::Error,
@@ -341,7 +341,7 @@ impl ClaudeCodeDriver {
 
                 // Send ClaudeSessionId event for --resume support
                 emit(
-                    event_tx.clone(),
+                    event_tx,
                     DriverEvent::ClaudeSessionId {
                         session_id,
                         claude_session_id: claude_sid.clone(),

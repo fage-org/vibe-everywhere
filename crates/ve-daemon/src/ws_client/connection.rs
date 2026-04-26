@@ -3,11 +3,11 @@
 use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
-use tokio::sync::broadcast;
 use tokio_tungstenite::{
     connect_async,
     tungstenite::{client::IntoClientRequest, Message as WsMessage},
 };
+use tokio::sync::broadcast;
 use tracing::{debug, error, info, warn};
 
 use super::utils::calculate_backoff;
@@ -113,14 +113,9 @@ impl WsClient {
 
         info!("WebSocket connected");
 
-        let mut event_rx = self
-            .event_tx
-            .as_ref()
-            .map(|tx| tx.subscribe())
-            .unwrap_or_else(|| {
-                let (_tx, rx) = broadcast::channel(1);
-                rx
-            });
+        // Take the event receiver. It is consumed directly by this connection.
+        // On reconnect failure, it is NOT restored (the channel is single-consumer).
+        let mut event_rx = self.event_rx.take();
 
         let (sender, mut receiver) = ws_stream.split();
         let sender = std::sync::Arc::new(tokio::sync::Mutex::new(sender));
@@ -213,9 +208,9 @@ impl WsClient {
                     }
                 }
 
-                event = event_rx.recv() => {
+                event = event_rx.as_mut().unwrap().recv() => {
                     match event {
-                        Ok(event) => {
+                        Some(event) => {
                             if let DriverEvent::PermissionRequest {
                                 permission_id,
                                 session_id,
@@ -259,11 +254,8 @@ impl WsClient {
                                 }
                             }
                         }
-                        Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
-                            warn!(lagged = n, "Event receiver lagged, missed events");
-                        }
-                        Err(tokio::sync::broadcast::error::RecvError::Closed) => {
-                            warn!("Event channel closed");
+                        None => {
+                            warn!("Event channel closed — no more driver events will be forwarded");
                         }
                     }
                 }

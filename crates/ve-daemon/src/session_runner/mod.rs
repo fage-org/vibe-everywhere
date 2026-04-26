@@ -14,7 +14,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 
-use tokio::sync::{broadcast, mpsc, oneshot};
+use tokio::sync::{mpsc, oneshot};
 use uuid::Uuid;
 use ve_shared::models::PermissionDecision;
 use ve_shared::proto::SessionControlAction;
@@ -87,7 +87,7 @@ pub struct SessionRunner {
     driver: Box<dyn AgentDriver>,
 
     command_rx: mpsc::Receiver<RunnerCommand>,
-    event_tx: broadcast::Sender<DriverEvent>,
+    event_tx: mpsc::Sender<DriverEvent>,
 
     pending_permissions: HashMap<Uuid, PendingPermission>,
     permission_timeouts: HashMap<Uuid, Instant>,
@@ -137,7 +137,7 @@ impl SessionRunner {
         agent_type: String,
         initial_message: Option<String>,
         config: Arc<Config>,
-        event_tx: broadcast::Sender<DriverEvent>,
+        event_tx: mpsc::Sender<DriverEvent>,
         startup_completion: Option<oneshot::Sender<Result<()>>>,
     ) -> Result<(Self, SessionRunnerHandle)> {
         let (command_tx, command_rx) = mpsc::channel(16);
@@ -177,7 +177,7 @@ impl SessionRunner {
         agent_type: String,
         claude_session_id: String,
         config: Arc<Config>,
-        event_tx: broadcast::Sender<DriverEvent>,
+        event_tx: mpsc::Sender<DriverEvent>,
         startup_completion: Option<oneshot::Sender<Result<()>>>,
     ) -> Result<(Self, SessionRunnerHandle)> {
         let (mut runner, handle) = Self::new(
