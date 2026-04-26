@@ -1,9 +1,14 @@
 //! Session runner main loop.
 
+use std::time::Duration;
+use tokio::time::sleep_until;
 use tracing::{error, info};
 
 use super::{Result, RunnerState, SessionRunner};
 use ve_shared::types::SessionStatus;
+
+/// Fallback poll interval when no permissions are pending.
+const IDLE_POLL_INTERVAL: Duration = Duration::from_secs(10);
 
 impl SessionRunner {
     /// Run the session main loop
@@ -42,6 +47,11 @@ impl SessionRunner {
         self.finish_startup(Ok(()));
 
         loop {
+            let deadline = self
+                .earliest_permission_timeout()
+                .map(|t| t.into())
+                .unwrap_or_else(|| tokio::time::Instant::now() + IDLE_POLL_INTERVAL);
+
             tokio::select! {
                 cmd = self.command_rx.recv() => {
                     match cmd {
@@ -57,7 +67,7 @@ impl SessionRunner {
                     }
                 }
 
-                _ = tokio::time::sleep(std::time::Duration::from_secs(1)) => {
+                _ = sleep_until(deadline) => {
                     if let Err(e) = self.check_permission_timeouts().await {
                         error!(error = %e, "Failed to check permission timeouts");
                     }

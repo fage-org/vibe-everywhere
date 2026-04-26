@@ -54,6 +54,14 @@ impl SessionRunner {
         })
     }
 
+    /// Return the earliest pending permission timeout, if any.
+    ///
+    /// Used by the runner main loop to schedule `sleep_until` instead of
+    /// fixed-interval polling.
+    pub(super) fn earliest_permission_timeout(&self) -> Option<Instant> {
+        self.permission_timeouts.values().copied().min()
+    }
+
     /// Check permission timeouts
     ///
     /// Checks all pending permission requests and sends timeout responses for expired ones.
