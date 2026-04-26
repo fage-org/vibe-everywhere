@@ -23,10 +23,11 @@ use crate::state::AppState;
 use crate::validation::{ValidationError, MAX_WORKSPACE_DISPLAY_NAME_LENGTH};
 
 fn test_config(database_url: String) -> Config {
+    const TEST_JWT_SECRET: &str = "test_secret_for_unit_tests_only_32chars!";
     Config {
         listen_addr: "127.0.0.1:0".parse().unwrap(),
         database_url,
-        jwt_secret: "super_secure_test_secret_key_32_chars!!".to_string(),
+        jwt_secret: TEST_JWT_SECRET.to_string(),
         jwt_expiration_secs: 3600,
         pair_code_ttl_secs: 300,
         heartbeat_interval_secs: 30,

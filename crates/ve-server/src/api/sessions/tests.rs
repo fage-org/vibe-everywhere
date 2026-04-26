@@ -30,10 +30,11 @@ mod tests {
     use ve_shared::models::{ArchiveMetadata, ArchiveStatistics};
 
     fn test_config(database_url: String) -> Config {
+        const TEST_JWT_SECRET: &str = "test_secret_for_unit_tests_only_32chars!";
         Config {
             listen_addr: "127.0.0.1:3000".parse().unwrap(),
             database_url,
-            jwt_secret: "01234567890123456789012345678901".to_string(),
+            jwt_secret: TEST_JWT_SECRET.to_string(),
             jwt_expiration_secs: 3600,
             pair_code_ttl_secs: 300,
             heartbeat_interval_secs: 30,
