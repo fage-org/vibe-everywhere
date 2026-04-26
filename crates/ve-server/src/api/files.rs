@@ -7,6 +7,7 @@ use axum::{
     Json,
 };
 use serde::{Deserialize, Serialize};
+use std::path::Path as StdPath;
 use std::sync::Arc;
 use std::time::Duration;
 use tracing::{debug, warn};
@@ -50,6 +51,24 @@ struct AuthorizedWorkspace {
     path: String,
 }
 
+/// Validate that a relative path does not contain path traversal components.
+///
+/// This is a defense-in-depth check — the daemon also validates via
+/// `canonicalize` + `starts_with`, but the server should reject obvious
+/// traversal attempts before they reach the daemon.
+fn validate_relative_path(relative_path: &str) -> Result<()> {
+    // Reject paths that contain `..` components.
+    // Using Path::components() handles all platform-specific separators.
+    for component in StdPath::new(relative_path).components() {
+        if let std::path::Component::ParentDir = component {
+            return Err(ServerError::BadRequest(
+                "Path traversal not allowed: path must not contain '..'".to_string(),
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// Get file tree for a host's workspace
 ///
 /// GET /api/hosts/:host_id/files/tree
@@ -81,6 +100,10 @@ async fn get_file_tree_for_host(
 
     if !state.hub.is_daemon_connected(&host_id).await {
         return Err(ServerError::HostNotFound);
+    }
+
+    if let Some(ref path) = query.path {
+        validate_relative_path(path)?;
     }
 
     let workspace = load_authorized_workspace(&state, host_id, query.workspace_id).await?;
@@ -162,6 +185,8 @@ async fn get_file_content_for_host(
     if query.path.is_empty() {
         return Err(ServerError::BadRequest("path parameter is required".into()));
     }
+
+    validate_relative_path(&query.path)?;
 
     if !state.hub.is_daemon_connected(&host_id).await {
         return Err(ServerError::HostNotFound);
@@ -281,4 +306,24 @@ async fn load_authorized_workspace(
     })?;
 
     Ok(AuthorizedWorkspace { path })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn validate_relative_path_accepts_simple_paths() {
+        assert!(validate_relative_path("src/main.rs").is_ok());
+        assert!(validate_relative_path("README.md").is_ok());
+        assert!(validate_relative_path("").is_ok());
+    }
+
+    #[test]
+    fn validate_relative_path_rejects_parent_dir() {
+        assert!(validate_relative_path("../etc/passwd").is_err());
+        assert!(validate_relative_path("src/../../../etc/passwd").is_err());
+        assert!(validate_relative_path("..").is_err());
+        assert!(validate_relative_path("foo/..").is_err());
+    }
 }
