@@ -268,6 +268,26 @@ async fn unbind_host_by_id(
     .execute(&state.db)
     .await?;
 
+    // Delete sessions (cascades to session_messages, permission_requests via ON DELETE CASCADE)
+    sqlx::query(
+        r#"
+        DELETE FROM sessions WHERE host_id = $1
+        "#,
+    )
+    .bind(&host_id_str)
+    .execute(&state.db)
+    .await?;
+
+    // Delete session archives (no FK constraint to hosts table)
+    sqlx::query(
+        r#"
+        DELETE FROM session_archives WHERE host_id = $1
+        "#,
+    )
+    .bind(&host_id_str)
+    .execute(&state.db)
+    .await?;
+
     sqlx::query(
         r#"
         DELETE FROM hosts WHERE host_id = $1
