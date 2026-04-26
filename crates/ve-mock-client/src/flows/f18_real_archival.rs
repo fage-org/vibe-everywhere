@@ -30,10 +30,6 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
         .host_id
         .ok_or_else(|| anyhow::anyhow!("F18 requires host_id"))?;
 
-    let pool = ctx
-        .pool()
-        .ok_or_else(|| anyhow::anyhow!("F18 requires integration server pool"))?;
-
     // Step 1: Create workspace
     let ws_name = fixtures::unique_workspace_name();
     let ws_path = ctx.workspace_path(&ws_name);
@@ -56,8 +52,6 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
         .map_err(|e| anyhow::anyhow!("create session: {e}"))?;
 
     let session_id = session.session_id;
-    let session_id_str = session_id.to_string();
-
     tracing::info!(%session_id, "Session created for archival test");
 
     // Step 3: Wait for agent reply
@@ -98,7 +92,8 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
 
     tracing::info!("Session close acknowledged, waiting for archival...");
 
-    // Step 6: Wait for archival — poll session status in DB
+    // Step 6: Wait for archival — poll session status via API so remote mode
+    // uses the same visibility that real clients rely on.
     let max_wait = std::time::Duration::from_secs(30);
     let poll_interval = std::time::Duration::from_secs(2);
     let deadline = std::time::Instant::now() + max_wait;
@@ -107,19 +102,13 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
     while std::time::Instant::now() < deadline {
         tokio::time::sleep(poll_interval).await;
 
-        let db_status: Result<(String,), _> =
-            sqlx::query_as("SELECT status FROM sessions WHERE session_id = $1")
-                .bind(&session_id_str)
-                .fetch_one(pool)
-                .await;
-
-        match db_status {
-            Ok((status,)) => {
-                if status == "archived" {
+        match client.get_session(session_id).await {
+            Ok(session) => {
+                if session.status == ve_shared::types::SessionStatus::Archived {
                     is_archived = true;
                     break;
                 }
-                tracing::debug!(%status, "Session status, waiting for archived...");
+                tracing::debug!(status = ?session.status, "Session status, waiting for archived...");
             }
             Err(e) => {
                 tracing::warn!(error = %e, "Failed to query session status");
@@ -143,7 +132,32 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
             );
         }
 
-        // Step 8: Verify messages are preserved after archival
+        // Step 8: Verify archived session is queryable via archives API.
+        let archives = client
+            .list_archives(None, Some(50))
+            .await
+            .map_err(|e| anyhow::anyhow!("list archives: {e}"))?;
+        let archived_entry = archives
+            .items
+            .iter()
+            .find(|archive| archive.session_id == session_id)
+            .ok_or_else(|| anyhow::anyhow!("Archived session not found in archives API"))?;
+
+        let archive = client
+            .get_archive(archived_entry.archive_id)
+            .await
+            .map_err(|e| anyhow::anyhow!("get archive: {e}"))?;
+        if archive.session_id != session_id {
+            anyhow::bail!(
+                "Archive session mismatch: expected {}, got {}",
+                session_id,
+                archive.session_id
+            );
+        }
+
+        tracing::info!(archive_id = %archive.archive_id, "Archive queryability verified");
+
+        // Step 9: Verify messages are preserved after archival
         let archived_messages = client
             .list_messages(session_id)
             .await
@@ -169,7 +183,7 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
         );
     }
 
-    // Step 9: Error path — close already-closed session
+    // Step 10: Error path — close already-closed session
     let close_again = client.close_session(session_id).await;
     match close_again {
         Ok(resp) => {
@@ -183,7 +197,7 @@ async fn run_impl(ctx: &TestContext) -> anyhow::Result<()> {
         }
     }
 
-    // Step 10: Error path — send message to closed/archived session
+    // Step 11: Error path — send message to closed/archived session
     let send_result = client
         .send_message(session_id, "This should fail on a closed session")
         .await;
