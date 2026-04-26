@@ -109,8 +109,6 @@ pub mod test_support {
 #[derive(Debug)]
 pub struct PermissionListQuery {
     pub session_id: Option<Uuid>,
-    #[allow(dead_code)]
-    pub status: Option<String>,
 }
 
 /// Database record for permission request
