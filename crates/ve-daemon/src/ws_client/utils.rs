@@ -53,9 +53,11 @@ pub async fn ensure_workspace_directory(workspace_path: &str) -> Result<()> {
     }
 }
 
-/// Calculate exponential backoff duration
+/// Calculate exponential backoff duration with full jitter.
 ///
-/// Uses exponential growth with random jitter (+/-20%).
+/// Uses AWS-style full jitter: `random(0, min(max, base * 2^(retry-1)))`.
+/// This distributes retries uniformly across the entire backoff window,
+/// preventing thundering herd in large-scale deployments.
 pub fn calculate_backoff(
     min: std::time::Duration,
     max: std::time::Duration,
@@ -63,10 +65,7 @@ pub fn calculate_backoff(
 ) -> std::time::Duration {
     let base = min.as_millis() as f64;
     let multiplier = 2_f64.powi(retry_count as i32 - 1);
-    let backoff = base * multiplier;
-    let backoff = backoff.min(max.as_millis() as f64);
-
-    // Add random jitter (+/-20%)
-    let jitter = backoff * 0.2 * (rand::random::<f64>() - 0.5) * 2.0;
-    std::time::Duration::from_millis((backoff + jitter) as u64)
+    let capped = (base * multiplier).min(max.as_millis() as f64);
+    let jittered = rand::random::<f64>() * capped;
+    std::time::Duration::from_millis(jittered as u64)
 }

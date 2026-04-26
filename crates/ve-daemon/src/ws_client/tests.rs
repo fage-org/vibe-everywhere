@@ -13,10 +13,10 @@ fn test_calculate_backoff_first_retry() {
     let min = Duration::from_millis(1000);
     let max = Duration::from_millis(30000);
 
-    // First retry should be close to min
+    // Full jitter: uniform random in [0, capped_exponential].
+    // For retry 1: capped = 1000 * 2^0 = 1000ms.
     let backoff = calculate_backoff(min, max, 1);
-    assert!(backoff >= Duration::from_millis(800)); // Allow jitter
-    assert!(backoff <= Duration::from_millis(1200));
+    assert!(backoff <= min); // Never exceeds the exponential cap
 }
 
 #[test]
@@ -24,23 +24,30 @@ fn test_calculate_backoff_caps_at_max() {
     let min = Duration::from_millis(1000);
     let max = Duration::from_millis(5000);
 
-    // Even with high retry count, should be capped
+    // Full jitter: random(0, min(max, base * 2^(retry-1))).
+    // Even with high retry count, should be capped at max.
     let backoff = calculate_backoff(min, max, 10);
-    assert!(backoff <= Duration::from_millis(6000)); // max + jitter
+    assert!(backoff <= max); // Always within cap
 }
 
 #[test]
-fn test_calculate_backoff_exponential_growth() {
+fn test_calculate_backoff_respects_retry_growth() {
     let min = Duration::from_millis(1000);
     let max = Duration::from_millis(30000);
 
-    // Should grow exponentially
-    let backoff1 = calculate_backoff(min, max, 1);
-    let _backoff2 = calculate_backoff(min, max, 2);
-    let backoff3 = calculate_backoff(min, max, 3);
-
-    // Allow for jitter, but trend should be increasing
-    assert!(backoff1 < backoff3);
+    // The expected value (mean) grows exponentially even though
+    // individual samples are random.
+    let mut total1 = 0u64;
+    let mut total3 = 0u64;
+    let iterations = 500u64;
+    for _ in 0..iterations {
+        total1 += calculate_backoff(min, max, 1).as_millis() as u64;
+        total3 += calculate_backoff(min, max, 3).as_millis() as u64;
+    }
+    // Average of retry 3 (cap = 4000ms) should be ~4x retry 1 (cap = 1000ms)
+    let avg1 = total1 / iterations;
+    let avg3 = total3 / iterations;
+    assert!(avg3 > avg1, "avg retry 3 ({avg3}ms) should exceed avg retry 1 ({avg1}ms)");
 }
 
 #[test]
