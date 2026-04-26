@@ -96,19 +96,8 @@ impl WsClient {
             return Ok(());
         }
 
-        // Verify workspace is associated with an active session
-        if let Some(ref registry) = self.registry {
-            if !registry.contains_workspace(&workspace_root).await {
-                self.send_error(
-                    &request_id,
-                    &AckError::WorkspaceInvalid,
-                    "Workspace not associated with any active session",
-                )
-                .await;
-                return Ok(());
-            }
-        }
-
+        // File browsing is authorized server-side by workspace ACLs; the daemon
+        // only needs to confine reads to the declared workspace root.
         let file_ops = FileOps::new(
             vec![workspace_root.clone()],
             self.config.file_read_text_limit_bytes as usize,
@@ -201,19 +190,8 @@ impl WsClient {
             return Ok(());
         }
 
-        // Verify workspace is associated with an active session
-        if let Some(ref registry) = self.registry {
-            if !registry.contains_workspace(&workspace_root).await {
-                self.send_error(
-                    &request_id,
-                    &AckError::WorkspaceInvalid,
-                    "Workspace not associated with any active session",
-                )
-                .await;
-                return Ok(());
-            }
-        }
-
+        // File browsing is authorized server-side by workspace ACLs; the daemon
+        // only needs to confine reads to the declared workspace root.
         let file_ops = FileOps::new(
             vec![workspace_root.clone()],
             self.config.file_read_text_limit_bytes as usize,

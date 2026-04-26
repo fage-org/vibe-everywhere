@@ -89,12 +89,11 @@ async fn seed_visible_and_hidden_hosts(
     let now = chrono::Utc::now().to_rfc3339();
 
     sqlx::query(
-        "INSERT INTO client_devices (device_id, device_name, device_type, legacy_acl, server_url) VALUES ($1, $2, $3, $4, $5)",
+        "INSERT INTO client_devices (device_id, device_name, device_type, server_url) VALUES ($1, $2, $3, $4)",
     )
     .bind(device_id.to_string())
     .bind("device")
     .bind("desktop")
-    .bind(0)
     .bind("http://localhost")
     .execute(&state.db)
     .await
@@ -406,7 +405,10 @@ async fn run_app_for_ws(app: axum::Router) -> (String, tokio::task::JoinHandle<(
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let handle = tokio::spawn(async move {
-        axum::serve(listener, app.into_make_service())
+        axum::serve(
+            listener,
+            app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+        )
             .await
             .unwrap();
     });
@@ -1007,12 +1009,11 @@ async fn list_hosts_does_not_grant_legacy_access_for_formal_client_when_acl_is_e
     let (app, state, jwt_manager) = setup_app().await;
     let device_id = Uuid::new_v4();
     sqlx::query(
-        "INSERT INTO client_devices (device_id, device_name, device_type, legacy_acl, server_url) VALUES ($1, $2, $3, $4, $5)",
+        "INSERT INTO client_devices (device_id, device_name, device_type, server_url) VALUES ($1, $2, $3, $4)",
     )
     .bind(device_id.to_string())
     .bind("device")
     .bind("desktop")
-    .bind(1)
     .bind("http://localhost")
     .execute(&state.db)
     .await
@@ -1066,12 +1067,11 @@ async fn get_archive_does_not_grant_legacy_session_access_for_formal_client_when
     let (app, state, jwt_manager) = setup_app().await;
     let device_id = Uuid::new_v4();
     sqlx::query(
-        "INSERT INTO client_devices (device_id, device_name, device_type, legacy_acl, server_url) VALUES ($1, $2, $3, $4, $5)",
+        "INSERT INTO client_devices (device_id, device_name, device_type, server_url) VALUES ($1, $2, $3, $4)",
     )
     .bind(device_id.to_string())
     .bind("device")
     .bind("desktop")
-    .bind(1)
     .bind("http://localhost")
     .execute(&state.db)
     .await
@@ -1167,12 +1167,11 @@ async fn list_hosts_does_not_grant_legacy_access_for_modern_device_without_acl()
     let (app, state, jwt_manager) = setup_app().await;
     let device_id = Uuid::new_v4();
     sqlx::query(
-        "INSERT INTO client_devices (device_id, device_name, device_type, legacy_acl, server_url) VALUES ($1, $2, $3, $4, $5)",
+        "INSERT INTO client_devices (device_id, device_name, device_type, server_url) VALUES ($1, $2, $3, $4)",
     )
     .bind(device_id.to_string())
     .bind("device")
     .bind("desktop")
-    .bind(0)
     .bind("http://localhost")
     .execute(&state.db)
     .await
@@ -1215,12 +1214,11 @@ async fn list_hosts_does_not_backfill_older_paired_hosts_even_after_partial_lega
     let (app, state, jwt_manager) = setup_app().await;
     let device_id = Uuid::new_v4();
     sqlx::query(
-        "INSERT INTO client_devices (device_id, device_name, device_type, legacy_acl, server_url) VALUES ($1, $2, $3, $4, $5)",
+        "INSERT INTO client_devices (device_id, device_name, device_type, server_url) VALUES ($1, $2, $3, $4)",
     )
     .bind(device_id.to_string())
     .bind("device")
     .bind("desktop")
-    .bind(1)
     .bind("http://localhost")
     .execute(&state.db)
     .await

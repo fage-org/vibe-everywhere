@@ -22,6 +22,7 @@ use ve_server::{
         },
         workspaces::{get_workspace, update_workspace, UpdateWorkspaceRequest},
     },
+    authz::WorkspaceAccess,
     config::{Config, DatabaseBackend},
     db::{self, DbPool},
     hub::Hub,
@@ -154,6 +155,21 @@ async fn seed_workspace(state: &Arc<AppState>, host_id: Uuid, workspace_id: Uuid
     .execute(&state.db)
     .await
     .unwrap();
+}
+
+fn workspace_access(device_id: Uuid, host_id: Uuid, workspace_id: Uuid) -> WorkspaceAccess {
+    WorkspaceAccess {
+        device_id,
+        workspace_id,
+        host_id,
+        path: "/tmp/postgres-workspace".to_string(),
+        display_name: "postgres-workspace".to_string(),
+        is_favorited: false,
+        last_used_at: None,
+        exists_on_host: true,
+        created_at: "2026-01-01 00:00:00".to_string(),
+        updated_at: "2026-01-01 00:00:00".to_string(),
+    }
 }
 
 async fn seed_session(
@@ -305,13 +321,7 @@ async fn postgres_workspace_routes_handle_boolean_columns() {
     seed_host_with_access(&state, device_id, host_id).await;
     seed_workspace(&state, host_id, workspace_id).await;
 
-    let claims = Claims::for_client(device_id, "device", chrono::Duration::hours(1));
-
-    let workspace = get_workspace(
-        State(state.clone()),
-        Extension(claims.clone()),
-        Path(workspace_id),
-    )
+    let workspace = get_workspace(workspace_access(device_id, host_id, workspace_id))
     .await
     .unwrap()
     .0;
@@ -320,8 +330,7 @@ async fn postgres_workspace_routes_handle_boolean_columns() {
 
     let updated = update_workspace(
         State(state.clone()),
-        Extension(claims),
-        Path(workspace_id),
+        workspace_access(device_id, host_id, workspace_id),
         Json(UpdateWorkspaceRequest {
             display_name: Some("renamed".to_string()),
             is_favorited: Some(true),

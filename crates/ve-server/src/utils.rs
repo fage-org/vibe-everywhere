@@ -211,6 +211,7 @@ pub fn parse_online_status(s: &str) -> Result<ve_shared::types::OnlineStatus, Se
     match s {
         "online" => Ok(ve_shared::types::OnlineStatus::Online),
         "offline" => Ok(ve_shared::types::OnlineStatus::Offline),
+        "unknown" => Ok(ve_shared::types::OnlineStatus::Unknown),
         unknown => Err(ServerError::BadRequest(format!(
             "Invalid online status: {}",
             unknown
@@ -223,6 +224,7 @@ pub fn parse_daemon_status(s: &str) -> Result<ve_shared::types::DaemonStatus, Se
     match s {
         "healthy" => Ok(ve_shared::types::DaemonStatus::Healthy),
         "connecting" => Ok(ve_shared::types::DaemonStatus::Connecting),
+        "disconnected" => Ok(ve_shared::types::DaemonStatus::Disconnected),
         "error" => Ok(ve_shared::types::DaemonStatus::Error),
         unknown => Err(ServerError::BadRequest(format!(
             "Invalid daemon status: {}",
@@ -320,6 +322,18 @@ mod tests {
     fn test_parse_session_status_valid() {
         let status = parse_session_status("running").unwrap();
         assert_eq!(status, ve_shared::types::SessionStatus::Running);
+    }
+
+    #[test]
+    fn test_parse_online_status_accepts_unknown() {
+        let status = parse_online_status("unknown").unwrap();
+        assert_eq!(status, ve_shared::types::OnlineStatus::Unknown);
+    }
+
+    #[test]
+    fn test_parse_daemon_status_accepts_disconnected() {
+        let status = parse_daemon_status("disconnected").unwrap();
+        assert_eq!(status, ve_shared::types::DaemonStatus::Disconnected);
     }
 
     #[test]

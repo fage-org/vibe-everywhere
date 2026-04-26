@@ -166,8 +166,8 @@ async fn seed_fixture(state: &AppState) -> (Uuid, Uuid, Uuid, Uuid, Uuid) {
     let sibling_permission_id = Uuid::new_v4();
 
     sqlx::query(
-        r#"INSERT INTO client_devices (device_id, device_name, device_type, legacy_acl, server_url)
-           VALUES ($1, 'device', 'desktop', 0, 'http://localhost')"#,
+        r#"INSERT INTO client_devices (device_id, device_name, device_type, server_url)
+           VALUES ($1, 'device', 'desktop', 'http://localhost')"#,
     )
     .bind(device_id.to_string())
     .execute(&state.db)

@@ -1505,6 +1505,7 @@ mod tests {
             file_type: "text".to_string(),
             truncated: false,
             total_size: 12,
+            content_may_be_corrupted: false,
         };
         let envelope = WsEnvelope::new("file_content_response", &response);
         let text = serde_json::to_string(&envelope).unwrap();

@@ -314,6 +314,7 @@ use super::glob_match::matches_pattern;
         let rule = ApprovalRule {
             risk_type: "write_fs".to_string(),
             target_pattern: "*".to_string(),
+            added_at: std::time::Instant::now(),
         };
         assert!(format!("{:?}", rule).contains("write_fs"));
     }
@@ -341,6 +342,7 @@ use super::glob_match::matches_pattern;
         let rule = ApprovalRule {
             risk_type: pending.risk_type.clone(),
             target_pattern: pending.target.clone().unwrap_or("*".to_string()),
+            added_at: std::time::Instant::now(),
         };
         assert_eq!(rule.risk_type, "execute_bash");
         assert_eq!(rule.target_pattern, "npm test");
@@ -411,6 +413,7 @@ use super::glob_match::matches_pattern;
             command_tx,
             state: RunnerState::Running,
             session_id: Uuid::new_v4(),
+            workspace_path: "/tmp/test-workspace".to_string(),
         };
 
         let request = tokio::spawn(async move {

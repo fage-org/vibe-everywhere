@@ -261,8 +261,9 @@ pub async fn pairing_status(
     .await?
     .ok_or(ServerError::PairCodeExpired)?;
 
-    // Only verify pairing_secret during pending phase.
-    // After pair(), secret is cleared and daemon authenticates by host_id.
+    // During pending phase we only validate the secret.
+    // Once paired, a successful polling request must atomically consume the
+    // secret so offline daemons can fetch their daemon token exactly once.
     if row.0 != "paired" {
         let stored_secret = row.2.as_deref().unwrap_or("");
         if !bool::from(stored_secret.as_bytes().ct_eq(pairing_secret.as_bytes())) {
@@ -455,18 +456,6 @@ pub async fn pair(
     .execute(&mut *tx)
     .await?;
 
-    // Clear pairing_secret immediately — daemon authenticates by host_id post-pair
-    sqlx::query(
-        r#"
-        UPDATE pairing_codes
-        SET pairing_secret = NULL
-        WHERE host_id = $1
-        "#,
-    )
-    .bind(&host_id_str)
-    .execute(&mut *tx)
-    .await?;
-
     sqlx::query(
         r#"
         INSERT INTO device_host_access (device_id, host_id)
@@ -556,10 +545,47 @@ pub async fn pair(
         )
         .await;
 
-    if !sent {
+    if sent {
+        if let Err(error) = sqlx::query(
+            r#"
+            UPDATE pairing_codes
+            SET pairing_secret = NULL
+            WHERE host_id = $1
+            "#,
+        )
+        .bind(&host_id_str)
+        .execute(&state.db)
+        .await
+        {
+            tracing::warn!(
+                %host_id,
+                error = %error,
+                "Failed to clear pairing secret after live daemon delivery"
+            );
+        }
+
+        if let Err(error) = sqlx::query(
+            r#"
+            UPDATE hosts
+            SET pending_daemon_token = NULL
+            WHERE host_id = $1
+            "#,
+        )
+        .bind(&host_id_str)
+        .execute(&state.db)
+        .await
+        {
+            tracing::warn!(
+                %host_id,
+                error = %error,
+                "Failed to clear stale pending daemon token after live delivery"
+            );
+        }
+    } else {
         tracing::info!(%host_id, "Daemon offline during pairing, persisting token hash for later delivery");
-        // Store SHA-256 hash of the token, not the token itself.
-        // When the daemon reconnects, a fresh token will be issued.
+        // Keep pairing_secret intact so an offline daemon can complete the
+        // polling fallback exactly once. Store a token hash as a secondary
+        // recovery path for later reconnect-based delivery.
         let token_hash = crate::utils::sha256_hex(&daemon_token);
         sqlx::query(
             r#"UPDATE hosts SET pending_daemon_token = $1 WHERE host_id = $2"#,

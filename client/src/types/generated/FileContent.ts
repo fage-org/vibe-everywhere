@@ -24,4 +24,8 @@ truncated: boolean,
 /**
  * Total file size in bytes
  */
-total_size: bigint, };
+total_size: bigint, 
+/**
+ * Whether content may have been corrupted by lossy UTF-8 conversion
+ */
+content_may_be_corrupted: boolean, };

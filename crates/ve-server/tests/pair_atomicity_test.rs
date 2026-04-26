@@ -261,23 +261,21 @@ async fn pair_grants_new_host_access_only_to_requester_device() {
     let requester_device_id = Uuid::new_v4();
 
     sqlx::query(
-        "INSERT INTO client_devices (device_id, device_name, device_type, legacy_acl, server_url) VALUES ($1, $2, $3, $4, $5)",
+        "INSERT INTO client_devices (device_id, device_name, device_type, server_url) VALUES ($1, $2, $3, $4)",
     )
     .bind(legacy_device_id.to_string())
     .bind("legacy-device")
     .bind("desktop")
-    .bind(1)
     .bind("http://localhost")
     .execute(&state.db)
     .await
     .unwrap();
     sqlx::query(
-        "INSERT INTO client_devices (device_id, device_name, device_type, legacy_acl, server_url) VALUES ($1, $2, $3, $4, $5)",
+        "INSERT INTO client_devices (device_id, device_name, device_type, server_url) VALUES ($1, $2, $3, $4)",
     )
     .bind(requester_device_id.to_string())
     .bind("requester-device")
     .bind("desktop")
-    .bind(1)
     .bind("http://localhost")
     .execute(&state.db)
     .await
@@ -309,13 +307,6 @@ async fn pair_grants_new_host_access_only_to_requester_device() {
         1
     );
 
-    let requester_legacy_acl: i64 =
-        sqlx::query_scalar("SELECT legacy_acl FROM client_devices WHERE device_id = $1")
-            .bind(requester_device_id.to_string())
-            .fetch_one(&state.db)
-            .await
-            .unwrap();
-    assert_eq!(requester_legacy_acl, 0);
 }
 
 #[tokio::test]

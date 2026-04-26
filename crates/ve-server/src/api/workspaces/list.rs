@@ -25,10 +25,11 @@ pub async fn list_workspaces(
         sqlx::query_as(
             r#"
                 SELECT workspaces.workspace_id, workspaces.host_id, workspaces.path, workspaces.display_name,
-                       CASE WHEN workspaces.is_favorited THEN 1 ELSE 0 END,
-                       CAST(workspaces.last_used_at AS TEXT),
-                       CASE WHEN workspaces.exists_on_host THEN 1 ELSE 0 END,
-                       CAST(workspaces.created_at AS TEXT), CAST(workspaces.updated_at AS TEXT),
+                       CASE WHEN workspaces.is_favorited THEN 1 ELSE 0 END AS is_favorited,
+                       CAST(workspaces.last_used_at AS TEXT) AS last_used_at,
+                       CASE WHEN workspaces.exists_on_host THEN 1 ELSE 0 END AS exists_on_host,
+                       CAST(workspaces.created_at AS TEXT) AS created_at,
+                       CAST(workspaces.updated_at AS TEXT) AS updated_at,
                        COUNT(*) OVER() as total_count
                 FROM workspaces
                 INNER JOIN device_host_access ON device_host_access.host_id = workspaces.host_id
@@ -47,10 +48,11 @@ pub async fn list_workspaces(
         sqlx::query_as(
             r#"
                 SELECT workspaces.workspace_id, workspaces.host_id, workspaces.path, workspaces.display_name,
-                       CASE WHEN workspaces.is_favorited THEN 1 ELSE 0 END,
-                       CAST(workspaces.last_used_at AS TEXT),
-                       CASE WHEN workspaces.exists_on_host THEN 1 ELSE 0 END,
-                       CAST(workspaces.created_at AS TEXT), CAST(workspaces.updated_at AS TEXT),
+                       CASE WHEN workspaces.is_favorited THEN 1 ELSE 0 END AS is_favorited,
+                       CAST(workspaces.last_used_at AS TEXT) AS last_used_at,
+                       CASE WHEN workspaces.exists_on_host THEN 1 ELSE 0 END AS exists_on_host,
+                       CAST(workspaces.created_at AS TEXT) AS created_at,
+                       CAST(workspaces.updated_at AS TEXT) AS updated_at,
                        COUNT(*) OVER() as total_count
                 FROM workspaces
                 INNER JOIN device_host_access ON device_host_access.host_id = workspaces.host_id

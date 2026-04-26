@@ -293,6 +293,7 @@ mod tests {
     async fn archived_rerun_returns_internal_error_when_archive_metadata_is_invalid() {
         let state = setup_state().await;
         let archived_session_id = Uuid::new_v4();
+        let requester_device_id = Uuid::new_v4();
         let host_id = Uuid::new_v4();
         let workspace_id = Uuid::new_v4();
 
@@ -304,6 +305,24 @@ mod tests {
             Some("{not-json".to_string()),
         )
         .await;
+
+        sqlx::query(
+            "INSERT INTO client_devices (device_id, device_name, device_type, server_url) VALUES ($1, $2, $3, $4)",
+        )
+        .bind(requester_device_id.to_string())
+        .bind("device")
+        .bind("desktop")
+        .bind("http://localhost")
+        .execute(&state.db)
+        .await
+        .unwrap();
+
+        sqlx::query("INSERT INTO device_host_access (device_id, host_id) VALUES ($1, $2)")
+            .bind(requester_device_id.to_string())
+            .bind(host_id.to_string())
+            .execute(&state.db)
+            .await
+            .unwrap();
 
         let session = (
             "archived".to_string(),
@@ -322,7 +341,7 @@ mod tests {
         let error = handle_archived_rerun(
             &state,
             "tr-test",
-            Uuid::new_v4(),
+            requester_device_id,
             archived_session_id,
             "rerun",
             session,
@@ -347,6 +366,7 @@ mod tests {
     async fn archived_rerun_returns_conflict_when_archive_metadata_has_no_claude_session_id() {
         let state = setup_state().await;
         let archived_session_id = Uuid::new_v4();
+        let requester_device_id = Uuid::new_v4();
         let host_id = Uuid::new_v4();
         let workspace_id = Uuid::new_v4();
         let metadata = ArchiveMetadata {
@@ -375,6 +395,24 @@ mod tests {
         )
         .await;
 
+        sqlx::query(
+            "INSERT INTO client_devices (device_id, device_name, device_type, server_url) VALUES ($1, $2, $3, $4)",
+        )
+        .bind(requester_device_id.to_string())
+        .bind("device")
+        .bind("desktop")
+        .bind("http://localhost")
+        .execute(&state.db)
+        .await
+        .unwrap();
+
+        sqlx::query("INSERT INTO device_host_access (device_id, host_id) VALUES ($1, $2)")
+            .bind(requester_device_id.to_string())
+            .bind(host_id.to_string())
+            .execute(&state.db)
+            .await
+            .unwrap();
+
         let session = (
             "archived".to_string(),
             host_id.to_string(),
@@ -392,7 +430,7 @@ mod tests {
         let error = handle_archived_rerun(
             &state,
             "tr-test",
-            Uuid::new_v4(),
+            requester_device_id,
             archived_session_id,
             "rerun",
             session,
@@ -1067,6 +1105,13 @@ mod tests {
         .execute(&state.db)
         .await
         .unwrap();
+
+        sqlx::query("INSERT INTO device_host_access (device_id, host_id) VALUES ($1, $2)")
+            .bind(new_device_id.to_string())
+            .bind(host_id.to_string())
+            .execute(&state.db)
+            .await
+            .unwrap();
 
         sqlx::query(
             "INSERT INTO sessions (session_id, title, host_id, workspace_id, agent_type, status, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, 'archived', $6, $6)",

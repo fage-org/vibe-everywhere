@@ -1,10 +1,9 @@
 //! Tests for the workspace API module.
 
-use std::sync::Arc;
 use std::time::Duration;
 
-use axum::extract::{Path, State};
-use axum::{Extension, Json};
+use axum::extract::State;
+use axum::Json;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 use ve_shared::jwt::{Claims, TokenType};
@@ -14,12 +13,11 @@ use ve_shared::proto::{AckPayload, ErrorPayload, WsEnvelope};
 use super::{
     create_workspace, update_workspace, UpdateWorkspaceRequest,
 };
-use crate::authz::ClientAccess;
+use crate::authz::{ClientAccess, WorkspaceAccess};
 use crate::config::Config;
 use crate::db;
 use crate::error::ServerError;
 use crate::hub::{Hub, WsSender};
-use crate::state::AppState;
 use crate::validation::{ValidationError, MAX_WORKSPACE_DISPLAY_NAME_LENGTH};
 
 fn test_config(database_url: String) -> Config {
@@ -99,6 +97,21 @@ async fn seed_device_and_host(state: &crate::state::AppState) -> (Uuid, Uuid) {
 
 fn client_claims(device_id: Uuid) -> Claims {
     Claims::for_client(device_id, "device", chrono::Duration::hours(1))
+}
+
+fn workspace_access(device_id: Uuid, host_id: Uuid, workspace_id: Uuid) -> WorkspaceAccess {
+    WorkspaceAccess {
+        device_id,
+        workspace_id,
+        host_id,
+        path: "/tmp/workspace".to_string(),
+        display_name: "original-name".to_string(),
+        is_favorited: false,
+        last_used_at: None,
+        exists_on_host: true,
+        created_at: "2026-01-01 00:00:00".to_string(),
+        updated_at: "2026-01-01 00:00:00".to_string(),
+    }
 }
 
 async fn register_fake_daemon(state: &crate::state::AppState, host_id: Uuid) -> mpsc::Receiver<WsEnvelope> {
@@ -289,8 +302,7 @@ async fn update_workspace_rejects_blank_display_name() {
 
     let error = update_workspace(
         State(state.clone()),
-        Extension(client_claims(device_id)),
-        Path(workspace_id),
+        workspace_access(device_id, host_id, workspace_id),
         Json(UpdateWorkspaceRequest {
             display_name: Some("   ".to_string()),
             is_favorited: None,
@@ -336,8 +348,7 @@ async fn update_workspace_rejects_too_long_display_name() {
     let too_long = "a".repeat(MAX_WORKSPACE_DISPLAY_NAME_LENGTH + 1);
     let error = update_workspace(
         State(state.clone()),
-        Extension(client_claims(device_id)),
-        Path(workspace_id),
+        workspace_access(device_id, host_id, workspace_id),
         Json(UpdateWorkspaceRequest {
             display_name: Some(too_long),
             is_favorited: None,
