@@ -13,6 +13,13 @@ use std::sync::Arc;
 use uuid::Uuid;
 use ve_shared::jwt::Claims;
 
+/// Named row for close session lookup
+#[derive(sqlx::FromRow)]
+struct CloseSessionRow {
+    status: String,
+    host_id: String,
+}
+
 pub async fn close_session_route(
     access: SessionAccess,
     State(state): State<Arc<AppState>>,
@@ -21,7 +28,6 @@ pub async fn close_session_route(
     close_session_for_id(state, headers, access.session_id).await
 }
 
-#[allow(clippy::type_complexity)]
 pub async fn close_session(
     State(state): State<Arc<AppState>>,
     Extension(claims): Extension<Claims>,
@@ -42,7 +48,7 @@ async fn close_session_for_id(
 
     let session_id_str = id.to_string();
 
-    let session_row: Option<(String, String)> = sqlx::query_as(
+    let session: Option<CloseSessionRow> = sqlx::query_as(
         r#"
         SELECT status, host_id
         FROM sessions WHERE session_id = $1
@@ -52,9 +58,9 @@ async fn close_session_for_id(
     .fetch_optional(&state.db)
     .await?;
 
-    let session = session_row.ok_or(ServerError::NotFound(format!("Session {}", id)))?;
+    let session = session.ok_or(ServerError::NotFound(format!("Session {}", id)))?;
 
-    if session.0 == "archived" {
+    if session.status == "archived" {
         let archive: Option<(String,)> = sqlx::query_as(
             r#"
             SELECT archive_id FROM session_archives WHERE session_id = $1
@@ -77,7 +83,7 @@ async fn close_session_for_id(
         };
     }
 
-    let host_id = parse_uuid(&session.1, "host_id")?;
+    let host_id = parse_uuid(&session.host_id, "host_id")?;
     let request_id = generate_request_id();
     let request = DaemonMessage::CloseSession {
         request_id: request_id.clone(),

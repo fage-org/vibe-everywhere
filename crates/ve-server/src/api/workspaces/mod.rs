@@ -36,6 +36,38 @@ struct WorkspaceRecord {
     updated_at: String,
 }
 
+/// Workspace list row with window function total count
+#[derive(sqlx::FromRow)]
+struct WorkspaceListRow {
+    workspace_id: String,
+    host_id: String,
+    path: String,
+    display_name: String,
+    is_favorited: i64,
+    last_used_at: Option<String>,
+    exists_on_host: i64,
+    created_at: String,
+    updated_at: String,
+    total_count: i64,
+}
+
+impl WorkspaceListRow {
+    fn to_model(&self) -> Result<Workspace> {
+        workspace_record_from_row((
+            self.workspace_id.clone(),
+            self.host_id.clone(),
+            self.path.clone(),
+            self.display_name.clone(),
+            self.is_favorited,
+            self.last_used_at.clone(),
+            self.exists_on_host,
+            self.created_at.clone(),
+            self.updated_at.clone(),
+        ))
+        .to_model()
+    }
+}
+
 type WorkspaceRow = (
     String, String, String, String, i64, Option<String>, i64, String, String,
 );
