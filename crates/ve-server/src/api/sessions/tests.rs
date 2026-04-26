@@ -1525,6 +1525,8 @@ mod tests {
             SessionCollectionAccess {
                 device_id: rerun_device_id,
                 host_id: Some(host_id),
+                page: 1,
+                limit: 100,
             },
             State(state.clone()),
         )
@@ -1539,6 +1541,8 @@ mod tests {
             SessionCollectionAccess {
                 device_id: archived_only_device_id,
                 host_id: Some(host_id),
+                page: 1,
+                limit: 100,
             },
             State(state.clone()),
         )

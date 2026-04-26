@@ -22,7 +22,6 @@ use ve_shared::pairing_proof::PairingProof;
 use crate::authz::require_bootstrap_device_id;
 use crate::error::{Result, ServerError};
 use crate::state::AppState;
-use crate::token_revocation;
 use crate::utils;
 use crate::validation::{validate_device_name, validate_host_name, validate_pair_code};
 use subtle::ConstantTimeEq;
@@ -35,8 +34,9 @@ pub async fn register_device(
     ConnectInfo(remote_addr): ConnectInfo<SocketAddr>,
     Json(req): Json<RegisterDeviceRequest>,
 ) -> Result<Json<RegisterDeviceResponse>> {
-    // Validate device name
-    validate_device_name(&req.device_name)?;
+    // Validate device name (trim whitespace first)
+    let device_name = req.device_name.trim().to_string();
+    validate_device_name(&device_name)?;
 
     // Validate server_url format
     if req.server_url.len() > 2048 {
@@ -67,7 +67,7 @@ pub async fn register_device(
     // Generate token
     let token = state
         .jwt_manager
-        .create_client_bootstrap_token(device_id, &req.device_name)?;
+        .create_client_bootstrap_token(device_id, &device_name)?;
 
     // Store device in database
     let device_type_str = match req.device_type {
@@ -82,7 +82,7 @@ pub async fn register_device(
         "#,
     )
     .bind(&device_id_str)
-    .bind(&req.device_name)
+    .bind(&device_name)
     .bind(device_type_str)
     .bind(&req.server_url)
     .execute(&state.db)
@@ -94,7 +94,7 @@ pub async fn register_device(
 }
 
 /// Daemon hello request
-#[derive(Debug, serde::Deserialize)]
+#[derive(serde::Deserialize)]
 pub struct DaemonHelloRequest {
     pub pair_code: String,
     pub host_name: String,
@@ -102,14 +102,37 @@ pub struct DaemonHelloRequest {
     pub pairing_proof: PairingProof,
 }
 
+impl std::fmt::Debug for DaemonHelloRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DaemonHelloRequest")
+            .field("pair_code", &"[redacted]")
+            .field("host_name", &self.host_name)
+            .field("platform", &self.platform)
+            .field("pairing_proof", &"[redacted]")
+            .finish()
+    }
+}
+
 /// Daemon hello response
-#[derive(Debug, serde::Serialize)]
+#[derive(serde::Serialize)]
 pub struct DaemonHelloResponse {
     pub host_id: Uuid,
     pub status: String,
     pub pair_code: String,
     pub qr_payload: String,
     pub pairing_secret: String,
+}
+
+impl std::fmt::Debug for DaemonHelloResponse {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DaemonHelloResponse")
+            .field("host_id", &self.host_id)
+            .field("status", &self.status)
+            .field("pair_code", &"[redacted]")
+            .field("qr_payload", &"[redacted]")
+            .field("pairing_secret", &"[redacted]")
+            .finish()
+    }
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -238,9 +261,13 @@ pub async fn pairing_status(
     .await?
     .ok_or(ServerError::PairCodeExpired)?;
 
-    let stored_secret = row.2.as_deref().unwrap_or("");
-    if !bool::from(stored_secret.as_bytes().ct_eq(pairing_secret.as_bytes())) {
-        return Err(ServerError::Unauthorized);
+    // Only verify pairing_secret during pending phase.
+    // After pair(), secret is cleared and daemon authenticates by host_id.
+    if row.0 != "paired" {
+        let stored_secret = row.2.as_deref().unwrap_or("");
+        if !bool::from(stored_secret.as_bytes().ct_eq(pairing_secret.as_bytes())) {
+            return Err(ServerError::Unauthorized);
+        }
     }
 
     let expires_at = utils::parse_sqlite_timestamp(&row.3)
@@ -289,9 +316,17 @@ pub async fn pairing_status(
 }
 
 /// Pair request from client
-#[derive(Debug, serde::Deserialize)]
+#[derive(serde::Deserialize)]
 pub struct PairRequest {
     pub pair_code: String,
+}
+
+impl std::fmt::Debug for PairRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PairRequest")
+            .field("pair_code", &"[redacted]")
+            .finish()
+    }
 }
 
 /// POST /api/auth/pair
@@ -420,6 +455,18 @@ pub async fn pair(
     .execute(&mut *tx)
     .await?;
 
+    // Clear pairing_secret immediately — daemon authenticates by host_id post-pair
+    sqlx::query(
+        r#"
+        UPDATE pairing_codes
+        SET pairing_secret = NULL
+        WHERE host_id = $1
+        "#,
+    )
+    .bind(&host_id_str)
+    .execute(&mut *tx)
+    .await?;
+
     sqlx::query(
         r#"
         INSERT INTO device_host_access (device_id, host_id)
@@ -452,31 +499,48 @@ pub async fn pair(
     .execute(&mut *tx)
     .await?;
 
-    tx.commit().await?;
-
+    // Create client token and rotate jti INSIDE the transaction so a partial
+    // failure doesn't leave the device in a permissive auth state (current_jti = NULL).
     let client_token = state
         .jwt_manager
         .create_client_token(device_id, &claims.name)?;
 
-    // Extract jti from the new token and record device-level revocation
     if let Some(new_jti) = state.jwt_manager.extract_jti(&client_token) {
-        // Revoke the old current_jti token (if any) by inserting into revoked_tokens
+        // Revoke the old current_jti token (if any)
         let old_jti: Option<String> = sqlx::query_scalar(
             r#"SELECT current_jti FROM client_devices WHERE device_id = $1"#,
         )
         .bind(&device_id_str)
-        .fetch_optional(&state.db)
+        .fetch_optional(&mut *tx)
         .await?
         .flatten();
 
         if let Some(old_jti) = old_jti {
             let exp = chrono::Utc::now() + chrono::Duration::days(1);
-            let _ = token_revocation::revoke_token(&state.db, &old_jti, device_id, exp).await;
+            let _ = sqlx::query::<sqlx::Any>(
+                r#"
+                INSERT INTO revoked_tokens (jti, device_id, expires_at)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (jti) DO NOTHING
+                "#,
+            )
+            .bind(&old_jti)
+            .bind(&device_id_str)
+            .bind(exp.to_rfc3339())
+            .execute(&mut *tx)
+            .await;
         }
 
-        // Update device's current_jti to the new token
-        token_revocation::update_device_current_jti(&state.db, device_id, &new_jti).await?;
+        sqlx::query::<sqlx::Any>(
+            r#"UPDATE client_devices SET current_jti = $2 WHERE device_id = $1"#,
+        )
+        .bind(&device_id_str)
+        .bind(&new_jti)
+        .execute(&mut *tx)
+        .await?;
     }
+
+    tx.commit().await?;
 
     let daemon_token = state.jwt_manager.create_daemon_token(host_id, &host_name)?;
 
@@ -493,11 +557,14 @@ pub async fn pair(
         .await;
 
     if !sent {
-        tracing::info!(%host_id, "Daemon offline during pairing, persisting token for later delivery");
+        tracing::info!(%host_id, "Daemon offline during pairing, persisting token hash for later delivery");
+        // Store SHA-256 hash of the token, not the token itself.
+        // When the daemon reconnects, a fresh token will be issued.
+        let token_hash = crate::utils::sha256_hex(&daemon_token);
         sqlx::query(
             r#"UPDATE hosts SET pending_daemon_token = $1 WHERE host_id = $2"#,
         )
-        .bind(&daemon_token)
+        .bind(&token_hash)
         .bind(&host_id_str)
         .execute(&state.db)
         .await?;

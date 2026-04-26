@@ -47,7 +47,12 @@ async fn list_archives_for_device(
         ));
     }
     let limit = query.limit.unwrap_or(20).min(100);
-    let offset = (page - 1) * limit;
+    if limit == 0 {
+        return Err(ServerError::BadRequest(
+            "limit must be greater than 0".to_string(),
+        ));
+    }
+    let offset = (page as u64 - 1) * limit as u64;
 
     let rows: Vec<ArchiveRow> = match (query.host_id, query.workspace_id) {
         (Some(host_id), Some(workspace_id)) => {

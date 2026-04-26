@@ -247,10 +247,19 @@ impl SessionRegistry {
         self.runners.read().await.len()
     }
 
-    /// 关闭并移除会话 (原子操作)
+    /// Check if any active session uses the given workspace path.
+    pub async fn contains_workspace(&self, workspace: &std::path::Path) -> bool {
+        self.runners
+            .read()
+            .await
+            .values()
+            .any(|h| h.workspace_path == workspace.to_string_lossy().as_ref())
+    }
+
+    /// Close and remove a session (atomic operation)
     ///
-    /// 如果发送关闭命令成功，会话将从 registry 移除。
-    /// 如果发送失败，会话仍保留在 registry 中，可重试。
+    /// If close succeeds, session is removed from registry.
+    /// If close fails, session remains in registry for retry.
     pub async fn close_and_remove(&self, session_id: &Uuid) -> Result<()> {
         // 先获取 handle
         let handle = {

@@ -7,7 +7,7 @@ use uuid::Uuid;
 use ve_shared::types::SessionStatus;
 
 use super::glob_match::matches_pattern;
-use super::{BridgePermissionResult, DriverEvent, Result, RunnerState, SessionRunner};
+use super::{BridgePermissionResult, DriverEvent, Result, RunnerState, SessionRunner, APPROVAL_CACHE_TTL_SECS};
 
 impl SessionRunner {
     /// Validate a state transition.
@@ -104,12 +104,16 @@ impl SessionRunner {
     }
 
     /// Check approval cache
+    /// Prune expired approval cache entries and check against remaining.
     ///
     /// Checks if a permission request matches any cached approval rules.
     /// risk_type must match exactly, target supports wildcard matching.
-    pub fn check_approval_cache(&self, risk_type: &str, target: Option<&str>) -> bool {
-        let target_str = target.unwrap_or("*");
+    pub fn check_approval_cache(&mut self, risk_type: &str, target: Option<&str>) -> bool {
+        let now = std::time::Instant::now();
+        let ttl = std::time::Duration::from_secs(APPROVAL_CACHE_TTL_SECS);
+        self.approval_cache.retain(|rule| now.duration_since(rule.added_at) < ttl);
 
+        let target_str = target.unwrap_or("*");
         self.approval_cache.iter().any(|rule| {
             if rule.risk_type != risk_type {
                 return false;

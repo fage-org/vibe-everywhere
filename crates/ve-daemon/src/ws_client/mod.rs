@@ -78,6 +78,8 @@ pub struct WsClient {
     ws_sender: Option<Arc<tokio::sync::Mutex<WsSender>>>,
     /// File operations handler (workspace roots collected from sessions)
     file_ops: Option<FileOps>,
+    /// Semaphore to bound concurrent permission bridge task spawning
+    bridge_semaphore: Arc<tokio::sync::Semaphore>,
 }
 
 impl WsClient {
@@ -97,6 +99,7 @@ impl WsClient {
             event_rx: None,
             ws_sender: None,
             file_ops: Some(file_ops),
+            bridge_semaphore: Arc::new(tokio::sync::Semaphore::new(32)),
         }
     }
 
@@ -123,6 +126,7 @@ impl WsClient {
             event_rx: Some(event_rx),
             ws_sender: None,
             file_ops: Some(file_ops),
+            bridge_semaphore: Arc::new(tokio::sync::Semaphore::new(32)),
         }
     }
 
@@ -331,7 +335,9 @@ impl WsClient {
 
             let response_path = responses_dir.join(format!("{}.json", request.request_id));
             let original_input = request.input.clone();
+            let permit = Arc::clone(&self.bridge_semaphore);
             tokio::spawn(async move {
+                let _guard = permit.acquire().await;
                 let payload = match response_rx.await {
                     Ok(BridgePermissionResult::Decision(
                         PermissionDecision::ApproveOnce | PermissionDecision::ApproveSession,

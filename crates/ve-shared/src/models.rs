@@ -329,6 +329,9 @@ pub struct FileContent {
     pub truncated: bool,
     /// Total file size in bytes
     pub total_size: u64,
+    /// Whether content may have been corrupted by lossy UTF-8 conversion
+    #[serde(default)]
+    pub content_may_be_corrupted: bool,
 }
 
 /// Generic success response for simple mutation endpoints

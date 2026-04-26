@@ -126,6 +126,9 @@ impl IdempotencyKeyStore {
         // Omit expires_at and created_at from INSERT and let DB DEFAULTs handle them.
         // SQLite supplemental migration doesn't set a DEFAULT for expires_at, but
         // we can rely on the column being nullable or update after insert.
+        // Use a transaction to avoid TOCTOU race between INSERT failure and SELECT fallback
+        let mut tx = self.pool.begin().await?;
+
         let result = sqlx::query(
             r#"
             INSERT INTO idempotency_keys (key, request_hash, session_id, result_type, expires_at)
@@ -137,11 +140,12 @@ impl IdempotencyKeyStore {
         .bind(&result_ref_str)
         .bind(result_type)
         .bind(&expires_at)
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await;
 
         match result {
             Ok(_) => {
+                tx.commit().await?;
                 tracing::debug!(
                     key = %key,
                     result_ref = %result_ref_str,
@@ -159,6 +163,7 @@ impl IdempotencyKeyStore {
                 })
             }
             Err(e) => {
+                tx.rollback().await?;
                 // Check if it's a duplicate key error
                 if e.to_string().contains("UNIQUE constraint")
                     || e.to_string().contains("PRIMARY KEY")

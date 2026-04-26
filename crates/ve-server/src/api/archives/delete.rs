@@ -101,12 +101,12 @@ async fn batch_delete_archives_for_device(
         }
     }
 
-    // Remove this device's access rows for successfully deleted sessions
+    // Remove ALL device access rows for successfully deleted sessions,
+    // not just the requesting device's rows — prevents orphaned access grants.
     for session_id in &deleted_session_ids {
         let _ = sqlx::query(
-            r#"DELETE FROM device_session_access WHERE device_id = $1 AND session_id = $2"#,
+            r#"DELETE FROM device_session_access WHERE session_id = $1"#,
         )
-        .bind(&device_id_str)
         .bind(session_id)
         .execute(&mut *tx)
         .await;

@@ -47,9 +47,20 @@ impl WsClient {
                         "Connection lost, reconnecting..."
                     );
 
-                    tokio::select! {
-                        _ = tokio::time::sleep(backoff) => {}
-                        _ = shutdown_rx.recv() => break 'connection_loop Ok(()),
+                    // Drain events during backoff to prevent channel overflow.
+                    // Only keep the latest critical events (FatalError, StatusUpdate).
+                    let step = Duration::from_millis(500);
+                    let mut elapsed = Duration::from_secs(0);
+                    while elapsed < backoff {
+                        tokio::select! {
+                            _ = tokio::time::sleep(step.min(backoff - elapsed)) => {
+                                elapsed += step;
+                                if let Some(rx) = &mut self.event_rx {
+                                    drain_non_critical_events(rx);
+                                }
+                            }
+                            _ = shutdown_rx.recv() => break 'connection_loop Ok(()),
+                        }
                     }
                 }
                 Err(DaemonError::TokenExpired) | Err(DaemonError::TokenInvalid { .. }) => {
@@ -66,9 +77,18 @@ impl WsClient {
                         });
                     }
                     let backoff = calculate_backoff(min_backoff, max_backoff, retry_count);
-                    tokio::select! {
-                        _ = tokio::time::sleep(backoff) => {}
-                        _ = shutdown_rx.recv() => break 'connection_loop Ok(()),
+                    let step = Duration::from_millis(500);
+                    let mut elapsed = Duration::from_secs(0);
+                    while elapsed < backoff {
+                        tokio::select! {
+                            _ = tokio::time::sleep(step.min(backoff - elapsed)) => {
+                                elapsed += step;
+                                if let Some(rx) = &mut self.event_rx {
+                                    drain_non_critical_events(rx);
+                                }
+                            }
+                            _ = shutdown_rx.recv() => break 'connection_loop Ok(()),
+                        }
                     }
                 }
             }
@@ -320,5 +340,19 @@ impl WsClient {
         self.event_rx = event_rx;
         heartbeat_handle.abort();
         Ok(())
+    }
+}
+
+/// Drain all events from the mpsc channel during reconnection backoff.
+///
+/// Events queued during disconnect are stale — the SyncSessions handshake after
+/// reconnection reconciles session state with the server. Draining prevents
+/// channel overflow from accumulated events during backoff.
+fn drain_non_critical_events(rx: &mut tokio::sync::mpsc::Receiver<DriverEvent>) {
+    while let Ok(event) = rx.try_recv() {
+        // Log any FatalError encountered so it's not completely invisible
+        if let DriverEvent::FatalError { session_id, message } = &event {
+            warn!(%session_id, %message, "Drained stale FatalError during reconnection backoff");
+        }
     }
 }

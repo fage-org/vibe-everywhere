@@ -98,7 +98,6 @@ async fn control_session_for_id(
     let action = utils::parse_control_action(&req.action)?;
 
     if session.0 == "archived" {
-        require_host_access(&state, device_id, host_id).await?;
         return handle_archived_rerun(&state, &trace_id, device_id, id, &req.action, session).await;
     }
 
@@ -138,21 +137,14 @@ pub(crate) async fn handle_archived_rerun(
 
     let host_id = parse_uuid(&host_id_raw, "host_id")?;
     let host_id_str = host_id.to_string();
+
+    // Authorization: verify requester has access to this host
+    require_host_access(state, requester_device_id, host_id).await?;
+
     let workspace_id = parse_uuid(&workspace_id_raw, "workspace_id")?;
     let workspace_id_str = workspace_id.to_string();
     let archived_session_id_str = archived_session_id.to_string();
     let requester_device_id_str = requester_device_id.to_string();
-
-    let workspace: (String,) = sqlx::query_as(
-        r#"
-        SELECT path FROM workspaces WHERE workspace_id = $1 AND host_id = $2
-        "#,
-    )
-    .bind(&workspace_id_str)
-    .bind(&host_id_str)
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or(ServerError::NotFound(format!("Workspace {}", workspace_id)))?;
 
     let archived_claude_session_id = if let Some(claude_session_id) = live_claude_session_id {
         claude_session_id
@@ -219,6 +211,19 @@ pub(crate) async fn handle_archived_rerun(
     let new_session_id = Uuid::new_v4();
     let new_session_id_str = new_session_id.to_string();
     let mut tx = state.db.begin().await?;
+
+    // Verify workspace still exists within the transaction
+    let workspace_path = sqlx::query_as::<_, (String,)>(
+        r#"
+        SELECT path FROM workspaces WHERE workspace_id = $1 AND host_id = $2
+        "#,
+    )
+    .bind(&workspace_id_str)
+    .bind(&host_id_str)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(ServerError::NotFound(format!("Workspace {}", workspace_id)))?
+    .0;
 
     let insert_result = sqlx::query(
         r#"
@@ -329,7 +334,7 @@ pub(crate) async fn handle_archived_rerun(
         DaemonMessage::RerunSession {
             request_id,
             session_id: new_session_id,
-            workspace_path: workspace.0,
+            workspace_path: workspace_path.clone(),
             agent_type: agent_type.clone(),
             claude_session_id: archived_claude_session_id.clone(),
         },

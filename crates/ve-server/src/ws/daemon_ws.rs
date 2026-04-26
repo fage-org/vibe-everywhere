@@ -144,13 +144,15 @@ async fn handle_daemon_socket(socket: WebSocket, state: Arc<AppState>, host_id: 
 }
 
 /// Deliver a pending daemon token if one was stored while the daemon was offline.
+/// Generates a fresh daemon token and sends it via WS.
 async fn deliver_pending_daemon_token(
     state: &AppState,
     host_id: Uuid,
     tx: &tokio::sync::mpsc::Sender<WsEnvelope>,
 ) {
     let host_id_str = host_id.to_string();
-    let token: Option<String> =
+    // Only check that a pending token EXISTS (stored as hash, not plaintext).
+    let has_pending: Option<String> =
         sqlx::query_scalar("SELECT pending_daemon_token FROM hosts WHERE host_id = $1")
             .bind(&host_id_str)
             .fetch_optional(&state.db)
@@ -159,20 +161,37 @@ async fn deliver_pending_daemon_token(
             .flatten()
             .filter(|t: &String| !t.is_empty());
 
-    if let Some(token) = token {
-        let message = DaemonMessage::Paired {
-            host_id,
-            daemon_token: token,
-        };
-        let envelope = WsEnvelope::new("paired", &message);
-        if tx.send(envelope).await.is_ok() {
-            tracing::info!(%host_id, "Delivered pending daemon token");
-            let _ = sqlx::query(
-                "UPDATE hosts SET pending_daemon_token = NULL WHERE host_id = $1",
-            )
-            .bind(&host_id_str)
-            .execute(&state.db)
-            .await;
+    if has_pending.is_some() {
+        // Fetch host_name to generate a fresh token
+        let host_name: Option<String> =
+            sqlx::query_scalar("SELECT host_name FROM hosts WHERE host_id = $1")
+                .bind(&host_id_str)
+                .fetch_optional(&state.db)
+                .await
+                .ok()
+                .flatten();
+
+        if let Some(host_name) = host_name {
+            match state
+                .jwt_manager
+                .create_daemon_token(host_id, &host_name)
+            {
+                Ok(new_token) => {
+                    let message = DaemonMessage::Paired {
+                        host_id,
+                        daemon_token: new_token,
+                    };
+                    let envelope = WsEnvelope::new("paired", &message);
+                    if tx.send(envelope).await.is_ok() {
+                        tracing::info!(%host_id, "Delivered fresh daemon token");
+                    } else {
+                        tracing::warn!(%host_id, "Failed to queue daemon token, will retry on next reconnect");
+                    }
+                }
+                Err(e) => {
+                    tracing::error!(%host_id, error = %e, "Failed to create daemon token during pending delivery");
+                }
+            }
         }
     }
 }
@@ -344,12 +363,8 @@ async fn try_handle_pending_response(
         }
         "error" => {
             let error = serde_json::from_value::<ErrorPayload>(envelope.payload.clone())?;
-            state.hub.complete_with_error(error.clone()).await;
-            Some(DaemonToServer::Error {
-                request_id: error.request_id,
-                error_code: error.error_code,
-                error_message: error.error_message,
-            })
+            state.hub.complete_with_error(error).await;
+            return Ok(true);
         }
         _ => None,
     };

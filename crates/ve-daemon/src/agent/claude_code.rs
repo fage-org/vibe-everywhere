@@ -2,10 +2,10 @@
 //!
 //! Manages Claude Code CLI subprocess lifecycle, I/O, and stream-json parsing.
 
-use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -22,11 +22,18 @@ use crate::config::Config;
 use crate::error::DaemonError;
 use crate::Result;
 
-/// Send a DriverEvent to the mpsc channel, logging on failure.
+/// Send a DriverEvent to the mpsc channel asynchronously.
+/// Spawns a short-lived task to avoid blocking the caller while ensuring
+/// delivery within a timeout (prevents silent event loss from try_send).
 fn emit(event_tx: &tokio::sync::mpsc::Sender<DriverEvent>, event: DriverEvent) {
-    if let Err(e) = event_tx.try_send(event) {
-        warn!(error = %e, "event channel full or closed, event will be dropped");
-    }
+    let tx = event_tx.clone();
+    tokio::spawn(async move {
+        match tokio::time::timeout(Duration::from_secs(5), tx.send(event)).await {
+            Ok(Ok(())) => {}
+            Ok(Err(e)) => warn!(error = %e, "event channel closed, event dropped"),
+            Err(_) => warn!("event channel send timed out, event dropped"),
+        }
+    });
 }
 
 /// Claude Code CLI Driver
@@ -55,9 +62,6 @@ pub struct ClaudeCodeDriver {
 
     /// Workspace path (for rerun support)
     workspace_path: Option<String>,
-
-    /// Pending permission requests (for tracking permission responses)
-    pending_permissions: HashMap<String, tokio::sync::oneshot::Sender<PermissionDecision>>,
 }
 
 /// Stream-JSON event types from Claude CLI (supports both verbose and non-verbose formats)
@@ -130,7 +134,6 @@ impl ClaudeCodeDriver {
             stdout_reader: None,
             claude_session_id: None,
             workspace_path: None,
-            pending_permissions: HashMap::new(),
         }
     }
 
@@ -672,6 +675,7 @@ impl AgentDriver for ClaudeCodeDriver {
         // Build command with --resume flag
         let mut cmd = TokioCommand::new(&self.config.claude_command);
         cmd.arg("-p")
+            .arg("--verbose")
             .arg("--output-format")
             .arg("stream-json")
             .arg("--input-format")

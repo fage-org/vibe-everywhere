@@ -57,9 +57,17 @@ struct AuthorizedWorkspace {
 /// `canonicalize` + `starts_with`, but the server should reject obvious
 /// traversal attempts before they reach the daemon.
 fn validate_relative_path(relative_path: &str) -> Result<()> {
+    let path = StdPath::new(relative_path);
+
+    // Reject absolute paths (e.g. /etc/passwd, C:\Windows)
+    if path.is_absolute() {
+        return Err(ServerError::BadRequest(
+            "Absolute paths not allowed: path must be relative".to_string(),
+        ));
+    }
+
     // Reject paths that contain `..` components.
-    // Using Path::components() handles all platform-specific separators.
-    for component in StdPath::new(relative_path).components() {
+    for component in path.components() {
         if let std::path::Component::ParentDir = component {
             return Err(ServerError::BadRequest(
                 "Path traversal not allowed: path must not contain '..'".to_string(),
@@ -213,6 +221,7 @@ async fn get_file_content_for_host(
             file_type,
             truncated,
             total_size,
+            content_may_be_corrupted,
             ..
         }) => {
             let file_type = match file_type.as_str() {
@@ -226,6 +235,7 @@ async fn get_file_content_for_host(
                 file_type,
                 truncated,
                 total_size,
+                content_may_be_corrupted,
             })))
         }
         DaemonResponse::Message(ve_shared::proto::DaemonToServer::Error {

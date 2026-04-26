@@ -333,7 +333,9 @@ impl FileOps {
                 source: e,
             })?;
 
-        let content = String::from_utf8_lossy(&buffer).to_string();
+        let content_str = String::from_utf8_lossy(&buffer);
+        let content_may_be_corrupted = content_str.contains('\u{FFFD}');
+        let content = content_str.to_string();
 
         Ok(FileContent {
             path: path.to_string_lossy().to_string(),
@@ -341,6 +343,7 @@ impl FileOps {
             file_type,
             truncated,
             total_size,
+            content_may_be_corrupted,
         })
     }
 }

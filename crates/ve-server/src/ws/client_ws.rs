@@ -130,6 +130,7 @@ async fn handle_client_message(
                 .ok_or_else(|| ServerError::BadRequest("Missing session_id".to_string()))?;
             let session_id = Uuid::parse_str(session_id_str)
                 .map_err(|_| ServerError::BadRequest("Invalid session_id".to_string()))?;
+            require_session_access(state, device_id, session_id).await?;
             state.hub.unsubscribe_session(&device_id, &session_id);
             tracing::debug!(%device_id, %session_id, "Client unsubscribed from session");
         }

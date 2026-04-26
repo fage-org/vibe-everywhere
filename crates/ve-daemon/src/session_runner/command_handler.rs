@@ -107,6 +107,7 @@ impl SessionRunner {
                         self.approval_cache.push(ApprovalRule {
                             risk_type: pending.risk_type.clone(),
                             target_pattern: pending.target.clone().unwrap_or("*".to_string()),
+                            added_at: std::time::Instant::now(),
                         });
                         debug!(
                             session_id = %self.session_id,

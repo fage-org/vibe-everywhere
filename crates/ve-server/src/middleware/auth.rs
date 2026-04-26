@@ -79,16 +79,23 @@ pub async fn auth_middleware(
         return Err(AuthError::InvalidTokenType);
     }
 
-    // Check token revocation for Client-type tokens
-    if claims.r#type == TokenType::Client {
+    // Check token revocation for Client and ClientBootstrap tokens
+    if matches!(claims.r#type, TokenType::Client | TokenType::ClientBootstrap) {
         if let Ok(device_id) = claims.subject_uuid() {
-            if token_revocation::jti_matches_device(&state.db, device_id, &claims.jti)
-                .await
-                .unwrap_or(true)
-            {
+            let jti_matches =
+                token_revocation::jti_matches_device(&state.db, device_id, &claims.jti)
+                    .await
+                    .map_err(|e| {
+                        tracing::error!(error = %e, device_id = %device_id, "Failed to check jti match, rejecting token");
+                        AuthError::InternalError
+                    })?;
+            if jti_matches {
                 let is_revoked = token_revocation::is_revoked(&state.db, &claims.jti)
                     .await
-                    .unwrap_or(false);
+                    .map_err(|e| {
+                        tracing::error!(error = %e, "Failed to check token revocation, rejecting token");
+                        AuthError::InternalError
+                    })?;
                 if is_revoked {
                     return Err(AuthError::TokenRevoked);
                 }
@@ -111,6 +118,7 @@ pub enum AuthError {
     InvalidTokenType,
     Expired,
     TokenRevoked,
+    InternalError,
 }
 
 impl IntoResponse for AuthError {
@@ -128,6 +136,10 @@ impl IntoResponse for AuthError {
             ),
             AuthError::Expired => (StatusCode::UNAUTHORIZED, "Token expired"),
             AuthError::TokenRevoked => (StatusCode::UNAUTHORIZED, "Token revoked"),
+            AuthError::InternalError => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Authentication service unavailable",
+            ),
         };
 
         let body = axum::Json(serde_json::json!({

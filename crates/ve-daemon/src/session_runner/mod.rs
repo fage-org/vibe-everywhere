@@ -71,6 +71,7 @@ pub struct SessionRunnerHandle {
     pub command_tx: mpsc::Sender<RunnerCommand>,
     pub state: RunnerState,
     pub session_id: Uuid,
+    pub workspace_path: String,
 }
 
 /// Session runner
@@ -98,11 +99,18 @@ pub struct SessionRunner {
 }
 
 /// Approval rule for session-level permission caching
+///
+/// Cache entries expire after APPROVAL_CACHE_TTL_SECS to prevent stale
+/// approvals from surviving server-side permission expiry.
 #[derive(Debug, Clone)]
 pub struct ApprovalRule {
     pub risk_type: String,
     pub target_pattern: String,
+    pub added_at: std::time::Instant,
 }
+
+/// TTL for cached approval rules (matches server-side permission_ttl_secs default).
+const APPROVAL_CACHE_TTL_SECS: u64 = 300;
 
 /// Result returned to the external permission-prompt MCP bridge.
 #[derive(Debug)]
@@ -146,6 +154,7 @@ impl SessionRunner {
             command_tx,
             state: RunnerState::Starting,
             session_id,
+            workspace_path: workspace_path.clone(),
         };
 
         let driver = create_driver(&agent_type, config.clone(), event_tx.clone())?;

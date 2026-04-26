@@ -86,6 +86,16 @@ pub fn parse_sqlite_timestamp(
     Ok(dt.and_utc().fixed_offset())
 }
 
+/// Parse a possibly-None SQLite timestamp, returning None for empty/missing values
+pub fn parse_optional_sqlite_timestamp(
+    s: &str,
+) -> Option<chrono::DateTime<chrono::Utc>> {
+    if s.is_empty() {
+        return None;
+    }
+    parse_sqlite_timestamp(s).ok().map(|dt| dt.to_utc())
+}
+
 /// Parse session status string, returning error for unknown values
 pub fn parse_session_status(s: &str) -> Result<ve_shared::types::SessionStatus, ServerError> {
     match s {
@@ -337,4 +347,12 @@ mod tests {
             Err(ServerError::BadRequest(message)) if message == "Invalid control action: abort"
         ));
     }
+}
+
+/// Compute SHA-256 hex digest of a string.
+pub fn sha256_hex(input: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(input.as_bytes());
+    hex::encode(hasher.finalize())
 }

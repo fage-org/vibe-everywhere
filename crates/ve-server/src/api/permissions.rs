@@ -262,7 +262,6 @@ pub async fn get_permission_route(
 }
 
 /// Fetch a permission by ID without authorization check (internal use only).
-#[allow(dead_code)]
 async fn get_permission_by_id(state: Arc<AppState>, id: Uuid) -> Result<Json<PermissionRequest>> {
     let permission_id_str = id.to_string();
 

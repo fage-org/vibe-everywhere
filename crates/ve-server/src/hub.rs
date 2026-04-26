@@ -474,7 +474,12 @@ impl Hub {
         }
 
         match timeout_at(deadline, rx).await {
-            Ok(Ok(Ok(response))) => Ok(response),
+            Ok(Ok(Ok(response))) => {
+                // Defensive cleanup: pending entry is normally removed by the response
+                // handler (complete_with_ack/handle_response), but guard against leaks.
+                self.pending_requests.lock().await.remove(&request_id);
+                Ok(response)
+            }
             Ok(Ok(Err(reason))) => Err(HubError::RemoteError { reason }),
             Ok(Err(_)) => {
                 self.pending_requests.lock().await.remove(&request_id);

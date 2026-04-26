@@ -55,8 +55,8 @@ async fn send_message_for_session(
     // Extract trace_id for correlation
     let trace_id = extract_request_id(&headers);
 
-    // Validate content
-    validate_content(&req.content)?;
+    let content = req.content.trim().to_string();
+    validate_content(&content)?;
 
     let session_id_str = id.to_string();
 
@@ -84,7 +84,7 @@ async fn send_message_for_session(
     let request = DaemonMessage::SendMessage {
         request_id: request_id.clone(),
         session_id: id,
-        content: req.content.clone(),
+        content: content.clone(),
     };
 
     ensure_command_acked(
@@ -99,7 +99,7 @@ async fn send_message_for_session(
     )
     .bind(&message_id_str)
     .bind(&session_id_str)
-    .bind(&req.content)
+    .bind(&content)
     .execute(&state.db)
     .await?;
 
@@ -162,10 +162,16 @@ async fn list_messages_for_session(
         ));
     }
     let limit = query.limit.unwrap_or(50).min(100);
-    let offset = (page - 1) * limit;
+    if limit == 0 {
+        return Err(ServerError::BadRequest(
+            "limit must be greater than 0".to_string(),
+        ));
+    }
+    // Use u64 to prevent overflow on (page-1) * limit
+    let offset = (page as u64 - 1) * limit as u64;
     let session_id_str = id.to_string();
-    let limit_i32 = limit as i32;
-    let offset_i32 = offset as i32;
+    let limit_i64 = limit as i64;
+    let offset_i64 = offset as i64;
 
     let rows: Vec<(String, String, String, String, String)> = sqlx::query_as(
         r#"
@@ -177,8 +183,8 @@ async fn list_messages_for_session(
         "#,
     )
     .bind(&session_id_str)
-    .bind(limit_i32)
-    .bind(offset_i32)
+    .bind(limit_i64)
+    .bind(offset_i64)
     .fetch_all(&state.db)
     .await?;
 

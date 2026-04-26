@@ -252,19 +252,20 @@ where
 
     let enable_result = sqlx::query("PRAGMA foreign_keys = ON")
         .execute(&mut *conn)
-        .await
-        .map_err(|e| {
-            crate::error::ServerError::Internal(format!(
-                "Migration 004 failed to re-enable foreign keys: {}",
-                e
-            ))
-        });
+        .await;
 
-    match (migration_result, enable_result) {
-        (Ok(()), Ok(_)) => Ok(()),
-        (Err(error), _) => Err(error),
-        (Ok(()), Err(error)) => Err(error),
+    if enable_result.is_err() {
+        // CRITICAL: connection is tainted with FK OFF, cannot return to pool
+        panic!(
+            "Migration 004 catastrophic: failed to re-enable foreign keys: {}",
+            enable_result.unwrap_err()
+        );
     }
+
+    if let Err(error) = migration_result {
+        return Err(error);
+    }
+    Ok(())
 }
 
 async fn run_sqlite_migration_003(pool: &DbPool) -> Result<()> {
@@ -442,6 +443,36 @@ async fn run_sqlite_migrations(pool: &DbPool) -> Result<()> {
         info!("Migration 004 completed");
     }
 
+    // Ensure host status indexes exist — migration 004 skips them on fresh installs
+    // where 'windows' is already in the CHECK constraint.
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_hosts_online_status ON hosts(online_status)")
+        .execute(pool)
+        .await
+        .map_err(|e| {
+            crate::error::ServerError::Internal(format!(
+                "Failed to create host indexes: {}",
+                e
+            ))
+        })?;
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_hosts_daemon_status ON hosts(daemon_status)")
+        .execute(pool)
+        .await
+        .map_err(|e| {
+            crate::error::ServerError::Internal(format!(
+                "Failed to create host indexes: {}",
+                e
+            ))
+        })?;
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_hosts_pair_status ON hosts(pair_status)")
+        .execute(pool)
+        .await
+        .map_err(|e| {
+            crate::error::ServerError::Internal(format!(
+                "Failed to create host indexes: {}",
+                e
+            ))
+        })?;
+
     if sqlite_hosts_supports_windows(pool).await? {
         sqlite_foreign_key_check(pool).await?;
     }
@@ -538,6 +569,33 @@ async fn run_sqlite_migrations(pool: &DbPool) -> Result<()> {
                 )));
             }
         }
+    }
+
+    // Migration 011: Host FK cascades (align with PostgreSQL)
+    // Check if session_archives already has a host_id FK (added in this migration)
+    let archive_host_has_fk = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM pragma_foreign_key_list('session_archives') WHERE \"from\" = 'host_id'",
+    )
+    .fetch_one(pool)
+    .await
+    .ok()
+    .map(|c| c > 0)
+    .unwrap_or(false);
+
+    if !archive_host_has_fk {
+        info!("Running migration 011_host_fk_cascades.sql");
+        sqlx::query(include_str!("migrations/sqlite/011_host_fk_cascades.sql"))
+            .execute(pool)
+            .await
+            .map_err(|e| {
+                crate::error::ServerError::Internal(format!(
+                    "Migration 011 failed: {}",
+                    e
+                ))
+            })?;
+        info!("Migration 011 completed");
+    } else {
+        info!("Migration 011 already applied, skipping");
     }
 
     info!("All SQLite migrations completed successfully");

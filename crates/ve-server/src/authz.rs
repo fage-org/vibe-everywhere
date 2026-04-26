@@ -40,6 +40,8 @@ pub struct WorkspaceCollectionAccess {
 pub struct SessionCollectionAccess {
     pub device_id: Uuid,
     pub host_id: Option<Uuid>,
+    pub page: u32,
+    pub limit: u32,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -160,13 +162,19 @@ pub async fn decode_ws_claims(jwt_manager: &JwtManager, token: &str, db: &crate:
         if let Ok(device_id) = claims.subject_uuid() {
             let matches = crate::token_revocation::jti_matches_device(db, device_id, &claims.jti)
                 .await
-                .unwrap_or(true);
+                .map_err(|e| {
+                    tracing::error!(error = %e, device_id = %device_id, "WS auth: jti match check failed");
+                    ServerError::Internal("Authentication check failed".to_string())
+                })?;
             if !matches {
                 return Err(ServerError::InvalidToken);
             }
             let revoked = crate::token_revocation::is_revoked(db, &claims.jti)
                 .await
-                .unwrap_or(false);
+                .map_err(|e| {
+                    tracing::error!(error = %e, "WS auth: revocation check failed");
+                    ServerError::Internal("Authentication check failed".to_string())
+                })?;
             if revoked {
                 return Err(ServerError::InvalidToken);
             }
@@ -359,6 +367,8 @@ where
         Ok(Self {
             device_id,
             host_id: query.host_id,
+            page: query.page,
+            limit: query.limit,
         })
     }
 }

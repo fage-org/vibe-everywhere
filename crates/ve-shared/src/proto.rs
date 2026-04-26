@@ -26,9 +26,12 @@ pub struct WsEnvelope {
 impl WsEnvelope {
     /// Create a new envelope with current timestamp
     pub fn new(message_type: impl Into<String>, payload: impl Serialize) -> Self {
+        let payload = serde_json::to_value(&payload).unwrap_or_else(|e| {
+            serde_json::json!({"__serialization_error__": e.to_string()})
+        });
         Self {
             r#type: message_type.into(),
-            payload: serde_json::to_value(&payload).unwrap_or(serde_json::Value::Null),
+            payload,
             timestamp: Utc::now(),
             request_id: None,
         }
@@ -193,6 +196,7 @@ pub enum DaemonToServer {
         file_type: String,
         truncated: bool,
         total_size: u64,
+        content_may_be_corrupted: bool,
     },
     Error {
         request_id: String,

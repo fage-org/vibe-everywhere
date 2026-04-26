@@ -33,7 +33,7 @@ use ve_daemon::DaemonError;
 
 fn build_ws_client(config: Arc<Config>, host_id: Uuid, token: String) -> WsClient {
     // Use bounded mpsc channel for driver events (single producer, single consumer).
-    let (event_tx, event_rx) = tokio::sync::mpsc::channel(256);
+    let (event_tx, event_rx) = tokio::sync::mpsc::channel(2048);
     let registry = Arc::new(SessionRegistry::new(config.clone(), event_tx.clone()));
     WsClient::with_registry(config, host_id, token, registry, event_tx, event_rx)
 }

@@ -30,6 +30,9 @@ pub async fn list_sessions(
     access: SessionCollectionAccess,
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<Vec<Session>>> {
+    let offset = ((access.page.saturating_sub(1)) as i64).saturating_mul(access.limit as i64);
+    let limit = access.limit as i64;
+
     let rows: Vec<SessionRecord> = if let Some(host_id) = access.host_id {
         sqlx::query_as(
             r#"
@@ -47,10 +50,13 @@ pub async fn list_sessions(
                   AND device_session_access.device_id = $2
                   AND sessions.status != 'archived'
                 ORDER BY sessions.updated_at DESC
+                LIMIT $3 OFFSET $4
                 "#,
         )
         .bind(host_id.to_string())
         .bind(access.device_id.to_string())
+        .bind(limit)
+        .bind(offset)
         .fetch_all(&state.db)
         .await?
     } else {
@@ -69,9 +75,12 @@ pub async fn list_sessions(
                 WHERE device_session_access.device_id = $1
                   AND sessions.status != 'archived'
                 ORDER BY sessions.updated_at DESC
+                LIMIT $2 OFFSET $3
                 "#,
         )
         .bind(access.device_id.to_string())
+        .bind(limit)
+        .bind(offset)
         .fetch_all(&state.db)
         .await?
     };
@@ -97,7 +106,8 @@ pub async fn create_session(
     let trace_id = extract_request_id(&headers);
 
     validate_title(&req.title)?;
-    validate_content(&req.initial_message)?;
+    let initial_message = req.initial_message.trim().to_string();
+    validate_content(&initial_message)?;
     validate_idempotency_key(&req.idempotency_key)?;
     authorize_session_create(&state, device_id, &req).await?;
 
@@ -107,7 +117,7 @@ pub async fn create_session(
             "host_id": req.host_id,
             "workspace_id": req.workspace_id,
             "title": req.title,
-            "initial_message": req.initial_message,
+            "initial_message": initial_message,
         }))
         .map_err(|error| {
             ServerError::Internal(format!("Failed to serialize request hash: {}", error))
@@ -192,7 +202,7 @@ pub async fn create_session(
         )
         .bind(&message_id_str)
         .bind(&session_id_str)
-        .bind(&req.initial_message)
+        .bind(&initial_message)
         .execute(&mut *tx)
         .await?;
 
@@ -285,7 +295,7 @@ pub async fn create_session(
         session_id,
         workspace_path: workspace.0,
         agent_type: "claude_code".to_string(),
-        initial_message: req.initial_message,
+        initial_message: initial_message,
     };
 
     match send_daemon_command_and_wait(&state, req.host_id, request_id, command).await {
