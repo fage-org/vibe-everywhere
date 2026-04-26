@@ -1,0 +1,24 @@
+[package]
+name = "vibe-everywhere-client"
+version = "0.1.0"
+description = "Vibe Everywhere Desktop Client"
+authors = ["Vibe Everywhere Contributors"]
+license = "MIT"
+repository = ""
+edition = "2021"
+rust-version = "1.95"
+
+[[bin]]
+name = "vibe-everywhere-client"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+tauri = { version = "2", features = [] }
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]

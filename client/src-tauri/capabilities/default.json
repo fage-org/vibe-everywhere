@@ -1,0 +1,9 @@
+{
+  "identifier": "default",
+  "description": "Default permissions for Vibe Everywhere client",
+  "local": true,
+  "windows": ["main"],
+  "permissions": [
+    "core:default"
+  ]
+}
