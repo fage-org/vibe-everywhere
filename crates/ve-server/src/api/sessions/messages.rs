@@ -198,7 +198,7 @@ async fn list_messages_for_session(
             Ok(SessionMessage {
                 message_id: parse_uuid(&row.0, "message_id")?,
                 session_id: id,
-                message_type: utils::parse_message_type(&row.2),
+                message_type: utils::parse_message_type(&row.2)?,
                 content: row.3,
                 created_at: utils::parse_sqlite_timestamp(&row.4)
                     .map_err(|e| ServerError::Internal(format!("Invalid created_at: {}", e)))?

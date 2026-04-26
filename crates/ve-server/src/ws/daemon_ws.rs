@@ -687,7 +687,7 @@ async fn handle_session_status_update(
             }
         }
 
-        let close_reason = utils::parse_close_reason(close_reason);
+        let close_reason = utils::parse_close_reason(close_reason)?;
         tx.commit().await?;
         archive_session_with_metadata(state, session_id, close_reason, summary.clone()).await?;
 
@@ -698,7 +698,7 @@ async fn handle_session_status_update(
                 &session_id,
                 ve_shared::proto::ClientMessage::SessionStatusChanged {
                     session_id,
-                    new_status: utils::parse_session_status(status),
+                    new_status: utils::parse_session_status(status)?,
                     close_reason: Some(close_reason),
                 },
             )
@@ -727,7 +727,7 @@ async fn handle_session_status_update(
                 &session_id,
                 ve_shared::proto::ClientMessage::SessionStatusChanged {
                     session_id,
-                    new_status: utils::parse_session_status(status),
+                    new_status: utils::parse_session_status(status)?,
                     close_reason: None,
                 },
             )

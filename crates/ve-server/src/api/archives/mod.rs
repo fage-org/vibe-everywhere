@@ -70,7 +70,7 @@ impl ArchiveRecord {
             closed_at: utils::parse_sqlite_timestamp(&self.closed_at)
                 .map_err(|e| ServerError::Internal(format!("Invalid closed_at: {}", e)))?
                 .with_timezone(&chrono::Utc),
-            close_reason: utils::parse_close_reason(&self.close_reason),
+            close_reason: utils::parse_close_reason(&self.close_reason)?,
             host_id: parse_uuid(&self.host_id, "host_id")?,
             workspace_id: parse_uuid(&self.workspace_id, "workspace_id")?,
             created_at: utils::parse_sqlite_timestamp(&self.created_at)

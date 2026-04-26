@@ -360,7 +360,7 @@ async fn get_session_by_id(state: Arc<AppState>, id: Uuid) -> Result<Json<Sessio
         host_id: parse_uuid(&row.host_id, "host_id")?,
         workspace_id: parse_uuid(&row.workspace_id, "workspace_id")?,
         agent_type: row.agent_type.clone(),
-        status: utils::parse_session_status(&row.status),
+        status: utils::parse_session_status(&row.status)?,
         last_activity_at: row.last_activity_at.as_ref().and_then(|s| {
             utils::parse_sqlite_timestamp(s)
                 .ok()

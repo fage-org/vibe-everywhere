@@ -86,37 +86,37 @@ pub fn parse_sqlite_timestamp(
     Ok(dt.and_utc().fixed_offset())
 }
 
-/// Parse session status string with warning for unknown values
-pub fn parse_session_status(s: &str) -> ve_shared::types::SessionStatus {
+/// Parse session status string, returning error for unknown values
+pub fn parse_session_status(s: &str) -> Result<ve_shared::types::SessionStatus, ServerError> {
     match s {
-        "running" => ve_shared::types::SessionStatus::Running,
-        "pending" => ve_shared::types::SessionStatus::Pending,
-        "dispatching" => ve_shared::types::SessionStatus::Dispatching,
-        "waiting_approval" => ve_shared::types::SessionStatus::WaitingApproval,
-        "paused" => ve_shared::types::SessionStatus::Paused,
-        "error" => ve_shared::types::SessionStatus::Error,
-        "closing" => ve_shared::types::SessionStatus::Closing,
-        "archived" => ve_shared::types::SessionStatus::Archived,
-        unknown => {
-            tracing::warn!(input = %unknown, "Unknown session status, defaulting to Running");
-            ve_shared::types::SessionStatus::Running
-        }
+        "running" => Ok(ve_shared::types::SessionStatus::Running),
+        "pending" => Ok(ve_shared::types::SessionStatus::Pending),
+        "dispatching" => Ok(ve_shared::types::SessionStatus::Dispatching),
+        "waiting_approval" => Ok(ve_shared::types::SessionStatus::WaitingApproval),
+        "paused" => Ok(ve_shared::types::SessionStatus::Paused),
+        "error" => Ok(ve_shared::types::SessionStatus::Error),
+        "closing" => Ok(ve_shared::types::SessionStatus::Closing),
+        "archived" => Ok(ve_shared::types::SessionStatus::Archived),
+        unknown => Err(ServerError::BadRequest(format!(
+            "Invalid session status: {}",
+            unknown
+        ))),
     }
 }
 
-/// Parse message type string with warning for unknown values
-pub fn parse_message_type(s: &str) -> ve_shared::models::SessionMessageType {
+/// Parse message type string, returning error for unknown values
+pub fn parse_message_type(s: &str) -> Result<ve_shared::models::SessionMessageType, ServerError> {
     match s {
-        "user" => ve_shared::models::SessionMessageType::User,
-        "assistant" => ve_shared::models::SessionMessageType::Assistant,
-        "system" => ve_shared::models::SessionMessageType::System,
-        "tool" => ve_shared::models::SessionMessageType::Tool,
-        "error" => ve_shared::models::SessionMessageType::Error,
-        "permission" => ve_shared::models::SessionMessageType::Permission,
-        unknown => {
-            tracing::warn!(input = %unknown, "Unknown message type, defaulting to System");
-            ve_shared::models::SessionMessageType::System
-        }
+        "user" => Ok(ve_shared::models::SessionMessageType::User),
+        "assistant" => Ok(ve_shared::models::SessionMessageType::Assistant),
+        "system" => Ok(ve_shared::models::SessionMessageType::System),
+        "tool" => Ok(ve_shared::models::SessionMessageType::Tool),
+        "error" => Ok(ve_shared::models::SessionMessageType::Error),
+        "permission" => Ok(ve_shared::models::SessionMessageType::Permission),
+        unknown => Err(ServerError::BadRequest(format!(
+            "Invalid message type: {}",
+            unknown
+        ))),
     }
 }
 
@@ -140,96 +140,96 @@ pub fn parse_control_action(
     }
 }
 
-/// Parse risk type string with warning for unknown values
-pub fn parse_risk_type(s: &str) -> ve_shared::types::RiskType {
+/// Parse risk type string, returning error for unknown values
+pub fn parse_risk_type(s: &str) -> Result<ve_shared::types::RiskType, ServerError> {
     match s {
-        "write_fs" => ve_shared::types::RiskType::WriteFs,
-        "exec_cmd" => ve_shared::types::RiskType::ExecCmd,
-        "network" => ve_shared::types::RiskType::Network,
-        unknown => {
-            tracing::warn!(input = %unknown, "Unknown risk type, defaulting to WriteFs");
-            ve_shared::types::RiskType::WriteFs
-        }
+        "write_fs" => Ok(ve_shared::types::RiskType::WriteFs),
+        "exec_cmd" => Ok(ve_shared::types::RiskType::ExecCmd),
+        "network" => Ok(ve_shared::types::RiskType::Network),
+        unknown => Err(ServerError::BadRequest(format!(
+            "Invalid risk type: {}",
+            unknown
+        ))),
     }
 }
 
-/// Parse permission status string with warning for unknown values
-pub fn parse_permission_status(s: &str) -> ve_shared::types::PermissionStatus {
+/// Parse permission status string, returning error for unknown values
+pub fn parse_permission_status(s: &str) -> Result<ve_shared::types::PermissionStatus, ServerError> {
     match s {
-        "pending" => ve_shared::types::PermissionStatus::Pending,
-        "approved_once" => ve_shared::types::PermissionStatus::ApprovedOnce,
-        "denied_once" => ve_shared::types::PermissionStatus::DeniedOnce,
-        "approved_session" => ve_shared::types::PermissionStatus::ApprovedSession,
-        "expired" => ve_shared::types::PermissionStatus::Expired,
-        unknown => {
-            tracing::warn!(input = %unknown, "Unknown permission status, defaulting to Pending");
-            ve_shared::types::PermissionStatus::Pending
-        }
+        "pending" => Ok(ve_shared::types::PermissionStatus::Pending),
+        "approved_once" => Ok(ve_shared::types::PermissionStatus::ApprovedOnce),
+        "denied_once" => Ok(ve_shared::types::PermissionStatus::DeniedOnce),
+        "approved_session" => Ok(ve_shared::types::PermissionStatus::ApprovedSession),
+        "expired" => Ok(ve_shared::types::PermissionStatus::Expired),
+        unknown => Err(ServerError::BadRequest(format!(
+            "Invalid permission status: {}",
+            unknown
+        ))),
     }
 }
 
-/// Parse close reason string with warning for unknown values
-pub fn parse_close_reason(s: &str) -> ve_shared::types::CloseReason {
+/// Parse close reason string, returning error for unknown values
+pub fn parse_close_reason(s: &str) -> Result<ve_shared::types::CloseReason, ServerError> {
     match s {
-        "user_closed" => ve_shared::types::CloseReason::UserClosed,
-        "completed" => ve_shared::types::CloseReason::Completed,
-        "failed" => ve_shared::types::CloseReason::Failed,
-        "terminated" => ve_shared::types::CloseReason::Terminated,
-        unknown => {
-            tracing::warn!(input = %unknown, "Unknown close reason, defaulting to UserClosed");
-            ve_shared::types::CloseReason::UserClosed
-        }
+        "user_closed" => Ok(ve_shared::types::CloseReason::UserClosed),
+        "completed" => Ok(ve_shared::types::CloseReason::Completed),
+        "failed" => Ok(ve_shared::types::CloseReason::Failed),
+        "terminated" => Ok(ve_shared::types::CloseReason::Terminated),
+        unknown => Err(ServerError::BadRequest(format!(
+            "Invalid close reason: {}",
+            unknown
+        ))),
     }
 }
 
-/// Parse platform string with warning for unknown values
-pub fn parse_platform(s: &str) -> ve_shared::types::Platform {
+/// Parse platform string, returning error for unknown values
+pub fn parse_platform(s: &str) -> Result<ve_shared::types::Platform, ServerError> {
     match s {
-        "linux" => ve_shared::types::Platform::Linux,
-        "macos" => ve_shared::types::Platform::Macos,
-        "windows" => ve_shared::types::Platform::Windows,
-        "wsl" => ve_shared::types::Platform::Wsl,
-        unknown => {
-            tracing::warn!(input = %unknown, "Unknown platform, defaulting to Linux");
-            ve_shared::types::Platform::Linux
-        }
+        "linux" => Ok(ve_shared::types::Platform::Linux),
+        "macos" => Ok(ve_shared::types::Platform::Macos),
+        "windows" => Ok(ve_shared::types::Platform::Windows),
+        "wsl" => Ok(ve_shared::types::Platform::Wsl),
+        unknown => Err(ServerError::BadRequest(format!(
+            "Invalid platform: {}",
+            unknown
+        ))),
     }
 }
 
-/// Parse online status string with warning for unknown values
-pub fn parse_online_status(s: &str) -> ve_shared::types::OnlineStatus {
+/// Parse online status string, returning error for unknown values
+pub fn parse_online_status(s: &str) -> Result<ve_shared::types::OnlineStatus, ServerError> {
     match s {
-        "online" => ve_shared::types::OnlineStatus::Online,
-        "offline" => ve_shared::types::OnlineStatus::Offline,
-        unknown => {
-            tracing::warn!(input = %unknown, "Unknown online status, defaulting to Unknown");
-            ve_shared::types::OnlineStatus::Unknown
-        }
+        "online" => Ok(ve_shared::types::OnlineStatus::Online),
+        "offline" => Ok(ve_shared::types::OnlineStatus::Offline),
+        unknown => Err(ServerError::BadRequest(format!(
+            "Invalid online status: {}",
+            unknown
+        ))),
     }
 }
 
-/// Parse daemon status string with warning for unknown values
-pub fn parse_daemon_status(s: &str) -> ve_shared::types::DaemonStatus {
+/// Parse daemon status string, returning error for unknown values
+pub fn parse_daemon_status(s: &str) -> Result<ve_shared::types::DaemonStatus, ServerError> {
     match s {
-        "healthy" => ve_shared::types::DaemonStatus::Healthy,
-        "connecting" => ve_shared::types::DaemonStatus::Connecting,
-        "error" => ve_shared::types::DaemonStatus::Error,
-        unknown => {
-            tracing::warn!(input = %unknown, "Unknown daemon status, defaulting to Disconnected");
-            ve_shared::types::DaemonStatus::Disconnected
-        }
+        "healthy" => Ok(ve_shared::types::DaemonStatus::Healthy),
+        "connecting" => Ok(ve_shared::types::DaemonStatus::Connecting),
+        "error" => Ok(ve_shared::types::DaemonStatus::Error),
+        unknown => Err(ServerError::BadRequest(format!(
+            "Invalid daemon status: {}",
+            unknown
+        ))),
     }
 }
 
-/// Parse pair status string with warning for unknown values
-pub fn parse_pair_status(s: &str) -> ve_shared::types::PairStatus {
+/// Parse pair status string, returning error for unknown values
+pub fn parse_pair_status(s: &str) -> Result<ve_shared::types::PairStatus, ServerError> {
     match s {
-        "paired" => ve_shared::types::PairStatus::Paired,
-        "failed" => ve_shared::types::PairStatus::Failed,
-        unknown => {
-            tracing::warn!(input = %unknown, "Unknown pair status, defaulting to Pending");
-            ve_shared::types::PairStatus::Pending
-        }
+        "paired" => Ok(ve_shared::types::PairStatus::Paired),
+        "failed" => Ok(ve_shared::types::PairStatus::Failed),
+        unknown => Err(ServerError::BadRequest(format!(
+            "Invalid pair status: {}",
+            unknown
+        ))),
     }
 }
 
@@ -300,8 +300,15 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_session_status_unknown() {
-        let status = parse_session_status("unknown_status");
+    fn test_parse_session_status_unknown_returns_error() {
+        let result = parse_session_status("unknown_status");
+        assert!(result.is_err());
+        assert!(matches!(result, Err(ServerError::BadRequest(msg)) if msg.contains("Invalid session status")));
+    }
+
+    #[test]
+    fn test_parse_session_status_valid() {
+        let status = parse_session_status("running").unwrap();
         assert_eq!(status, ve_shared::types::SessionStatus::Running);
     }
 

@@ -209,7 +209,7 @@ impl SessionRecord {
             host_id: parse_uuid(&self.host_id, "host_id")?,
             workspace_id: parse_uuid(&self.workspace_id, "workspace_id")?,
             agent_type: self.agent_type.clone(),
-            status: utils::parse_session_status(&self.status),
+            status: utils::parse_session_status(&self.status)?,
             last_activity_at: self.last_activity_at.as_ref().and_then(|s| {
                 utils::parse_sqlite_timestamp(s)
                     .ok()

@@ -70,15 +70,15 @@ pub async fn list_hosts(
             Ok(Host {
                 host_id,
                 host_name: row.1,
-                platform: utils::parse_platform(&row.2),
-                online_status: utils::parse_online_status(&row.3),
-                daemon_status: utils::parse_daemon_status(&row.4),
+                platform: utils::parse_platform(&row.2)?,
+                online_status: utils::parse_online_status(&row.3)?,
+                daemon_status: utils::parse_daemon_status(&row.4)?,
                 last_active_at: row.5.and_then(|s| {
                     utils::parse_sqlite_timestamp(&s)
                         .ok()
                         .map(|d| d.with_timezone(&chrono::Utc))
                 }),
-                pair_status: utils::parse_pair_status(&row.6),
+                pair_status: utils::parse_pair_status(&row.6)?,
                 pair_code: row.7,
                 qr_payload: row.8,
                 created_at: utils::parse_sqlite_timestamp(&row.9)
@@ -148,15 +148,15 @@ async fn get_host_by_id(state: Arc<AppState>, id: Uuid) -> Result<Json<Host>> {
     Ok(Json(Host {
         host_id: id,
         host_name: row.1,
-        platform: utils::parse_platform(&row.2),
-        online_status: utils::parse_online_status(&row.3),
-        daemon_status: utils::parse_daemon_status(&row.4),
+        platform: utils::parse_platform(&row.2)?,
+        online_status: utils::parse_online_status(&row.3)?,
+        daemon_status: utils::parse_daemon_status(&row.4)?,
         last_active_at: row.5.and_then(|s| {
             utils::parse_sqlite_timestamp(&s)
                 .ok()
                 .map(|d| d.with_timezone(&chrono::Utc))
         }),
-        pair_status: utils::parse_pair_status(&row.6),
+        pair_status: utils::parse_pair_status(&row.6)?,
         pair_code: row.7,
         qr_payload: row.8,
         created_at: utils::parse_sqlite_timestamp(&row.9)

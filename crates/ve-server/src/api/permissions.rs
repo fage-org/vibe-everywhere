@@ -139,13 +139,13 @@ impl PermissionRecord {
         Ok(PermissionRequest {
             permission_id: parse_uuid(&self.permission_id, "permission_id")?,
             session_id: parse_uuid(&self.session_id, "session_id")?,
-            risk_type: utils::parse_risk_type(&self.risk_type),
+            risk_type: utils::parse_risk_type(&self.risk_type)?,
             summary: self.summary.clone(),
             target: self.target.clone(),
             created_at: utils::parse_sqlite_timestamp(&self.created_at)
                 .map_err(|e| ServerError::Internal(format!("Invalid created_at: {}", e)))?
                 .with_timezone(&chrono::Utc),
-            status: utils::parse_permission_status(&self.status),
+            status: utils::parse_permission_status(&self.status)?,
             responded_at: self.responded_at.as_ref().and_then(|s| {
                 utils::parse_sqlite_timestamp(s)
                     .ok()
@@ -318,7 +318,7 @@ async fn respond_permission_existing(
     let permission_id_str = id.to_string();
 
     // Check if already responded (idempotent - return current state)
-    let current_status = utils::parse_permission_status(&existing.status);
+    let current_status = utils::parse_permission_status(&existing.status)?;
     if current_status.is_responded() {
         tracing::info!(%id, "Permission already responded (idempotent)");
         return Ok(Json(existing.to_model()?));
@@ -418,13 +418,13 @@ async fn respond_permission_existing(
     Ok(Json(PermissionRequest {
         permission_id: id,
         session_id,
-        risk_type: utils::parse_risk_type(&existing.risk_type),
+        risk_type: utils::parse_risk_type(&existing.risk_type)?,
         summary: existing.summary,
         target: existing.target,
         created_at: utils::parse_sqlite_timestamp(&existing.created_at)
             .map_err(|e| ServerError::Internal(format!("Invalid created_at: {}", e)))?
             .with_timezone(&chrono::Utc),
-        status: utils::parse_permission_status(new_status),
+        status: utils::parse_permission_status(new_status)?,
         responded_at: Some(chrono::Utc::now()),
     }))
 }
