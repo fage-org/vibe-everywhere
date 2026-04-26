@@ -12,9 +12,9 @@ use ve_shared::models::CreateWorkspaceRequest;
 use ve_shared::proto::{AckPayload, ErrorPayload, WsEnvelope};
 
 use super::{
-    create_workspace, update_workspace_route, UpdateWorkspaceRequest,
+    create_workspace, update_workspace, UpdateWorkspaceRequest,
 };
-use crate::authz::{ClientAccess, WorkspaceAccess};
+use crate::authz::ClientAccess;
 use crate::config::Config;
 use crate::db;
 use crate::error::ServerError;
@@ -286,20 +286,10 @@ async fn update_workspace_rejects_blank_display_name() {
     .await
     .unwrap();
 
-    let error = update_workspace_route(
-        WorkspaceAccess {
-            device_id,
-            workspace_id,
-            host_id,
-            path: "/tmp/workspace".to_string(),
-            display_name: "original-name".to_string(),
-            is_favorited: false,
-            last_used_at: None,
-            exists_on_host: true,
-            created_at: chrono::Utc::now().to_rfc3339(),
-            updated_at: chrono::Utc::now().to_rfc3339(),
-        },
+    let error = update_workspace(
         State(state.clone()),
+        Extension(client_claims(device_id)),
+        Path(workspace_id),
         Json(UpdateWorkspaceRequest {
             display_name: Some("   ".to_string()),
             is_favorited: None,
@@ -343,20 +333,10 @@ async fn update_workspace_rejects_too_long_display_name() {
     .unwrap();
 
     let too_long = "a".repeat(MAX_WORKSPACE_DISPLAY_NAME_LENGTH + 1);
-    let error = update_workspace_route(
-        WorkspaceAccess {
-            device_id,
-            workspace_id,
-            host_id,
-            path: "/tmp/workspace".to_string(),
-            display_name: "original-name".to_string(),
-            is_favorited: false,
-            last_used_at: None,
-            exists_on_host: true,
-            created_at: chrono::Utc::now().to_rfc3339(),
-            updated_at: chrono::Utc::now().to_rfc3339(),
-        },
+    let error = update_workspace(
         State(state.clone()),
+        Extension(client_claims(device_id)),
+        Path(workspace_id),
         Json(UpdateWorkspaceRequest {
             display_name: Some(too_long),
             is_favorited: None,

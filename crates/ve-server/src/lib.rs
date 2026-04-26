@@ -53,15 +53,15 @@ pub fn build_app(state: Arc<AppState>, jwt_manager: Arc<JwtManager>, config: &Co
         .route("/api/workspaces", post(api::workspaces::create_workspace))
         .route(
             "/api/workspaces/{id}",
-            get(api::workspaces::get_workspace_route),
+            get(api::workspaces::get_workspace),
         )
         .route(
             "/api/workspaces/{id}",
-            post(api::workspaces::update_workspace_route),
+            post(api::workspaces::update_workspace),
         )
         .route(
             "/api/workspaces/{id}",
-            axum::routing::delete(api::workspaces::delete_workspace_route),
+            axum::routing::delete(api::workspaces::delete_workspace),
         )
         .route("/api/sessions", get(api::sessions::list_sessions))
         .route("/api/sessions", post(api::sessions::create_session))

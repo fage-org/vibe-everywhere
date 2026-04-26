@@ -8,33 +8,13 @@ use uuid::Uuid;
 use ve_shared::models::Workspace;
 
 use super::Result;
-use crate::authz::{require_client_device_id, require_host_access, WorkspaceAccess};
+use crate::authz::{require_client_device_id, require_host_access};
 use crate::error::ServerError;
 use crate::state::AppState;
 
 /// GET /api/workspaces/:id
 ///
 /// Get a specific workspace.
-pub async fn get_workspace_route(
-    access: WorkspaceAccess,
-    State(_state): State<Arc<AppState>>,
-) -> Result<Json<Workspace>> {
-    Ok(Json(
-        super::WorkspaceRecord {
-            workspace_id: access.workspace_id.to_string(),
-            host_id: access.host_id.to_string(),
-            path: access.path,
-            display_name: access.display_name,
-            is_favorited: if access.is_favorited { 1 } else { 0 },
-            last_used_at: access.last_used_at,
-            exists_on_host: if access.exists_on_host { 1 } else { 0 },
-            created_at: access.created_at,
-            updated_at: access.updated_at,
-        }
-        .to_model()?,
-    ))
-}
-
 pub async fn get_workspace(
     State(state): State<Arc<AppState>>,
     Extension(claims): Extension<ve_shared::jwt::Claims>,

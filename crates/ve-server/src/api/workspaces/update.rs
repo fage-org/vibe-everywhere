@@ -8,7 +8,7 @@ use uuid::Uuid;
 use ve_shared::models::Workspace;
 
 use super::{workspace_record_from_row, Result, WorkspaceRow};
-use crate::authz::{require_client_device_id, require_host_access, WorkspaceAccess};
+use crate::authz::{require_client_device_id, require_host_access};
 use crate::error::ServerError;
 use crate::state::AppState;
 use crate::utils::parse_uuid;
@@ -24,30 +24,6 @@ pub struct UpdateWorkspaceRequest {
 /// POST /api/workspaces/:id
 ///
 /// Update workspace details.
-pub async fn update_workspace_route(
-    access: WorkspaceAccess,
-    State(state): State<Arc<AppState>>,
-    Json(req): Json<UpdateWorkspaceRequest>,
-) -> Result<Json<Workspace>> {
-    update_workspace_with_existing(
-        state,
-        access.workspace_id,
-        req,
-        (
-            access.workspace_id.to_string(),
-            access.host_id.to_string(),
-            access.path,
-            access.display_name,
-            if access.is_favorited { 1 } else { 0 },
-            access.last_used_at,
-            if access.exists_on_host { 1 } else { 0 },
-            access.created_at,
-            access.updated_at,
-        ),
-    )
-    .await
-}
-
 pub async fn update_workspace(
     State(state): State<Arc<AppState>>,
     Extension(claims): Extension<ve_shared::jwt::Claims>,

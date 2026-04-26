@@ -92,7 +92,7 @@ fn workspace_record_from_row(row: WorkspaceRow) -> WorkspaceRecord {
 
 // Re-exports for route registration in lib.rs
 pub use create::create_workspace;
-pub use delete::{delete_workspace, delete_workspace_route};
-pub use get::{get_workspace, get_workspace_route};
+pub use delete::delete_workspace;
+pub use get::get_workspace;
 pub use list::list_workspaces;
-pub use update::{update_workspace, update_workspace_route, UpdateWorkspaceRequest};
+pub use update::{update_workspace, UpdateWorkspaceRequest};
