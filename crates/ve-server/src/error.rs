@@ -64,10 +64,6 @@ pub enum ServerError {
     #[error("Session already archived")]
     SessionArchived,
 
-    #[error("Permission already responded")]
-    #[allow(dead_code)]
-    PermissionResponded,
-
     #[error("Internal UUID parse error: {0}")]
     InternalUuidParse(String),
 
@@ -103,10 +99,6 @@ impl IntoResponse for ServerError {
             ServerError::SessionArchived => {
                 (StatusCode::CONFLICT, "Session already archived".to_string())
             }
-            ServerError::PermissionResponded => (
-                StatusCode::CONFLICT,
-                "Permission already responded".to_string(),
-            ),
             ServerError::Database(_) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "Database error".to_string(),
