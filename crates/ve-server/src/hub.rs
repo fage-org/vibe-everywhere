@@ -1,5 +1,4 @@
 use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
 use std::time::Duration;
 
 use dashmap::DashMap;
@@ -331,8 +330,7 @@ impl Hub {
             }
         };
 
-        // Serialize once, clone Arc for each client
-        let envelope = Arc::new(WsEnvelope::from(message));
+        let envelope = WsEnvelope::from(message);
         let mut delivered = 0usize;
 
         for device_id in &device_ids {
@@ -343,7 +341,7 @@ impl Hub {
             }
 
             if let Some(conn) = self.client_connections.get(device_id) {
-                match conn.sender.try_send((*envelope).clone()) {
+                match conn.sender.try_send(envelope.clone()) {
                     Ok(()) => {
                         delivered += 1;
                     }
