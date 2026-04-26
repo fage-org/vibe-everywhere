@@ -38,9 +38,9 @@ pub struct BatchDeleteResponse {
     pub failed_ids: Vec<Uuid>,
 }
 
-/// Archive row type alias (includes metadata_json)
+/// Archive row type alias (includes metadata_json and total_count from window function)
 type ArchiveRow = (
-    String, String, String, String, String, String, String, String, Option<String>,
+    String, String, String, String, String, String, String, String, Option<String>, i64,
 );
 
 /// Database record for archive

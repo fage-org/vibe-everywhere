@@ -58,7 +58,8 @@ async fn list_archives_for_device(
                        session_archives.title, CAST(session_archives.closed_at AS TEXT),
                        session_archives.close_reason, session_archives.host_id,
                        session_archives.workspace_id, CAST(session_archives.created_at AS TEXT),
-                       CAST(session_archives.metadata_json AS TEXT)
+                       CAST(session_archives.metadata_json AS TEXT),
+                       COUNT(*) OVER() AS total_count
                 FROM session_archives
                 INNER JOIN device_session_access
                     ON device_session_access.session_id = session_archives.session_id
@@ -88,7 +89,8 @@ async fn list_archives_for_device(
                        session_archives.title, CAST(session_archives.closed_at AS TEXT),
                        session_archives.close_reason, session_archives.host_id,
                        session_archives.workspace_id, CAST(session_archives.created_at AS TEXT),
-                       CAST(session_archives.metadata_json AS TEXT)
+                       CAST(session_archives.metadata_json AS TEXT),
+                       COUNT(*) OVER() AS total_count
                 FROM session_archives
                 INNER JOIN device_session_access
                     ON device_session_access.session_id = session_archives.session_id
@@ -111,7 +113,8 @@ async fn list_archives_for_device(
                        session_archives.title, CAST(session_archives.closed_at AS TEXT),
                        session_archives.close_reason, session_archives.host_id,
                        session_archives.workspace_id, CAST(session_archives.created_at AS TEXT),
-                       CAST(session_archives.metadata_json AS TEXT)
+                       CAST(session_archives.metadata_json AS TEXT),
+                       COUNT(*) OVER() AS total_count
                 FROM session_archives
                 INNER JOIN device_session_access
                     ON device_session_access.session_id = session_archives.session_id
@@ -140,7 +143,8 @@ async fn list_archives_for_device(
                        session_archives.title, CAST(session_archives.closed_at AS TEXT),
                        session_archives.close_reason, session_archives.host_id,
                        session_archives.workspace_id, CAST(session_archives.created_at AS TEXT),
-                       CAST(session_archives.metadata_json AS TEXT)
+                       CAST(session_archives.metadata_json AS TEXT),
+                       COUNT(*) OVER() AS total_count
                 FROM session_archives
                 INNER JOIN device_session_access
                     ON device_session_access.session_id = session_archives.session_id
@@ -157,80 +161,7 @@ async fn list_archives_for_device(
         }
     };
 
-    let total: (i64,) = match (query.host_id, query.workspace_id) {
-        (Some(host_id), Some(workspace_id)) => {
-            sqlx::query_as(
-                r#"
-                SELECT COUNT(DISTINCT session_archives.archive_id)
-                FROM session_archives
-                INNER JOIN device_session_access
-                    ON device_session_access.session_id = session_archives.session_id
-                INNER JOIN workspaces
-                    ON workspaces.workspace_id = session_archives.workspace_id
-                WHERE session_archives.host_id = $1
-                  AND session_archives.workspace_id = $2
-                  AND device_session_access.device_id = $3
-                  AND workspaces.host_id = $1
-                "#,
-            )
-            .bind(host_id.to_string())
-            .bind(workspace_id.to_string())
-            .bind(&device_id_str)
-            .fetch_one(&state.db)
-            .await?
-        }
-        (Some(host_id), None) => {
-            sqlx::query_as(
-                r#"
-                SELECT COUNT(DISTINCT session_archives.archive_id)
-                FROM session_archives
-                INNER JOIN device_session_access
-                    ON device_session_access.session_id = session_archives.session_id
-                WHERE session_archives.host_id = $1 AND device_session_access.device_id = $2
-                "#,
-            )
-            .bind(host_id.to_string())
-            .bind(&device_id_str)
-            .fetch_one(&state.db)
-            .await?
-        }
-        (None, Some(workspace_id)) => {
-            sqlx::query_as(
-                r#"
-                SELECT COUNT(DISTINCT session_archives.archive_id)
-                FROM session_archives
-                INNER JOIN device_session_access
-                    ON device_session_access.session_id = session_archives.session_id
-                INNER JOIN workspaces
-                    ON workspaces.workspace_id = session_archives.workspace_id
-                WHERE session_archives.workspace_id = $1
-                  AND device_session_access.device_id = $2
-                  AND workspaces.host_id IN (
-                      SELECT host_id FROM device_host_access WHERE device_id = $2
-                  )
-                "#,
-            )
-            .bind(workspace_id.to_string())
-            .bind(&device_id_str)
-            .fetch_one(&state.db)
-            .await?
-        }
-        (None, None) => {
-            sqlx::query_as(
-                r#"
-                SELECT COUNT(DISTINCT session_archives.archive_id)
-                FROM session_archives
-                INNER JOIN device_session_access
-                    ON device_session_access.session_id = session_archives.session_id
-                WHERE device_session_access.device_id = $1
-                "#,
-            )
-            .bind(&device_id_str)
-            .fetch_one(&state.db)
-            .await?
-        }
-    };
-    let total = total.0 as u64;
+    let total = rows.first().map(|r| r.9 as u64).unwrap_or(0);
 
     let archives: Result<Vec<SessionArchive>> = rows
         .into_iter()
@@ -245,6 +176,7 @@ async fn list_archives_for_device(
                 workspace_id,
                 created_at,
                 metadata_json,
+                _total_count,
             )| {
                 ArchiveRecord {
                     archive_id,

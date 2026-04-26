@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use ve_shared::models::SessionArchive;
 
-use super::{ArchiveRecord, ArchiveRow, Result};
+use super::{ArchiveRecord, Result};
 use crate::authz::{require_client_device_id, ArchiveAccess};
 use crate::state::AppState;
 
@@ -38,7 +38,9 @@ async fn get_archive_for_device(
     use crate::error::ServerError;
     let archive_id_str = id.to_string();
 
-    let row = sqlx::query_as::<_, ArchiveRow>(
+    type GetArchiveRow = (String, String, String, String, String, String, String, String, Option<String>);
+
+    let row = sqlx::query_as::<_, GetArchiveRow>(
         r#"
         SELECT session_archives.archive_id, session_archives.session_id, session_archives.title,
                CAST(session_archives.closed_at AS TEXT), session_archives.close_reason,
