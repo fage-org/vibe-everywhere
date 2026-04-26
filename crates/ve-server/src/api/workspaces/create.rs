@@ -47,7 +47,7 @@ pub async fn create_workspace(
             Duration::from_secs(30),
         )
         .await
-        .map_err(|error| sanitize_workspace_transport_error(error.as_ref()))?;
+        .map_err(|error| sanitize_workspace_transport_error(&error))?;
 
     match prepare_response {
         DaemonResponse::Ack(ack) if ack.success => {}

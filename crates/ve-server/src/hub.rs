@@ -14,6 +14,25 @@ use ve_shared::proto::{
 
 use crate::db::DbPool;
 
+/// Error type for `Hub::send_and_wait` responses.
+#[derive(Debug, thiserror::Error)]
+pub enum HubError {
+    #[error("no active daemon connection for host")]
+    NoActiveConnection,
+
+    #[error("Request timeout after {0}ms")]
+    Timeout(u128),
+
+    #[error("failed to send request to daemon: {0}")]
+    SendFailed(String),
+
+    #[error("daemon returned an error: {reason}")]
+    RemoteError { reason: String },
+
+    #[error("response channel closed before reply")]
+    ChannelClosed,
+}
+
 /// Default bounded channel capacity for WebSocket connections
 pub const WS_CHANNEL_CAPACITY: usize = 256;
 
@@ -419,7 +438,7 @@ impl Hub {
         request: DaemonMessage,
         request_id: String,
         timeout: Duration,
-    ) -> std::result::Result<DaemonResponse, Box<dyn std::error::Error + Send + Sync>> {
+    ) -> std::result::Result<DaemonResponse, HubError> {
         let initial_connection_id = self.active_connection_id_for_host(host_id).await;
         let (tx, rx) = oneshot::channel();
         self.pending_requests.lock().await.insert(
@@ -435,7 +454,7 @@ impl Hub {
             Some(active_daemon) => active_daemon,
             None => {
                 self.pending_requests.lock().await.remove(&request_id);
-                return Err(Box::new(mpsc::error::SendError(WsEnvelope::from(request))));
+                return Err(HubError::NoActiveConnection);
             }
         };
 
@@ -449,23 +468,23 @@ impl Hub {
 
         if timeout_at(deadline, sender.send(WsEnvelope::from(request)))
             .await
-            .map_err(|_| format!("Request timeout after {}ms", timeout.as_millis()))?
+            .map_err(|_| HubError::Timeout(timeout.as_millis()))?
             .is_err()
         {
             self.pending_requests.lock().await.remove(&request_id);
-            return Err("Response channel closed during send".into());
+            return Err(HubError::SendFailed("response channel closed during send".to_string()));
         }
 
         match timeout_at(deadline, rx).await {
             Ok(Ok(Ok(response))) => Ok(response),
-            Ok(Ok(Err(reason))) => Err(reason.into()),
+            Ok(Ok(Err(reason))) => Err(HubError::RemoteError { reason }),
             Ok(Err(_)) => {
                 self.pending_requests.lock().await.remove(&request_id);
-                Err("Response channel closed".into())
+                Err(HubError::ChannelClosed)
             }
             Err(_) => {
                 self.pending_requests.lock().await.remove(&request_id);
-                Err(format!("Request timeout after {}ms", timeout.as_millis()).into())
+                Err(HubError::Timeout(timeout.as_millis()))
             }
         }
     }

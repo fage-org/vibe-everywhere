@@ -96,7 +96,7 @@ async fn get_file_tree_for_host(
         .hub
         .send_and_wait(&host_id, request, request_id, Duration::from_secs(30))
         .await
-        .map_err(|error| sanitize_file_transport_error("file tree", error.as_ref()))?;
+        .map_err(|error| sanitize_file_transport_error("file tree", &error))?;
 
     match response {
         DaemonResponse::Message(ve_shared::proto::DaemonToServer::FileTreeResponse {
@@ -179,7 +179,7 @@ async fn get_file_content_for_host(
         .hub
         .send_and_wait(&host_id, request, request_id, Duration::from_secs(30))
         .await
-        .map_err(|error| sanitize_file_transport_error("file content", error.as_ref()))?;
+        .map_err(|error| sanitize_file_transport_error("file content", &error))?;
 
     match response {
         DaemonResponse::Message(ve_shared::proto::DaemonToServer::FileContentResponse {

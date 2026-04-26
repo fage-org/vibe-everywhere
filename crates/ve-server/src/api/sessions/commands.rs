@@ -21,7 +21,7 @@ pub async fn send_daemon_command_and_wait(
             std::time::Duration::from_millis(state.config.ack_timeout_ms),
         )
         .await
-        .map_err(|error| sanitize_session_command_transport_error(error.as_ref()))
+        .map_err(|error| sanitize_session_command_transport_error(&error))
 }
 
 fn sanitize_session_command_transport_error(error: &dyn std::error::Error) -> ServerError {
