@@ -324,7 +324,12 @@ async fn run_sqlite_migration_002(pool: &DbPool) -> Result<()> {
         (
             "add idempotency_keys.expires_at",
             !sqlite_table_has_column(pool, "idempotency_keys", "expires_at").await?,
-            "ALTER TABLE idempotency_keys ADD COLUMN expires_at TEXT",
+            "ALTER TABLE idempotency_keys ADD COLUMN expires_at TEXT NOT NULL DEFAULT (datetime('now', '+24 hours'))",
+        ),
+        (
+            "backfill idempotency_keys.expires_at for existing rows",
+            sqlite_table_has_column(pool, "idempotency_keys", "expires_at").await?,
+            "UPDATE idempotency_keys SET expires_at = datetime('now', '+24 hours') WHERE expires_at IS NULL",
         ),
         (
             "drop idx_idempotency_keys_created_at",
@@ -335,11 +340,6 @@ async fn run_sqlite_migration_002(pool: &DbPool) -> Result<()> {
             "create idx_idempotency_keys_expires_at",
             !sqlite_index_exists(pool, "idx_idempotency_keys_expires_at").await?,
             "CREATE INDEX IF NOT EXISTS idx_idempotency_keys_expires_at ON idempotency_keys(expires_at)",
-        ),
-        (
-            "add client_devices.legacy_acl",
-            !sqlite_table_has_column(pool, "client_devices", "legacy_acl").await?,
-            "ALTER TABLE client_devices ADD COLUMN legacy_acl INTEGER NOT NULL DEFAULT 1",
         ),
         (
             "add session_archives.metadata_json",
@@ -457,16 +457,24 @@ async fn run_sqlite_migrations(pool: &DbPool) -> Result<()> {
 
     // Migration 006: Session pending status
     info!("Running migration 006_session_pending_status.sql");
-    run_sqlite_migration_006(pool).await?;
+    if sqlite_table_has_column(pool, "sessions", "rerun_from_session_id").await? {
+        info!("Migration 006 already applied (rerun_from_session_id column exists), skipping");
+    } else {
+        run_sqlite_migration_006(pool).await?;
+    }
 
     // Migration 007: Session rerun idempotency
     info!("Running migration 007_session_rerun_idempotency.sql");
-    sqlx::query(include_str!(
-        "migrations/sqlite/007_session_rerun_idempotency.sql"
-    ))
-    .execute(pool)
-    .await
-    .map_err(|e| crate::error::ServerError::Internal(format!("Migration 007 failed: {}", e)))?;
+    if !sqlite_index_exists(pool, "idx_sessions_dispatching_rerun_from_session_id").await? {
+        sqlx::query(include_str!(
+            "migrations/sqlite/007_session_rerun_idempotency.sql"
+        ))
+        .execute(pool)
+        .await
+        .map_err(|e| crate::error::ServerError::Internal(format!("Migration 007 failed: {}", e)))?;
+    } else {
+        info!("Migration 007 already applied (idx_sessions_dispatching_rerun_from_session_id exists), skipping");
+    }
 
     // Migration 008: Pairing polling secret
     info!("Running migration 008_pairing_secret.sql");
@@ -543,18 +551,6 @@ async fn run_postgres_migration_002(pool: &DbPool) -> Result<()> {
         .map_err(|e| {
             crate::error::ServerError::Internal(format!("PostgreSQL migration 002 failed: {}", e))
         })?;
-
-    sqlx::query(
-        "ALTER TABLE client_devices ADD COLUMN IF NOT EXISTS legacy_acl INTEGER NOT NULL DEFAULT 1",
-    )
-    .execute(pool)
-    .await
-    .map_err(|e| {
-        crate::error::ServerError::Internal(format!(
-            "PostgreSQL client_devices legacy_acl migration failed: {}",
-            e
-        ))
-    })?;
 
     Ok(())
 }

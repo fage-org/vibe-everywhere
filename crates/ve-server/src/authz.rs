@@ -18,25 +18,6 @@ use crate::error::{Result, ServerError};
 use crate::state::AppState;
 use crate::utils::parse_uuid;
 
-async fn ensure_legacy_client_access(state: &AppState, device_id: Uuid) -> Result<()> {
-    let device_exists = sqlx::query_scalar::<_, i64>(
-        r#"
-        SELECT 1
-        FROM client_devices
-        WHERE device_id = $1
-        "#,
-    )
-    .bind(device_id.to_string())
-    .fetch_optional(&state.db)
-    .await?;
-
-    if device_exists.is_some() {
-        Ok(())
-    } else {
-        Err(ServerError::Unauthorized)
-    }
-}
-
 #[derive(Debug, Clone, Copy)]
 pub struct ClientAccess {
     pub device_id: Uuid,
@@ -176,7 +157,13 @@ pub async fn decode_ws_claims(jwt_manager: &JwtManager, token: &str, db: &crate:
 
     // Check token revocation for Client-type tokens
     if claims.r#type == TokenType::Client {
-        if let Ok(_device_id) = claims.subject_uuid() {
+        if let Ok(device_id) = claims.subject_uuid() {
+            let matches = crate::token_revocation::jti_matches_device(db, device_id, &claims.jti)
+                .await
+                .unwrap_or(true);
+            if !matches {
+                return Err(ServerError::InvalidToken);
+            }
             let revoked = crate::token_revocation::is_revoked(db, &claims.jti)
                 .await
                 .unwrap_or(false);
@@ -190,7 +177,6 @@ pub async fn decode_ws_claims(jwt_manager: &JwtManager, token: &str, db: &crate:
 }
 
 pub async fn require_host_access(state: &AppState, device_id: Uuid, host_id: Uuid) -> Result<()> {
-    ensure_legacy_client_access(state, device_id).await?;
     let access = sqlx::query_as::<_, (i64,)>(
         r#"
         SELECT 1
@@ -215,7 +201,6 @@ pub async fn require_session_access(
     device_id: Uuid,
     session_id: Uuid,
 ) -> Result<()> {
-    ensure_legacy_client_access(state, device_id).await?;
     let access = sqlx::query_as::<_, (i64,)>(
         r#"
         SELECT 1
@@ -287,7 +272,14 @@ where
         .map_err(|_| ServerError::Unauthorized)?;
     let device_id = require_client_device_id(&claims)?;
     let app_state = Arc::<AppState>::from_ref(state);
-    ensure_legacy_client_access(&app_state, device_id).await?;
+    // Verify device still exists in DB (JWT may outlive device deletion)
+    sqlx::query_scalar::<_, i64>(
+        "SELECT 1 FROM client_devices WHERE device_id = $1",
+    )
+    .bind(device_id.to_string())
+    .fetch_optional(&app_state.db)
+    .await?
+    .ok_or(ServerError::Unauthorized)?;
     Ok(device_id)
 }
 
@@ -457,7 +449,6 @@ where
             .await
             .map_err(|_| ServerError::BadRequest("Invalid archive id".to_string()))?;
         let app_state = Arc::<AppState>::from_ref(state);
-        ensure_legacy_client_access(&app_state, device_id).await?;
         let archive_session_id: (String,) = sqlx::query_as(
             r#"
             SELECT session_archives.session_id

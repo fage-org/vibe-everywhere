@@ -20,7 +20,6 @@ use ve_shared::models::{
 use ve_shared::pairing_proof::PairingProof;
 
 use crate::authz::require_bootstrap_device_id;
-use crate::config::DatabaseBackend;
 use crate::error::{Result, ServerError};
 use crate::state::AppState;
 use crate::token_revocation;
@@ -167,26 +166,22 @@ pub async fn daemon_hello(
 
     let mut tx = state.db.begin().await?;
 
-    // Build database-native timestamp expression to avoid AnyPool DateTime encoding issues.
-    // pair_code_ttl_secs is a config value (not user input), safe for SQL interpolation.
     let ttl_secs = state.config.pair_code_ttl_secs;
-    let expires_at_expr = match state.config.database_backend() {
-        DatabaseBackend::Postgres => format!("CURRENT_TIMESTAMP + INTERVAL '{ttl_secs} seconds'"),
-        DatabaseBackend::Sqlite => format!("datetime('now', '+{ttl_secs} seconds')"),
-    };
+    let expires_at = (chrono::Utc::now() + chrono::Duration::seconds(ttl_secs as i64)).to_rfc3339();
 
-    sqlx::query(&format!(
+    sqlx::query(
         r#"
         INSERT INTO pairing_codes (pair_code, host_id, host_name, platform, qr_payload, pairing_secret, expires_at)
-        VALUES ($1, $2, $3, $4, $5, $6, {expires_at_expr})
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         "#,
-    ))
+    )
     .bind(&pair_code)
     .bind(&host_id_str)
     .bind(&host_name)
     .bind(&req.platform)
     .bind(&qr_payload)
     .bind(&pairing_secret)
+    .bind(&expires_at)
     .execute(&mut *tx)
     .await?;
 
@@ -317,6 +312,7 @@ pub async fn pair(
     }
 
     let now = chrono::Utc::now();
+    let now_str = now.to_rfc3339();
     let mut tx = state.db.begin().await?;
 
     let device_exists = sqlx::query_as::<_, (i64,)>(
@@ -385,10 +381,11 @@ pub async fn pair(
         r#"
         UPDATE pairing_codes
         SET used = TRUE
-        WHERE pair_code = $1 AND used = FALSE AND expires_at > CURRENT_TIMESTAMP
+        WHERE pair_code = $1 AND used = FALSE AND expires_at > $2
         "#,
     )
     .bind(&pair_code)
+    .bind(&now_str)
     .execute(&mut *tx)
     .await?;
 
@@ -411,17 +408,6 @@ pub async fn pair(
 
         return Err(ServerError::PairCodeExpired);
     }
-
-    sqlx::query(
-        r#"
-        UPDATE client_devices
-        SET legacy_acl = 0
-        WHERE device_id = $1
-        "#,
-    )
-    .bind(&device_id_str)
-    .execute(&mut *tx)
-    .await?;
 
     sqlx::query(
         r#"

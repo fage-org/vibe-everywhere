@@ -25,17 +25,17 @@ impl WsClient {
         let min_backoff = self.config.reconnect_backoff_min();
         let max_backoff = self.config.reconnect_backoff_max();
 
-        'connection_loop: loop {
+        let result = 'connection_loop: loop {
             match self.connect_and_run().await {
                 Ok(()) => {
                     info!("WebSocket connection closed normally");
-                    break;
+                    break 'connection_loop Ok(());
                 }
                 Err(DaemonError::ConnectionTimeout) | Err(DaemonError::WsDisconnected) => {
                     retry_count += 1;
                     if retry_count > max_retries {
                         error!(retry_count, "Max reconnection attempts reached");
-                        return Err(DaemonError::ReconnectLimitExceeded {
+                        break 'connection_loop Err(DaemonError::ReconnectLimitExceeded {
                             attempts: max_retries,
                         });
                     }
@@ -49,32 +49,38 @@ impl WsClient {
 
                     tokio::select! {
                         _ = tokio::time::sleep(backoff) => {}
-                        _ = shutdown_rx.recv() => break 'connection_loop,
+                        _ = shutdown_rx.recv() => break 'connection_loop Ok(()),
                     }
                 }
                 Err(DaemonError::TokenExpired) | Err(DaemonError::TokenInvalid { .. }) => {
                     error!("Token invalid or expired, need to re-pair");
-                    return Err(DaemonError::TokenExpired);
+                    break 'connection_loop Err(DaemonError::TokenExpired);
                 }
                 Err(e) => {
                     error!(error = %e, "Unexpected error, reconnecting...");
                     retry_count += 1;
                     if retry_count > max_retries {
                         error!(retry_count, "Max reconnection attempts reached");
-                        return Err(DaemonError::ReconnectLimitExceeded {
+                        break 'connection_loop Err(DaemonError::ReconnectLimitExceeded {
                             attempts: max_retries,
                         });
                     }
                     let backoff = calculate_backoff(min_backoff, max_backoff, retry_count);
                     tokio::select! {
                         _ = tokio::time::sleep(backoff) => {}
-                        _ = shutdown_rx.recv() => break 'connection_loop,
+                        _ = shutdown_rx.recv() => break 'connection_loop Ok(()),
                     }
                 }
             }
+        };
+
+        // Always clean up active sessions before exiting
+        if let Some(registry) = &self.registry {
+            tracing::info!("Shutting down all active sessions...");
+            registry.shutdown_all().await;
         }
 
-        Ok(())
+        result
     }
 
     /// Run a single connected session.
@@ -113,8 +119,7 @@ impl WsClient {
 
         info!("WebSocket connected");
 
-        // Take the event receiver. It is consumed directly by this connection.
-        // On reconnect failure, it is NOT restored (the channel is single-consumer).
+        // Take the event receiver. Always restored so reconnection works.
         let mut event_rx = self.event_rx.take();
 
         let (sender, mut receiver) = ws_stream.split();
@@ -303,6 +308,7 @@ impl WsClient {
                             "Heartbeat timeout"
                         );
                         heartbeat_handle.abort();
+                        self.event_rx = event_rx;
                         return Err(DaemonError::HeartbeatTimeout {
                             timeout_seconds: heartbeat_timeout.as_secs() as u32,
                         });
@@ -311,6 +317,7 @@ impl WsClient {
             }
         }
 
+        self.event_rx = event_rx;
         heartbeat_handle.abort();
         Ok(())
     }

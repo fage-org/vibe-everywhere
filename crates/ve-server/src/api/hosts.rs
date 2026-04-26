@@ -213,14 +213,16 @@ async fn unbind_host_by_id(
 
     let host_id_str = id.to_string();
 
-    // Check for dependent resources
+    let mut tx = state.db.begin().await?;
+
+    // Check for dependent resources within transaction to prevent TOCTOU
     let session_count: (i64,) = sqlx::query_as(
         r#"
         SELECT COUNT(*) FROM sessions WHERE host_id = $1 AND status != 'archived'
         "#,
     )
     .bind(&host_id_str)
-    .fetch_one(&state.db)
+    .fetch_one(&mut *tx)
     .await?;
 
     let archive_count: (i64,) = sqlx::query_as(
@@ -229,7 +231,7 @@ async fn unbind_host_by_id(
         "#,
     )
     .bind(&host_id_str)
-    .fetch_one(&state.db)
+    .fetch_one(&mut *tx)
     .await?;
 
     let workspace_count: (i64,) = sqlx::query_as(
@@ -238,7 +240,7 @@ async fn unbind_host_by_id(
         "#,
     )
     .bind(&host_id_str)
-    .fetch_one(&state.db)
+    .fetch_one(&mut *tx)
     .await?;
 
     let deletion_status = HostDeletionStatus {
@@ -248,6 +250,7 @@ async fn unbind_host_by_id(
     };
 
     if !validate_host_can_be_deleted(&deletion_status) {
+        tx.rollback().await?;
         return Err(ServerError::Conflict(format!(
             "Cannot unbind host: {} active session(s), {} archive(s). Close or delete sessions first.",
             deletion_status.session_count,
@@ -265,7 +268,7 @@ async fn unbind_host_by_id(
         "#,
     )
     .bind(&host_id_str)
-    .execute(&state.db)
+    .execute(&mut *tx)
     .await?;
 
     // Delete sessions (cascades to session_messages, permission_requests via ON DELETE CASCADE)
@@ -275,7 +278,7 @@ async fn unbind_host_by_id(
         "#,
     )
     .bind(&host_id_str)
-    .execute(&state.db)
+    .execute(&mut *tx)
     .await?;
 
     // Delete session archives (no FK constraint to hosts table)
@@ -285,7 +288,7 @@ async fn unbind_host_by_id(
         "#,
     )
     .bind(&host_id_str)
-    .execute(&state.db)
+    .execute(&mut *tx)
     .await?;
 
     sqlx::query(
@@ -294,8 +297,10 @@ async fn unbind_host_by_id(
         "#,
     )
     .bind(&host_id_str)
-    .execute(&state.db)
+    .execute(&mut *tx)
     .await?;
+
+    tx.commit().await?;
 
     tracing::info!(%id, sessions = deletion_status.session_count, archives = deletion_status.archive_count, workspaces = deletion_status.workspace_count, "Host unbound");
 

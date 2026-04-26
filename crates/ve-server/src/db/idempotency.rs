@@ -128,14 +128,15 @@ impl IdempotencyKeyStore {
         // we can rely on the column being nullable or update after insert.
         let result = sqlx::query(
             r#"
-            INSERT INTO idempotency_keys (key, request_hash, session_id, result_type)
-            VALUES ($1, $2, $3, $4)
+            INSERT INTO idempotency_keys (key, request_hash, session_id, result_type, expires_at)
+            VALUES ($1, $2, $3, $4, $5)
             "#,
         )
         .bind(key)
         .bind(request_hash)
         .bind(&result_ref_str)
         .bind(result_type)
+        .bind(&expires_at)
         .execute(&self.pool)
         .await;
 
@@ -162,11 +163,17 @@ impl IdempotencyKeyStore {
                 if e.to_string().contains("UNIQUE constraint")
                     || e.to_string().contains("PRIMARY KEY")
                 {
-                    // Key already exists, fetch and return it
-                    tracing::warn!(key = %key, "Idempotency key already exists, returning existing");
-                    self.get(key).await?.ok_or_else(|| {
+                    // Key already exists, fetch it and verify request hash matches
+                    let existing = self.get(key).await?.ok_or_else(|| {
                         ServerError::Internal("Idempotency key disappeared after conflict".into())
-                    })
+                    })?;
+                    if !self.verify_hash(&existing, request_hash) {
+                        return Err(ServerError::Conflict(
+                            "Idempotency key reused with different request body".into(),
+                        ));
+                    }
+                    tracing::warn!(key = %key, "Idempotency key already exists, returning existing");
+                    Ok(existing)
                 } else {
                     Err(ServerError::Internal(format!(
                         "Failed to store idempotency key: {}",

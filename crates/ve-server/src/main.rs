@@ -25,6 +25,8 @@ async fn main() -> Result<()> {
     let db = db::create_pool(&config).await?;
     db::run_migrations(&db, db_backend).await?;
 
+    tasks::recover_orphaned_dispatching_sessions(&db).await;
+
     let hub = Hub::new();
     let jwt_manager = Arc::new(JwtManager::new(&config.jwt_secret, config.jwt_expiration()));
     let state = AppState::new(db.clone(), hub, config.clone(), Arc::clone(&jwt_manager));

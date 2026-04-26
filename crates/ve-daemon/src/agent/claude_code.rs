@@ -460,7 +460,7 @@ impl AgentDriver for ClaudeCodeDriver {
 
         cmd.stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
+            .stderr(Stdio::inherit());
 
         // Spawn process
         let mut child = cmd.spawn().map_err(|e| DaemonError::CliStartFailed {
@@ -693,7 +693,7 @@ impl AgentDriver for ClaudeCodeDriver {
 
         cmd.stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
+            .stderr(Stdio::inherit());
 
         // Spawn process
         let mut child = cmd.spawn().map_err(|e| DaemonError::SessionRerunFailed {

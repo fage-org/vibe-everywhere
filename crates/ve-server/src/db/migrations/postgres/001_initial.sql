@@ -7,7 +7,6 @@ CREATE TABLE IF NOT EXISTS client_devices (
     device_name     VARCHAR(255) NOT NULL,
     device_type     VARCHAR(20) NOT NULL CHECK (device_type IN ('mobile', 'desktop')),
     authorized_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    legacy_acl      INTEGER NOT NULL DEFAULT 1,
     server_url      VARCHAR(512) NOT NULL,
     last_seen_at    TIMESTAMPTZ,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()

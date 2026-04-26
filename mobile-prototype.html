@@ -1,0 +1,2122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Vibe Everywhere - Mobile Client Prototype</title>
+<style>
+  :root {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f6f8fa;
+    --bg-tertiary: #eaeef2;
+    --bg-elevated: #ffffff;
+    --bg-hover: #e8eaed;
+    --border-color: #d0d7de;
+    --text-primary: #1f2328;
+    --text-secondary: #656d76;
+    --text-muted: #8c959f;
+    --accent: #58a6ff;
+    --accent-bg: rgba(9, 105, 218, 0.08);
+    --success: #3fb950;
+    --success-bg: rgba(31, 136, 61, 0.08);
+    --warning: #d29922;
+    --warning-bg: rgba(154, 103, 0, 0.08);
+    --danger: #f85149;
+    --danger-bg: rgba(207, 34, 46, 0.08);
+    --purple: #bc8cff;
+    --purple-bg: rgba(107, 44, 187, 0.08);
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 15px;
+    line-height: 1.5;
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+    max-width: 480px;
+    margin: 0 auto;
+    position: relative;
+  }
+
+  .app-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  /* Header */
+  .page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    min-height: 52px;
+    flex-shrink: 0;
+  }
+
+  .page-header-title {
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .header-btn {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    cursor: pointer;
+    color: var(--accent);
+    transition: background 0.2s;
+  }
+  .header-btn:hover { background: var(--bg-hover); }
+  .header-btn svg { width: 20px; height: 20px; }
+
+  .header-btn-text {
+    width: auto;
+    padding: 0 8px;
+    font-size: 14px;
+    font-weight: 500;
+    border-radius: var(--radius-sm);
+    color: var(--accent);
+    gap: 4px;
+  }
+
+  /* Pages */
+  .page {
+    display: none;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+  }
+  .page.active { display: flex; }
+
+  /* Scrollable content */
+  .page-content {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .page-content::-webkit-scrollbar { width: 0; }
+
+  /* Bottom Tab Bar */
+  .tab-bar {
+    display: flex;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border-color);
+    padding: 6px 0;
+    padding-bottom: calc(6px + var(--safe-bottom));
+    flex-shrink: 0;
+    z-index: 50;
+  }
+
+  .tab-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 4px 0;
+    cursor: pointer;
+    color: var(--text-muted);
+    transition: color 0.2s;
+    position: relative;
+  }
+  .tab-item.active { color: var(--accent); }
+  .tab-item svg { width: 24px; height: 24px; }
+  .tab-item-label { font-size: 10px; font-weight: 500; }
+
+  .tab-badge {
+    position: absolute;
+    top: 0;
+    right: 50%;
+    transform: translateX(12px);
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--danger);
+  }
+
+  /* FAB */
+  .fab {
+    position: fixed;
+    right: 20px;
+    bottom: calc(76px + var(--safe-bottom));
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 16px rgba(56, 139, 253, 0.4);
+    cursor: pointer;
+    z-index: 40;
+    transition: transform 0.2s;
+  }
+  .fab:active { transform: scale(0.92); }
+  .fab svg { width: 24px; height: 24px; }
+
+  /* Session List */
+  .session-section-label {
+    padding: 12px 16px 6px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+  }
+
+  .session-card {
+    margin: 0 12px 8px;
+    padding: 14px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+  }
+  .session-card:active { background: var(--bg-elevated); }
+  .session-card.attention { border-left: 3px solid var(--warning); }
+
+  .session-card-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .session-card-title {
+    font-size: 15px;
+    font-weight: 600;
+    flex: 1;
+  }
+
+  .session-card-body {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 10px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .session-card-footer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .pill-host { background: var(--bg-elevated); color: var(--text-secondary); }
+  .pill-time { color: var(--text-muted); font-size: 11px; }
+
+  .status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+  .status-running { background: var(--success); }
+  .status-waiting { background: var(--warning); }
+  .status-paused { background: var(--text-muted); }
+  .status-error { background: var(--danger); }
+
+  .permission-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    background: var(--warning-bg);
+    color: var(--warning);
+  }
+
+  .status-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .tag-running { background: var(--success-bg); color: var(--success); }
+  .tag-waiting { background: var(--warning-bg); color: var(--warning); }
+  .tag-paused { background: var(--bg-elevated); color: var(--text-secondary); }
+
+  /* Search bar */
+  .search-bar {
+    margin: 8px 16px;
+    background: var(--bg-elevated);
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .search-bar svg { width: 16px; height: 16px; color: var(--text-muted); flex-shrink: 0; }
+  .search-bar input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    font-size: 14px;
+    outline: none;
+  }
+  .search-bar input::placeholder { color: var(--text-muted); }
+
+  /* Session Detail */
+  .detail-header {
+    padding: 12px 16px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .detail-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .detail-title {
+    font-size: 16px;
+    font-weight: 600;
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .detail-meta {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  /* Tabs */
+  .detail-tabs {
+    display: flex;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+  }
+
+  .detail-tab {
+    flex: 1;
+    text-align: center;
+    padding: 12px 0;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+  }
+  .detail-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .detail-tab-content {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .detail-tab-content::-webkit-scrollbar { width: 0; }
+
+  .detail-panel { display: none; }
+  .detail-panel.active { display: block; }
+
+  /* Permission alert */
+  .permission-alert {
+    margin: 12px;
+    padding: 14px;
+    background: var(--warning-bg);
+    border: 1px solid var(--warning);
+    border-radius: var(--radius-md);
+  }
+
+  .permission-alert-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .permission-alert-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: rgba(210, 153, 34, 0.25);
+    color: var(--warning);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .permission-alert-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--warning);
+  }
+
+  .permission-alert-body {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+    line-height: 1.6;
+  }
+
+  .permission-alert-body code {
+    background: var(--bg-elevated);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 12px;
+    color: var(--text-primary);
+  }
+
+  .permission-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .permission-btn {
+    flex: 1;
+    padding: 10px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 600;
+    text-align: center;
+    cursor: pointer;
+    border: none;
+    transition: opacity 0.2s;
+  }
+  .permission-btn:active { opacity: 0.7; }
+
+  .perm-allow {
+    background: var(--success);
+    color: white;
+  }
+  .perm-deny {
+    background: var(--danger);
+    color: white;
+  }
+  .perm-remember {
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+  }
+
+  /* Event Timeline */
+  .event-section {
+    padding: 16px;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .event-section-title {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: var(--text-secondary);
+  }
+
+  .event-item {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border-color);
+  }
+  .event-item:last-child { border-bottom: none; }
+
+  .event-item-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+
+  .event-time {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-family: 'SF Mono', 'Fira Code', monospace;
+  }
+
+  .event-tag {
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-weight: 600;
+  }
+  .etag-tool { background: var(--purple-bg); color: var(--purple); }
+  .etag-user { background: var(--success-bg); color: var(--success); }
+  .etag-info { background: var(--accent-bg); color: var(--accent); }
+  .etag-error { background: var(--danger-bg); color: var(--danger); }
+
+  .event-text {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+
+  /* Diff */
+  .diff-file-list { padding: 8px 16px; }
+
+  .diff-file-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    margin-bottom: 8px;
+  }
+
+  .diff-file-name {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 13px;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    margin-right: 8px;
+  }
+
+  .diff-stats {
+    display: flex;
+    gap: 8px;
+    font-size: 12px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    flex-shrink: 0;
+  }
+  .diff-add { color: var(--success); }
+  .diff-del { color: var(--danger); }
+
+  .diff-hunk {
+    margin: 8px 16px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 11px;
+    line-height: 1.6;
+  }
+
+  .diff-hunk-header {
+    padding: 6px 12px;
+    background: var(--bg-elevated);
+    color: var(--text-muted);
+    font-size: 11px;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .diff-line {
+    display: flex;
+    padding: 0 12px;
+    border-top: 1px solid rgba(48, 54, 61, 0.3);
+  }
+
+  .diff-line-num {
+    width: 32px;
+    text-align: right;
+    color: var(--text-muted);
+    padding-right: 8px;
+    flex-shrink: 0;
+    user-select: none;
+  }
+
+  .diff-line-content { flex: 1; padding: 0 6px; }
+
+  .diff-added { background: rgba(63, 185, 80, 0.1); }
+  .diff-added .diff-line-content { color: var(--success); }
+  .diff-removed { background: rgba(248, 81, 73, 0.1); }
+  .diff-removed .diff-line-content { color: var(--danger); }
+
+  /* File Tree */
+  .file-tree {
+    padding: 8px 16px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 13px;
+  }
+
+  .ft-node {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 4px;
+    border-radius: var(--radius-sm);
+  }
+  .ft-node:active { background: var(--bg-hover); }
+
+  .ft-indent { width: 16px; flex-shrink: 0; }
+  .ft-icon { width: 16px; height: 16px; flex-shrink: 0; }
+  .ft-folder { color: var(--accent); font-weight: 500; }
+  .ft-file { color: var(--text-primary); }
+
+  /* Message Input */
+  .message-input-bar {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    padding: 8px 12px;
+    padding-bottom: calc(8px + var(--safe-bottom));
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border-color);
+    flex-shrink: 0;
+  }
+
+  .msg-input {
+    flex: 1;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    padding: 10px 16px;
+    color: var(--text-primary);
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    resize: none;
+    max-height: 100px;
+    min-height: 40px;
+  }
+  .msg-input::placeholder { color: var(--text-muted); }
+
+  .msg-send {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    cursor: pointer;
+    border: none;
+  }
+  .msg-send svg { width: 18px; height: 18px; }
+
+  /* Host list */
+  .host-card {
+    margin: 0 16px 8px;
+    padding: 14px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+  }
+
+  .host-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+
+  .host-card-name {
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .host-card-info {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  /* Workspace list */
+  .ws-section-label {
+    padding: 16px 16px 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .ws-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .ws-info { flex: 1; }
+  .ws-name {
+    font-size: 14px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .ws-path {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    margin-top: 2px;
+  }
+  .ws-star { color: var(--warning); font-size: 13px; }
+
+  /* Session detail actions sheet */
+  .actions-sheet {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: 480px;
+    background: var(--bg-secondary);
+    border-top-left-radius: var(--radius-lg);
+    border-top-right-radius: var(--radius-lg);
+    padding: 16px;
+    padding-bottom: calc(16px + var(--safe-bottom));
+    z-index: 100;
+    box-shadow: 0 -8px 32px rgba(0,0,0,0.5);
+  }
+  .actions-sheet.active { display: block; }
+
+  .sheet-handle {
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border-light);
+    margin: 0 auto 16px;
+  }
+
+  .sheet-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+
+  .sheet-action {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 12px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    margin-bottom: 2px;
+  }
+  .sheet-action:active { background: var(--bg-hover); }
+
+  .sheet-action-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .sheet-action-icon svg { width: 18px; height: 18px; }
+
+  .sheet-action-text {
+    font-size: 15px;
+    font-weight: 500;
+  }
+
+  .sheet-action-desc {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .sheet-action.danger .sheet-action-text { color: var(--danger); }
+  .sheet-action.danger .sheet-action-icon { background: var(--danger-bg); color: var(--danger); }
+
+  /* Overlay */
+  .overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 90;
+  }
+  .overlay.active { display: block; }
+
+  /* Bottom sheet for permission */
+  .perm-sheet {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: 480px;
+    background: var(--bg-secondary);
+    border-top-left-radius: var(--radius-lg);
+    border-top-right-radius: var(--radius-lg);
+    padding: 20px 16px;
+    padding-bottom: calc(16px + var(--safe-bottom));
+    z-index: 100;
+    box-shadow: 0 -8px 32px rgba(0,0,0,0.5);
+  }
+  .perm-sheet.active { display: block; }
+
+  .perm-sheet-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+  }
+
+  .perm-sheet-btn {
+    flex: 1;
+    padding: 12px;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-weight: 600;
+    text-align: center;
+    cursor: pointer;
+    border: none;
+  }
+  .perm-sheet-btn:active { opacity: 0.7; }
+
+  /* Settings */
+  .settings-group {
+    margin: 16px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+  }
+
+  .settings-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border-color);
+  }
+  .settings-item:last-child { border-bottom: none; }
+
+  .settings-item-label {
+    font-size: 14px;
+  }
+
+  .settings-item-value {
+    font-size: 13px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .settings-section-title {
+    padding: 8px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  /* Toggle switch */
+  .toggle {
+    width: 48px;
+    height: 28px;
+    border-radius: 14px;
+    background: var(--bg-hover);
+    cursor: pointer;
+    position: relative;
+    transition: background 0.2s;
+    flex-shrink: 0;
+  }
+  .toggle.active { background: var(--accent); }
+  .toggle::after {
+    content: '';
+    position: absolute;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: white;
+    top: 3px;
+    left: 3px;
+    transition: left 0.2s;
+  }
+  .toggle.active::after { left: 23px; }
+
+  /* Stepper for new session */
+  .stepper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 12px 16px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .stepper-step {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+  .stepper-step.active { color: var(--accent); }
+  .stepper-step.completed { color: var(--success); }
+
+  .stepper-num {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 600;
+    background: var(--bg-hover);
+  }
+  .stepper-step.active .stepper-num { background: var(--accent); color: white; }
+  .stepper-step.completed .stepper-num { background: var(--success); color: white; }
+
+  .stepper-line {
+    width: 16px;
+    height: 1px;
+    background: var(--border-color);
+  }
+
+  /* Form elements */
+  .form-group {
+    padding: 0 16px;
+    margin-bottom: 20px;
+  }
+
+  .form-label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+  }
+
+  .form-input {
+    width: 100%;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+    color: var(--text-primary);
+    font-size: 15px;
+    outline: none;
+    font-family: inherit;
+  }
+  .form-input:focus { border-color: var(--accent); }
+
+  .form-select {
+    width: 100%;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+    color: var(--text-primary);
+    font-size: 15px;
+    outline: none;
+    appearance: none;
+  }
+
+  .form-textarea {
+    width: 100%;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+    color: var(--text-primary);
+    font-size: 15px;
+    outline: none;
+    font-family: inherit;
+    resize: vertical;
+    min-height: 100px;
+  }
+  .form-textarea:focus { border-color: var(--accent); }
+
+  .btn {
+    padding: 12px 20px;
+    border-radius: var(--radius-sm);
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    text-align: center;
+    transition: opacity 0.2s;
+  }
+  .btn:active { opacity: 0.7; }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-secondary { background: var(--bg-elevated); color: var(--text-primary); }
+  .btn-danger { background: var(--danger); color: white; }
+  .btn-full { width: calc(100% - 32px); margin: 0 16px; }
+
+  /* Notification items */
+  .notif-item {
+    display: flex;
+    gap: 12px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border-color);
+  }
+  .notif-item.unread { background: var(--accent-bg); }
+
+  .notif-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .notif-body { flex: 1; }
+  .notif-title-text { font-size: 14px; font-weight: 500; margin-bottom: 2px; }
+  .notif-desc { font-size: 12px; color: var(--text-muted); }
+  .notif-time { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+
+  /* Archive items */
+  .archive-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border-color);
+  }
+  .archive-title { font-size: 14px; font-weight: 500; margin-bottom: 4px; }
+  .archive-meta { font-size: 12px; color: var(--text-muted); }
+
+  /* Pairing page */
+  .pair-code-display {
+    margin: 24px 16px;
+    text-align: center;
+  }
+
+  .pair-code {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 36px;
+    font-weight: 700;
+    letter-spacing: 8px;
+    color: var(--accent);
+    margin: 16px 0;
+  }
+
+  .pair-qr {
+    width: 180px;
+    height: 180px;
+    background: white;
+    border-radius: var(--radius-md);
+    margin: 16px auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Log stream */
+  .log-stream {
+    padding: 12px 16px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 11px;
+    line-height: 1.7;
+  }
+
+  .log-line {
+    padding: 2px 0;
+    display: flex;
+    gap: 8px;
+  }
+
+  .log-time { color: var(--text-muted); flex-shrink: 0; min-width: 50px; }
+  .log-level-info { color: var(--accent); font-weight: 600; }
+  .log-level-tool { color: var(--purple); font-weight: 600; }
+  .log-level-warn { color: var(--warning); font-weight: 600; }
+  .log-level-error { color: var(--danger); font-weight: 600; }
+  .log-msg { color: var(--text-secondary); word-break: break-all; }
+
+  /* Onboarding flow */
+  .onboarding {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 24px;
+    text-align: center;
+  }
+
+  .onboarding-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 20px;
+  }
+  .onboarding-icon svg { width: 32px; height: 32px; }
+
+  .onboarding-title {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+
+  .onboarding-desc {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-bottom: 32px;
+    line-height: 1.6;
+  }
+
+  /* Back button */
+  .back-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--accent);
+    cursor: pointer;
+    font-size: 14px;
+  }
+  .back-btn svg { width: 20px; height: 20px; }
+
+  /* Server setup */
+  .server-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px;
+    background: var(--success-bg);
+    border-radius: var(--radius-sm);
+    margin: 0 16px 20px;
+  }
+  .server-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--success);
+  }
+  .server-status-text { font-size: 13px; color: var(--success); }
+
+  /* Filter chips */
+  .filter-chips {
+    display: flex;
+    gap: 8px;
+    padding: 0 16px;
+    overflow-x: auto;
+    margin-bottom: 8px;
+  }
+  .filter-chips::-webkit-scrollbar { width: 0; }
+
+  .chip {
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    background: var(--bg-elevated);
+    color: var(--text-secondary);
+    white-space: nowrap;
+    cursor: pointer;
+    border: 1px solid var(--border-color);
+  }
+  .chip.active { background: var(--accent-bg); color: var(--accent); border-color: transparent; }
+</style>
+</head>
+<body>
+<div class="app-container">
+
+  <!-- ==================== PAGE: Sessions (Home) ==================== -->
+  <div id="pg-sessions" class="page active">
+    <div class="page-header">
+      <span class="page-header-title">会话</span>
+      <div class="header-btn" onclick="switchPage('notifications')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <div class="tab-badge"></div>
+      </div>
+    </div>
+    <div class="search-bar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" placeholder="搜索会话...">
+    </div>
+    <div class="page-content">
+      <div class="session-section-label">待处理</div>
+      <div class="session-card attention" onclick="openSessionDetail()">
+        <div class="session-card-top">
+          <span class="session-card-title">API Gateway 重构</span>
+          <span class="permission-badge">! 权限</span>
+        </div>
+        <div class="session-card-body">正在等待文件系统写入权限：修改 src/routes/auth.ts</div>
+        <div class="session-card-footer">
+          <span class="pill pill-host">dev-server-01</span>
+          <span class="pill pill-host">api-gateway</span>
+          <span class="status-tag tag-waiting"><span class="status-dot status-waiting"></span>待审批</span>
+          <span class="pill pill-time">2 分钟前</span>
+        </div>
+      </div>
+
+      <div class="session-section-label">运行中</div>
+      <div class="session-card" onclick="openSessionDetail()">
+        <div class="session-card-top">
+          <span class="session-card-title">数据库迁移脚本优化</span>
+        </div>
+        <div class="session-card-body">已完成 3/5 个迁移文件的优化，正在处理外键约束...</div>
+        <div class="session-card-footer">
+          <span class="pill pill-host">prod-db-01</span>
+          <span class="pill pill-host">migrations</span>
+          <span class="status-tag tag-running"><span class="status-dot status-running"></span>运行中</span>
+          <span class="pill pill-time">18 分钟前</span>
+        </div>
+      </div>
+
+      <div class="session-card" onclick="openSessionDetail()">
+        <div class="session-card-top">
+          <span class="session-card-title">前端组件单元测试补充</span>
+        </div>
+        <div class="session-card-body">已编写 12 个测试用例，正在生成覆盖率报告...</div>
+        <div class="session-card-footer">
+          <span class="pill pill-host">macbook-pro</span>
+          <span class="pill pill-host">frontend</span>
+          <span class="status-tag tag-running"><span class="status-dot status-running"></span>运行中</span>
+          <span class="pill pill-time">35 分钟前</span>
+        </div>
+      </div>
+
+      <div class="session-section-label">已暂停</div>
+      <div class="session-card" onclick="openSessionDetail()">
+        <div class="session-card-top">
+          <span class="session-card-title">日志系统重构调研</span>
+        </div>
+        <div class="session-card-body">用户手动暂停会话。已完成竞品分析，等待进一步指令。</div>
+        <div class="session-card-footer">
+          <span class="pill pill-host">dev-server-01</span>
+          <span class="pill pill-host">infra</span>
+          <span class="status-tag tag-paused"><span class="status-dot status-paused"></span>已暂停</span>
+          <span class="pill pill-time">2 小时前</span>
+        </div>
+      </div>
+
+      <div style="height: 80px;"></div>
+    </div>
+
+    <div class="fab" onclick="openModal('newSession')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    </div>
+
+    <div class="tab-bar">
+      <div class="tab-item active" onclick="switchPage('sessions')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span class="tab-item-label">会话</span>
+      </div>
+      <div class="tab-item" onclick="switchPage('hosts')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        <span class="tab-item-label">主机</span>
+      </div>
+      <div class="tab-item" onclick="switchPage('archive')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+        <span class="tab-item-label">归档</span>
+      </div>
+      <div class="tab-item" onclick="switchPage('settings')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span class="tab-item-label">设置</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== PAGE: Session Detail ==================== -->
+  <div id="pg-session-detail" class="page">
+    <div class="page-header">
+      <div class="back-btn" onclick="closeSessionDetail()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+        返回
+      </div>
+      <div class="header-btn" onclick="openActionsSheet()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+      </div>
+    </div>
+
+    <div class="detail-header">
+      <div class="detail-title-row">
+        <span class="detail-title">API Gateway 重构</span>
+        <span class="status-tag tag-waiting"><span class="status-dot status-waiting"></span>待审批</span>
+      </div>
+      <div class="detail-meta">
+        <span class="pill pill-host">dev-server-01</span>
+        <span class="pill pill-host">api-gateway</span>
+        <span class="pill pill-host">Claude Code</span>
+      </div>
+    </div>
+
+    <div class="detail-tabs">
+      <div class="detail-tab active" onclick="switchDetailTab(this, 'dt-overview')">概览</div>
+      <div class="detail-tab" onclick="switchDetailTab(this, 'dt-logs')">日志</div>
+      <div class="detail-tab" onclick="switchDetailTab(this, 'dt-diff')">变更</div>
+      <div class="detail-tab" onclick="switchDetailTab(this, 'dt-files')">文件</div>
+    </div>
+
+    <div class="detail-tab-content">
+      <!-- Overview -->
+      <div id="dt-overview" class="detail-panel active">
+        <div class="permission-alert">
+          <div class="permission-alert-header">
+            <div class="permission-alert-icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+            </div>
+            <span class="permission-alert-title">待处理权限</span>
+          </div>
+          <div class="permission-alert-body">
+            文件系统写入: <code>src/routes/auth.ts</code><br>
+            重写 JWT 认证中间件，添加 refresh token 逻辑
+          </div>
+          <div class="permission-actions">
+            <button class="permission-btn perm-allow" onclick="handlePermission('allow')">允许</button>
+            <button class="permission-btn perm-deny" onclick="handlePermission('deny')">拒绝</button>
+            <button class="permission-btn perm-remember" onclick="handlePermission('remember')">记住</button>
+          </div>
+        </div>
+
+        <div class="event-section">
+          <div class="event-section-title">最近活动</div>
+          <div class="event-item">
+            <div class="event-item-top">
+              <span class="event-time">14:32</span>
+              <span class="event-tag etag-tool">工具</span>
+            </div>
+            <div class="event-text">Read src/routes/auth.ts - 234 行</div>
+          </div>
+          <div class="event-item">
+            <div class="event-item-top">
+              <span class="event-time">14:31</span>
+              <span class="event-tag etag-info">回复</span>
+            </div>
+            <div class="event-text">我需要修改 auth.ts 来实现 refresh token 逻辑。请确认是否允许。</div>
+          </div>
+          <div class="event-item">
+            <div class="event-item-top">
+              <span class="event-time">14:28</span>
+              <span class="event-tag etag-user">用户</span>
+            </div>
+            <div class="event-text">重构 auth 中间件，改用 JWT + refresh token 方案，保持现有接口不变。</div>
+          </div>
+          <div class="event-item">
+            <div class="event-item-top">
+              <span class="event-time">14:25</span>
+              <span class="event-tag etag-tool">工具</span>
+            </div>
+            <div class="event-text">Bash npm run test:auth - 12 passed, 0 failed</div>
+          </div>
+        </div>
+
+        <div class="event-section">
+          <div class="event-section-title">变更摘要</div>
+          <div style="padding: 0 0 8px; font-size: 13px; color: var(--text-secondary);">
+            已修改 3 个文件 &nbsp;
+            <span style="color:var(--success);font-family:'SF Mono',monospace;">+42</span>
+            &nbsp;
+            <span style="color:var(--danger);font-family:'SF Mono',monospace;">-18</span>
+          </div>
+          <div style="font-family:'SF Mono',monospace;font-size:12px;color:var(--text-muted);padding-left:4px;">
+            <div>src/middleware/auth.ts</div>
+            <div>src/types/session.ts</div>
+            <div>tests/auth.test.ts</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Logs -->
+      <div id="dt-logs" class="detail-panel">
+        <div style="display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--border-color);background:var(--bg-secondary);">
+          <div style="flex:1;background:var(--bg-elevated);border-radius:var(--radius-sm);padding:8px 12px;display:flex;align-items:center;gap:6px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" placeholder="搜索日志..." style="background:transparent;border:none;color:var(--text-primary);font-size:13px;outline:none;width:100%;">
+          </div>
+        </div>
+        <div class="log-stream">
+          <div class="log-line"><span class="log-time">14:32</span><span class="log-level-tool">TOOL</span><span class="log-msg">Read src/routes/auth.ts (234 lines)</span></div>
+          <div class="log-line"><span class="log-time">14:31</span><span class="log-level-info">INFO</span><span class="log-msg">Requesting permission for file write...</span></div>
+          <div class="log-line"><span class="log-time">14:31</span><span class="log-level-info">INFO</span><span class="log-msg">Analyzing current auth middleware</span></div>
+          <div class="log-line"><span class="log-time">14:31</span><span class="log-level-tool">TOOL</span><span class="log-msg">Grep "jwt.verify" in src/ - 8 matches</span></div>
+          <div class="log-line"><span class="log-time">14:30</span><span class="log-level-info">INFO</span><span class="log-msg">Planning refactoring approach</span></div>
+          <div class="log-line"><span class="log-time">14:30</span><span class="log-level-tool">TOOL</span><span class="log-msg">Read src/middleware/auth.ts (187 lines)</span></div>
+          <div class="log-line"><span class="log-time">14:28</span><span class="log-level-warn">WARN</span><span class="log-msg">Large file skipped: node_modules/.cache/webpack</span></div>
+          <div class="log-line"><span class="log-time">14:28</span><span class="log-level-tool">TOOL</span><span class="log-msg">Bash npm run test:auth</span></div>
+          <div class="log-line"><span class="log-time">14:27</span><span class="log-level-info">INFO</span><span class="log-msg">Test output: 12 passed, 0 failed (2.3s)</span></div>
+          <div class="log-line"><span class="log-time">14:26</span><span class="log-level-info">INFO</span><span class="log-msg">Session started with Claude Code</span></div>
+        </div>
+      </div>
+
+      <!-- Diff -->
+      <div id="dt-diff" class="detail-panel">
+        <div class="diff-file-list">
+          <div class="diff-file-item" onclick="this.dataset.active = this.dataset.active === 'true' ? 'false' : 'true'; document.querySelectorAll('.diff-file-item').forEach(f => f.style.borderColor = ''); this.style.borderColor = 'var(--accent)';">
+            <span class="diff-file-name">src/middleware/auth.ts</span>
+            <div class="diff-stats">
+              <span class="diff-add">+28</span>
+              <span class="diff-del">-12</span>
+            </div>
+          </div>
+          <div class="diff-file-item">
+            <span class="diff-file-name">src/types/session.ts</span>
+            <div class="diff-stats">
+              <span class="diff-add">+10</span>
+              <span class="diff-del">-3</span>
+            </div>
+          </div>
+          <div class="diff-file-item">
+            <span class="diff-file-name">tests/auth.test.ts</span>
+            <div class="diff-stats">
+              <span class="diff-add">+4</span>
+              <span class="diff-del">-3</span>
+            </div>
+          </div>
+        </div>
+        <div class="diff-hunk">
+          <div class="diff-hunk-header">@@ -45,7 +45,12 @@</div>
+          <div class="diff-line diff-removed"><span class="diff-line-num">45</span><span class="diff-line-content">const middleware = async (req, res, next) => {</span></div>
+          <div class="diff-line diff-removed"><span class="diff-line-num">46</span><span class="diff-line-content">  const token = req.headers.authorization?.split(' ')[1];</span></div>
+          <div class="diff-line diff-removed"><span class="diff-line-num">47</span><span class="diff-line-content">  if (!token) return res.status(401).json({ error: 'Unauthorized' });</span></div>
+          <div class="diff-line"><span class="diff-line-num">48</span><span class="diff-line-content">  const decoded = verifyToken(token);</span></div>
+          <div class="diff-line"><span class="diff-line-num">49</span><span class="diff-line-content">  if (!decoded) return res.status(401).json({ error: 'Invalid token' });</span></div>
+          <div class="diff-line diff-added"><span class="diff-line-num">50</span><span class="diff-line-content">+ // Check refresh token expiry</span></div>
+          <div class="diff-line diff-added"><span class="diff-line-num">51</span><span class="diff-line-content">+ const refreshResult = await validateRefreshToken(decoded.sub);</span></div>
+          <div class="diff-line diff-added"><span class="diff-line-num">52</span><span class="diff-line-content">+ if (!refreshResult.valid) {</span></div>
+          <div class="diff-line diff-added"><span class="diff-line-num">53</span><span class="diff-line-content">+   return res.status(401).json({ error: 'Token expired' });</span></div>
+          <div class="diff-line diff-added"><span class="diff-line-num">54</span><span class="diff-line-content">+ }</span></div>
+          <div class="diff-line"><span class="diff-line-num">55</span><span class="diff-line-content">  req.user = decoded;</span></div>
+          <div class="diff-line"><span class="diff-line-num">56</span><span class="diff-line-content">  next();</span></div>
+        </div>
+      </div>
+
+      <!-- Files -->
+      <div id="dt-files" class="detail-panel">
+        <div style="display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--border-color);background:var(--bg-secondary);">
+          <div style="flex:1;background:var(--bg-elevated);border-radius:var(--radius-sm);padding:8px 12px;display:flex;align-items:center;gap:6px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" placeholder="搜索文件..." style="background:transparent;border:none;color:var(--text-primary);font-size:13px;outline:none;width:100%;">
+          </div>
+        </div>
+        <div class="file-tree">
+          <div class="ft-node">
+            <svg class="ft-icon" viewBox="0 0 24 24" fill="var(--accent)"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            <span class="ft-folder">src</span>
+          </div>
+          <div class="ft-node">
+            <span class="ft-indent"></span>
+            <svg class="ft-icon" viewBox="0 0 24 24" fill="var(--accent)"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            <span class="ft-folder">middleware</span>
+          </div>
+          <div class="ft-node">
+            <span class="ft-indent"></span><span class="ft-indent"></span>
+            <svg class="ft-icon" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            <span class="ft-file">auth.ts</span>
+          </div>
+          <div class="ft-node">
+            <span class="ft-indent"></span><span class="ft-indent"></span>
+            <svg class="ft-icon" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            <span class="ft-file">rateLimit.ts</span>
+          </div>
+          <div class="ft-node">
+            <span class="ft-indent"></span>
+            <svg class="ft-icon" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            <span class="ft-file">index.ts</span>
+          </div>
+          <div class="ft-node">
+            <svg class="ft-icon" viewBox="0 0 24 24" fill="var(--accent)"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            <span class="ft-folder">routes</span>
+          </div>
+          <div class="ft-node">
+            <svg class="ft-icon" viewBox="0 0 24 24" fill="var(--accent)"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            <span class="ft-folder">tests</span>
+          </div>
+        </div>
+        <div style="margin:12px 16px;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:var(--radius-md);overflow:hidden;">
+          <div style="padding:10px 14px;border-bottom:1px solid var(--border-color);font-size:12px;color:var(--text-secondary);display:flex;justify-content:space-between;">
+            <span>src/middleware/auth.ts</span>
+            <span>187 行</span>
+          </div>
+          <div style="padding:12px 14px;font-family:'SF Mono',monospace;font-size:11px;line-height:1.6;color:var(--text-secondary);white-space:pre-wrap;">import { Request, Response, NextFunction } from 'express';
+import { verifyToken } from '../utils/jwt';
+import { validateRefreshToken } from '../services/auth';
+
+const middleware = async (req, res, next) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'Unauthorized' });
+  const decoded = verifyToken(token);
+
+  const refreshResult = await validateRefreshToken(decoded.sub);
+  if (!refreshResult.valid) {
+    return res.status(401).json({
+      error: 'Token expired',
+      needsRefresh: true
+    });
+  }
+
+  req.user = decoded;
+  next();
+};
+
+export default middleware;</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="message-input-bar">
+      <textarea class="msg-input" placeholder="发送消息..." rows="1"></textarea>
+      <button class="msg-send">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- ==================== PAGE: Hosts ==================== -->
+  <div id="pg-hosts" class="page">
+    <div class="page-header">
+      <span class="page-header-title">主机与工作区</span>
+      <div class="header-btn header-btn-text" onclick="openModal('pairHost')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        配对
+      </div>
+    </div>
+    <div class="search-bar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" placeholder="搜索主机...">
+    </div>
+    <div class="page-content">
+      <div class="host-card" onclick="switchPage('host-detail')">
+        <div class="host-card-top">
+          <span class="host-card-name">dev-server-01</span>
+          <span class="status-tag tag-running"><span class="status-dot status-running"></span>在线</span>
+        </div>
+        <div class="host-card-info">
+          <span class="pill pill-host">Linux</span>
+          <span class="pill pill-host" style="color:var(--success);">Healthy</span>
+          <span class="pill pill-host">3 个工作区</span>
+        </div>
+      </div>
+
+      <div class="host-card" onclick="switchPage('host-detail')">
+        <div class="host-card-top">
+          <span class="host-card-name">prod-db-01</span>
+          <span class="status-tag tag-running"><span class="status-dot status-running"></span>在线</span>
+        </div>
+        <div class="host-card-info">
+          <span class="pill pill-host">Linux</span>
+          <span class="pill pill-host" style="color:var(--success);">Healthy</span>
+          <span class="pill pill-host">1 个工作区</span>
+        </div>
+      </div>
+
+      <div class="host-card" onclick="switchPage('host-detail')">
+        <div class="host-card-top">
+          <span class="host-card-name">macbook-pro</span>
+          <span class="status-tag tag-paused"><span class="status-dot status-paused"></span>离线</span>
+        </div>
+        <div class="host-card-info">
+          <span class="pill pill-host">macOS</span>
+          <span class="pill pill-host">Disconnected</span>
+          <span class="pill pill-host">2 个工作区</span>
+        </div>
+      </div>
+
+      <div style="height: 80px;"></div>
+    </div>
+
+    <div class="tab-bar">
+      <div class="tab-item" onclick="switchPage('sessions')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span class="tab-item-label">会话</span>
+      </div>
+      <div class="tab-item active" onclick="switchPage('hosts')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        <span class="tab-item-label">主机</span>
+      </div>
+      <div class="tab-item" onclick="switchPage('archive')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+        <span class="tab-item-label">归档</span>
+      </div>
+      <div class="tab-item" onclick="switchPage('settings')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span class="tab-item-label">设置</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== PAGE: Host Detail ==================== -->
+  <div id="pg-host-detail" class="page">
+    <div class="page-header">
+      <div class="back-btn" onclick="switchPage('hosts')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+        返回
+      </div>
+      <span class="page-header-title">dev-server-01</span>
+      <div style="width:36px;"></div>
+    </div>
+    <div style="padding:0 16px 12px;">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <span class="status-tag tag-running"><span class="status-dot status-running"></span>在线</span>
+        <span class="pill pill-host">Linux (Ubuntu 22.04)</span>
+        <span class="pill pill-host" style="color:var(--success);">守护进程 Healthy</span>
+      </div>
+    </div>
+    <div class="page-content">
+      <div class="ws-section-label">收藏的工作区</div>
+      <div class="ws-item" onclick="openModal('newSession')">
+        <div class="ws-info">
+          <div class="ws-name"><span class="ws-star">&#9733;</span> api-gateway</div>
+          <div class="ws-path">/home/projects/api-gateway</div>
+        </div>
+        <button class="btn btn-primary" style="padding:6px 12px;font-size:12px;">新建会话</button>
+      </div>
+      <div class="ws-item" onclick="openModal('newSession')">
+        <div class="ws-info">
+          <div class="ws-name"><span class="ws-star">&#9733;</span> user-service</div>
+          <div class="ws-path">/home/projects/user-service</div>
+        </div>
+        <button class="btn btn-primary" style="padding:6px 12px;font-size:12px;">新建会话</button>
+      </div>
+
+      <div class="ws-section-label">其他工作区</div>
+      <div class="ws-item" onclick="openModal('newSession')">
+        <div class="ws-info">
+          <div class="ws-name">infra-scripts</div>
+          <div class="ws-path">/home/projects/infra-scripts</div>
+        </div>
+        <button class="btn btn-secondary" style="padding:6px 12px;font-size:12px;">新建会话</button>
+      </div>
+
+      <div style="height: 80px;"></div>
+    </div>
+
+    <div class="tab-bar">
+      <div class="tab-item" onclick="switchPage('sessions')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span class="tab-item-label">会话</span>
+      </div>
+      <div class="tab-item active" onclick="switchPage('hosts')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        <span class="tab-item-label">主机</span>
+      </div>
+      <div class="tab-item" onclick="switchPage('archive')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+        <span class="tab-item-label">归档</span>
+      </div>
+      <div class="tab-item" onclick="switchPage('settings')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span class="tab-item-label">设置</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== PAGE: Archive ==================== -->
+  <div id="pg-archive" class="page">
+    <div class="page-header">
+      <span class="page-header-title">归档</span>
+      <div class="header-btn header-btn-text" style="font-size:13px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        清理
+      </div>
+    </div>
+    <div class="filter-chips">
+      <span class="chip active">全部</span>
+      <span class="chip">dev-server-01</span>
+      <span class="chip">prod-db-01</span>
+      <span class="chip">最近 7 天</span>
+      <span class="chip">最近 30 天</span>
+    </div>
+    <div class="page-content">
+      <div class="archive-item">
+        <div style="flex:1;">
+          <div class="archive-title">前端打包优化</div>
+          <div class="archive-meta">macbook-pro &middot; frontend &middot; 2026-04-20</div>
+        </div>
+        <span class="status-tag tag-running" style="font-size:10px;">已完成</span>
+      </div>
+      <div class="archive-item">
+        <div style="flex:1;">
+          <div class="archive-title">Redis 缓存层实现</div>
+          <div class="archive-meta">dev-server-01 &middot; api-gateway &middot; 2026-04-19</div>
+        </div>
+        <span class="status-tag tag-running" style="font-size:10px;">已完成</span>
+      </div>
+      <div class="archive-item">
+        <div style="flex:1;">
+          <div class="archive-title">CI/CD 流水线调试</div>
+          <div class="archive-meta">dev-server-01 &middot; infra-scripts &middot; 2026-04-18</div>
+        </div>
+        <span class="status-tag tag-paused" style="font-size:10px;">已终止</span>
+      </div>
+      <div class="archive-item">
+        <div style="flex:1;">
+          <div class="archive-title">数据库索引优化分析</div>
+          <div class="archive-meta">prod-db-01 &middot; migrations &middot; 2026-04-15</div>
+        </div>
+        <span class="status-tag tag-running" style="font-size:10px;">已完成</span>
+      </div>
+      <div style="height: 80px;"></div>
+    </div>
+
+    <div class="tab-bar">
+      <div class="tab-item" onclick="switchPage('sessions')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span class="tab-item-label">会话</span>
+      </div>
+      <div class="tab-item" onclick="switchPage('hosts')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        <span class="tab-item-label">主机</span>
+      </div>
+      <div class="tab-item active" onclick="switchPage('archive')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+        <span class="tab-item-label">归档</span>
+      </div>
+      <div class="tab-item" onclick="switchPage('settings')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span class="tab-item-label">设置</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== PAGE: Settings ==================== -->
+  <div id="pg-settings" class="page">
+    <div class="page-header">
+      <span class="page-header-title">设置</span>
+      <div style="width:36px;"></div>
+    </div>
+    <div class="page-content">
+      <div class="settings-section-title">服务器连接</div>
+      <div class="settings-group">
+        <div class="settings-item">
+          <span class="settings-item-label">服务器地址</span>
+          <span class="settings-item-value">ve.example.com</span>
+        </div>
+        <div class="settings-item">
+          <span class="settings-item-label">连接状态</span>
+          <span class="settings-item-value" style="color:var(--success);">
+            <span class="status-dot status-running" style="width:6px;height:6px;"></span>
+            已连接
+          </span>
+        </div>
+      </div>
+
+      <div class="settings-section-title">当前设备</div>
+      <div class="settings-group">
+        <div class="settings-item">
+          <span class="settings-item-label">设备名称</span>
+          <span class="settings-item-value">iPhone 16 Pro</span>
+        </div>
+        <div class="settings-item">
+          <span class="settings-item-label">设备类型</span>
+          <span class="settings-item-value">Mobile</span>
+        </div>
+        <div class="settings-item">
+          <span class="settings-item-label">设备 ID</span>
+          <span class="settings-item-value" style="font-family:'SF Mono',monospace;font-size:11px;">mob-7f2e9a...</span>
+        </div>
+      </div>
+
+      <div class="settings-section-title">通知偏好</div>
+      <div class="settings-group">
+        <div class="settings-item">
+          <span class="settings-item-label">权限请求通知</span>
+          <div class="toggle active" onclick="this.classList.toggle('active')"></div>
+        </div>
+        <div class="settings-item">
+          <span class="settings-item-label">任务完成通知</span>
+          <div class="toggle active" onclick="this.classList.toggle('active')"></div>
+        </div>
+        <div class="settings-item">
+          <span class="settings-item-label">任务失败通知</span>
+          <div class="toggle active" onclick="this.classList.toggle('active')"></div>
+        </div>
+        <div class="settings-item">
+          <span class="settings-item-label">会话异常通知</span>
+          <div class="toggle active" onclick="this.classList.toggle('active')"></div>
+        </div>
+      </div>
+
+      <div class="settings-section-title">关于</div>
+      <div class="settings-group">
+        <div class="settings-item">
+          <span class="settings-item-label">版本</span>
+          <span class="settings-item-value">Vibe Everywhere v0.1.0</span>
+        </div>
+        <div class="settings-item">
+          <span class="settings-item-label">构建</span>
+          <span class="settings-item-value" style="font-family:'SF Mono',monospace;font-size:11px;">20260418-abc1234</span>
+        </div>
+      </div>
+
+      <div style="height: 80px;"></div>
+    </div>
+
+    <div class="tab-bar">
+      <div class="tab-item" onclick="switchPage('sessions')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span class="tab-item-label">会话</span>
+      </div>
+      <div class="tab-item" onclick="switchPage('hosts')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        <span class="tab-item-label">主机</span>
+      </div>
+      <div class="tab-item" onclick="switchPage('archive')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+        <span class="tab-item-label">归档</span>
+      </div>
+      <div class="tab-item active" onclick="switchPage('settings')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span class="tab-item-label">设置</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== PAGE: Notifications ==================== -->
+  <div id="pg-notifications" class="page">
+    <div class="page-header">
+      <div class="back-btn" onclick="switchPage('sessions')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+        返回
+      </div>
+      <span class="page-header-title">通知</span>
+      <div class="header-btn header-btn-text" style="font-size:13px;">全部已读</div>
+    </div>
+    <div class="page-content">
+      <div class="notif-item unread">
+        <div class="notif-icon" style="background:var(--warning-bg);color:var(--warning);">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+        </div>
+        <div class="notif-body">
+          <div class="notif-title-text">权限请求 - API Gateway 重构</div>
+          <div class="notif-desc">文件系统写入: src/routes/auth.ts</div>
+          <div class="notif-time">2 分钟前</div>
+        </div>
+      </div>
+      <div class="notif-item">
+        <div class="notif-icon" style="background:var(--success-bg);color:var(--success);">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        </div>
+        <div class="notif-body">
+          <div class="notif-title-text">任务完成 - 前端打包优化</div>
+          <div class="notif-desc">打包体积优化完成, chunk 减少 23%</div>
+          <div class="notif-time">1 小时前</div>
+        </div>
+      </div>
+      <div class="notif-item">
+        <div class="notif-icon" style="background:var(--danger-bg);color:var(--danger);">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        </div>
+        <div class="notif-body">
+          <div class="notif-title-text">会话异常 - CI/CD 流水线调试</div>
+          <div class="notif-desc">Agent 执行失败: npm install 超时</div>
+          <div class="notif-time">3 小时前</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== PAGE: Server Setup (Onboarding) ==================== -->
+  <div id="pg-server-setup" class="page">
+    <div class="page-content">
+      <div class="onboarding">
+        <div class="onboarding-icon" style="background:var(--accent-bg);color:var(--accent);">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </div>
+        <div class="onboarding-title">连接服务器</div>
+        <div class="onboarding-desc">输入你的 Vibe Everywhere 服务器地址以开始使用。</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">服务器地址</label>
+        <input type="text" class="form-input" value="https://ve.example.com" placeholder="https://your-server.com">
+      </div>
+      <div class="server-status">
+        <span class="server-status-dot"></span>
+        <span class="server-status-text">已连接 - 最后测试 14:30</span>
+      </div>
+      <div class="form-group">
+        <button class="btn btn-secondary btn-full" onclick="switchPage('pair-host')">测试连接并继续</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== PAGE: Pair Host ==================== -->
+  <div id="pg-pair-host" class="page">
+    <div class="page-header">
+      <div class="back-btn" onclick="switchPage('server-setup')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+        返回
+      </div>
+      <span class="page-header-title">配对主机</span>
+      <div style="width:36px;"></div>
+    </div>
+    <div class="page-content">
+      <div class="pair-code-display">
+        <div style="font-size:14px;color:var(--text-secondary);margin-bottom:8px;">在远程主机上运行:</div>
+        <code style="background:var(--bg-elevated);padding:8px 16px;border-radius:var(--radius-sm);font-size:13px;display:inline-block;">vibe-daemon --pair</code>
+        <div class="pair-code">482 916</div>
+        <div style="font-size:13px;color:var(--text-muted);">或扫描下方二维码</div>
+        <div class="pair-qr">
+          <svg width="140" height="140" viewBox="0 0 140 140">
+            <rect width="140" height="140" fill="white"/>
+            <rect x="10" y="10" width="35" height="35" rx="2" fill="#161b22"/>
+            <rect x="14" y="14" width="27" height="27" rx="1" fill="white"/>
+            <rect x="18" y="18" width="19" height="19" rx="1" fill="#161b22"/>
+            <rect x="95" y="10" width="35" height="35" rx="2" fill="#161b22"/>
+            <rect x="99" y="14" width="27" height="27" rx="1" fill="white"/>
+            <rect x="103" y="18" width="19" height="19" rx="1" fill="#161b22"/>
+            <rect x="10" y="95" width="35" height="35" rx="2" fill="#161b22"/>
+            <rect x="14" y="99" width="27" height="27" rx="1" fill="white"/>
+            <rect x="18" y="103" width="19" height="19" rx="1" fill="#161b22"/>
+            <rect x="50" y="10" width="8" height="8" fill="#161b22"/>
+            <rect x="62" y="10" width="8" height="8" fill="#161b22"/>
+            <rect x="74" y="10" width="8" height="8" fill="#161b22"/>
+            <rect x="50" y="22" width="8" height="8" fill="#161b22"/>
+            <rect x="74" y="22" width="8" height="8" fill="#161b22"/>
+            <rect x="50" y="34" width="8" height="8" fill="#161b22"/>
+            <rect x="62" y="34" width="8" height="8" fill="#161b22"/>
+            <rect x="50" y="50" width="8" height="8" fill="#161b22"/>
+            <rect x="62" y="50" width="8" height="8" fill="#161b22"/>
+            <rect x="74" y="50" width="8" height="8" fill="#161b22"/>
+            <rect x="86" y="50" width="8" height="8" fill="#161b22"/>
+            <rect x="10" y="50" width="8" height="8" fill="#161b22"/>
+            <rect x="22" y="50" width="8" height="8" fill="#161b22"/>
+            <rect x="50" y="62" width="8" height="8" fill="#161b22"/>
+            <rect x="86" y="62" width="8" height="8" fill="#161b22"/>
+            <rect x="50" y="74" width="8" height="8" fill="#161b22"/>
+            <rect x="62" y="74" width="8" height="8" fill="#161b22"/>
+            <rect x="74" y="74" width="8" height="8" fill="#161b22"/>
+            <rect x="10" y="62" width="8" height="8" fill="#161b22"/>
+            <rect x="34" y="62" width="8" height="8" fill="#161b22"/>
+            <rect x="95" y="95" width="8" height="8" fill="#161b22"/>
+            <rect x="107" y="95" width="8" height="8" fill="#161b22"/>
+            <rect x="119" y="95" width="8" height="8" fill="#161b22"/>
+            <rect x="95" y="107" width="8" height="8" fill="#161b22"/>
+            <rect x="119" y="107" width="8" height="8" fill="#161b22"/>
+            <rect x="95" y="119" width="8" height="8" fill="#161b22"/>
+            <rect x="107" y="119" width="8" height="8" fill="#161b22"/>
+            <rect x="119" y="119" width="8" height="8" fill="#161b22"/>
+            <rect x="50" y="95" width="8" height="8" fill="#161b22"/>
+            <rect x="62" y="107" width="8" height="8" fill="#161b22"/>
+            <rect x="74" y="119" width="8" height="8" fill="#161b22"/>
+          </svg>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">或手动输入配对码</label>
+        <input type="text" class="form-input" placeholder="输入 6 位配对码" style="font-family:'SF Mono',monospace;font-size:24px;letter-spacing:8px;text-align:center;">
+      </div>
+      <div class="form-group">
+        <button class="btn btn-primary btn-full">提交配对</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: New Session ==================== -->
+  <div id="overlay-newSession" class="overlay" onclick="closeModal('newSession')"></div>
+  <div id="modal-newSession" class="actions-sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">新建会话</div>
+    <div class="stepper">
+      <div class="stepper-step completed"><span class="stepper-num">&#10003;</span><span>主机</span></div>
+      <div class="stepper-line"></div>
+      <div class="stepper-step active"><span class="stepper-num">2</span><span>工作区</span></div>
+      <div class="stepper-line"></div>
+      <div class="stepper-step"><span class="stepper-num">3</span><span>Agent</span></div>
+      <div class="stepper-line"></div>
+      <div class="stepper-step"><span class="stepper-num">4</span><span>任务</span></div>
+    </div>
+    <div style="padding:16px 0;max-height:60vh;overflow-y:auto;">
+      <div class="form-group">
+        <label class="form-label">选择主机</label>
+        <select class="form-select">
+          <option>dev-server-01 (Linux, 在线)</option>
+          <option>prod-db-01 (Linux, 在线)</option>
+          <option>macbook-pro (macOS, 离线)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">工作区路径</label>
+        <input type="text" class="form-input" placeholder="/home/projects/... 或输入新目录">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Agent 类型</label>
+        <select class="form-select"><option>Claude Code</option></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">首条任务消息</label>
+        <textarea class="form-textarea" placeholder="描述你想让 Agent 完成的任务..."></textarea>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;padding:8px 0;">
+      <button class="btn btn-secondary" style="flex:1;" onclick="closeModal('newSession')">取消</button>
+      <button class="btn btn-primary" style="flex:1;">创建会话</button>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: Pair Host ==================== -->
+  <div id="overlay-pairHost" class="overlay" onclick="closeModal('pairHost')"></div>
+  <div id="modal-pairHost" class="actions-sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">配对远程主机</div>
+    <div class="form-group">
+      <label class="form-label">配对码</label>
+      <input type="text" class="form-input" placeholder="输入主机上显示的配对码" style="font-family:'SF Mono',monospace;font-size:24px;letter-spacing:8px;text-align:center;">
+    </div>
+    <div style="text-align:center;margin:16px 0;color:var(--text-muted);font-size:13px;">- 或者 -</div>
+    <div class="form-group" style="text-align:center;">
+      <button class="btn btn-secondary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        扫码配对
+      </button>
+    </div>
+    <div style="display:flex;gap:8px;padding:8px 0;">
+      <button class="btn btn-secondary" style="flex:1;" onclick="closeModal('pairHost')">取消</button>
+      <button class="btn btn-primary" style="flex:1;">提交配对</button>
+    </div>
+  </div>
+
+  <!-- ==================== ACTIONS SHEET (Session Detail) ==================== -->
+  <div id="overlay-actions" class="overlay" onclick="closeActionsSheet()"></div>
+  <div id="actions-sheet" class="actions-sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">会话操作</div>
+
+    <div class="sheet-action">
+      <div class="sheet-action-icon" style="background:var(--accent-bg);color:var(--accent);">
+        <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+      </div>
+      <div>
+        <div class="sheet-action-text">暂停会话</div>
+        <div class="sheet-action-desc">暂停当前任务执行</div>
+      </div>
+    </div>
+
+    <div class="sheet-action">
+      <div class="sheet-action-icon" style="background:var(--warning-bg);color:var(--warning);">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+      </div>
+      <div>
+        <div class="sheet-action-text">中断当前任务</div>
+        <div class="sheet-action-desc">中断当前正在执行的操作</div>
+      </div>
+    </div>
+
+    <div class="sheet-action">
+      <div class="sheet-action-icon" style="background:var(--success-bg);color:var(--success);">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+      </div>
+      <div>
+        <div class="sheet-action-text">重新运行</div>
+        <div class="sheet-action-desc">重新执行最后一个任务</div>
+      </div>
+    </div>
+
+    <div class="sheet-action danger">
+      <div class="sheet-action-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+      </div>
+      <div>
+        <div class="sheet-action-text">关闭并归档</div>
+        <div class="sheet-action-desc">结束会话并归档历史记录</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+function switchPage(pageId) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('pg-' + pageId).classList.add('active');
+}
+
+function openSessionDetail() {
+  switchPage('session-detail');
+}
+
+function closeSessionDetail() {
+  switchPage('sessions');
+}
+
+function switchDetailTab(el, tabId) {
+  el.parentElement.querySelectorAll('.detail-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  const content = el.closest('.page').querySelector('.detail-tab-content');
+  content.querySelectorAll('.detail-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById(tabId).classList.add('active');
+}
+
+function openModal(id) {
+  document.getElementById('overlay-' + id).classList.add('active');
+  document.getElementById('modal-' + id).classList.add('active');
+}
+
+function closeModal(id) {
+  document.getElementById('overlay-' + id).classList.remove('active');
+  document.getElementById('modal-' + id).classList.remove('active');
+}
+
+function openActionsSheet() {
+  document.getElementById('overlay-actions').classList.add('active');
+  document.getElementById('actions-sheet').classList.add('active');
+}
+
+function closeActionsSheet() {
+  document.getElementById('overlay-actions').classList.remove('active');
+  document.getElementById('actions-sheet').classList.remove('active');
+}
+
+function handlePermission(action) {
+  const alert = document.querySelector('.permission-alert');
+  if (alert) {
+    const labels = { allow: '已允许', deny: '已拒绝', remember: '已记住授权' };
+    alert.style.borderColor = action === 'allow' ? 'var(--success)' : action === 'deny' ? 'var(--danger)' : 'var(--accent)';
+    alert.style.background = action === 'allow' ? 'var(--success-bg)' : action === 'deny' ? 'var(--danger-bg)' : 'var(--accent-bg)';
+    alert.querySelector('.permission-alert-title').textContent = labels[action];
+    alert.querySelector('.permission-actions').style.display = 'none';
+  }
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.overlay.active').forEach(o => o.classList.remove('active'));
+    document.querySelectorAll('.actions-sheet.active').forEach(s => s.classList.remove('active'));
+  }
+});
+
+// Touch swipe to close bottom sheets
+let touchStartY = 0;
+document.querySelectorAll('.actions-sheet').forEach(sheet => {
+  sheet.addEventListener('touchstart', e => { touchStartY = e.touches[0].clientY; });
+  sheet.addEventListener('touchend', e => {
+    const diff = e.changedTouches[0].clientY - touchStartY;
+    if (diff > 80) {
+      sheet.classList.remove('active');
+      const overlayId = sheet.id.replace('modal-', 'overlay-').replace('actions-sheet', 'overlay-actions');
+      document.getElementById(overlayId)?.classList.remove('active');
+    }
+  });
+});
+</script>
+</body>
+</html>

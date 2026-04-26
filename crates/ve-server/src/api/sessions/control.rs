@@ -287,8 +287,35 @@ pub(crate) async fn handle_archived_rerun(
                 ));
             }
 
-            return Err(ServerError::Internal(
-                "Active rerun disappeared after uniqueness conflict".to_string(),
+            // Stale dispatching session detected — transition it to error
+            // so subsequent rerun attempts can create a fresh session.
+            let stale_cutoff =
+                (chrono::Utc::now() - chrono::Duration::minutes(5)).to_rfc3339();
+            let recovered = sqlx::query(
+                r#"
+                UPDATE sessions
+                SET status = 'error',
+                    latest_summary = 'Stale dispatching session recovered; server may have restarted'
+                WHERE rerun_from_session_id = $1
+                  AND status = 'dispatching'
+                  AND created_at < $2
+                "#,
+            )
+            .bind(&archived_session_id_str)
+            .bind(&stale_cutoff)
+            .execute(&state.db)
+            .await?;
+
+            if recovered.rows_affected() > 0 {
+                tracing::warn!(
+                    trace_id = %trace_id,
+                    archived_session_id = %archived_session_id,
+                    "Recovered stale dispatching session; client should retry rerun"
+                );
+            }
+
+            return Err(ServerError::Conflict(
+                "Stale rerun session recovered; please retry rerun".to_string(),
             ));
         }
         Err(error) => return Err(error.into()),
@@ -392,15 +419,21 @@ async fn find_reusable_rerun_session_id(
 }
 
 async fn has_dispatching_rerun(state: &AppState, archived_session_id: &str) -> Result<bool> {
+    // Only consider dispatching sessions created within the last 5 minutes.
+    // Older dispatching sessions are stale (server crash during dispatch) and
+    // should not block new reruns. Startup recovery also marks them as error.
+    let cutoff = (chrono::Utc::now() - chrono::Duration::minutes(5)).to_rfc3339();
     let row = sqlx::query_as::<_, (i64,)>(
         r#"
         SELECT COUNT(*)
         FROM sessions
         WHERE rerun_from_session_id = $1
           AND status = 'dispatching'
+          AND created_at > $2
         "#,
     )
     .bind(archived_session_id)
+    .bind(&cutoff)
     .fetch_one(&state.db)
     .await?;
 

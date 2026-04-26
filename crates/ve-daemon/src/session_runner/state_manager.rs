@@ -67,6 +67,7 @@ impl SessionRunner {
     }
 
     /// Update state with transition validation.
+    /// Panics on invalid state transitions — these indicate a bug in the caller.
     pub(super) fn update_state(&mut self, new_state: RunnerState) {
         debug!(
             session_id = %self.session_id,
@@ -74,14 +75,13 @@ impl SessionRunner {
             new_state = ?new_state,
             "State transition"
         );
-        if !Self::validate_transition(self.state, new_state) {
-            warn!(
-                session_id = %self.session_id,
-                old_state = ?self.state,
-                new_state = ?new_state,
-                "Invalid state transition"
-            );
-        }
+        assert!(
+            Self::validate_transition(self.state, new_state),
+            "Invalid state transition from {:?} to {:?} for session {}",
+            self.state,
+            new_state,
+            self.session_id
+        );
         self.state = new_state;
     }
 
