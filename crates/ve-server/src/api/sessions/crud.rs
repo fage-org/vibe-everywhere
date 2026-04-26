@@ -30,32 +30,16 @@ pub async fn list_sessions(
     access: SessionCollectionAccess,
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<Vec<Session>>> {
-    #[allow(clippy::type_complexity)]
-    let rows: Vec<(
-        String,
-        String,
-        String,
-        String,
-        String,
-        String,
-        Option<String>,
-        Option<String>,
-        i64,
-        i64,
-        i64,
-        Option<String>,
-        String,
-        String,
-    )> = if let Some(host_id) = access.host_id {
+    let rows: Vec<SessionRecord> = if let Some(host_id) = access.host_id {
         sqlx::query_as(
             r#"
                 SELECT sessions.session_id, sessions.title, sessions.host_id, sessions.workspace_id,
-                       sessions.agent_type, sessions.status, CAST(sessions.last_activity_at AS TEXT),
+                       sessions.agent_type, sessions.status, CAST(sessions.last_activity_at AS TEXT) AS last_activity_at,
                        sessions.latest_summary, sessions.unread_event_count,
                        sessions.pending_permission_count,
-                       CASE WHEN sessions.can_resume_cross_device THEN 1 ELSE 0 END,
-                       sessions.claude_session_id, CAST(sessions.created_at AS TEXT),
-                       CAST(sessions.updated_at AS TEXT)
+                       CASE WHEN sessions.can_resume_cross_device THEN 1 ELSE 0 END AS can_resume_cross_device,
+                       sessions.claude_session_id, CAST(sessions.created_at AS TEXT) AS created_at,
+                       CAST(sessions.updated_at AS TEXT) AS updated_at
                 FROM sessions
                 INNER JOIN device_session_access
                     ON device_session_access.session_id = sessions.session_id
@@ -73,12 +57,12 @@ pub async fn list_sessions(
         sqlx::query_as(
             r#"
                 SELECT sessions.session_id, sessions.title, sessions.host_id, sessions.workspace_id,
-                       sessions.agent_type, sessions.status, CAST(sessions.last_activity_at AS TEXT),
+                       sessions.agent_type, sessions.status, CAST(sessions.last_activity_at AS TEXT) AS last_activity_at,
                        sessions.latest_summary, sessions.unread_event_count,
                        sessions.pending_permission_count,
-                       CASE WHEN sessions.can_resume_cross_device THEN 1 ELSE 0 END,
-                       sessions.claude_session_id, CAST(sessions.created_at AS TEXT),
-                       CAST(sessions.updated_at AS TEXT)
+                       CASE WHEN sessions.can_resume_cross_device THEN 1 ELSE 0 END AS can_resume_cross_device,
+                       sessions.claude_session_id, CAST(sessions.created_at AS TEXT) AS created_at,
+                       CAST(sessions.updated_at AS TEXT) AS updated_at
                 FROM sessions
                 INNER JOIN device_session_access
                     ON device_session_access.session_id = sessions.session_id
@@ -94,42 +78,7 @@ pub async fn list_sessions(
 
     let sessions: Result<Vec<Session>> = rows
         .into_iter()
-        .map(
-            |(
-                session_id,
-                title,
-                host_id,
-                workspace_id,
-                agent_type,
-                status,
-                last_activity_at,
-                latest_summary,
-                unread_event_count,
-                pending_permission_count,
-                can_resume_cross_device,
-                claude_session_id,
-                created_at,
-                updated_at,
-            )| {
-                SessionRecord {
-                    session_id,
-                    title,
-                    host_id,
-                    workspace_id,
-                    agent_type,
-                    status,
-                    last_activity_at,
-                    latest_summary,
-                    unread_event_count,
-                    pending_permission_count,
-                    can_resume_cross_device,
-                    claude_session_id,
-                    created_at,
-                    updated_at,
-                }
-                .to_model()
-            },
-        )
+        .map(|record| record.to_model())
         .collect();
 
     Ok(Json(sessions?))
@@ -388,33 +337,15 @@ pub async fn get_session(
 }
 
 async fn get_session_by_id(state: Arc<AppState>, id: Uuid) -> Result<Json<Session>> {
-    // Type alias to avoid clippy type_complexity warning
-    type SessionRow = (
-        String,         // session_id
-        String,         // title
-        String,         // host_id
-        String,         // workspace_id
-        String,         // agent_type
-        String,         // status
-        Option<String>, // last_activity_at
-        Option<String>, // latest_summary
-        i64,            // unread_event_count
-        i64,            // pending_permission_count
-        i64,            // can_resume_cross_device
-        Option<String>, // claude_session_id
-        String,         // created_at
-        String,         // updated_at
-    );
-
     let session_id_str = id.to_string();
 
-    let row: SessionRow = sqlx::query_as(
+    let row: SessionRecord = sqlx::query_as(
         r#"
         SELECT session_id, title, host_id, workspace_id, agent_type, status,
-               CAST(last_activity_at AS TEXT), latest_summary, unread_event_count,
-               pending_permission_count, CASE WHEN can_resume_cross_device THEN 1 ELSE 0 END,
+               CAST(last_activity_at AS TEXT) AS last_activity_at, latest_summary, unread_event_count,
+               pending_permission_count, CASE WHEN can_resume_cross_device THEN 1 ELSE 0 END AS can_resume_cross_device,
                claude_session_id,
-               CAST(created_at AS TEXT), CAST(updated_at AS TEXT)
+               CAST(created_at AS TEXT) AS created_at, CAST(updated_at AS TEXT) AS updated_at
         FROM sessions WHERE session_id = $1
         "#,
     )
@@ -425,25 +356,25 @@ async fn get_session_by_id(state: Arc<AppState>, id: Uuid) -> Result<Json<Sessio
 
     Ok(Json(Session {
         session_id: id,
-        title: row.1,
-        host_id: parse_uuid(&row.2, "host_id")?,
-        workspace_id: parse_uuid(&row.3, "workspace_id")?,
-        agent_type: row.4,
-        status: utils::parse_session_status(&row.5),
-        last_activity_at: row.6.and_then(|s| {
-            utils::parse_sqlite_timestamp(&s)
+        title: row.title.clone(),
+        host_id: parse_uuid(&row.host_id, "host_id")?,
+        workspace_id: parse_uuid(&row.workspace_id, "workspace_id")?,
+        agent_type: row.agent_type.clone(),
+        status: utils::parse_session_status(&row.status),
+        last_activity_at: row.last_activity_at.as_ref().and_then(|s| {
+            utils::parse_sqlite_timestamp(s)
                 .ok()
                 .map(|d| d.with_timezone(&chrono::Utc))
         }),
-        latest_summary: row.7,
-        unread_event_count: row.8 as i32,
-        pending_permission_count: row.9 as i32,
-        can_resume_cross_device: row.10 != 0,
-        claude_session_id: row.11,
-        created_at: utils::parse_sqlite_timestamp(&row.12)
+        latest_summary: row.latest_summary.clone(),
+        unread_event_count: row.unread_event_count as i32,
+        pending_permission_count: row.pending_permission_count as i32,
+        can_resume_cross_device: row.can_resume_cross_device != 0,
+        claude_session_id: row.claude_session_id.clone(),
+        created_at: utils::parse_sqlite_timestamp(&row.created_at)
             .map_err(|e| ServerError::Internal(format!("Invalid created_at: {}", e)))?
             .with_timezone(&chrono::Utc),
-        updated_at: utils::parse_sqlite_timestamp(&row.13)
+        updated_at: utils::parse_sqlite_timestamp(&row.updated_at)
             .map_err(|e| ServerError::Internal(format!("Invalid updated_at: {}", e)))?
             .with_timezone(&chrono::Utc),
     }))

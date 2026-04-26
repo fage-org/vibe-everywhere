@@ -183,7 +183,8 @@ use crate::utils::{self, extract_request_id, generate_request_id, parse_uuid};
 use crate::validation::{validate_content, validate_idempotency_key, validate_title};
 
 /// Database record for session
-struct SessionRecord {
+#[derive(sqlx::FromRow)]
+pub(crate) struct SessionRecord {
     session_id: String,
     title: String,
     host_id: String,
@@ -243,31 +244,13 @@ fn sqlite_busy_error(error: &sqlx::Error) -> bool {
 
 async fn load_session_for_idempotency(state: &AppState, session_id: Uuid) -> Result<Json<Session>> {
     let session_id_str = session_id.to_string();
-    let row = sqlx::query_as::<
-        _,
-        (
-            String,
-            String,
-            String,
-            String,
-            String,
-            String,
-            Option<String>,
-            Option<String>,
-            i64,
-            i64,
-            i64,
-            Option<String>,
-            String,
-            String,
-        ),
-    >(
+    let row: SessionRecord = sqlx::query_as(
         r#"
         SELECT session_id, title, host_id, workspace_id, agent_type, status,
-               CAST(last_activity_at AS TEXT), latest_summary, unread_event_count,
-               pending_permission_count, CASE WHEN can_resume_cross_device THEN 1 ELSE 0 END,
+               CAST(last_activity_at AS TEXT) AS last_activity_at, latest_summary, unread_event_count,
+               pending_permission_count, CASE WHEN can_resume_cross_device THEN 1 ELSE 0 END AS can_resume_cross_device,
                claude_session_id,
-               CAST(created_at AS TEXT), CAST(updated_at AS TEXT)
+               CAST(created_at AS TEXT) AS created_at, CAST(updated_at AS TEXT) AS updated_at
         FROM sessions WHERE session_id = $1
         "#,
     )
@@ -276,24 +259,7 @@ async fn load_session_for_idempotency(state: &AppState, session_id: Uuid) -> Res
     .await?
     .ok_or(ServerError::NotFound(format!("Session {}", session_id)))?;
 
-    let record = SessionRecord {
-        session_id: row.0,
-        title: row.1,
-        host_id: row.2,
-        workspace_id: row.3,
-        agent_type: row.4,
-        status: row.5,
-        last_activity_at: row.6,
-        latest_summary: row.7,
-        unread_event_count: row.8,
-        pending_permission_count: row.9,
-        can_resume_cross_device: row.10,
-        claude_session_id: row.11,
-        created_at: row.12,
-        updated_at: row.13,
-    };
-
-    Ok(Json(record.to_model()?))
+    Ok(Json(row.to_model()?))
 }
 
 async fn load_existing_idempotent_session(
