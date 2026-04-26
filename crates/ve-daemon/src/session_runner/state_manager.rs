@@ -10,7 +10,63 @@ use super::glob_match::matches_pattern;
 use super::{BridgePermissionResult, DriverEvent, Result, RunnerState, SessionRunner};
 
 impl SessionRunner {
-    /// Update state
+    /// Validate a state transition.
+    ///
+    /// Returns `true` for allowed transitions, derived from actual
+    /// command handler paths.
+    ///
+    /// Allowed transitions:
+    /// - Starting  → Running (driver init ok)
+    /// - Starting  → Error (driver init failed)
+    /// - Starting  → Closed (close command during startup)
+    /// - Running   → WaitingApproval (permission requested)
+    /// - Running   → Paused (pause action)
+    /// - Running   → Closing (close command)
+    /// - Running   → Error (fatal error)
+    /// - Running   → Closed (terminate / close)
+    /// - WaitingApproval → Running (permission resolved)
+    /// - WaitingApproval → Error (fatal error)
+    /// - WaitingApproval → Closed (terminate / close)
+    /// - Paused    → Running (resume / restart)
+    /// - Paused    → Closing (close command)
+    /// - Paused    → Error (fatal error)
+    /// - Paused    → Closed (terminate / close)
+    /// - Error     → Running (restart / rerun)
+    /// - Error     → Closed (close command)
+    /// - Closing   → Closed (close completes)
+    /// - Closed    → (none)
+    fn validate_transition(from: RunnerState, to: RunnerState) -> bool {
+        matches!(
+            (from, to),
+            (RunnerState::Starting, RunnerState::Running | RunnerState::Error | RunnerState::Closed)
+            | (
+                RunnerState::Running,
+                RunnerState::WaitingApproval
+                    | RunnerState::Paused
+                    | RunnerState::Closing
+                    | RunnerState::Error
+                    | RunnerState::Closed
+            )
+            | (
+                RunnerState::WaitingApproval,
+                RunnerState::Running | RunnerState::Error | RunnerState::Closed
+            )
+            | (
+                RunnerState::Paused,
+                RunnerState::Running
+                    | RunnerState::Closing
+                    | RunnerState::Error
+                    | RunnerState::Closed
+            )
+            | (
+                RunnerState::Error,
+                RunnerState::Running | RunnerState::Closed
+            )
+            | (RunnerState::Closing, RunnerState::Closed)
+        )
+    }
+
+    /// Update state with transition validation.
     pub(super) fn update_state(&mut self, new_state: RunnerState) {
         debug!(
             session_id = %self.session_id,
@@ -18,6 +74,14 @@ impl SessionRunner {
             new_state = ?new_state,
             "State transition"
         );
+        if !Self::validate_transition(self.state, new_state) {
+            warn!(
+                session_id = %self.session_id,
+                old_state = ?self.state,
+                new_state = ?new_state,
+                "Invalid state transition"
+            );
+        }
         self.state = new_state;
     }
 
