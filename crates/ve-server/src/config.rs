@@ -3,6 +3,7 @@
 //! Configuration structures and loading logic for the Vibe Everywhere server.
 
 use serde::Deserialize;
+use std::env;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 
@@ -195,55 +196,64 @@ pub enum DatabaseBackend {
 impl Config {
     /// Load configuration from environment variables
     pub fn from_env() -> Result<Self> {
-        let config = config::Config::builder()
-            .set_default("listen_addr", default_listen_addr().to_string())
-            .map_err(ServerError::Config)?
-            .set_default("jwt_expiration_secs", default_jwt_expiration())
-            .map_err(ServerError::Config)?
-            .set_default("pair_code_ttl_secs", default_pair_code_ttl())
-            .map_err(ServerError::Config)?
-            .set_default("heartbeat_interval_secs", default_heartbeat_interval())
-            .map_err(ServerError::Config)?
-            .set_default("connection_timeout_secs", default_connection_timeout())
-            .map_err(ServerError::Config)?
-            .set_default("data_dir", default_data_dir().to_string_lossy().to_string())
-            .map_err(ServerError::Config)?
-            .set_default("cors_origins", Vec::<String>::new())
-            .map_err(ServerError::Config)?
-            .set_default("ack_timeout_ms", default_ack_timeout_ms())
-            .map_err(ServerError::Config)?
-            .set_default("ack_max_retries", default_ack_max_retries())
-            .map_err(ServerError::Config)?
-            .set_default("ack_retry_delay_ms", default_ack_retry_delay_ms())
-            .map_err(ServerError::Config)?
-            .set_default("permission_ttl_secs", default_permission_ttl_secs())
-            .map_err(ServerError::Config)?
-            .set_default(
-                "permission_expiry_check_secs",
-                default_permission_expiry_check_secs(),
-            )
-            .map_err(ServerError::Config)?
-            .set_default("idempotency_ttl_secs", default_idempotency_ttl_secs())
-            .map_err(ServerError::Config)?
-            .set_default(
-                "idempotency_cleanup_secs",
-                default_idempotency_cleanup_secs(),
-            )
-            .map_err(ServerError::Config)?
-            .set_default("log_format", default_log_format())
-            .map_err(ServerError::Config)?
-            .set_default("log_level", default_log_level())
-            .map_err(ServerError::Config)?
-            .add_source(
-                config::Environment::default()
-                    .separator("__")
-                    .try_parsing(true)
-                    .list_separator(","),
-            )
-            .build()
-            .map_err(ServerError::Config)?;
+        let _ = dotenvy::dotenv();
 
-        let mut cfg: Config = config.try_deserialize().map_err(ServerError::Config)?;
+        let listen_addr = env_required_or_default("LISTEN_ADDR", || default_listen_addr().to_string())?
+            .parse()
+            .map_err(|error| {
+                ServerError::Config(config::ConfigError::Message(format!(
+                    "invalid LISTEN_ADDR: {error}"
+                )))
+            })?;
+
+        let mut cfg = Config {
+            listen_addr,
+            database_url: env_required("DATABASE_URL")?,
+            jwt_secret: env_required("JWT_SECRET")?,
+            jwt_expiration_secs: env_parse_or_default("JWT_EXPIRATION_SECS", default_jwt_expiration)?,
+            pair_code_ttl_secs: env_parse_or_default("PAIR_CODE_TTL_SECS", default_pair_code_ttl)?,
+            heartbeat_interval_secs: env_parse_or_default(
+                "HEARTBEAT_INTERVAL_SECS",
+                default_heartbeat_interval,
+            )?,
+            connection_timeout_secs: env_parse_or_default(
+                "CONNECTION_TIMEOUT_SECS",
+                default_connection_timeout,
+            )?,
+            data_dir: PathBuf::from(env_required_or_default("DATA_DIR", || {
+                default_data_dir().to_string_lossy().to_string()
+            })?),
+            cors_origins: env::var("CORS_ORIGINS")
+                .unwrap_or_default()
+                .split(',')
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+                .collect(),
+            ack_timeout_ms: env_parse_or_default("ACK_TIMEOUT_MS", default_ack_timeout_ms)?,
+            ack_max_retries: env_parse_or_default("ACK_MAX_RETRIES", default_ack_max_retries)?,
+            ack_retry_delay_ms: env_parse_or_default(
+                "ACK_RETRY_DELAY_MS",
+                default_ack_retry_delay_ms,
+            )?,
+            permission_ttl_secs: env_parse_or_default(
+                "PERMISSION_TTL_SECS",
+                default_permission_ttl_secs,
+            )?,
+            permission_expiry_check_secs: env_parse_or_default(
+                "PERMISSION_EXPIRY_CHECK_SECS",
+                default_permission_expiry_check_secs,
+            )?,
+            idempotency_ttl_secs: env_parse_or_default(
+                "IDEMPOTENCY_TTL_SECS",
+                default_idempotency_ttl_secs,
+            )?,
+            idempotency_cleanup_secs: env_parse_or_default(
+                "IDEMPOTENCY_CLEANUP_SECS",
+                default_idempotency_cleanup_secs,
+            )?,
+            log_format: env_required_or_default("LOG_FORMAT", default_log_format)?,
+            log_level: env_required_or_default("LOG_LEVEL", default_log_level)?,
+        };
 
         // Trim whitespace from CORS origins
         cfg.cors_origins = cfg
@@ -359,6 +369,37 @@ impl Config {
         } else {
             DatabaseBackend::Sqlite
         }
+    }
+}
+
+fn env_required(key: &str) -> Result<String> {
+    env::var(key).map_err(|_| {
+        ServerError::Config(config::ConfigError::Message(format!(
+            "missing required environment variable {key}"
+        )))
+    })
+}
+
+fn env_required_or_default<F>(key: &str, default: F) -> Result<String>
+where
+    F: FnOnce() -> String,
+{
+    Ok(env::var(key).unwrap_or_else(|_| default()))
+}
+
+fn env_parse_or_default<T, F>(key: &str, default: F) -> Result<T>
+where
+    T: std::str::FromStr,
+    T::Err: std::fmt::Display,
+    F: FnOnce() -> T,
+{
+    match env::var(key) {
+        Ok(raw) => raw.parse::<T>().map_err(|error| {
+            ServerError::Config(config::ConfigError::Message(format!(
+                "invalid {key}: {error}"
+            )))
+        }),
+        Err(_) => Ok(default()),
     }
 }
 

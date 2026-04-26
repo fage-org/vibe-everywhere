@@ -41,6 +41,7 @@ hex = { workspace = true }
 ed25519-dalek = { workspace = true }
 subtle = { workspace = true }
 config = "0.14"
+dotenvy = "0.15"
 
 # Local dependencies
 ve-shared = { path = "../ve-shared" }

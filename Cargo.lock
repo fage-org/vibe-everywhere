@@ -3361,6 +3361,7 @@ dependencies = [
  "chrono",
  "config",
  "dashmap",
+ "dotenvy",
  "ed25519-dalek",
  "futures",
  "governor",
